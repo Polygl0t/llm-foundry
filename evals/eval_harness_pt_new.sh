@@ -45,7 +45,7 @@ source $workdir/.venv_eval_pt/bin/activate  # <-- Activate the virtual environme
 
 # UNCOMMENT the following lines on first run to set up lm-evaluation-harness:
 # This is our fork of the lm-evaluation-harness with Portuguese tasks added
-# git clone --branch polyglot_harness_portuguese https://github.com/Nkluge-correa/lm-evaluation-harness.git
+# git clone --branch polyglot_harness_portuguese https://github.com/Polygl0t/lm-evaluation-harness.git
 # mv $workdir/lm-evaluation-harness $workdir/lm_evaluation_harness
 # pip3 install -e $workdir/lm_evaluation_harness
 # pip3 install "lm_eval[hf,vllm]"          # <-- Install lm-eval with HuggingFace and vLLM support
