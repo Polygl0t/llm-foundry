@@ -1,0 +1,41 @@
+dup_line_frac: 0.69
+dup_n_grams:
+- - 5
+  - 0.498
+- - 6
+  - 0.47
+- - 7
+  - 0.447
+- - 8
+  - 0.419
+- - 9
+  - 0.4
+- - 10
+  - 0.373
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.778
+min_avg_word_length: 3
+new_line_ratio: 0.1
+stopwords:
+- nga
+- i
+- ta
+- na
+- ira
+- tu
+- anna
+- ni
+- nu
+- jehova
+- tam
+- ari
+- anni
+top_n_grams:
+- - 2
+  - 1.328
+- - 3
+  - 1.35
+- - 4
+  - 1.247

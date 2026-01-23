@@ -1,0 +1,48 @@
+dup_line_frac: 0.35
+dup_n_grams:
+- - 5
+  - 0.331
+- - 6
+  - 0.325
+- - 7
+  - 0.314
+- - 8
+  - 0.299
+- - 9
+  - 0.281
+- - 10
+  - 0.262
+language_score: 0.782
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.812
+min_avg_word_length: 3
+new_line_ratio: 0.056
+stopwords:
+- la
+- sou
+- 'no'
+- anu
+- ne
+- ta
+- mo
+- ane
+- lexe
+- noxou
+- uasi
+- mitema
+- aloxo
+- xe
+- lataua
+- ia
+- eni
+- vile
+- "\uA78Co"
+- ngingi
+top_n_grams:
+- - 2
+  - 0.332
+- - 3
+  - 0.299
+- - 4
+  - 0.247

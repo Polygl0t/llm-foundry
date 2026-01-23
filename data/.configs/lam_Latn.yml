@@ -1,0 +1,41 @@
+dup_line_frac: 0.813
+dup_n_grams:
+- - 5
+  - 0.683
+- - 6
+  - 0.688
+- - 7
+  - 0.647
+- - 8
+  - 0.626
+- - 9
+  - 0.608
+- - 10
+  - 0.511
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 16
+max_non_alpha_words_ratio: 0.75
+min_avg_word_length: 2
+new_line_ratio: 0.111
+stopwords:
+- na
+- ati
+- wa
+- "\u0269"
+- ka
+- ne
+- kani
+- pakuti
+- "s\u025B"
+- mu
+- kuli
+- pa
+- taa
+top_n_grams:
+- - 2
+  - 2.196
+- - 3
+  - 2.275
+- - 4
+  - 2.19

@@ -1,0 +1,49 @@
+dup_line_frac: 0.502
+dup_n_grams:
+- - 5
+  - 0.435
+- - 6
+  - 0.416
+- - 7
+  - 0.398
+- - 8
+  - 0.383
+- - 9
+  - 0.361
+- - 10
+  - 0.33
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 6
+max_non_alpha_words_ratio: 0.8
+min_avg_word_length: 2
+new_line_ratio: 0.05
+stopwords:
+- xa
+- e
+- xil
+- ni
+- di
+- moletin
+- ti
+- ak
+- te
+- tengan
+- hi
+- mi
+- melele
+- ngan
+- na
+- tei
+- xamim
+- be
+- iesu
+- nan
+- xi
+top_n_grams:
+- - 2
+  - 1.56
+- - 3
+  - 1.609
+- - 4
+  - 1.499

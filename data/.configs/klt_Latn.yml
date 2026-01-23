@@ -1,0 +1,53 @@
+dup_line_frac: 0.357
+dup_n_grams:
+- - 5
+  - 0.23
+- - 6
+  - 0.216
+- - 7
+  - 0.199
+- - 8
+  - 0.178
+- - 9
+  - 0.158
+- - 10
+  - 0.141
+language_score: 0.404
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.812
+min_avg_word_length: 3
+new_line_ratio: 0.059
+stopwords:
+- "y\xE1"
+- wa
+- ku
+- "\xE1mna"
+- me
+- "w\xE1ina"
+- "wat\xE1"
+- wawu
+- "k\xE1in"
+- jesu
+- "h\xE1n\xE1m"
+- wata
+- "y\xE1ni"
+- ingga
+- "k\xE1man"
+- "h\xE1ra"
+- "t\xE1wi"
+- "t\xE1ngga"
+- ma
+- "n\xE1r\xE1wa"
+- yan
+- "k\xE1m\xE1"
+- "t\xE1ng"
+- ing
+- wu
+top_n_grams:
+- - 2
+  - 0.69
+- - 3
+  - 0.651
+- - 4
+  - 0.533

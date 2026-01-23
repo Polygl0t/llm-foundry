@@ -1,0 +1,41 @@
+dup_line_frac: 0.914
+dup_n_grams:
+- - 5
+  - 0.386
+- - 6
+  - 0.367
+- - 7
+  - 0.341
+- - 8
+  - 0.31
+- - 9
+  - 0.286
+- - 10
+  - 0.261
+language_score: 0.3
+line_punct_thr: 0.19
+max_avg_word_length: 11
+max_non_alpha_words_ratio: 0.658
+min_avg_word_length: 3
+new_line_ratio: 0.211
+stopwords:
+- na
+- ga
+- tay
+- sa
+- hya
+- ru
+- qu
+- nya
+- kawas
+- maki
+- nqu
+- biru
+- kwara
+top_n_grams:
+- - 2
+  - 0.628
+- - 3
+  - 0.669
+- - 4
+  - 0.527

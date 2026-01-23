@@ -1,0 +1,55 @@
+dup_line_frac: 0.336
+dup_n_grams:
+- - 5
+  - 0.223
+- - 6
+  - 0.204
+- - 7
+  - 0.181
+- - 8
+  - 0.173
+- - 9
+  - 0.17
+- - 10
+  - 0.139
+language_score: 0.654
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.806
+min_avg_word_length: 2
+new_line_ratio: 0.056
+stopwords:
+- vu
+- yi
+- "b\xEB"
+- "s\xEBn"
+- ham
+- lo
+- in
+- alam
+- sa
+- lob
+- "r\xEBk\u0323"
+- su
+- "r\xEB"
+- anutu
+- "s\xEBn\xEB"
+- og
+- "nab\xEB"
+- sir
+- hil
+- pin
+- "ng\u0307aa"
+- "lok\u0323"
+- "g\u0307ag\u0307ek"
+- log
+- "rak\u0323"
+- los
+- ti
+top_n_grams:
+- - 2
+  - 0.57
+- - 3
+  - 0.615
+- - 4
+  - 0.291

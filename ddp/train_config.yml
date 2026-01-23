@@ -1,0 +1,89 @@
+# Directory settings
+checkpoint_dir: "path/to/the/checkpoint/folder"
+train_dataset_dir:
+  - "path/to/a/folder/with/jsonl/or/parquet/files"
+val_dataset_dir: "path/to/a/folder/with/jsonl/or/parquet/files"
+dataset_type: "parquet"
+cache_dir: "path/to/the/.cache"
+
+# Data loading settings
+pin_memory: true
+num_workers_for_dataloader: 32
+prefetch_factor: 4
+shuffle_dataset: true
+mask_eos_token: false
+mask_pad_token: false
+
+# Model architecture settings
+vocab_size: 49152
+num_hidden_layers: 28
+num_attention_heads: 16
+num_key_value_heads: 8
+head_dim: null
+hidden_size: 1536
+intermediate_size: 3072
+max_position_embeddings: 4096
+tie_word_embeddings: true
+hidden_act: "silu"
+output_hidden_states: false
+attn_implementation: "flash_attention_2"
+use_cache: false
+no_rope_layer_interval: null
+rope_theta: 50000.0
+rope_scale_factor: null
+rms_norm_eps: 0.000001
+
+# Training settings
+total_batch_size: 2097152
+micro_batch_size: 16
+eval_micro_batch_size: 8
+num_train_epochs: 1
+warmup_steps: 2000
+max_learning_rate: 0.0007
+min_learning_rate: 0.00007
+muon_learning_rate: 0.02
+weight_decay: 0.1
+beta1: 0.9
+beta2: 0.95
+eps: 0.00000001
+lr_decay_type: "wsd"
+use_sqrt: false
+lr_decay_iters_coef: 0.1
+seed: 1337
+max_steps: 12000
+max_grad_norm: 1.0
+
+# Precision and optimization settings
+# `torch_compile` is slower than `use_liger_kernel`
+torch_compile: false
+mat_mul_precision: "highest"
+tf32: true
+bf16: true
+gradient_checkpointing: false
+use_liger_kernel: true
+static_graph: false
+
+# Hub settings
+push_to_hub: false
+hub_token: null
+hub_model_id: null
+
+# Tokenizer and Reference model
+tokenizer_name_or_path: "path/to/a/tokenizer"
+chat_template_path: null
+reference_model: "HuggingFaceTB/SmolLM2-360M"
+continual_pretraining: false
+
+# Checkpoint settings
+resume_from_checkpoint: null
+checkpointing_steps: 1000
+begin_new_stage: false
+stage_name: "Warmup-Stable-LDecay"
+
+# Miscellaneous settings
+sanity_check: false
+sanity_check_num_samples: 100000
+wandb_token: null
+wandb_id: "llm-670m-wsd"
+wandb_project: "Polyglot"
+wandb_desc: "Developing LLMs for low-resource languages."

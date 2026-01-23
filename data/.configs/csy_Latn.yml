@@ -1,0 +1,47 @@
+dup_line_frac: 0.47
+dup_n_grams:
+- - 5
+  - 0.321
+- - 6
+  - 0.303
+- - 7
+  - 0.292
+- - 8
+  - 0.246
+- - 9
+  - 0.228
+- - 10
+  - 0.212
+language_score: 0.527
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.833
+min_avg_word_length: 2
+new_line_ratio: 0.062
+stopwords:
+- hi
+- a
+- in
+- tu
+- uh
+- sia
+- na
+- hong
+- le
+- ka
+- ah
+- ci
+- ama
+- ngawl
+- amate
+- ii
+- tua
+- taw
+- khat
+top_n_grams:
+- - 2
+  - 0.904
+- - 3
+  - 0.85
+- - 4
+  - 0.72

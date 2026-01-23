@@ -1,0 +1,50 @@
+dup_line_frac: 0.529
+dup_n_grams:
+- - 5
+  - 0.42
+- - 6
+  - 0.409
+- - 7
+  - 0.36
+- - 8
+  - 0.327
+- - 9
+  - 0.302
+- - 10
+  - 0.278
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.793
+min_avg_word_length: 2
+new_line_ratio: 0.059
+stopwords:
+- a
+- ngi
+- na
+- i
+- ti
+- "na\u014B"
+- "ta\u014B"
+- le
+- mizli
+- ta
+- da
+- "\u0253a"
+- sa
+- gwat
+- ki
+- ar
+- gar
+- ati
+- mbur
+- "\u0253i"
+- ya
+- yo
+top_n_grams:
+- - 2
+  - 1.458
+- - 3
+  - 1.606
+- - 4
+  - 1.596

@@ -1,0 +1,59 @@
+dup_line_frac: 0.166
+dup_n_grams:
+- - 5
+  - 0.112
+- - 6
+  - 0.107
+- - 7
+  - 0.103
+- - 8
+  - 0.101
+- - 9
+  - 0.093
+- - 10
+  - 0.088
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.667
+min_avg_word_length: 2
+new_line_ratio: 0.25
+stopwords:
+- d
+- s
+- ur
+- wa
+- n
+- "re\u0263"
+- "da\u0263"
+- ad
+- "tame\u1E6D"
+- i
+- ma
+- full
+- ales
+- a
+- nek
+- nit
+- amis
+- "\u0263ur"
+- wi
+- haret
+- t
+- tufat
+- ta
+- iyen
+- as
+- ahel
+- awa
+- ar
+- nnit
+- "\xE9d"
+- ax
+top_n_grams:
+- - 2
+  - 1.393
+- - 3
+  - 1.224
+- - 4
+  - 0.861

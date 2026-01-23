@@ -1,0 +1,45 @@
+dup_line_frac: 0.985
+dup_n_grams:
+- - 5
+  - 0.735
+- - 6
+  - 0.724
+- - 7
+  - 0.704
+- - 8
+  - 0.666
+- - 9
+  - 0.635
+- - 10
+  - 0.599
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 12
+max_non_alpha_words_ratio: 0.739
+min_avg_word_length: 4
+new_line_ratio: 0.067
+stopwords:
+- axta
+- nak
+- ma'a
+- m'a
+- sa
+- "ch\xE1'a"
+- han
+- "t\xE9n"
+- wesse
+- aqsok
+- "\xE9nxet'\xE1k"
+- ko'o
+- "ke\xF1e"
+- apagkok
+- dios
+- nahan
+- xama
+top_n_grams:
+- - 2
+  - 1.618
+- - 3
+  - 1.869
+- - 4
+  - 1.84

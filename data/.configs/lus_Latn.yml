@@ -1,0 +1,43 @@
+dup_line_frac: 0.318
+dup_n_grams:
+- - 5
+  - 0.196
+- - 6
+  - 0.165
+- - 7
+  - 0.15
+- - 8
+  - 0.139
+- - 9
+  - 0.13
+- - 10
+  - 0.119
+language_score: 0.623
+line_punct_thr: -1
+max_avg_word_length: 10
+max_non_alpha_words_ratio: 0.778
+min_avg_word_length: 2
+new_line_ratio: 0.1
+stopwords:
+- a
+- chu
+- ni
+- chuan
+- an
+- kan
+- leh
+- lo
+- a.
+- ang
+- mi
+- nge
+- tak
+- pathian
+- tih
+top_n_grams:
+- - 2
+  - 0.896
+- - 3
+  - 0.66
+- - 4
+  - 0.433

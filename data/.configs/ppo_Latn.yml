@@ -1,0 +1,46 @@
+dup_line_frac: 0.272
+dup_n_grams:
+- - 5
+  - 0.088
+- - 6
+  - 0.085
+- - 7
+  - 0.066
+- - 8
+  - 0.065
+- - 9
+  - 0.062
+- - 10
+  - 0.043
+language_score: 0.724
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.781
+min_avg_word_length: 3
+new_line_ratio: 0.048
+stopwords:
+- mo
+- ai
+- ala
+- fo
+- "whi\u0327"
+- so
+- ti
+- betere
+- ama
+- kaae
+- i
+- dere
+- kale
+- "k\xF3t\xF3n\xE9"
+- "yalep\xF3"
+- "a\u0327"
+- kisipa
+- du
+top_n_grams:
+- - 2
+  - 0.239
+- - 3
+  - 0.216
+- - 4
+  - 0.186

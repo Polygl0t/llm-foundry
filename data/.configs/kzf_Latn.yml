@@ -1,0 +1,48 @@
+dup_line_frac: 0.871
+dup_n_grams:
+- - 5
+  - 0.631
+- - 6
+  - 0.617
+- - 7
+  - 0.589
+- - 8
+  - 0.568
+- - 9
+  - 0.536
+- - 10
+  - 0.5
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.792
+min_avg_word_length: 4
+new_line_ratio: 0.062
+stopwords:
+- to
+- etu
+- ri
+- komi
+- ira
+- tau
+- pade
+- ka
+- i'a
+- da'a
+- alatala
+- ante
+- yesus
+- aku
+- nggari
+- kana
+- i
+- tapi
+- bo
+- sabana
+top_n_grams:
+- - 2
+  - 1.479
+- - 3
+  - 1.393
+- - 4
+  - 1.396

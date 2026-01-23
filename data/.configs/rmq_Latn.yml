@@ -1,0 +1,48 @@
+dup_line_frac: 0.867
+dup_n_grams:
+- - 5
+  - 0.37
+- - 6
+  - 0.356
+- - 7
+  - 0.337
+- - 8
+  - 0.321
+- - 9
+  - 0.303
+- - 10
+  - 0.284
+language_score: 0.424
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.782
+min_avg_word_length: 3
+new_line_ratio: 0.071
+stopwords:
+- y
+- de
+- "\xE1"
+- o
+- que
+- os
+- "andr\xE9"
+- sos
+- na
+- se
+- le
+- a
+- "pen\xF3"
+- la
+- yeque
+- "\xF3"
+- ta
+- sangue
+- sinela
+- presas
+top_n_grams:
+- - 2
+  - 0.7
+- - 3
+  - 0.739
+- - 4
+  - 0.58

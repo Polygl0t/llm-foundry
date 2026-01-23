@@ -1,0 +1,49 @@
+dup_line_frac: 0.595
+dup_n_grams:
+- - 5
+  - 0.394
+- - 6
+  - 0.379
+- - 7
+  - 0.371
+- - 8
+  - 0.341
+- - 9
+  - 0.323
+- - 10
+  - 0.297
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 13
+max_non_alpha_words_ratio: 0.765
+min_avg_word_length: 4
+new_line_ratio: 0.067
+stopwords:
+- "ch\xEB"
+- y
+- "b\xEBngbe"
+- "ndo\xF1e"
+- ca
+- "nts\u0308amo"
+- chca
+- cha
+- "b\xEBts\xE1"
+- "ats\u0308e"
+- "ents\u0308anga"
+- ora
+- "can\xFFe"
+- "soy\xEBnga"
+- "ts\u0308\xEBngaftanga"
+- mo
+- pero
+- "jes\xFAs"
+- "ch\xEBnga"
+- chabe
+- "b\xEBtsabe"
+top_n_grams:
+- - 2
+  - 1.073
+- - 3
+  - 0.983
+- - 4
+  - 0.811

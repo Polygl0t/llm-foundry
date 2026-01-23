@@ -1,0 +1,42 @@
+dup_line_frac: 0.957
+dup_n_grams:
+- - 5
+  - 0.394
+- - 6
+  - 0.377
+- - 7
+  - 0.364
+- - 8
+  - 0.34
+- - 9
+  - 0.311
+- - 10
+  - 0.286
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.75
+min_avg_word_length: 2
+new_line_ratio: 0.05
+stopwords:
+- ni
+- i
+- to
+- hi
+- da
+- a
+- di
+- ida
+- hota
+- tan
+- nan
+- wada
+- ina
+- an
+top_n_grams:
+- - 2
+  - 1.155
+- - 3
+  - 1.287
+- - 4
+  - 1.291

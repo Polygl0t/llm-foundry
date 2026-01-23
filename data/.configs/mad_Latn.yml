@@ -1,0 +1,53 @@
+dup_line_frac: 0.515
+dup_n_grams:
+- - 5
+  - 0.386
+- - 6
+  - 0.362
+- - 7
+  - 0.336
+- - 8
+  - 0.31
+- - 9
+  - 0.284
+- - 10
+  - 0.258
+language_score: 0.3
+line_punct_thr: 0.071
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.717
+min_avg_word_length: 4
+new_line_ratio: 0.157
+stopwords:
+- "\xE8"
+- "b\xE2n"
+- "s\xE8"
+- "ar\xE8ya"
+- ka
+- "iy\xE2"
+- "pan\xE8ka"
+- taon
+- "\u1E0D\xE2ri"
+- "kalab\xE2n"
+- "s\xE8ttong"
+- "or\xE8ng"
+- sala
+- "dh\xE2ddhi"
+- indonesia
+- "otab\xE2"
+- sareng
+- "m\xE8nangka"
+- "bh\xE2sa"
+- "nagh\xE2r\xE2"
+- neng
+- "b\xE2\u1E0D\xE2"
+- jakarta
+- al
+- bi
+top_n_grams:
+- - 2
+  - 0.899
+- - 3
+  - 0.85
+- - 4
+  - 0.753

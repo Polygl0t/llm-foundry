@@ -1,0 +1,37 @@
+dup_line_frac: 0.685
+dup_n_grams:
+- - 5
+  - 0.395
+- - 6
+  - 0.369
+- - 7
+  - 0.346
+- - 8
+  - 0.319
+- - 9
+  - 0.294
+- - 10
+  - 0.272
+language_score: 0.3
+line_punct_thr: 0.2
+max_avg_word_length: 14
+max_non_alpha_words_ratio: 0.669
+min_avg_word_length: 3
+new_line_ratio: 0.144
+stopwords:
+- om
+- i
+- da
+- vl
+- oli
+- km
+- oma
+- lidnan
+- lidn
+top_n_grams:
+- - 2
+  - 0.935
+- - 3
+  - 0.77
+- - 4
+  - 0.77

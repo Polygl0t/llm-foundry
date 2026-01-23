@@ -1,0 +1,50 @@
+dup_line_frac: 1.08
+dup_n_grams:
+- - 5
+  - 0.785
+- - 6
+  - 0.775
+- - 7
+  - 0.789
+- - 8
+  - 0.736
+- - 9
+  - 0.724
+- - 10
+  - 0.719
+language_score: 0.485
+line_punct_thr: -1
+max_avg_word_length: 11
+max_non_alpha_words_ratio: 0.789
+min_avg_word_length: 4
+new_line_ratio: 0.143
+stopwords:
+- o
+- re
+- ehi
+- pain
+- kariba
+- kari
+- se
+- pare
+- ra
+- madhya
+- karithile
+- boli
+- saha
+- eka
+- tanka
+- tebe
+- ebam
+- mrutyu
+- nei
+- dina
+- nka
+- eha
+top_n_grams:
+- - 2
+  - 2.287
+- - 3
+  - 2.961
+- - 4
+  - 3.456

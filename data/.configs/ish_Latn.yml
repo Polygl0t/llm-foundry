@@ -1,0 +1,51 @@
+dup_line_frac: 0.33
+dup_n_grams:
+- - 5
+  - 0.236
+- - 6
+  - 0.223
+- - 7
+  - 0.207
+- - 8
+  - 0.194
+- - 9
+  - 0.176
+- - 10
+  - 0.161
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.8
+min_avg_word_length: 2
+new_line_ratio: 0.091
+stopwords:
+- nin
+- ha
+- mhan
+- "r\u1EB9"
+- "\u1ECDle"
+- bhi
+- da
+- ele
+- re
+- "n\u1ECDn"
+- nan
+- "\u1ECDne"
+- emhin
+- "y\u1EB9"
+- ghe
+- ne
+- lu
+- "uw\u1EB9"
+- bha
+- "sab\u1ECD"
+- ene
+- jehova
+- ki
+top_n_grams:
+- - 2
+  - 1.25
+- - 3
+  - 1.187
+- - 4
+  - 1.045

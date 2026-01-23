@@ -1,0 +1,62 @@
+dup_line_frac: 0.515
+dup_n_grams:
+- - 5
+  - 0.248
+- - 6
+  - 0.234
+- - 7
+  - 0.211
+- - 8
+  - 0.193
+- - 9
+  - 0.177
+- - 10
+  - 0.139
+language_score: 0.3
+line_punct_thr: 0.0
+max_avg_word_length: 18
+max_non_alpha_words_ratio: 0.83
+min_avg_word_length: 2
+new_line_ratio: 0.222
+stopwords:
+- kan
+- fi
+- akka
+- hin
+- keessatti
+- yoo
+- yeroo
+- tokko
+- isaa
+- kana
+- keessa
+- waan
+- gara
+- itti
+- irratti
+- irraa
+- bara
+- ykn
+- ture
+- keessaa
+- kun
+- dha
+- oromoo
+- ta'u
+- qabu
+- afaan
+- bakka
+- jiru
+- ni
+- nama
+- of
+- isa
+- garuu
+- isaanii
+top_n_grams:
+- - 2
+  - 0.905
+- - 3
+  - 0.738
+- - 4
+  - 0.551

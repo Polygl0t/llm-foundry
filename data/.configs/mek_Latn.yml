@@ -1,0 +1,47 @@
+dup_line_frac: 0.688
+dup_n_grams:
+- - 5
+  - 0.507
+- - 6
+  - 0.499
+- - 7
+  - 0.484
+- - 8
+  - 0.457
+- - 9
+  - 0.431
+- - 10
+  - 0.405
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.8
+min_avg_word_length: 3
+new_line_ratio: 0.059
+stopwords:
+- ke
+- auga
+- ega
+- deo
+- isa
+- kai
+- oi
+- koa
+- iesu
+- aisama
+- lau
+- papiau
+- mo
+- au'i
+- ega'ina
+- eoma
+- iifa
+- puo
+- aga'o
+top_n_grams:
+- - 2
+  - 0.878
+- - 3
+  - 0.979
+- - 4
+  - 0.848

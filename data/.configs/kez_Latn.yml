@@ -1,0 +1,44 @@
+dup_line_frac: 0.235
+dup_n_grams:
+- - 5
+  - 0.202
+- - 6
+  - 0.199
+- - 7
+  - 0.17
+- - 8
+  - 0.162
+- - 9
+  - 0.151
+- - 10
+  - 0.139
+language_score: 0.759
+line_punct_thr: -1
+max_avg_word_length: 10
+max_non_alpha_words_ratio: 0.75
+min_avg_word_length: 3
+new_line_ratio: 0.071
+stopwords:
+- ka
+- a
+- la
+- "\u0254l\u0254\u0254m\u0254l\u0254\u0254m"
+- "bal\u0254\u0254t"
+- baang
+- ba
+- wa
+- "\u0254l\u0254\u0254t"
+- "amm\u025B"
+- "\u0254tt\u025B"
+- jesus
+- "\u0254kkp\u025Bl\u025B"
+- kwa
+- "vven\u025B"
+- mung
+top_n_grams:
+- - 2
+  - 0.265
+- - 3
+  - 0.185
+- - 4
+  - 0.171

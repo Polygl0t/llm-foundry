@@ -1,0 +1,54 @@
+dup_line_frac: 0.265
+dup_n_grams:
+- - 5
+  - 0.224
+- - 6
+  - 0.22
+- - 7
+  - 0.21
+- - 8
+  - 0.2
+- - 9
+  - 0.189
+- - 10
+  - 0.175
+language_score: 0.718
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.8
+min_avg_word_length: 2
+new_line_ratio: 0.077
+stopwords:
+- ka
+- ye
+- o
+- a
+- ko
+- ni
+- be
+- la
+- "k\u025B"
+- ta
+- an
+- na
+- min
+- ne
+- i
+- tun
+- aw
+- u
+- ala
+- ma
+- ani
+- ra
+- "b\u025B\u025B"
+- "f\u0254"
+- "b\u025B"
+- "k\u2019a"
+top_n_grams:
+- - 2
+  - 0.423
+- - 3
+  - 0.308
+- - 4
+  - 0.25

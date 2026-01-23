@@ -1,0 +1,48 @@
+dup_line_frac: 0.046
+dup_n_grams:
+- - 5
+  - 0.173
+- - 6
+  - 0.153
+- - 7
+  - 0.138
+- - 8
+  - 0.134
+- - 9
+  - 0.127
+- - 10
+  - 0.101
+language_score: 0.633
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.696
+min_avg_word_length: 3
+new_line_ratio: 0.053
+stopwords:
+- ca
+- "nuc\xEBn"
+- ain
+- papa
+- "a\xEDn"
+- a
+- uni
+- "ic\xEB"
+- "ic\xEBn"
+- quixun
+- an
+- camina
+- bana
+- "\xF1u"
+- cana
+- diosan
+- oquin
+- unicama
+- usa
+- ax
+top_n_grams:
+- - 2
+  - 0.388
+- - 3
+  - 0.355
+- - 4
+  - 0.313

@@ -1,0 +1,119 @@
+# ============================================================================
+# FSDP with Context Parallelism (CP) Configuration for Long Context Training
+# ============================================================================
+# This configuration enables Context Parallelism alongside FSDP for training
+# models with very long sequences (e.g., 32K+ tokens).
+# Context Parallelism splits the sequence dimension across GPUs, while FSDP
+# shards model parameters, allowing training with sequences longer than what
+# a single GPU can handle.
+# More configs: https://github.com/huggingface/trl/blob/main/examples/accelerate_configs
+# Accelerate Documentation: https://huggingface.co/docs/accelerate/package_reference/cli
+# ============================================================================
+
+# Compute Environment Configuration
+# ----------------------------------
+compute_environment: LOCAL_MACHINE
+debug: false                        # Enable debug mode for verbose logging (set to true for debugging)
+distributed_type: FSDP              # Distributed training type: FSDP (Fully Sharded Data Parallel)
+enable_cpu_affinity: true           # Enable CPU affinity for better NUMA performance
+
+# FSDP-Specific Configuration
+# ----------------------------
+fsdp_config:
+  # Activation Checkpointing: Essential for long context to reduce memory
+  # Trades compute for memory by recomputing activations during backward pass
+  # Set to true here because long sequences require maximum memory efficiency
+  fsdp_activation_checkpointing: true
+  
+  # Auto-wrap Policy: Determines how model layers are wrapped for sharding
+  # TRANSFORMER_BASED_WRAP: Automatically wraps transformer layers
+  fsdp_auto_wrap_policy: TRANSFORMER_BASED_WRAP
+  
+  # Reduces CPU memory usage during model initialization
+  fsdp_cpu_ram_efficient_loading: true
+  
+  # Parameter Offloading: Keep disabled for performance
+  # Long context training is already slow; avoid additional CPU-GPU transfers
+  fsdp_offload_params: false
+  
+  # Reshard After Forward: Free full parameters after forward pass
+  # Maximizes memory efficiency (equivalent to ZeRO Stage 3)
+  fsdp_reshard_after_forward: true
+  
+  # State Dict Type: How model checkpoints are saved
+  # FULL_STATE_DICT: Gather full model on rank 0 for easy loading
+  fsdp_state_dict_type: FULL_STATE_DICT
+  
+  # FSDP Version: Use FSDP2 for better performance
+  fsdp_version: 2
+
+# Multi-Node Configuration
+# -------------------------
+machine_rank: 0                     # Rank of this machine in multi-node setup (0 for single-node)
+main_process_ip: null               # IP address of the main process (null for automatic detection)
+main_process_port: null             # Port for inter-process communication (null for automatic)
+main_training_function: main        # Entry point function name in your training script
+num_machines: 1                     # Total number of machines/nodes in the cluster
+gpu_ids: all                        # Specify GPU IDs to use (all = use all available GPUs)
+num_processes: 4                    # Number of GPUs/processes to use (typically equals number of GPUs)
+                                    # For multi-node: num_machines * GPUs_per_machine
+
+# Distributed Backend Configuration
+# ------------------------
+rdzv_backend: static                # Rendezvous backend for multi-node setup (static for fixed IP/port)
+same_network: true                  # Whether all machines are on the same network (true for single-node)
+
+
+# Precision Configuration
+# -----------------------
+mixed_precision: bf16               # Mixed precision training mode
+                                    # Options: "no" (fp32), "fp16", "bf16" (recommended for A100/H100)
+                                    # bf16 provides better numerical stability than fp16
+                                    # Reduces memory usage and speeds up training
+downcast_bf16: 'no'                 # Whether when using bf16 precision on TPUs if both float and double 
+                                    # tensors are cast to bfloat16 or if double tensors remain as float32.
+
+# TPU Configuration
+# -----------------------------------
+tpu_env: []                         # TPU-specific environment variables (leave empty for GPU training)
+tpu_use_cluster: false              # Use TPU cluster (false for GPU training)
+tpu_use_sudo: false                 # Require sudo for TPU operations (false for GPU training)
+
+# CPU Training
+# ------------
+use_cpu: false                      # Use CPU instead of GPU (false for GPU training)
+
+# ============================================================================
+# Context Parallelism Configuration
+# ============================================================================
+# This section configures how parallelism is distributed across dimensions:
+# - Data Parallel (DP): Splits batches across GPUs
+# - Tensor Parallel (TP): Splits model layers across GPUs
+# - Context Parallel (CP): Splits sequence length across GPUs (key for long context)
+# ============================================================================
+parallelism_config:
+  # Data Parallel - Replicate Dimension
+  # Number of full model replicas for data parallelism
+  # Set to 1 when using other parallelism forms
+  parallelism_config_dp_replicate_size: 1
+  
+  # Data Parallel - Shard Dimension
+  # FSDP sharding factor within each data parallel group
+  # Set to 1 to let FSDP handle sharding automatically
+  parallelism_config_dp_shard_size: 1
+  
+  # Tensor Parallel Size
+  # Number of GPUs to split each transformer layer across
+  # Set to 1 (disabled) - tensor parallelism adds communication overhead
+  # Only use TP for very large models that don't fit on a single GPU
+  parallelism_config_tp_size: 1
+  
+  # Context Parallel Size (KEY SETTING FOR LONG SEQUENCES)
+  # Number of GPUs to split the sequence dimension across
+  # Set to 4: Each GPU processes seq_len/4 tokens
+  # Example: 128K sequence → 32K tokens per GPU
+  # This is essential for training with sequences longer than GPU memory allows
+  parallelism_config_cp_size: 4
+  
+  # CONSTRAINT: dp_replicate * dp_shard * tp * cp MUST equal num_processes
+  # Current: 1 * 1 * 1 * 4 = 4 ✓

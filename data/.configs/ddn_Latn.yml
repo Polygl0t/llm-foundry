@@ -1,0 +1,60 @@
+dup_line_frac: 0.906
+dup_n_grams:
+- - 5
+  - 0.642
+- - 6
+  - 0.625
+- - 7
+  - 0.627
+- - 8
+  - 0.597
+- - 9
+  - 0.579
+- - 10
+  - 0.578
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 6
+max_non_alpha_words_ratio: 0.85
+min_avg_word_length: 2
+new_line_ratio: 0.062
+stopwords:
+- "k\u0251"
+- "\u0251\u0300"
+- yom
+- "n\u0300"
+- "s\u025B"
+- "n\u0251"
+- "nd\u0251"
+- wom
+- "m\u0251"
+- go
+- di
+- 'no'
+- "\u0251"
+- cii
+- "kun\u0251"
+- "ikp\u025B"
+- "b\u0254r\u0254"
+- i
+- "t\u025B"
+- "ng\u0251"
+- n
+- kulu
+- mo
+- "y\u0251"
+- si
+- "f\u0254"
+- "\xE0"
+- "k\u0251\u0251"
+- "g\u0251\u0251"
+- ci
+- "g\u0251"
+- yesu
+top_n_grams:
+- - 2
+  - 0.652
+- - 3
+  - 0.634
+- - 4
+  - 0.631

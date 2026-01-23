@@ -1,0 +1,45 @@
+dup_line_frac: 0.044
+dup_n_grams:
+- - 5
+  - 0.038
+- - 6
+  - 0.037
+- - 7
+  - 0.034
+- - 8
+  - 0.032
+- - 9
+  - 0.029
+- - 10
+  - 0.026
+language_score: 0.562
+line_punct_thr: -1
+max_avg_word_length: 15
+max_non_alpha_words_ratio: 0.667
+min_avg_word_length: 2
+new_line_ratio: 0.333
+stopwords:
+- iki
+- ja
+- jato
+- "\xBF"
+- non
+- ea
+- moa
+- en
+- jawen
+- itan
+- mia
+- riki
+- mato
+- jatian
+- noa
+- akin
+- min
+top_n_grams:
+- - 2
+  - 1.717
+- - 3
+  - 1.589
+- - 4
+  - 1.203

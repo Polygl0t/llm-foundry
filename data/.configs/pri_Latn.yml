@@ -1,0 +1,52 @@
+dup_line_frac: 0.427
+dup_n_grams:
+- - 5
+  - 0.331
+- - 6
+  - 0.322
+- - 7
+  - 0.31
+- - 8
+  - 0.296
+- - 9
+  - 0.285
+- - 10
+  - 0.27
+language_score: 0.696
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.778
+min_avg_word_length: 2
+new_line_ratio: 0.048
+stopwords:
+- na
+- "\xE2"
+- "\xE9"
+- "\xEA"
+- "p\xE2"
+- "w\xE0"
+- "r\xE0"
+- naa
+- ba
+- ma
+- "\xE2na"
+- pwi
+- "t\xE8pa"
+- "guw\xE0"
+- go
+- ina
+- o
+- "\xE2boro"
+- "pwidu\xE9e"
+- pwa
+- nye
+- "j\xE8"
+- goo
+- caa
+top_n_grams:
+- - 2
+  - 1.246
+- - 3
+  - 1.584
+- - 4
+  - 1.753

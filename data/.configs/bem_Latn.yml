@@ -1,0 +1,45 @@
+dup_line_frac: 0.335
+dup_n_grams:
+- - 5
+  - 0.215
+- - 6
+  - 0.205
+- - 7
+  - 0.189
+- - 8
+  - 0.174
+- - 9
+  - 0.16
+- - 10
+  - 0.145
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 13
+max_non_alpha_words_ratio: 0.75
+min_avg_word_length: 3
+new_line_ratio: 0.111
+stopwords:
+- mu
+- pa
+- na
+- ku
+- kuti
+- 'no'
+- kwa
+- ukuti
+- kabili
+- ya
+- nga
+- wa
+- yehova
+- lesa
+- ca
+- e
+- ne
+top_n_grams:
+- - 2
+  - 1.376
+- - 3
+  - 1.081
+- - 4
+  - 0.946

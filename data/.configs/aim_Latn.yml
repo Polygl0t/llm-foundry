@@ -1,0 +1,56 @@
+dup_line_frac: 0.913
+dup_n_grams:
+- - 5
+  - 0.419
+- - 6
+  - 0.412
+- - 7
+  - 0.343
+- - 8
+  - 0.321
+- - 9
+  - 0.297
+- - 10
+  - 0.281
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.851
+min_avg_word_length: 2
+new_line_ratio: 0.062
+stopwords:
+- a
+- ha
+- na
+- an
+- ning
+- kan
+- om
+- han
+- nang
+- jiang
+- ka
+- pathian
+- rang
+- ani
+- tak
+- jui
+- lui
+- le
+- hong
+- man
+- hale
+- nan
+- ni
+- khat
+- ama
+- chong
+- in
+- hi
+top_n_grams:
+- - 2
+  - 1.002
+- - 3
+  - 0.88
+- - 4
+  - 0.792

@@ -1,0 +1,38 @@
+dup_line_frac: 0.471
+dup_n_grams:
+- - 5
+  - 0.321
+- - 6
+  - 0.314
+- - 7
+  - 0.3
+- - 8
+  - 0.283
+- - 9
+  - 0.265
+- - 10
+  - 0.24
+language_score: 0.33
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.688
+min_avg_word_length: 4
+new_line_ratio: 0.091
+stopwords:
+- yang
+- "tiw\xE4n"
+- using
+- inikut
+- "hikng\xE4"
+- "nan\xE4"
+- ge
+- yangu
+- "puy\xE4"
+- "tiw\xE4n\xE4"
+top_n_grams:
+- - 2
+  - 0.843
+- - 3
+  - 0.85
+- - 4
+  - 0.732

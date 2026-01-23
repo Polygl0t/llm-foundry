@@ -1,0 +1,45 @@
+dup_line_frac: 1.161
+dup_n_grams:
+- - 5
+  - 0.7
+- - 6
+  - 0.697
+- - 7
+  - 0.687
+- - 8
+  - 0.674
+- - 9
+  - 0.663
+- - 10
+  - 0.64
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 6
+max_non_alpha_words_ratio: 0.84
+min_avg_word_length: 2
+new_line_ratio: 0.05
+stopwords:
+- na
+- aa
+- i
+- nhu
+- ti
+- awa
+- nana
+- ala
+- ka
+- "ngeb\u0254"
+- ngi
+- wu
+- nwa
+- o
+- "ng\u0254"
+- nhanwa
+- "k\u025B\u025B"
+top_n_grams:
+- - 2
+  - 1.013
+- - 3
+  - 1.393
+- - 4
+  - 1.638

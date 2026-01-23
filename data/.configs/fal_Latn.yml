@@ -1,0 +1,55 @@
+dup_line_frac: 0.163
+dup_n_grams:
+- - 5
+  - 0.183
+- - 6
+  - 0.177
+- - 7
+  - 0.164
+- - 8
+  - 0.156
+- - 9
+  - 0.152
+- - 10
+  - 0.134
+language_score: 0.687
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.818
+min_avg_word_length: 2
+new_line_ratio: 0.062
+stopwords:
+- a
+- ni
+- nit
+- "\xE2y"
+- de
+- gi
+- aw
+- yey
+- ba
+- "w\xE0a"
+- ngam
+- "y\xE8k"
+- fay
+- un
+- e
+- "t\xE2a"
+- di
+- "j\xE0k"
+- daw
+- ta
+- mi
+- go
+- yeesu
+- ge
+- "k\xE0"
+- gin
+- amma
+top_n_grams:
+- - 2
+  - 0.541
+- - 3
+  - 0.581
+- - 4
+  - 0.489

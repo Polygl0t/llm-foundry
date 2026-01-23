@@ -1,0 +1,37 @@
+dup_line_frac: 0.399
+dup_n_grams:
+- - 5
+  - 0.235
+- - 6
+  - 0.22
+- - 7
+  - 0.206
+- - 8
+  - 0.191
+- - 9
+  - 0.176
+- - 10
+  - 0.159
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 21
+max_non_alpha_words_ratio: 0.762
+min_avg_word_length: 4
+new_line_ratio: 0.167
+stopwords:
+- "j\xEFh"
+- lea
+- saemien
+- "b\xEFjre"
+- leah
+- mah
+- akte
+- aaj
+- jih
+top_n_grams:
+- - 2
+  - 0.672
+- - 3
+  - 0.564
+- - 4
+  - 0.465

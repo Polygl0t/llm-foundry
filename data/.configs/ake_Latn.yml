@@ -1,0 +1,51 @@
+dup_line_frac: 0.392
+dup_n_grams:
+- - 5
+  - 0.394
+- - 6
+  - 0.389
+- - 7
+  - 0.379
+- - 8
+  - 0.364
+- - 9
+  - 0.346
+- - 10
+  - 0.329
+language_score: 0.9
+line_punct_thr: -1
+max_avg_word_length: 10
+max_non_alpha_words_ratio: 0.657
+min_avg_word_length: 3
+new_line_ratio: 0.059
+stopwords:
+- pe
+- uya
+- "m\u0268r\u0268"
+- "r\u0268"
+- kon
+- "p\u0268"
+- to
+- "p\u0289ra"
+- "awonsi'k\u0268"
+- "am\u0289"
+- yau
+- iya
+- ton
+- papa
+- "ta'p\u0289"
+- esi
+- iyesi
+- "n\u0268"
+- e'tane
+- "m\u0268r\u0268pan"
+- "ser\u0268"
+- sises
+- a'tai
+top_n_grams:
+- - 2
+  - 0.154
+- - 3
+  - 0.16
+- - 4
+  - 0.162

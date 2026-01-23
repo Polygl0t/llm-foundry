@@ -1,0 +1,47 @@
+dup_line_frac: 0.653
+dup_n_grams:
+- - 5
+  - 0.433
+- - 6
+  - 0.415
+- - 7
+  - 0.4
+- - 8
+  - 0.381
+- - 9
+  - 0.359
+- - 10
+  - 0.333
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 10
+max_non_alpha_words_ratio: 0.769
+min_avg_word_length: 3
+new_line_ratio: 0.111
+stopwords:
+- ni
+- bwa
+- mu
+- mwa
+- i
+- biin
+- myand
+- a
+- yehow
+- neey
+- baat
+- ku
+- mudimw
+- cya
+- dya
+- mushind
+- ya
+- bwaal
+- kulong
+top_n_grams:
+- - 2
+  - 1.395
+- - 3
+  - 1.355
+- - 4
+  - 1.246

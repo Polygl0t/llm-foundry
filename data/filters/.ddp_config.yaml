@@ -1,0 +1,50 @@
+# ============================================================================
+# Distributed Data Parallel (DDP) Configuration for Accelerate/Transformers
+# ============================================================================
+# This configuration file is used by Accelerate to set up DDP training.
+# DDP replicates the model on each GPU and synchronizes gradients across GPUs.
+# Accelerate Documentation: https://huggingface.co/docs/accelerate/package_reference/cli
+# ============================================================================
+
+# Compute Environment Configuration
+# ----------------------------------
+compute_environment: LOCAL_MACHINE
+debug: false                        # Enable debug mode for verbose logging (set to true for debugging)
+distributed_type: MULTI_GPU         # Use standard PyTorch DDP across multiple GPUs
+enable_cpu_affinity: true           # Enable CPU affinity for better NUMA performance
+
+# Multi-Node Configuration
+# -------------------------
+machine_rank: 0                     # Rank of this machine in multi-node setup (0 for single-node)
+main_process_ip: null               # IP address of the main process (null for automatic detection)
+main_process_port: null             # Port for inter-process communication (null for automatic)
+main_training_function: main        # Entry point function name in your training script
+num_machines: 1                     # Total number of machines/nodes in the cluster
+gpu_ids: all                        # Specify GPU IDs to use (all = use all available GPUs)
+num_processes: 4                    # Number of GPUs/processes to use (typically equals number of GPUs)
+                                    # For multi-node: num_machines * GPUs_per_machine
+                                    # Each process runs on one GPU with a full model replica
+
+# Distributed Backend Configuration
+# ------------------------
+rdzv_backend: static                # Rendezvous backend for multi-node setup (static for fixed IP/port)
+same_network: true                  # Whether all machines are on the same network (true for single-node)
+
+# Precision Configuration
+# -----------------------
+mixed_precision: bf16               # Mixed precision training mode
+                                    # Options: "no" (fp32), "fp16", "bf16" (recommended for A100/H100)
+                                    # bf16 provides better numerical stability than fp16
+                                    # Reduces memory usage and speeds up training
+downcast_bf16: 'no'                 # Whether when using bf16 precision on TPUs if both float and double 
+                                    # tensors are cast to bfloat16 or if double tensors remain as float32.
+
+# TPU Configuration
+# -----------------------------------
+tpu_env: []                         # TPU-specific environment variables (leave empty for GPU training)
+tpu_use_cluster: false              # Use TPU cluster (false for GPU training)
+tpu_use_sudo: false                 # Require sudo for TPU operations (false for GPU training)
+
+# CPU Training
+# ------------
+use_cpu: false                      # Use CPU instead of GPU (false for GPU training)

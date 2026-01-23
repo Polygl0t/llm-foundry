@@ -1,0 +1,47 @@
+dup_line_frac: 0.184
+dup_n_grams:
+- - 5
+  - 0.134
+- - 6
+  - 0.127
+- - 7
+  - 0.119
+- - 8
+  - 0.11
+- - 9
+  - 0.101
+- - 10
+  - 0.091
+language_score: 0.893
+line_punct_thr: -1
+max_avg_word_length: 11
+max_non_alpha_words_ratio: 0.833
+min_avg_word_length: 2
+new_line_ratio: 0.083
+stopwords:
+- "\xE0"
+- "k\u025B\u0300"
+- "k\u2184\u0303n"
+- ben
+- a
+- ma
+- "ya\u0303"
+- "a\u2184\u0303"
+- "\u0144"
+- "w\xE0"
+- "gb\u025B\u0303"
+- n
+- luda
+- "\xE8"
+- "b\xE8"
+- "p\xEC"
+- "t\xF3"
+- guu
+- "p\xEDngi"
+top_n_grams:
+- - 2
+  - 0.597
+- - 3
+  - 0.6
+- - 4
+  - 0.531

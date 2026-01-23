@@ -1,0 +1,56 @@
+dup_line_frac: 0.514
+dup_n_grams:
+- - 5
+  - 0.444
+- - 6
+  - 0.412
+- - 7
+  - 0.388
+- - 8
+  - 0.375
+- - 9
+  - 0.363
+- - 10
+  - 0.343
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 6
+max_non_alpha_words_ratio: 0.8
+min_avg_word_length: 2
+new_line_ratio: 0.062
+stopwords:
+- "ka\u014B"
+- ga
+- a
+- 'no'
+- i
+- se
+- ka
+- mo
+- ra
+- ay
+- ma
+- "ara\u014B"
+- da
+- ne
+- kulu
+- nga
+- zama
+- boro
+- go
+- ni
+- te
+- irikoy
+- amma
+- iri
+- goono
+- na
+- si
+- gaa
+top_n_grams:
+- - 2
+  - 1.005
+- - 3
+  - 0.977
+- - 4
+  - 0.892

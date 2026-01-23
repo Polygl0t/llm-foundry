@@ -1,0 +1,36 @@
+dup_line_frac: 0.61
+dup_n_grams:
+- - 5
+  - 0.412
+- - 6
+  - 0.394
+- - 7
+  - 0.375
+- - 8
+  - 0.346
+- - 9
+  - 0.323
+- - 10
+  - 0.298
+language_score: 0.3
+line_punct_thr: 0.071
+max_avg_word_length: 22
+max_non_alpha_words_ratio: 0.705
+min_avg_word_length: 2
+new_line_ratio: 0.25
+stopwords:
+- a
+- jo
+- w
+- na
+- z
+- se
+- "w\xF3t"
+- su
+top_n_grams:
+- - 2
+  - 1.422
+- - 3
+  - 1.448
+- - 4
+  - 1.351

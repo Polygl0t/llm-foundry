@@ -1,0 +1,42 @@
+dup_line_frac: 0.568
+dup_n_grams:
+- - 5
+  - 0.351
+- - 6
+  - 0.328
+- - 7
+  - 0.292
+- - 8
+  - 0.267
+- - 9
+  - 0.245
+- - 10
+  - 0.218
+language_score: 0.3
+line_punct_thr: 0.12
+max_avg_word_length: 12
+max_non_alpha_words_ratio: 0.59
+min_avg_word_length: 3
+new_line_ratio: 0.162
+stopwords:
+- de
+- in
+- un
+- vun
+- dat
+- is
+- "\u2019n"
+- en
+- von
+- to
+- den
+- an
+- hett
+- he
+top_n_grams:
+- - 2
+  - 0.611
+- - 3
+  - 0.542
+- - 4
+  - 0.472

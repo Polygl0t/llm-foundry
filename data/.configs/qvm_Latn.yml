@@ -1,0 +1,40 @@
+dup_line_frac: 0.447
+dup_n_grams:
+- - 5
+  - 0.249
+- - 6
+  - 0.237
+- - 7
+  - 0.223
+- - 8
+  - 0.211
+- - 9
+  - 0.195
+- - 10
+  - 0.18
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 14
+max_non_alpha_words_ratio: 0.75
+min_avg_word_length: 5
+new_line_ratio: 0.1
+stopwords:
+- tayta
+- tsaynog
+- mana
+- tsay
+- y
+- manami
+- caynog
+- diosnintsi
+- runacuna
+- nergan
+- "jes\xFAs"
+- tsaymi
+top_n_grams:
+- - 2
+  - 0.955
+- - 3
+  - 0.8
+- - 4
+  - 0.701

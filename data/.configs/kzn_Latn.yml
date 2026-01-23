@@ -1,0 +1,53 @@
+dup_line_frac: 0.855
+dup_n_grams:
+- - 5
+  - 0.525
+- - 6
+  - 0.519
+- - 7
+  - 0.494
+- - 8
+  - 0.471
+- - 9
+  - 0.448
+- - 10
+  - 0.417
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 12
+max_non_alpha_words_ratio: 0.7
+min_avg_word_length: 3
+new_line_ratio: 0.125
+stopwords:
+- ira
+- a
+- na
+- yehova
+- wa
+- ya
+- kodi
+- eda
+- ulendo
+- vyongo
+- koma
+- chito
+- athu
+- vyevyo
+- kuti
+- i
+- avi
+- mulungu
+- teto
+- va
+- indi
+- baibulo
+- ndi
+- u
+- la
+top_n_grams:
+- - 2
+  - 1.116
+- - 3
+  - 1.297
+- - 4
+  - 1.186

@@ -1,0 +1,44 @@
+dup_line_frac: 0.332
+dup_n_grams:
+- - 5
+  - 0.299
+- - 6
+  - 0.291
+- - 7
+  - 0.278
+- - 8
+  - 0.263
+- - 9
+  - 0.248
+- - 10
+  - 0.233
+language_score: 0.622
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.727
+min_avg_word_length: 4
+new_line_ratio: 0.059
+stopwords:
+- "ea\uA78C"
+- ma
+- basef
+- esis
+- ina
+- waf
+- ea
+- amam
+- anama
+- god
+- "owa\uA78C"
+- epes
+- "ae\uA78C"
+- amama
+- "dei\uA78C"
+- godi
+top_n_grams:
+- - 2
+  - 0.405
+- - 3
+  - 0.386
+- - 4
+  - 0.312

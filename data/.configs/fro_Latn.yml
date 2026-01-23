@@ -1,0 +1,46 @@
+dup_line_frac: 0.436
+dup_n_grams:
+- - 5
+  - 0.259
+- - 6
+  - 0.236
+- - 7
+  - 0.219
+- - 8
+  - 0.204
+- - 9
+  - 0.182
+- - 10
+  - 0.173
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 14
+max_non_alpha_words_ratio: 0.75
+min_avg_word_length: 2
+new_line_ratio: 0.25
+stopwords:
+- et
+- li
+- de
+- que
+- la
+- a
+- ne
+- le
+- si
+- en
+- il
+- vos
+- qui
+- se
+- est
+- les
+- e
+- par
+top_n_grams:
+- - 2
+  - 1.202
+- - 3
+  - 0.977
+- - 4
+  - 0.817

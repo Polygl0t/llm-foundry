@@ -1,0 +1,54 @@
+dup_line_frac: 0.705
+dup_n_grams:
+- - 5
+  - 0.509
+- - 6
+  - 0.491
+- - 7
+  - 0.467
+- - 8
+  - 0.449
+- - 9
+  - 0.42
+- - 10
+  - 0.394
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 11
+max_non_alpha_words_ratio: 0.667
+min_avg_word_length: 4
+new_line_ratio: 0.125
+stopwords:
+- ni
+- weera
+- yehova
+- heeni
+- wa
+- sa
+- moota
+- atthu
+- a
+- mwaha
+- nyuwo
+- biblya
+- itthu
+- muluku
+- opaka
+- owo
+- etthu
+- ya
+- mwa
+- hiyo
+- moone
+- okhala
+- mutthu
+- muteko
+- avinyaka
+- akina
+top_n_grams:
+- - 2
+  - 1.704
+- - 3
+  - 1.683
+- - 4
+  - 1.662

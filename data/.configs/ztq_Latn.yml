@@ -1,0 +1,47 @@
+dup_line_frac: 0.5
+dup_n_grams:
+- - 5
+  - 0.335
+- - 6
+  - 0.31
+- - 7
+  - 0.294
+- - 8
+  - 0.265
+- - 9
+  - 0.253
+- - 10
+  - 0.234
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.821
+min_avg_word_length: 2
+new_line_ratio: 0.071
+stopwords:
+- nii
+- xaa
+- "l\xEB\xEB"
+- "me\xF1"
+- lo
+- ni
+- dios
+- 'no'
+- do
+- aan
+- por
+- "kch\xEB"
+- tu
+- to
+- "jes\xFAs"
+- per
+- go
+- xtiits
+- "ch\xEBb"
+top_n_grams:
+- - 2
+  - 0.592
+- - 3
+  - 0.562
+- - 4
+  - 0.472

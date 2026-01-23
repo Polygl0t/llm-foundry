@@ -1,0 +1,47 @@
+dup_line_frac: 0.03
+dup_n_grams:
+- - 5
+  - 0.04
+- - 6
+  - 0.028
+- - 7
+  - 0.015
+- - 8
+  - 0.011
+- - 9
+  - 0.009
+- - 10
+  - 0.007
+language_score: 0.775
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.81
+min_avg_word_length: 3
+new_line_ratio: 0.067
+stopwords:
+- te
+- "ni\u0331"
+- "ja\u0331"
+- "j\xED\xEDn"
+- "n\xED"
+- "chi\u0331"
+- "cha\u0331a"
+- "nuu\u0331"
+- "n\xE1"
+- "t\xFA"
+- "tu\u0331'un"
+- dios
+- "m\xE1\xE1"
+- "k\xFAu"
+- "\u0268\u0268n"
+- "j\xE1"
+- ko
+- "ini\u0331"
+- "n\xFA"
+top_n_grams:
+- - 2
+  - 0.137
+- - 3
+  - 0.039
+- - 4
+  - 0.036

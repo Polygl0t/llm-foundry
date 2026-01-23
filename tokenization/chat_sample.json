@@ -1,0 +1,69 @@
+[
+  {
+    "messages": [
+      {
+        "role": "user",
+        "content": "Olá! Como você está?"
+      },
+      {
+        "role": "assistant",
+        "content": "Estou bem, obrigado! Como posso ajudá-lo hoje?"
+      },
+      {
+        "role": "user",
+        "content": "Como está o tempo hoje em Porto Alegre, RS?"
+      },
+      {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+          {
+            "function": {
+              "name": "get_weather",
+              "arguments": {
+                "location": "Porto Alegre, RS"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "role": "function",
+        "name": "get_weather",
+        "content": {
+          "temperature": "22°C",
+          "condition": "Ensolarado"
+        }
+      },
+      {
+        "role": "tool",
+        "content": "{\"temperature\": \"22°C\", \"condition\": \"Ensolarado\"}"
+      },
+      {
+        "role": "assistant",
+        "content": "<think>A chamada para a função get_weather retornou os seguintes dados: temperatura de 22°C e condição ensolarada.</think> O tempo em Porto Alegre, RS hoje está ensolarado com uma temperatura de 22°C."
+      }
+    ],
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "get_weather",
+          "description": "Obter o clima atual",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "location": {
+                "type": "string",
+                "description": "A cidade e o estado"
+              }
+            },
+            "required": [
+              "location"
+            ]
+          }
+        }
+      }
+    ]
+  }
+]

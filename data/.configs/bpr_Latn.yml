@@ -1,0 +1,51 @@
+dup_line_frac: 0.384
+dup_n_grams:
+- - 5
+  - 0.4
+- - 6
+  - 0.393
+- - 7
+  - 0.376
+- - 8
+  - 0.362
+- - 9
+  - 0.338
+- - 10
+  - 0.319
+language_score: 0.692
+line_punct_thr: -1
+max_avg_word_length: 6
+max_non_alpha_words_ratio: 0.789
+min_avg_word_length: 2
+new_line_ratio: 0.062
+stopwords:
+- i
+- di
+- na
+- dad
+- to
+- ku
+- ta
+- du
+- dwata
+- "y\xE9"
+- gamu
+- kenen
+- "l\xE0"
+- bay
+- dyisas
+- ale
+- too
+- "ay\xE9"
+- "md\xE0"
+- man
+- ani
+- nun
+- fye
+top_n_grams:
+- - 2
+  - 0.924
+- - 3
+  - 0.979
+- - 4
+  - 0.867

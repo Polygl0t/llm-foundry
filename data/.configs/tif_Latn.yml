@@ -1,0 +1,49 @@
+dup_line_frac: 0.405
+dup_n_grams:
+- - 5
+  - 0.536
+- - 6
+  - 0.536
+- - 7
+  - 0.515
+- - 8
+  - 0.491
+- - 9
+  - 0.472
+- - 10
+  - 0.441
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.735
+min_avg_word_length: 3
+new_line_ratio: 0.032
+stopwords:
+- tunum
+- ami
+- kemin
+- god
+- ayo
+- weng
+- o
+- kala
+- kup
+- ma
+- kaa
+- uyo
+- imi
+- kaali
+- kaata
+- disa
+- iyo
+- unang
+- aket
+- ke
+- yesus
+top_n_grams:
+- - 2
+  - 1.232
+- - 3
+  - 1.282
+- - 4
+  - 1.222

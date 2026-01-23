@@ -1,0 +1,46 @@
+dup_line_frac: 0.576
+dup_n_grams:
+- - 5
+  - 0.567
+- - 6
+  - 0.555
+- - 7
+  - 0.536
+- - 8
+  - 0.518
+- - 9
+  - 0.5
+- - 10
+  - 0.479
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.789
+min_avg_word_length: 3
+new_line_ratio: 0.071
+stopwords:
+- ba
+- i
+- wai
+- si
+- ana
+- kona
+- wona
+- kega
+- kata
+- ku
+- pipiya
+- ina
+- iesu
+- saba
+- god
+- kesana
+- kairavina
+- asi
+top_n_grams:
+- - 2
+  - 2.168
+- - 3
+  - 2.662
+- - 4
+  - 2.891

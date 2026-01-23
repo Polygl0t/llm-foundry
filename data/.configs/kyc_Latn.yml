@@ -1,0 +1,47 @@
+dup_line_frac: 0.204
+dup_n_grams:
+- - 5
+  - 0.17
+- - 6
+  - 0.167
+- - 7
+  - 0.145
+- - 8
+  - 0.134
+- - 9
+  - 0.126
+- - 10
+  - 0.115
+language_score: 0.708
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.879
+min_avg_word_length: 4
+new_line_ratio: 0.067
+stopwords:
+- lao
+- doko
+- dokona
+- dokopa
+- dupwa
+- pyuo
+- baa
+- yuu
+- pii
+- nakama
+- wambu
+- akali
+- pyao
+- dopa
+- leya
+- suu
+- dokome
+- yulu
+- namba
+top_n_grams:
+- - 2
+  - 0.359
+- - 3
+  - 0.31
+- - 4
+  - 0.277

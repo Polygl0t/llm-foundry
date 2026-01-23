@@ -1,0 +1,55 @@
+dup_line_frac: 0.393
+dup_n_grams:
+- - 5
+  - 0.316
+- - 6
+  - 0.306
+- - 7
+  - 0.291
+- - 8
+  - 0.261
+- - 9
+  - 0.249
+- - 10
+  - 0.239
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.8
+min_avg_word_length: 3
+new_line_ratio: 0.059
+stopwords:
+- "h\xED"
+- gaa
+- "h\xE9"
+- ki
+- he
+- "g\xE1l"
+- waag
+- "m\xE1\xE1"
+- hol
+- giri
+- "m\xFA"
+- "g\xE1\xE1l"
+- kieye
+- "y\xFA"
+- "\u02C8d\xFA"
+- ma
+- "h\xE1t"
+- "aal\xE9"
+- "y\xED\xE9su"
+- af
+- yie
+- ubaa
+- "g\xE1\xE1"
+- "t\xE1"
+- gaal
+- "gaal\xED"
+- mu
+top_n_grams:
+- - 2
+  - 0.911
+- - 3
+  - 0.816
+- - 4
+  - 0.701

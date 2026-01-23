@@ -1,0 +1,52 @@
+dup_line_frac: 0.207
+dup_n_grams:
+- - 5
+  - 0.149
+- - 6
+  - 0.106
+- - 7
+  - 0.091
+- - 8
+  - 0.075
+- - 9
+  - 0.064
+- - 10
+  - 0.047
+language_score: 0.579
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.816
+min_avg_word_length: 2
+new_line_ratio: 0.037
+stopwords:
+- a
+- ka
+- "g\xE0"
+- ya
+- ana
+- i
+- "\u014Ba"
+- mbulum
+- ata
+- tar
+- nda
+- ta
+- "\xE0"
+- na
+- "a\xE0"
+- mburma
+- kurum
+- "ts\xE0"
+- dukw
+- "\u014Bgar"
+- aka
+- "d\xECte"
+- "t\u0259\u0300v"
+- ti
+top_n_grams:
+- - 2
+  - 0.155
+- - 3
+  - 0.149
+- - 4
+  - 0.113

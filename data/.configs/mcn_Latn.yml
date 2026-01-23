@@ -1,0 +1,46 @@
+dup_line_frac: 0.491
+dup_n_grams:
+- - 5
+  - 0.339
+- - 6
+  - 0.316
+- - 7
+  - 0.298
+- - 8
+  - 0.285
+- - 9
+  - 0.262
+- - 10
+  - 0.25
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.784
+min_avg_word_length: 2
+new_line_ratio: 0.067
+stopwords:
+- ma
+- hay
+- kay
+- sa
+- vi
+- "hi\u0257i"
+- nam
+- nisi
+- li
+- ka
+- nan
+- may
+- goy
+- kaw
+- ta
+- kayni
+- mi
+- nigi
+top_n_grams:
+- - 2
+  - 1.059
+- - 3
+  - 0.922
+- - 4
+  - 0.802

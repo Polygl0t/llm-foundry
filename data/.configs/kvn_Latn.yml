@@ -1,0 +1,48 @@
+dup_line_frac: 0.391
+dup_n_grams:
+- - 5
+  - 0.327
+- - 6
+  - 0.307
+- - 7
+  - 0.321
+- - 8
+  - 0.25
+- - 9
+  - 0.224
+- - 10
+  - 0.206
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 10
+max_non_alpha_words_ratio: 0.615
+min_avg_word_length: 3
+new_line_ratio: 0.048
+stopwords:
+- tegin
+- tule
+- tenal
+- pab
+- pe
+- an
+- imi
+- "jes\xFAs"
+- we
+- e
+- pemal
+- tulemal
+- immal
+- anmal
+- tummad
+- kwen
+- aga
+- neg
+- igal
+- al
+top_n_grams:
+- - 2
+  - 1.677
+- - 3
+  - 1.072
+- - 4
+  - 0.921

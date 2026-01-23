@@ -1,0 +1,44 @@
+dup_line_frac: 0.232
+dup_n_grams:
+- - 5
+  - 0.277
+- - 6
+  - 0.274
+- - 7
+  - 0.262
+- - 8
+  - 0.252
+- - 9
+  - 0.238
+- - 10
+  - 0.22
+language_score: 0.346
+line_punct_thr: -1
+max_avg_word_length: 10
+max_non_alpha_words_ratio: 0.755
+min_avg_word_length: 3
+new_line_ratio: 0.077
+stopwords:
+- ka
+- nia
+- kam
+- sia
+- samba
+- taikamanua
+- "n\xE9n\xE9"
+- si
+- "l\xE9"
+- le
+- "le\xFA"
+- oto
+- ai
+- te
+- tai
+- et
+top_n_grams:
+- - 2
+  - 0.668
+- - 3
+  - 0.684
+- - 4
+  - 0.621

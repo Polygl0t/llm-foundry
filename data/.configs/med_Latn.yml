@@ -1,0 +1,51 @@
+dup_line_frac: 0.384
+dup_n_grams:
+- - 5
+  - 0.374
+- - 6
+  - 0.367
+- - 7
+  - 0.355
+- - 8
+  - 0.341
+- - 9
+  - 0.325
+- - 10
+  - 0.308
+language_score: 0.723
+line_punct_thr: -1
+max_avg_word_length: 6
+max_non_alpha_words_ratio: 0.75
+min_avg_word_length: 2
+new_line_ratio: 0.042
+stopwords:
+- ei
+- nga
+- ndi
+- wamp
+- wu
+- wote
+- mel
+- "u\u2C61"
+- ila
+- na
+- ik
+- enim
+- ni
+- ti
+- "mb\u1D7E"
+- "k\u1D7En"
+- got
+- "mb\u0289"
+- "k\u0289n"
+- nimba
+- kona
+- jisas
+- elim
+top_n_grams:
+- - 2
+  - 0.35
+- - 3
+  - 0.346
+- - 4
+  - 0.314

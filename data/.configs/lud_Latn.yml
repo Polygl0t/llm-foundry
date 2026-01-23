@@ -1,0 +1,48 @@
+dup_line_frac: 0.531
+dup_n_grams:
+- - 5
+  - 0.518
+- - 6
+  - 0.512
+- - 7
+  - 0.489
+- - 8
+  - 0.459
+- - 9
+  - 0.435
+- - 10
+  - 0.406
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 11
+max_non_alpha_words_ratio: 0.69
+min_avg_word_length: 3
+new_line_ratio: 0.143
+stopwords:
+- da
+- d
+- om
+- olii
+- i
+- ku
+- ei
+- "ha\u0308in"
+- lyydin
+- derein
+- o
+- a
+- "mia\u0308"
+- ve
+- minun
+- konz
+- kiel
+- ke
+- kard
+- ylen
+top_n_grams:
+- - 2
+  - 1.712
+- - 3
+  - 1.766
+- - 4
+  - 1.662

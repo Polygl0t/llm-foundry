@@ -1,0 +1,48 @@
+dup_line_frac: 0.771
+dup_n_grams:
+- - 5
+  - 0.427
+- - 6
+  - 0.42
+- - 7
+  - 0.395
+- - 8
+  - 0.373
+- - 9
+  - 0.346
+- - 10
+  - 0.345
+language_score: 0.574
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.878
+min_avg_word_length: 3
+new_line_ratio: 0.05
+stopwords:
+- in
+- na
+- ham
+- ne
+- mataw
+- teq
+- ago
+- ya
+- god
+- i
+- a
+- hi
+- mat
+- gigo
+- yesus
+- nazaq
+- 'on'
+- ni
+- gamuk
+- araq
+top_n_grams:
+- - 2
+  - 1.595
+- - 3
+  - 1.334
+- - 4
+  - 1.268

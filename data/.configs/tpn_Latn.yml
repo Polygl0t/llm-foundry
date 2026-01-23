@@ -1,0 +1,58 @@
+dup_line_frac: 0.266
+dup_n_grams:
+- - 5
+  - 0.138
+- - 6
+  - 0.119
+- - 7
+  - 0.115
+- - 8
+  - 0.106
+- - 9
+  - 0.098
+- - 10
+  - 0.088
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 16
+max_non_alpha_words_ratio: 0.646
+min_avg_word_length: 2
+new_line_ratio: 0.333
+stopwords:
+- "tup\xE3"
+- rese
+- swi
+- ko
+- "a\u03B2a"
+- "mar\xE3"
+- ase
+- "am\xF5"
+- e
+- supe
+- janejara
+- "a\u0294e"
+- "\u03B2e"
+- pupe
+- "e\u0294i"
+- "j\u1EBD"
+- sese
+- "a\u03B2e"
+- "mar\xE3pe"
+- rupi
+- "oja\u03B2o"
+- "pa\u0294i"
+- "ta\u03B2a"
+- "ap\u0268a\u03B2a"
+- ajpo
+- "a\u0294epe"
+- cruz
+- jepe
+- "ma\u0294e"
+- "e\u0294ipe"
+top_n_grams:
+- - 2
+  - 1.499
+- - 3
+  - 1.242
+- - 4
+  - 1.133

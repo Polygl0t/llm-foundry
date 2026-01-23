@@ -1,0 +1,45 @@
+dup_line_frac: 0.281
+dup_n_grams:
+- - 5
+  - 0.211
+- - 6
+  - 0.204
+- - 7
+  - 0.195
+- - 8
+  - 0.185
+- - 9
+  - 0.171
+- - 10
+  - 0.159
+language_score: 0.742
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.75
+min_avg_word_length: 3
+new_line_ratio: 0.111
+stopwords:
+- si
+- e
+- kalak
+- bas
+- i
+- man
+- ras
+- ia
+- janah
+- la
+- pe
+- jahwe
+- banci
+- lit
+- dibata
+- maka
+- kai
+top_n_grams:
+- - 2
+  - 1.19
+- - 3
+  - 0.774
+- - 4
+  - 0.448

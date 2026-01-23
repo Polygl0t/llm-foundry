@@ -1,0 +1,37 @@
+dup_line_frac: 0.467
+dup_n_grams:
+- - 5
+  - 0.279
+- - 6
+  - 0.263
+- - 7
+  - 0.24
+- - 8
+  - 0.22
+- - 9
+  - 0.201
+- - 10
+  - 0.181
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 13
+max_non_alpha_words_ratio: 0.738
+min_avg_word_length: 4
+new_line_ratio: 0.125
+stopwords:
+- nuuni
+- a
+- i
+- wode
+- he
+- ba
+- qassi
+- taani
+- issi
+top_n_grams:
+- - 2
+  - 1.169
+- - 3
+  - 1.045
+- - 4
+  - 0.902

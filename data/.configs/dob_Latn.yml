@@ -1,0 +1,44 @@
+dup_line_frac: 0.169
+dup_n_grams:
+- - 5
+  - 0.061
+- - 6
+  - 0.049
+- - 7
+  - 0.045
+- - 8
+  - 0.03
+- - 9
+  - 0.025
+- - 10
+  - 0.024
+language_score: 0.9
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.639
+min_avg_word_length: 4
+new_line_ratio: 0.067
+stopwords:
+- ta
+- be
+- ga
+- manuna
+- nina
+- wate
+- enega
+- yaubada
+- nigeya
+- yesu
+- ina
+- "\uA78Cenega"
+- gete
+- "\uA78Cina"
+- nidi
+- tauna
+top_n_grams:
+- - 2
+  - 0.137
+- - 3
+  - 0.175
+- - 4
+  - 0.065

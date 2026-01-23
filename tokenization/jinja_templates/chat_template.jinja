@@ -1,0 +1,30 @@
+{#- Handle system message if it's the first message -#}
+{%- if messages[0].role == 'system' %}
+  {{- '<|im_start|>system\n' + messages[0].content + '<|im_end|>\n' }}
+{%- endif %}
+
+{#- Process all messages in the conversation -#}
+{%- for message in messages %}
+  {#- Extract content: handle both string and non-string content -#}
+  {%- if message.content is string %}
+    {%- set content = message.content %}
+  {%- else %}
+    {%- set content = '' %}
+  {%- endif %}
+
+  {#- Format user messages and non-first system messages -#}
+  {%- if message.role == 'user' or (message.role == 'system' and not loop.first) %}
+    {{- '<|im_start|>' + message.role + '\n' + content + '<|im_end|>\n' }}
+  {#- Format assistant messages with generation block -#}
+  {%- elif message.role == 'assistant' %}
+    {{- '<|im_start|>' + message.role }}
+    {% generation %}
+{{ content.strip('\n') + '<|im_end|>\n' }}
+    {% endgeneration %}
+  {%- endif %}
+{%- endfor %}
+
+{#- Add assistant prompt if needed for model completion -#}
+{%- if add_generation_prompt %}
+  {{- '<|im_start|>assistant\n' }}
+{%- endif %}

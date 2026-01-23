@@ -1,0 +1,56 @@
+dup_line_frac: 0.24
+dup_n_grams:
+- - 5
+  - 0.193
+- - 6
+  - 0.191
+- - 7
+  - 0.162
+- - 8
+  - 0.154
+- - 9
+  - 0.144
+- - 10
+  - 0.135
+language_score: 0.886
+line_punct_thr: -1
+max_avg_word_length: 6
+max_non_alpha_words_ratio: 0.833
+min_avg_word_length: 2
+new_line_ratio: 0.05
+stopwords:
+- lo
+- an
+- san
+- "i\u014B"
+- man
+- ya
+- na
+- da
+- a
+- ak
+- ta
+- mi
+- dugo
+- ago
+- o
+- a.
+- wa
+- tamol
+- anut
+- "\u014Bai"
+- ru
+- "a\u014B"
+- tia
+- "ni\u014Ben"
+- tamolpein
+- ibol
+- dan
+- en
+top_n_grams:
+- - 2
+  - 0.175
+- - 3
+  - 0.15
+- - 4
+  - 0.14

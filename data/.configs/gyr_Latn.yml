@@ -1,0 +1,52 @@
+dup_line_frac: 0.466
+dup_n_grams:
+- - 5
+  - 0.352
+- - 6
+  - 0.347
+- - 7
+  - 0.337
+- - 8
+  - 0.313
+- - 9
+  - 0.275
+- - 10
+  - 0.258
+language_score: 0.637
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.78
+min_avg_word_length: 3
+new_line_ratio: 0.071
+stopwords:
+- va'e
+- che
+- "p\u0268pe"
+- ava
+- rese
+- rumo
+- iyavei
+- vahe
+- pe
+- avei
+- "yuv\u0268reko"
+- upe
+- mba'e
+- a'e
+- yande
+- aipo
+- "t\xFCp\xE4"
+- ehi
+- sui
+- esepia
+- "agw\xE4"
+- "yuv\u0268reco"
+- chupe
+- "tupr\u0268"
+top_n_grams:
+- - 2
+  - 1.544
+- - 3
+  - 1.522
+- - 4
+  - 1.39

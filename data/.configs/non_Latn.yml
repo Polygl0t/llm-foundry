@@ -1,0 +1,52 @@
+dup_line_frac: 0.587
+dup_n_grams:
+- - 5
+  - 0.421
+- - 6
+  - 0.411
+- - 7
+  - 0.394
+- - 8
+  - 0.374
+- - 9
+  - 0.353
+- - 10
+  - 0.331
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 13
+max_non_alpha_words_ratio: 0.762
+min_avg_word_length: 3
+new_line_ratio: 0.071
+stopwords:
+- er
+- ok
+- at
+- ek
+- "\xE1"
+- "\xED"
+- of
+- en
+- "\xFE\xFA"
+- hann
+- "\xFEat"
+- "vi\xF0"
+- "s\xE1"
+- "\xFE\xE1"
+- skal
+- af
+- ef
+- "me\xF0"
+- "ma\xF0r"
+- "n\xE9"
+- til
+- it
+- var
+- um
+top_n_grams:
+- - 2
+  - 1.622
+- - 3
+  - 1.666
+- - 4
+  - 1.559

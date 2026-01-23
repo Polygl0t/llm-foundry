@@ -1,0 +1,46 @@
+dup_line_frac: 0.535
+dup_n_grams:
+- - 5
+  - 0.833
+- - 6
+  - 0.842
+- - 7
+  - 0.835
+- - 8
+  - 0.813
+- - 9
+  - 0.803
+- - 10
+  - 0.783
+language_score: 0.353
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.838
+min_avg_word_length: 3
+new_line_ratio: 0.059
+stopwords:
+- "\xEBm"
+- "b\xEB"
+- "okk\xEB"
+- "g\xEB"
+- "\xEB"
+- "b\xFC"
+- "y\xFCrn\xEB"
+- nyi
+- "l\xEBga"
+- lo
+- yo
+- "lok\xEB"
+- ngo
+- "\xEBmla"
+- "b\xFCk"
+- "n\xEB"
+- bulu
+- go
+top_n_grams:
+- - 2
+  - 2.823
+- - 3
+  - 3.456
+- - 4
+  - 3.887

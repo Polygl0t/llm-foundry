@@ -1,0 +1,43 @@
+dup_line_frac: 0.031
+dup_n_grams:
+- - 5
+  - 0.025
+- - 6
+  - 0.023
+- - 7
+  - 0.022
+- - 8
+  - 0.02
+- - 9
+  - 0.018
+- - 10
+  - 0.016
+language_score: 0.465
+line_punct_thr: -1
+max_avg_word_length: 11
+max_non_alpha_words_ratio: 0.765
+min_avg_word_length: 2
+new_line_ratio: 0.1
+stopwords:
+- ne
+- mu
+- ku
+- kuti
+- ka
+- nge
+- ba
+- ndzimu
+- a
+- koga
+- ngono
+- be
+- le
+- 'no'
+- e
+top_n_grams:
+- - 2
+  - 1.687
+- - 3
+  - 1.475
+- - 4
+  - 1.211

@@ -1,0 +1,54 @@
+dup_line_frac: 0.108
+dup_n_grams:
+- - 5
+  - 0.17
+- - 6
+  - 0.141
+- - 7
+  - 0.129
+- - 8
+  - 0.091
+- - 9
+  - 0.075
+- - 10
+  - 0.069
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.643
+min_avg_word_length: 2
+new_line_ratio: 0.048
+stopwords:
+- "l\u025B"
+- na
+- la
+- "\u0254"
+- "ny\u0269"
+- ya
+- ma
+- ka
+- "\u0269ya"
+- "k\u028B"
+- lebhe
+- a
+- "c\u0269"
+- n
+- ta
+- "\u2011\u0254"
+- maa
+- "n\u0269kplaan"
+- "\u2011ma"
+- "laag\u0254"
+- le
+- "\u0269"
+- "any\u0269"
+- "\u2011a"
+- "\u2011naa"
+- "\u2011gl\u0269"
+top_n_grams:
+- - 2
+  - 0.25
+- - 3
+  - 0.086
+- - 4
+  - 0.087

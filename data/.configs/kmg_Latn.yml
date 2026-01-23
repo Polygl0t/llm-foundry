@@ -1,0 +1,45 @@
+dup_line_frac: 0.649
+dup_n_grams:
+- - 5
+  - 0.431
+- - 6
+  - 0.416
+- - 7
+  - 0.39
+- - 8
+  - 0.363
+- - 9
+  - 0.341
+- - 10
+  - 0.316
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 11
+max_non_alpha_words_ratio: 0.765
+min_avg_word_length: 3
+new_line_ratio: 0.083
+stopwords:
+- e
+- "\xE2"
+- i
+- eme
+- "\u014Bic"
+- mi
+- "ja\u014Be"
+- "er\xE2"
+- "d\xE2\u014B"
+- moc
+- "i\u014Buc"
+- irec
+- 'no'
+- wiac
+- "h\xE2cne"
+- "\u014Bo\u014Be"
+- ine
+top_n_grams:
+- - 2
+  - 1.037
+- - 3
+  - 1.019
+- - 4
+  - 0.928

@@ -1,0 +1,52 @@
+dup_line_frac: 1.272
+dup_n_grams:
+- - 5
+  - 0.883
+- - 6
+  - 0.888
+- - 7
+  - 0.874
+- - 8
+  - 0.858
+- - 9
+  - 0.842
+- - 10
+  - 0.813
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.782
+min_avg_word_length: 2
+new_line_ratio: 0.05
+stopwords:
+- na
+- ma
+- ka
+- nia
+- ki
+- kira
+- ngwae
+- ne'e
+- ana
+- sa
+- nau
+- ru
+- god
+- fuana
+- i
+- kamu
+- sulia
+- na'a
+- "ne\uA78Ce"
+- kasi
+- ku
+- jesus
+- noa'a
+- ke
+top_n_grams:
+- - 2
+  - 1.26
+- - 3
+  - 1.416
+- - 4
+  - 1.421

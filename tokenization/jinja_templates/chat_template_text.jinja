@@ -1,0 +1,11 @@
+{%- for message in messages %}
+    {%- if message.content is string %}
+        {{- message.content }}
+    {%- endif %}
+    {%- if not loop.last %}
+        {{- '\n\n' }}
+    {%- endif %}
+{%- endfor %}
+{%- if add_generation_prompt %}
+    {{- '\n\n' }}
+{%- endif %}

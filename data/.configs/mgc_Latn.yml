@@ -1,0 +1,53 @@
+dup_line_frac: 0
+dup_n_grams:
+- - 5
+  - 0.339
+- - 6
+  - 0.033
+- - 7
+  - 0.027
+- - 8
+  - 0.024
+- - 9
+  - 0.006
+- - 10
+  - 0.007
+language_score: 0.811
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.759
+min_avg_word_length: 2
+new_line_ratio: 0.062
+stopwords:
+- zi
+- mo
+- "k\xF6'du"
+- ma
+- ba
+- "z\xEB"
+- ehe
+- aba
+- "m\xEF"
+- mati
+- "v\xEFd\xEF"
+- henye
+- "d\xEB"
+- vo
+- ne
+- na
+- "y\xEBsu"
+- "\xEBd\xEF"
+- ra
+- iya
+- da
+- "w\xEFr\xEF"
+- ku
+- here
+- ga
+top_n_grams:
+- - 2
+  - 0.292
+- - 3
+  - 0.306
+- - 4
+  - 0.297

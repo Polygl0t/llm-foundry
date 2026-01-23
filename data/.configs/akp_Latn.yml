@@ -1,0 +1,46 @@
+dup_line_frac: 0.236
+dup_n_grams:
+- - 5
+  - 0.215
+- - 6
+  - 0.212
+- - 7
+  - 0.206
+- - 8
+  - 0.196
+- - 9
+  - 0.182
+- - 10
+  - 0.172
+language_score: 0.834
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.812
+min_avg_word_length: 2
+new_line_ratio: 0.067
+stopwords:
+- i
+- ne
+- "s\u0254"
+- ma
+- ame
+- "g\u0254"
+- "\u0263aa"
+- "fi\u025B"
+- iso
+- mi
+- si
+- "\u0254\u0303"
+- gu
+- "w\u0169"
+- "\u0263\u025B\u025B"
+- "\u0254so"
+- yesu
+- ara
+top_n_grams:
+- - 2
+  - 0.147
+- - 3
+  - 0.16
+- - 4
+  - 0.172

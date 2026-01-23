@@ -1,0 +1,74 @@
+dup_line_frac: 0.508
+dup_n_grams:
+- - 5
+  - 0.408
+- - 6
+  - 0.396
+- - 7
+  - 0.383
+- - 8
+  - 0.366
+- - 9
+  - 0.321
+- - 10
+  - 0.289
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 1.0
+min_avg_word_length: 3
+new_line_ratio: 0.5
+stopwords:
+- fetu
+- feitu
+- pesnimu
+- arves
+- tutaper
+- puni
+- ustentu
+- ikuvina
+- fisiu
+- "a\u0159epes"
+- vatuva
+- ferine
+- enumek
+- fust
+- arviu
+- erus
+- ape
+- et
+- ukriper
+- "a\u0159ferture"
+- ustetu
+- arvia
+- "me\u0159s"
+- est
+- pune
+- "ta\u0159inate"
+- numem
+- heri
+- kutef
+- enu
+- kuvertu
+- heris
+- purtitaf
+- sakref
+- etraf
+- fratru
+- antakre
+- kumate
+- tref
+- esunu
+- muneklu
+- habia
+- numer
+- pusti
+- tre
+- iveka
+top_n_grams:
+- - 2
+  - 1.928
+- - 3
+  - 1.859
+- - 4
+  - 1.757

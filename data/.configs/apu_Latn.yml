@@ -1,0 +1,46 @@
+dup_line_frac: 0.263
+dup_n_grams:
+- - 5
+  - 0.206
+- - 6
+  - 0.196
+- - 7
+  - 0.189
+- - 8
+  - 0.185
+- - 9
+  - 0.163
+- - 10
+  - 0.152
+language_score: 0.603
+line_punct_thr: -1
+max_avg_word_length: 15
+max_non_alpha_words_ratio: 0.698
+min_avg_word_length: 4
+new_line_ratio: 0.083
+stopwords:
+- teoso
+- iua
+- "inini\xE3"
+- xesosi
+- ninoa
+- "s\xE3kire"
+- "k\xE3kiti"
+- "\u0129kapani"
+- atoko
+- kotxi
+- ikara
+- "h\u0129te"
+- kona
+- nota
+- erekari
+- itxa
+- iuasaaki
+- maerekati
+top_n_grams:
+- - 2
+  - 1.2
+- - 3
+  - 0.848
+- - 4
+  - 0.761

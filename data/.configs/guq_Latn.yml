@@ -1,0 +1,55 @@
+dup_line_frac: 0.686
+dup_n_grams:
+- - 5
+  - 0.534
+- - 6
+  - 0.525
+- - 7
+  - 0.509
+- - 8
+  - 0.496
+- - 9
+  - 0.477
+- - 10
+  - 0.455
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.8
+min_avg_word_length: 3
+new_line_ratio: 0.071
+stopwords:
+- go
+- emi
+- wywy
+- "r\xF5"
+- cho
+- "ap\xE3"
+- wachu
+- bue
+- pendje
+- gatu
+- nonga
+- gobu
+- djawu
+- jesu
+- idja
+- dja
+- ache
+- reko
+- wywype
+- dje
+- kua
+- nandje
+- mondo
+- rupi
+- "buch\xE3"
+- roma
+- gogi
+top_n_grams:
+- - 2
+  - 1.768
+- - 3
+  - 1.903
+- - 4
+  - 1.554

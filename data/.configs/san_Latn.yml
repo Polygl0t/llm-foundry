@@ -1,0 +1,58 @@
+dup_line_frac: 0.199
+dup_n_grams:
+- - 5
+  - 0.196
+- - 6
+  - 0.18
+- - 7
+  - 0.164
+- - 8
+  - 0.148
+- - 9
+  - 0.133
+- - 10
+  - 0.119
+language_score: 0.717
+line_punct_thr: -1
+max_avg_word_length: 26
+max_non_alpha_words_ratio: 0.875
+min_avg_word_length: 3
+new_line_ratio: 0.167
+stopwords:
+- sa
+- na
+- kintu
+- ca
+- tasya
+- mama
+- iti
+- te
+- he
+- tarhi
+- yadi
+- yat
+- tat
+- prati
+- yuyam
+- tena
+- yato
+- nca
+- vayam
+- ye
+- tam
+- yo
+- bhavati
+- yad
+- tava
+- kim
+- yuuya.m
+- aparam
+- eva
+- tasmin
+top_n_grams:
+- - 2
+  - 0.299
+- - 3
+  - 0.229
+- - 4
+  - 0.162

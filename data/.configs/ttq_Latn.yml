@@ -1,0 +1,46 @@
+dup_line_frac: 0.647
+dup_n_grams:
+- - 5
+  - 0.484
+- - 6
+  - 0.476
+- - 7
+  - 0.458
+- - 8
+  - 0.435
+- - 9
+  - 0.415
+- - 10
+  - 0.346
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.714
+min_avg_word_length: 2
+new_line_ratio: 0.062
+stopwords:
+- a
+- n
+- "da\u0263"
+- as
+- wa
+- ad
+- net
+- d
+- "w\u01DDr"
+- "\u01DDn"
+- win
+- i
+- da
+- "m\u01DD\u0161\u0161ina"
+- ta
+- du
+- s
+- in
+top_n_grams:
+- - 2
+  - 1.056
+- - 3
+  - 1.1
+- - 4
+  - 1.014

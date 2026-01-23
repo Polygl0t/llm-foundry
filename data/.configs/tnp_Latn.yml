@@ -1,0 +1,54 @@
+dup_line_frac: 0.064
+dup_n_grams:
+- - 5
+  - 0.066
+- - 6
+  - 0.051
+- - 7
+  - 0.044
+- - 8
+  - 0.04
+- - 9
+  - 0.039
+- - 10
+  - 0.033
+language_score: 0.9
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.774
+min_avg_word_length: 3
+new_line_ratio: 0.053
+stopwords:
+- e
+- "k\u0259ni"
+- "m\u0259m\u0259"
+- "m\u0268n"
+- in
+- "r\u0259ha"
+- "m\u0259t\u0259u"
+- "uhg\u0268n"
+- u
+- "i\u0259t\u0259m"
+- "k\u0259m"
+- ilah
+- "k\u0259ti"
+- "n\u0259t\u0259mimi"
+- nian
+- "\u0259ha"
+- "p\u0259n"
+- o
+- "\u0259m\u0259"
+- "m\u0268ne"
+- "r\u0259han"
+- nati
+- iesu
+- "it\u0259mah"
+- "r\u0259fin"
+- "n\u0259ghati\u0259n"
+top_n_grams:
+- - 2
+  - 0.24
+- - 3
+  - 0.218
+- - 4
+  - 0.191

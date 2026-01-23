@@ -1,0 +1,45 @@
+dup_line_frac: 0.465
+dup_n_grams:
+- - 5
+  - 0.569
+- - 6
+  - 0.466
+- - 7
+  - 0.357
+- - 8
+  - 0.329
+- - 9
+  - 0.298
+- - 10
+  - 0.276
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.701
+min_avg_word_length: 3
+new_line_ratio: 0.038
+stopwords:
+- yang
+- ka
+- dah
+- "ny\xE9n"
+- "ony\xE1"
+- yeng
+- yesus
+- allah
+- di
+- pun
+- "ken\xE1"
+- ke
+- ken
+- mai
+- mat
+- "n\xE1"
+- pada
+top_n_grams:
+- - 2
+  - 0.993
+- - 3
+  - 1.026
+- - 4
+  - 0.962

@@ -1,0 +1,41 @@
+dup_line_frac: 0.184
+dup_n_grams:
+- - 5
+  - 0.139
+- - 6
+  - 0.131
+- - 7
+  - 0.117
+- - 8
+  - 0.108
+- - 9
+  - 0.102
+- - 10
+  - 0.09
+language_score: 0.659
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.755
+min_avg_word_length: 4
+new_line_ratio: 0.045
+stopwords:
+- kinie
+- pulu
+- naa
+- mele
+- aku
+- yu
+- ningu
+- ungu
+- te
+- ye
+- nimbe
+- na
+- konopu
+top_n_grams:
+- - 2
+  - 0.57
+- - 3
+  - 0.467
+- - 4
+  - 0.42

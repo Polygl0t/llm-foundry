@@ -1,0 +1,79 @@
+# ============================================================================
+# Fully Sharded Data Parallel (FSDP) Configuration for Accelerate/Transformers
+# ============================================================================
+# This configuration file is used by Accelerate to set up FSDP training.
+# More configs: https://github.com/huggingface/trl/blob/main/examples/accelerate_configs
+# Accelerate Documentation: https://huggingface.co/docs/accelerate/package_reference/cli
+# ============================================================================
+
+# Compute Environment Configuration
+# ----------------------------------
+compute_environment: LOCAL_MACHINE
+debug: false                        # Enable debug mode for verbose logging (set to true for debugging)
+distributed_type: FSDP              # Distributed training type: FSDP (Fully Sharded Data Parallel)
+enable_cpu_affinity: true           # Enable CPU affinity for better NUMA performance
+
+# FSDP-Specific Configuration
+# ----------------------------
+fsdp_config:
+  # Activation Checkpointing: Trades compute for memory by recomputing activations during backward pass
+  # WARNING: Cannot be enabled simultaneously with gradient_checkpointing in TrainingArguments
+  # Set one or the other, not both.
+  fsdp_activation_checkpointing: false
+  
+  # Auto-wrap Policy: Determines how model layers are wrapped for sharding
+  # TRANSFORMER_BASED_WRAP: Automatically wraps transformer layers
+  fsdp_auto_wrap_policy: TRANSFORMER_BASED_WRAP
+  
+  # Reduces CPU memory usage during model initialization
+  fsdp_cpu_ram_efficient_loading: true
+  
+  # Parameter Offloading: Offload parameters to CPU when not in use
+  # Significantly reduces GPU memory but slows training
+  fsdp_offload_params: false
+  
+  # Reshard After Forward: Free full parameters after forward pass
+  # Maximizes memory efficiency at the cost of some communication overhead (equivalent to a Zero Redundancy Optimizer stage 3 setup)
+  fsdp_reshard_after_forward: true
+  
+  # State Dict Type: How model checkpoints are saved
+  # FULL_STATE_DICT: Gather full model on rank 0 (easy to load, high memory on rank 0)
+  fsdp_state_dict_type: FULL_STATE_DICT
+  
+  # FSDP Version: Use FSDP2 for better performance and features (2 is recommended)
+  fsdp_version: 2
+
+# Multi-Node Configuration
+# -------------------------
+machine_rank: 0                     # Rank of this machine in multi-node setup (0 for single-node)
+main_process_ip: null               # IP address of the main process (null for automatic detection)
+main_process_port: null             # Port for inter-process communication (null for automatic)
+main_training_function: main        # Entry point function name in your training script
+num_machines: 1                     # Total number of machines/nodes in the cluster
+gpu_ids: all                        # Specify GPU IDs to use (all = use all available GPUs)
+num_processes: 4                    # Number of GPUs/processes to use (typically equals number of GPUs)
+                                    # For multi-node: num_machines * GPUs_per_machine
+
+# Distributed Backend Configuration
+# ------------------------
+rdzv_backend: static                # Rendezvous backend for multi-node setup (static for fixed IP/port)
+same_network: true                  # Whether all machines are on the same network (true for single-node)
+
+# Precision Configuration
+# -----------------------
+mixed_precision: bf16               # Mixed precision training mode
+                                    # Options: "no" (fp32), "fp16", "bf16" (recommended for A100/H100)
+                                    # bf16 provides better numerical stability than fp16
+                                    # Reduces memory usage and speeds up training
+downcast_bf16: 'no'                 # Whether when using bf16 precision on TPUs if both float and double 
+                                    # tensors are cast to bfloat16 or if double tensors remain as float32.
+
+# TPU Configuration
+# -----------------------------------
+tpu_env: []                         # TPU-specific environment variables (leave empty for GPU training)
+tpu_use_cluster: false              # Use TPU cluster (false for GPU training)
+tpu_use_sudo: false                 # Require sudo for TPU operations (false for GPU training)
+
+# CPU Training
+# ------------
+use_cpu: false                      # Use CPU instead of GPU (false for GPU training)

@@ -1,0 +1,54 @@
+dup_line_frac: 0.151
+dup_n_grams:
+- - 5
+  - 0.242
+- - 6
+  - 0.223
+- - 7
+  - 0.217
+- - 8
+  - 0.191
+- - 9
+  - 0.176
+- - 10
+  - 0.167
+language_score: 0.714
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.818
+min_avg_word_length: 3
+new_line_ratio: 0.05
+stopwords:
+- "\u014Baiye"
+- pe
+- kin
+- ka
+- lenge
+- tinge
+- "miye\uA78C"
+- "\u014Bam"
+- yip
+- wusyep
+- "topo\uA78Ce"
+- got
+- tikin
+- na
+- yukur
+- poi
+- "ta\uA78Ce"
+- luku
+- si
+- uku
+- bwore
+- "\u014Bai\uA78Ce"
+- ende
+- tuweinge
+- "\u014Boihmbwaip"
+- pa
+top_n_grams:
+- - 2
+  - 0.916
+- - 3
+  - 0.899
+- - 4
+  - 0.798

@@ -1,0 +1,59 @@
+dup_line_frac: 0.329
+dup_n_grams:
+- - 5
+  - 0.098
+- - 6
+  - 0.095
+- - 7
+  - 0.09
+- - 8
+  - 0.085
+- - 9
+  - 0.079
+- - 10
+  - 0.072
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 14
+max_non_alpha_words_ratio: 0.7
+min_avg_word_length: 4
+new_line_ratio: 0.143
+stopwords:
+- bona
+- ukuthi
+- ujehova
+- begodu
+- kodwana
+- abantu
+- ujesu
+- uzimu
+- njani
+- kufuze
+- lokho
+- khulu
+- wathi
+- nanyana
+- u
+- ngombana
+- ngayo
+- njengombana
+- umuntu
+- ke
+- namkha
+- khona
+- le
+- izinto
+- ngemva
+- abanye
+- kubayini
+- na
+- nje
+- yeke
+- indlela
+top_n_grams:
+- - 2
+  - 0.368
+- - 3
+  - 0.315
+- - 4
+  - 0.267

@@ -1,0 +1,52 @@
+dup_line_frac: 1.034
+dup_n_grams:
+- - 5
+  - 0.781
+- - 6
+  - 0.772
+- - 7
+  - 0.715
+- - 8
+  - 0.698
+- - 9
+  - 0.672
+- - 10
+  - 0.632
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 6
+max_non_alpha_words_ratio: 0.771
+min_avg_word_length: 2
+new_line_ratio: 0.056
+stopwords:
+- ke
+- te
+- le
+- a
+- ne
+- to
+- na
+- nje
+- ngaa
+- ang
+- dewje
+- kare
+- tar
+- ta
+- me
+- lubba
+- aw
+- "d\u0254"
+- e
+- jeju
+- pa
+- dew
+- mba
+- maji
+top_n_grams:
+- - 2
+  - 1.006
+- - 3
+  - 1.174
+- - 4
+  - 1.279

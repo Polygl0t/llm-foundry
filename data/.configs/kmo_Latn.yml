@@ -1,0 +1,53 @@
+dup_line_frac: 0.428
+dup_n_grams:
+- - 5
+  - 0.266
+- - 6
+  - 0.253
+- - 7
+  - 0.226
+- - 8
+  - 0.218
+- - 9
+  - 0.2
+- - 10
+  - 0.182
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.769
+min_avg_word_length: 3
+new_line_ratio: 0.062
+stopwords:
+- ma
+- rii
+- tawa
+- eecha
+- ye
+- riiti
+- eeta
+- god
+- ada
+- riina
+- riita
+- eena
+- otii
+- na
+- harapa
+- worek
+- jisas
+- maji
+- kwo
+- boboyen
+- boboy
+- diita
+- yenya
+- tar
+- wor
+top_n_grams:
+- - 2
+  - 0.722
+- - 3
+  - 0.624
+- - 4
+  - 0.48

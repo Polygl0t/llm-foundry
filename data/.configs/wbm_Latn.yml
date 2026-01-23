@@ -1,0 +1,54 @@
+dup_line_frac: 0.761
+dup_n_grams:
+- - 5
+  - 0.47
+- - 6
+  - 0.407
+- - 7
+  - 0.39
+- - 8
+  - 0.369
+- - 9
+  - 0.328
+- - 10
+  - 0.307
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.854
+min_avg_word_length: 3
+new_line_ratio: 0.056
+stopwords:
+- ka
+- pa
+- mai
+- mawh
+- heue
+- nawh
+- pui
+- tix
+- hoik
+- aux
+- daux
+- kix
+- khankix
+- ang
+- ti
+- tak
+- maix
+- yuh
+- koe
+- cao
+- siyiex
+- an
+- ah
+- ceu
+- pex
+- krax
+top_n_grams:
+- - 2
+  - 1.037
+- - 3
+  - 0.887
+- - 4
+  - 0.846

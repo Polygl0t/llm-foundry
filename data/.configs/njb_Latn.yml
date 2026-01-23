@@ -1,0 +1,43 @@
+dup_line_frac: 0.471
+dup_n_grams:
+- - 5
+  - 0.364
+- - 6
+  - 0.357
+- - 7
+  - 0.345
+- - 8
+  - 0.324
+- - 9
+  - 0.302
+- - 10
+  - 0.28
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.793
+min_avg_word_length: 3
+new_line_ratio: 0.071
+stopwords:
+- ngale
+- ngama
+- heh
+- joban
+- pa
+- ma
+- wah
+- "n\xE2ng"
+- mihnyan
+- ate
+- a
+- jisu
+- lahma
+- eka
+- atema
+top_n_grams:
+- - 2
+  - 0.938
+- - 3
+  - 0.902
+- - 4
+  - 0.811

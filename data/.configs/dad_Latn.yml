@@ -1,0 +1,50 @@
+dup_line_frac: 0.36
+dup_n_grams:
+- - 5
+  - 0.438
+- - 6
+  - 0.425
+- - 7
+  - 0.399
+- - 8
+  - 0.384
+- - 9
+  - 0.343
+- - 10
+  - 0.317
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.755
+min_avg_word_length: 2
+new_line_ratio: 0.062
+stopwords:
+- "an\u0129"
+- nigin
+- "\u0129"
+- bun
+- fen
+- tamo
+- idi
+- "n\u1EBD"
+- aya
+- are
+- ere
+- to
+- fiya
+- "\xE3"
+- age
+- ado
+- negur
+- di
+- jesus
+- taka
+- bagai
+- ganan
+top_n_grams:
+- - 2
+  - 1.021
+- - 3
+  - 0.897
+- - 4
+  - 0.866

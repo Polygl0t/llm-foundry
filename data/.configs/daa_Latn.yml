@@ -1,0 +1,53 @@
+dup_line_frac: 0.405
+dup_n_grams:
+- - 5
+  - 0.423
+- - 6
+  - 0.313
+- - 7
+  - 0.288
+- - 8
+  - 0.274
+- - 9
+  - 0.248
+- - 10
+  - 0.233
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.755
+min_avg_word_length: 3
+new_line_ratio: 0.059
+stopwords:
+- "\u0257o"
+- ka
+- "i\u014B"
+- ho
+- "\u014Ba"
+- "\u014Bu"
+- ak
+- kaak
+- ku
+- kuuk
+- gay
+- ta
+- gee
+- min
+- kar
+- taat
+- iisa
+- "bu\u014B"
+- nu
+- aman
+- di
+- "\u014Baar"
+- a
+- ko
+- "bu\u014Bdi"
+top_n_grams:
+- - 2
+  - 1.479
+- - 3
+  - 1.193
+- - 4
+  - 1.143

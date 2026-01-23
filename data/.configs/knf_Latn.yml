@@ -1,0 +1,43 @@
+dup_line_frac: 0.338
+dup_n_grams:
+- - 5
+  - 0.329
+- - 6
+  - 0.323
+- - 7
+  - 0.312
+- - 8
+  - 0.298
+- - 9
+  - 0.283
+- - 10
+  - 0.265
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.778
+min_avg_word_length: 2
+new_line_ratio: 0.077
+stopwords:
+- "k\xEB"
+- wi
+- "\u0163i"
+- na
+- "na\u015Fiba\u0163i"
+- uko
+- aji
+- "a\u015F\xEB"
+- baka
+- du
+- i
+- "b\u0167i"
+- "ba\xF1aa\u014B"
+- "m\xEBn\u0163"
+- "ye\u0167u"
+top_n_grams:
+- - 2
+  - 0.298
+- - 3
+  - 0.289
+- - 4
+  - 0.245

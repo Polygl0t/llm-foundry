@@ -1,0 +1,48 @@
+dup_line_frac: 0.883
+dup_n_grams:
+- - 5
+  - 0.515
+- - 6
+  - 0.498
+- - 7
+  - 0.466
+- - 8
+  - 0.44
+- - 9
+  - 0.417
+- - 10
+  - 0.385
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.818
+min_avg_word_length: 3
+new_line_ratio: 0.05
+stopwords:
+- ti
+- ni
+- ya
+- a
+- ana
+- ga
+- melefit
+- mis
+- "na\u014B"
+- zlam
+- ndam
+- ka
+- do
+- ge
+- nahkay
+- tay
+- "gaya\u014B"
+- gani
+- yezu
+- ma
+top_n_grams:
+- - 2
+  - 0.811
+- - 3
+  - 0.891
+- - 4
+  - 0.766

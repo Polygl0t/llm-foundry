@@ -1,0 +1,45 @@
+dup_line_frac: 0.279
+dup_n_grams:
+- - 5
+  - 0.223
+- - 6
+  - 0.219
+- - 7
+  - 0.19
+- - 8
+  - 0.18
+- - 9
+  - 0.168
+- - 10
+  - 0.156
+language_score: 0.651
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.828
+min_avg_word_length: 3
+new_line_ratio: 0.059
+stopwords:
+- lit
+- toho
+- ap
+- ulug
+- ane
+- ino
+- men
+- angge
+- ari
+- hiyag
+- fug
+- fahet
+- uruk
+- fam
+- allah
+- wereg
+- turuk
+top_n_grams:
+- - 2
+  - 0.427
+- - 3
+  - 0.408
+- - 4
+  - 0.363

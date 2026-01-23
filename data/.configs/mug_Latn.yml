@@ -1,0 +1,49 @@
+dup_line_frac: 0.574
+dup_n_grams:
+- - 5
+  - 0.353
+- - 6
+  - 0.334
+- - 7
+  - 0.325
+- - 8
+  - 0.301
+- - 9
+  - 0.288
+- - 10
+  - 0.258
+language_score: 0.302
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.828
+min_avg_word_length: 2
+new_line_ratio: 0.059
+stopwords:
+- na
+- a
+- "\u0257a"
+- e
+- "\u0257ai"
+- gaini
+- zi
+- kai
+- war
+- mu
+- aga
+- lai
+- "\u0253a"
+- edi
+- wiini
+- "a\u014B"
+- par
+- "n\u2019a"
+- "pa\u014B"
+- ki
+- "n\u0275a"
+top_n_grams:
+- - 2
+  - 1.896
+- - 3
+  - 1.862
+- - 4
+  - 1.894

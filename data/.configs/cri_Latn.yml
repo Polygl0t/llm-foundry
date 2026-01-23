@@ -1,0 +1,54 @@
+dup_line_frac: 1.058
+dup_n_grams:
+- - 5
+  - 0.821
+- - 6
+  - 0.79
+- - 7
+  - 0.796
+- - 8
+  - 0.773
+- - 9
+  - 0.715
+- - 10
+  - 0.689
+language_score: 0.463
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.8
+min_avg_word_length: 2
+new_line_ratio: 0.111
+stopwords:
+- ku
+- di
+- ka
+- kwa
+- non
+- "k\xEA"
+- ni
+- inen
+- sa
+- kuma
+- jova
+- fe
+- da
+- "\u0169a"
+- "ng\xEA"
+- se
+- "\xEA"
+- na
+- a
+- fa
+- "t\xEA"
+- jizu
+- "d\xEAsu"
+- fla
+- "p\xF4"
+- i
+top_n_grams:
+- - 2
+  - 2.713
+- - 3
+  - 2.979
+- - 4
+  - 3.006

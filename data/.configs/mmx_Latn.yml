@@ -1,0 +1,44 @@
+dup_line_frac: 0.602
+dup_n_grams:
+- - 5
+  - 0.528
+- - 6
+  - 0.511
+- - 7
+  - 0.494
+- - 8
+  - 0.457
+- - 9
+  - 0.428
+- - 10
+  - 0.393
+language_score: 0.342
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.841
+min_avg_word_length: 2
+new_line_ratio: 0.053
+stopwords:
+- la
+- at
+- i
+- ne
+- ga
+- lok
+- mi
+- do
+- na
+- mo
+- limixin
+- lox
+- moroa
+- diga
+- neni
+- di
+top_n_grams:
+- - 2
+  - 1.237
+- - 3
+  - 1.242
+- - 4
+  - 1.164

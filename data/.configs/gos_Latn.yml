@@ -1,0 +1,52 @@
+dup_line_frac: 0.141
+dup_n_grams:
+- - 5
+  - 0.084
+- - 6
+  - 0.082
+- - 7
+  - 0.076
+- - 8
+  - 0.072
+- - 9
+  - 0.065
+- - 10
+  - 0.06
+language_score: 0.675
+line_punct_thr: -1
+max_avg_word_length: 11
+max_non_alpha_words_ratio: 0.75
+min_avg_word_length: 2
+new_line_ratio: 0.25
+stopwords:
+- k
+- is
+- n
+- t
+- ien
+- tom
+- van
+- nait
+- hai
+- binnen
+- wie
+- joe
+- mien
+- het
+- zai
+- en
+- doe
+- dat
+- mit
+- noar
+- wat
+- op
+- mie
+- gain
+top_n_grams:
+- - 2
+  - 1.103
+- - 3
+  - 0.899
+- - 4
+  - 0.882

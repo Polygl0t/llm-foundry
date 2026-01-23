@@ -1,0 +1,49 @@
+dup_line_frac: 0.343
+dup_n_grams:
+- - 5
+  - 0.224
+- - 6
+  - 0.214
+- - 7
+  - 0.201
+- - 8
+  - 0.183
+- - 9
+  - 0.167
+- - 10
+  - 0.152
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.833
+min_avg_word_length: 2
+new_line_ratio: 0.083
+stopwords:
+- te
+- "\u02BCe"
+- "ne\u02BCe"
+- "\u02BCu"
+- "\u02BCo"
+- ko
+- "\u02BCi"
+- ki
+- mo
+- ke
+- pea
+- ia
+- he
+- "\u02BCa\u0113"
+- e
+- tou
+- ai
+- "n\u0101tou"
+- ina
+- mole
+- "\u02BCaia"
+top_n_grams:
+- - 2
+  - 0.976
+- - 3
+  - 0.861
+- - 4
+  - 0.815

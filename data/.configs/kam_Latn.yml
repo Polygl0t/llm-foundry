@@ -1,0 +1,42 @@
+dup_line_frac: 0.733
+dup_n_grams:
+- - 5
+  - 0.363
+- - 6
+  - 0.342
+- - 7
+  - 0.337
+- - 8
+  - 0.319
+- - 9
+  - 0.278
+- - 10
+  - 0.259
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 10
+max_non_alpha_words_ratio: 0.75
+min_avg_word_length: 2
+new_line_ratio: 0.111
+stopwords:
+- na
+- wa
+- "n\u0129"
+- kana
+- ya
+- o
+- yeova
+- ala
+- "and\u0169"
+- ma
+- "\u0169nd\u0169"
+- ngai
+- "\u0169la"
+- kwa
+top_n_grams:
+- - 2
+  - 1.364
+- - 3
+  - 1.212
+- - 4
+  - 1.115

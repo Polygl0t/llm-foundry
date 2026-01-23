@@ -1,0 +1,49 @@
+dup_line_frac: 0.888
+dup_n_grams:
+- - 5
+  - 0.541
+- - 6
+  - 0.527
+- - 7
+  - 0.514
+- - 8
+  - 0.489
+- - 9
+  - 0.466
+- - 10
+  - 0.436
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.867
+min_avg_word_length: 2
+new_line_ratio: 0.067
+stopwords:
+- go
+- na
+- da
+- "n\xE1"
+- lay
+- ni
+- ne
+- je
+- kolo
+- "g\xF3"
+- ba
+- kumno
+- "\u0257\xE9"
+- kara
+- day
+- kur
+- tum
+- "kolo\u014B"
+- mani
+- "m\xE1ni"
+- yaa
+top_n_grams:
+- - 2
+  - 1.178
+- - 3
+  - 1.129
+- - 4
+  - 1.128

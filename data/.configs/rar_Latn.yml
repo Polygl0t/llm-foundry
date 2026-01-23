@@ -1,0 +1,48 @@
+dup_line_frac: 0.518
+dup_n_grams:
+- - 5
+  - 0.387
+- - 6
+  - 0.361
+- - 7
+  - 0.333
+- - 8
+  - 0.312
+- - 9
+  - 0.276
+- - 10
+  - 0.257
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.833
+min_avg_word_length: 2
+new_line_ratio: 0.077
+stopwords:
+- te
+- i
+- e
+- au
+- ra
+- kua
+- kia
+- anga
+- o
+- ki
+- ka
+- 'no'
+- tetai
+- mai
+- ia
+- a
+- tatou
+- atu
+- ko
+- ratou
+top_n_grams:
+- - 2
+  - 1.149
+- - 3
+  - 1.089
+- - 4
+  - 0.91

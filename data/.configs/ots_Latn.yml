@@ -1,0 +1,49 @@
+dup_line_frac: 0.766
+dup_n_grams:
+- - 5
+  - 0.576
+- - 6
+  - 0.069
+- - 7
+  - 0.064
+- - 8
+  - 0.054
+- - 9
+  - 0.05
+- - 10
+  - 0.047
+language_score: 0.438
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.818
+min_avg_word_length: 2
+new_line_ratio: 0.067
+stopwords:
+- car
+- ca
+- "c\u0289"
+- bi
+- i
+- da
+- "cja\u0331"
+- jin
+- "m\xED"
+- gui
+- ya
+- "p\u0289"
+- "bb\u0289"
+- pa
+- "r\xE1"
+- "cja\u0331hni"
+- di
+- tzi
+- "d\xED"
+- "ocja\u0331"
+- "c\xE1r"
+top_n_grams:
+- - 2
+  - 0.295
+- - 3
+  - 0.413
+- - 4
+  - 0.63

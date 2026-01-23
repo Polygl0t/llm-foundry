@@ -1,0 +1,54 @@
+dup_line_frac: 0.634
+dup_n_grams:
+- - 5
+  - 0.435
+- - 6
+  - 0.412
+- - 7
+  - 0.383
+- - 8
+  - 0.356
+- - 9
+  - 0.315
+- - 10
+  - 0.288
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.744
+min_avg_word_length: 3
+new_line_ratio: 0.036
+stopwords:
+- nang
+- er
+- ara
+- aryi
+- asi
+- sun
+- nun
+- biryi
+- imtamnyi
+- ati
+- dinyi
+- uram
+- kum
+- ato
+- ura
+- tenen
+- a
+- yesus
+- ab
+- sunci
+- ni
+- ninyi
+- teleb
+- du
+- yuk
+- kanya
+top_n_grams:
+- - 2
+  - 1.261
+- - 3
+  - 1.213
+- - 4
+  - 1.119

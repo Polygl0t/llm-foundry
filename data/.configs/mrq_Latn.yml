@@ -1,0 +1,55 @@
+dup_line_frac: 1.138
+dup_n_grams:
+- - 5
+  - 0.785
+- - 6
+  - 0.781
+- - 7
+  - 0.758
+- - 8
+  - 0.737
+- - 9
+  - 0.702
+- - 10
+  - 0.671
+language_score: 0.313
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.833
+min_avg_word_length: 2
+new_line_ratio: 0.1
+stopwords:
+- te
+- i
+- e
+- tau
+- 'no'
+- me
+- o
+- "\u02C8ia"
+- aha
+- to
+- ta
+- matou
+- hana
+- a
+- "\u02C8oto"
+- "\u02C8oe"
+- atou
+- mea
+- iehova
+- pehea
+- titahi
+- kiritiano
+- pipiria
+- ai
+- ia
+- toko
+- "ha\u02C8e"
+top_n_grams:
+- - 2
+  - 2.044
+- - 3
+  - 2.008
+- - 4
+  - 2.253

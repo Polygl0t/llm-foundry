@@ -1,0 +1,46 @@
+dup_line_frac: 0.788
+dup_n_grams:
+- - 5
+  - 0.625
+- - 6
+  - 0.637
+- - 7
+  - 0.63
+- - 8
+  - 0.597
+- - 9
+  - 0.553
+- - 10
+  - 0.495
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 11
+max_non_alpha_words_ratio: 0.714
+min_avg_word_length: 5
+new_line_ratio: 0.083
+stopwords:
+- we
+- waineye
+- ieisu
+- ivo
+- ge
+- beqa
+- wete
+- yaubada
+- waidie
+- tamo
+- tomo'otoqa
+- tutuyanina
+- mesai
+- vakai
+- inaqo
+- matautauda
+- tomoqo
+- tupwaidiavo
+top_n_grams:
+- - 2
+  - 2.744
+- - 3
+  - 2.854
+- - 4
+  - 2.734

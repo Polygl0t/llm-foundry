@@ -1,0 +1,36 @@
+dup_line_frac: 0.579
+dup_n_grams:
+- - 5
+  - 0.376
+- - 6
+  - 0.359
+- - 7
+  - 0.34
+- - 8
+  - 0.307
+- - 9
+  - 0.282
+- - 10
+  - 0.265
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.829
+min_avg_word_length: 4
+new_line_ratio: 0.048
+stopwords:
+- mag
+- ich
+- hich
+- chi
+- nem
+- maach
+- sim
+- "s\u0129i"
+top_n_grams:
+- - 2
+  - 0.738
+- - 3
+  - 0.737
+- - 4
+  - 0.589

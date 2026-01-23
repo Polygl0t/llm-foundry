@@ -1,0 +1,41 @@
+dup_line_frac: 0.59
+dup_n_grams:
+- - 5
+  - 0.638
+- - 6
+  - 0.621
+- - 7
+  - 0.623
+- - 8
+  - 0.58
+- - 9
+  - 0.561
+- - 10
+  - 0.548
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 10
+max_non_alpha_words_ratio: 0.765
+min_avg_word_length: 3
+new_line_ratio: 0.111
+stopwords:
+- mu
+- ayi
+- yave
+- ti
+- mambu
+- ko
+- batu
+- nzambi
+- yi
+- vayi
+- ku
+- ki
+- di
+top_n_grams:
+- - 2
+  - 2.038
+- - 3
+  - 2.32
+- - 4
+  - 2.407

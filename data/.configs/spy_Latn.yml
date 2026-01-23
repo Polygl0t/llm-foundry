@@ -1,0 +1,47 @@
+dup_line_frac: 0.282
+dup_n_grams:
+- - 5
+  - 0.285
+- - 6
+  - 0.241
+- - 7
+  - 0.208
+- - 8
+  - 0.197
+- - 9
+  - 0.185
+- - 10
+  - 0.169
+language_score: 0.312
+line_punct_thr: -1
+max_avg_word_length: 13
+max_non_alpha_words_ratio: 0.7
+min_avg_word_length: 4
+new_line_ratio: 0.083
+stopwords:
+- kule
+- "ny\u0113\u0113"
+- "\u0101m"
+- keey
+- nto
+- yoo
+- "y\u0113yiin"
+- "ch\u0113\u0113"
+- "\u0101k"
+- nyoo
+- tukul
+- ake
+- "y\u0113\u0113su"
+- choo
+- biiko
+- nteenee
+- kuu
+- yooto
+- "w\u014Dl\u0113\u0113"
+top_n_grams:
+- - 2
+  - 0.432
+- - 3
+  - 0.466
+- - 4
+  - 0.402

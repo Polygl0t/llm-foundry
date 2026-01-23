@@ -1,0 +1,43 @@
+dup_line_frac: 0.269
+dup_n_grams:
+- - 5
+  - 0.144
+- - 6
+  - 0.131
+- - 7
+  - 0.12
+- - 8
+  - 0.108
+- - 9
+  - 0.097
+- - 10
+  - 0.088
+language_score: 0.745
+line_punct_thr: 0.25
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.828
+min_avg_word_length: 3
+new_line_ratio: 0.167
+stopwords:
+- yn
+- y
+- a
+- ffilm
+- o
+- gan
+- '''r'
+- ar
+- mae
+- yw
+- cyfarwyddwr
+- ei
+- i
+- oedd
+- wedi
+top_n_grams:
+- - 2
+  - 0.258
+- - 3
+  - 0.196
+- - 4
+  - 0.165

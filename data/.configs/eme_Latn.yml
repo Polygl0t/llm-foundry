@@ -1,0 +1,54 @@
+dup_line_frac: 0.023
+dup_n_grams:
+- - 5
+  - 0.016
+- - 6
+  - 0.015
+- - 7
+  - 0.015
+- - 8
+  - 0.014
+- - 9
+  - 0.013
+- - 10
+  - 0.012
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 18
+max_non_alpha_words_ratio: 0.8
+min_avg_word_length: 3
+new_line_ratio: 1.0
+stopwords:
+- "a\u014B"
+- oho
+- am
+- kob
+- "oi\u0272u\u014B"
+- "ad\u0292u"
+- zawar
+- aipo
+- "w\xE3\u0129w\u0129"
+- "p\u0268awe"
+- wane
+- "ekot\u0268"
+- owur
+- "am\xF5"
+- "ki\u0294\u0268"
+- "awak\u02B7\u0259r"
+- "w\u0268t\u0283\u0268"
+- teko
+- "wa\u0268"
+- kor
+- "a\u0294e"
+- "s\u0259"
+- lekolazarakom
+- eiba
+- ta
+- "ike\u0294\u0268"
+top_n_grams:
+- - 2
+  - 1.506
+- - 3
+  - 1.585
+- - 4
+  - 1.508

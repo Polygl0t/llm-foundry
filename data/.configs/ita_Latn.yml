@@ -1,0 +1,46 @@
+dup_line_frac: 0.246
+dup_n_grams:
+- - 5
+  - 0.144
+- - 6
+  - 0.136
+- - 7
+  - 0.127
+- - 8
+  - 0.118
+- - 9
+  - 0.109
+- - 10
+  - 0.1
+language_score: 0.817
+line_punct_thr: 0.025
+max_avg_word_length: 21
+max_non_alpha_words_ratio: 0.807
+min_avg_word_length: 3
+new_line_ratio: 0.2
+stopwords:
+- di
+- e
+- il
+- la
+- in
+- a
+- del
+- che
+- "\xE8"
+- della
+- un
+- per
+- nel
+- l'
+- con
+- da
+- i
+- una
+top_n_grams:
+- - 2
+  - 0.198
+- - 3
+  - 0.156
+- - 4
+  - 0.133

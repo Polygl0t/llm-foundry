@@ -1,0 +1,49 @@
+dup_line_frac: 0.943
+dup_n_grams:
+- - 5
+  - 0.829
+- - 6
+  - 0.827
+- - 7
+  - 0.851
+- - 8
+  - 0.751
+- - 9
+  - 0.806
+- - 10
+  - 0.744
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.846
+min_avg_word_length: 3
+new_line_ratio: 0.05
+stopwords:
+- na
+- ke
+- a
+- komi
+- kena
+- kori
+- eigna
+- god
+- keda
+- tinoni
+- boi
+- imanea
+- inau
+- ma
+- fata
+- me
+- gi
+- ku
+- eia
+- iangeni
+- mono
+top_n_grams:
+- - 2
+  - 3.47
+- - 3
+  - 3.78
+- - 4
+  - 3.803

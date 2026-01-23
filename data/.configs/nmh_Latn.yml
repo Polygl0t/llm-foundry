@@ -1,0 +1,37 @@
+dup_line_frac: 0.743
+dup_n_grams:
+- - 5
+  - 0.49
+- - 6
+  - 0.445
+- - 7
+  - 0.423
+- - 8
+  - 0.386
+- - 9
+  - 0.358
+- - 10
+  - 0.324
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 14
+max_non_alpha_words_ratio: 0.75
+min_avg_word_length: 4
+new_line_ratio: 0.1
+stopwords:
+- ing
+- engkhejege
+- thangnhang
+- changgechuw
+- amaing
+- arhier
+- ama
+- jesu
+- ate
+top_n_grams:
+- - 2
+  - 1.743
+- - 3
+  - 1.694
+- - 4
+  - 1.496

@@ -1,0 +1,43 @@
+dup_line_frac: 0.181
+dup_n_grams:
+- - 5
+  - 0.13
+- - 6
+  - 0.114
+- - 7
+  - 0.101
+- - 8
+  - 0.089
+- - 9
+  - 0.081
+- - 10
+  - 0.072
+language_score: 0.718
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.833
+min_avg_word_length: 2
+new_line_ratio: 0.071
+stopwords:
+- ka
+- ki
+- u
+- "\xEFa"
+- la
+- bad
+- jong
+- ha
+- ban
+- nga
+- ba
+- kaba
+- na
+- kiba
+- long
+top_n_grams:
+- - 2
+  - 0.492
+- - 3
+  - 0.406
+- - 4
+  - 0.283

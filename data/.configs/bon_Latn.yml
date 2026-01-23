@@ -1,0 +1,55 @@
+dup_line_frac: 0.655
+dup_n_grams:
+- - 5
+  - 0.488
+- - 6
+  - 0.478
+- - 7
+  - 0.465
+- - 8
+  - 0.441
+- - 9
+  - 0.418
+- - 10
+  - 0.394
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.806
+min_avg_word_length: 3
+new_line_ratio: 0.056
+stopwords:
+- me
+- biname
+- cabu
+- lui
+- ne
+- te
+- ca
+- teeme
+- "eg\xE4"
+- tabe
+- bine
+- acejiyame
+- cina
+- "yep\xE4"
+- mene
+- piiyepu
+- cane
+- teepi
+- lica
+- weene
+- "t\xE4\xE4pume"
+- liba
+- gyene
+- yeesu
+- cama
+- mule
+- miiji
+top_n_grams:
+- - 2
+  - 1.481
+- - 3
+  - 1.509
+- - 4
+  - 1.431

@@ -1,0 +1,42 @@
+dup_line_frac: 0.127
+dup_n_grams:
+- - 5
+  - 0.144
+- - 6
+  - 0.13
+- - 7
+  - 0.106
+- - 8
+  - 0.094
+- - 9
+  - 0.084
+- - 10
+  - 0.076
+language_score: 0.842
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.729
+min_avg_word_length: 3
+new_line_ratio: 0.05
+stopwords:
+- yi
+- na
+- tan
+- nin
+- e
+- jun
+- tetz
+- i
+- te
+- ryos
+- at
+- tu
+- tzun
+- poro
+top_n_grams:
+- - 2
+  - 0.108
+- - 3
+  - 0.11
+- - 4
+  - 0.101

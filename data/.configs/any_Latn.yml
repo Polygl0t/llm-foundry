@@ -1,0 +1,49 @@
+dup_line_frac: 0.619
+dup_n_grams:
+- - 5
+  - 0.44
+- - 6
+  - 0.425
+- - 7
+  - 0.455
+- - 8
+  - 0.405
+- - 9
+  - 0.346
+- - 10
+  - 0.288
+language_score: 0.748
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.795
+min_avg_word_length: 2
+new_line_ratio: 0.05
+stopwords:
+- "m\u0254"
+- "\u0254"
+- "y\u0269\u0301"
+- "b\u025B"
+- "k\u025B"
+- man
+- "k\u0254"
+- "n\u0269n"
+- "b\u025B\u0301"
+- "\u025Bm\u0254"
+- a
+- "nyanm\u0269an"
+- "m\u0269n"
+- "t\u0269"
+- "m'\u0254"
+- "n\u028Bn"
+- "m\u0269\u0301n"
+- "y\u025B\u0301"
+- anun
+- nun
+- "nw\u028Bn"
+top_n_grams:
+- - 2
+  - 1.262
+- - 3
+  - 1.229
+- - 4
+  - 1.081

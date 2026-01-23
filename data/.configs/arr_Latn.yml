@@ -1,0 +1,62 @@
+dup_line_frac: 0.034
+dup_n_grams:
+- - 5
+  - 0.013
+- - 6
+  - 0.012
+- - 7
+  - 0.013
+- - 8
+  - 0.011
+- - 9
+  - 0.01
+- - 10
+  - 0.01
+language_score: 0.616
+line_punct_thr: -1
+max_avg_word_length: 10
+max_non_alpha_words_ratio: 1.0
+min_avg_word_length: 2
+new_line_ratio: 0.5
+stopwords:
+- "\xF5n"
+- at
+- "i\u0294ke"
+- "ahy\u0259"
+- "p\xE9\u014B"
+- wat
+- "ka\u0294a"
+- "\u014Ba"
+- "ma\u0294p\u0259y"
+- "n\xE3n"
+- "pe\u0294"
+- "\u0294et"
+- "m\xE3yg\xE3ra"
+- "c\xFA"
+- "\u0294a"
+- "a\u0294toy"
+- "ma\u0294w\u0268t"
+- "\u1EBDn"
+- "ag\xF3a\u0294p\u0259t"
+- ip
+- "to\u0294wa"
+- "iy\xF5m"
+- "kan\xE3"
+- "m\xE3m"
+- yat
+- wayo
+- "ow\u1EBD"
+- "a\u0294w\u0129n"
+- "n\xE3nin"
+- toat
+- "p\xFA\u014B"
+- wet
+- "kan\xE3p"
+- "w\u0129n"
+top_n_grams:
+- - 2
+  - 1.54
+- - 3
+  - 1.584
+- - 4
+  - 1.681

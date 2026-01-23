@@ -1,0 +1,45 @@
+dup_line_frac: 0.006
+dup_n_grams:
+- - 5
+  - 0.002
+- - 6
+  - 0.001
+- - 7
+  - 0.001
+- - 8
+  - 0.001
+- - 9
+  - 0
+- - 10
+  - 0
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 17
+max_non_alpha_words_ratio: 0.7
+min_avg_word_length: 4
+new_line_ratio: 0.077
+stopwords:
+- y
+- te
+- '''s'
+- wa'y
+- "in\u028Cc"
+- que
+- diojsis
+- porque
+- ja'n
+- pero
+- "ma\u014Bba"
+- "tiy\u028C"
+- juca
+- "n\u028C"
+- "t\u028C"
+- dios
+- mumu
+top_n_grams:
+- - 2
+  - 1.358
+- - 3
+  - 1.266
+- - 4
+  - 1.075

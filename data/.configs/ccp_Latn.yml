@@ -1,0 +1,39 @@
+dup_line_frac: 0.772
+dup_n_grams:
+- - 5
+  - 0.601
+- - 6
+  - 0.577
+- - 7
+  - 0.553
+- - 8
+  - 0.532
+- - 9
+  - 0.498
+- - 10
+  - 0.474
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.793
+min_avg_word_length: 3
+new_line_ratio: 0.077
+stopwords:
+- ar
+- the
+- 'no'
+- gori
+- tar
+- mui
+- thara
+- hintu
+- tare
+- jisu
+- tumi
+top_n_grams:
+- - 2
+  - 1.047
+- - 3
+  - 1.043
+- - 4
+  - 0.991

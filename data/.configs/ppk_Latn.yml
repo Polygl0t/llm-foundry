@@ -1,0 +1,45 @@
+dup_line_frac: 0.642
+dup_n_grams:
+- - 5
+  - 0.526
+- - 6
+  - 0.496
+- - 7
+  - 0.474
+- - 8
+  - 0.439
+- - 9
+  - 0.418
+- - 10
+  - 0.391
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 10
+max_non_alpha_words_ratio: 0.6
+min_avg_word_length: 3
+new_line_ratio: 0.05
+stopwords:
+- to
+- hi
+- na
+- pai
+- toe
+- uma
+- ra
+- alata'ala
+- ngkai
+- yesus
+- tauna
+- ria
+- mi
+- apa
+- wo'o
+- -ku
+- jadi
+top_n_grams:
+- - 2
+  - 0.721
+- - 3
+  - 0.733
+- - 4
+  - 0.669

@@ -1,0 +1,42 @@
+dup_line_frac: 0.599
+dup_n_grams:
+- - 5
+  - 0.458
+- - 6
+  - 0.442
+- - 7
+  - 0.43
+- - 8
+  - 0.399
+- - 9
+  - 0.372
+- - 10
+  - 0.344
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 17
+max_non_alpha_words_ratio: 0.7
+min_avg_word_length: 5
+new_line_ratio: 0.091
+stopwords:
+- cara
+- aisati
+- tosorintsi
+- ora
+- ira
+- te
+- quero
+- jesos
+- aro
+- carari
+- matsiguenga
+- yamai
+- "\xBF"
+- iriro
+top_n_grams:
+- - 2
+  - 1.636
+- - 3
+  - 1.574
+- - 4
+  - 1.444

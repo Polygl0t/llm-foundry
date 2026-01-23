@@ -1,0 +1,54 @@
+dup_line_frac: 0.271
+dup_n_grams:
+- - 5
+  - 0.25
+- - 6
+  - 0.221
+- - 7
+  - 0.185
+- - 8
+  - 0.176
+- - 9
+  - 0.165
+- - 10
+  - 0.153
+language_score: 0.9
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.862
+min_avg_word_length: 2
+new_line_ratio: 0.05
+stopwords:
+- na
+- te
+- "n\u025B"
+- "\u2184"
+- "ke\u014B"
+- nyi
+- man
+- be
+- "\u025B"
+- "\u014Bon"
+- "wurubuar\u025B"
+- ya
+- "y\u025B\u025B"
+- ke
+- "d\u2184\u2184"
+- "ba\u014B"
+- mena
+- ne
+- nombia
+- "bala\u014B"
+- e
+- lee
+- "\u014Ban"
+- waa
+- ba
+- yesu
+top_n_grams:
+- - 2
+  - 0.174
+- - 3
+  - 0.246
+- - 4
+  - 0.215

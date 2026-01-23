@@ -1,0 +1,52 @@
+dup_line_frac: 0.284
+dup_n_grams:
+- - 5
+  - 0.256
+- - 6
+  - 0.251
+- - 7
+  - 0.242
+- - 8
+  - 0.232
+- - 9
+  - 0.219
+- - 10
+  - 0.206
+language_score: 0.781
+line_punct_thr: -1
+max_avg_word_length: 6
+max_non_alpha_words_ratio: 0.762
+min_avg_word_length: 2
+new_line_ratio: 0.048
+stopwords:
+- ce
+- a
+- "a\xE8"
+- m
+- ba
+- ka
+- e
+- "ne\xE8"
+- "we\xE8e"
+- yu
+- "be\xE8e"
+- "ny\xFA\xE8"
+- "\xF1w\xE1\xE8"
+- yi
+- "wowe\xE8e"
+- "en\xE1"
+- ye
+- buu
+- be
+- "t\xE1"
+- "m\xE1\xE8"
+- "ge\xE8e"
+- "a\xE8mbo\xE8"
+- yuu
+top_n_grams:
+- - 2
+  - 0.145
+- - 3
+  - 0.15
+- - 4
+  - 0.149

@@ -1,0 +1,49 @@
+dup_line_frac: 0.646
+dup_n_grams:
+- - 5
+  - 0.498
+- - 6
+  - 0.473
+- - 7
+  - 0.457
+- - 8
+  - 0.408
+- - 9
+  - 0.375
+- - 10
+  - 0.355
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.774
+min_avg_word_length: 3
+new_line_ratio: 0.071
+stopwords:
+- ngen
+- o
+- tun
+- de
+- "d\xEA"
+- uku
+- coa
+- si
+- utuk
+- ade
+- nak
+- bi
+- kulo
+- tobo'o
+- "it\xEA"
+- udi
+- yo
+- "am\xEAn"
+- neak
+- tapi
+- nam
+top_n_grams:
+- - 2
+  - 1.128
+- - 3
+  - 1.126
+- - 4
+  - 1.038

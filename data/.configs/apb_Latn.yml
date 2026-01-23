@@ -1,0 +1,53 @@
+dup_line_frac: 0.422
+dup_n_grams:
+- - 5
+  - 0.326
+- - 6
+  - 0.313
+- - 7
+  - 0.292
+- - 8
+  - 0.274
+- - 9
+  - 0.258
+- - 10
+  - 0.241
+language_score: 0.67
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.833
+min_avg_word_length: 3
+new_line_ratio: 0.044
+stopwords:
+- e
+- aana
+- oto
+- a
+- na
+- ko
+- mo
+- i
+- kire
+- ke
+- nge
+- uri
+- hunie
+- nga
+- omu
+- mola
+- god
+- lae
+- ngeena
+- ni
+- iini
+- kei
+- "ta\uA78Ce"
+- ola
+- "lo\uA78Cu"
+top_n_grams:
+- - 2
+  - 1.417
+- - 3
+  - 1.428
+- - 4
+  - 1.311

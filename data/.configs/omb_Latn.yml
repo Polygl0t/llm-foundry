@@ -1,0 +1,52 @@
+dup_line_frac: 0.434
+dup_n_grams:
+- - 5
+  - 0.41
+- - 6
+  - 0.384
+- - 7
+  - 0.348
+- - 8
+  - 0.323
+- - 9
+  - 0.315
+- - 10
+  - 0.278
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.846
+min_avg_word_length: 3
+new_line_ratio: 0.053
+stopwords:
+- a
+- na
+- mo
+- ve
+- hi
+- u
+- ko
+- huri
+- lo
+- ram
+- i
+- god
+- tangaloi
+- tea
+- vin
+- veve
+- gineu
+- nge
+- ingere
+- siu
+- rau
+- ineu
+- gimiu
+- ingeie
+top_n_grams:
+- - 2
+  - 0.941
+- - 3
+  - 0.756
+- - 4
+  - 0.645

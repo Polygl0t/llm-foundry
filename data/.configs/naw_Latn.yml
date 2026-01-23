@@ -1,0 +1,52 @@
+dup_line_frac: 0.111
+dup_n_grams:
+- - 5
+  - 0.052
+- - 6
+  - 0.039
+- - 7
+  - 0.027
+- - 8
+  - 0.019
+- - 9
+  - 0.016
+- - 10
+  - 0.013
+language_score: 0.683
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.844
+min_avg_word_length: 2
+new_line_ratio: 0.05
+stopwords:
+- "m\u028B"
+- "n\u0269\u0269"
+- ba
+- "s\u028B"
+- "y\u025B"
+- "t\u0254"
+- "\u0254"
+- "\u0269"
+- "f\u025B\u025B"
+- n
+- "bam\u028B"
+- "\u0269bwaar\u025B"
+- "l\u0269\u0269"
+- fan
+- "fan\u025B"
+- man
+- "gy\u025B"
+- waa
+- "t\u0254w\u025B"
+- biti
+- maa
+- "m\u025B"
+- sa
+- "k\u025B"
+top_n_grams:
+- - 2
+  - 0.08
+- - 3
+  - 0.117
+- - 4
+  - 0.021

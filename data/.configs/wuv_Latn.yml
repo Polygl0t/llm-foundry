@@ -1,0 +1,46 @@
+dup_line_frac: 0.51
+dup_n_grams:
+- - 5
+  - 0.302
+- - 6
+  - 0.287
+- - 7
+  - 0.276
+- - 8
+  - 0.258
+- - 9
+  - 0.242
+- - 10
+  - 0.228
+language_score: 0.397
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.769
+min_avg_word_length: 3
+new_line_ratio: 0.071
+stopwords:
+- fei
+- ei
+- ma
+- na
+- ba
+- mei
+- a'a
+- i
+- rona
+- lomi
+- hamu'ou
+- ro'ou
+- haidaa
+- ma'uaa
+- ale'ei
+- ana
+- uaa
+- rama'a
+top_n_grams:
+- - 2
+  - 1.092
+- - 3
+  - 1.003
+- - 4
+  - 0.909

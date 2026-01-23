@@ -1,0 +1,47 @@
+dup_line_frac: 0.505
+dup_n_grams:
+- - 5
+  - 0.402
+- - 6
+  - 0.366
+- - 7
+  - 0.345
+- - 8
+  - 0.32
+- - 9
+  - 0.302
+- - 10
+  - 0.278
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 13
+max_non_alpha_words_ratio: 0.724
+min_avg_word_length: 4
+new_line_ratio: 0.071
+stopwords:
+- nuquin
+- papan
+- quequin
+- esus
+- mibi
+- papa
+- "\xEBbi"
+- aden
+- nec
+- mimbi
+- abi
+- iquec
+- matses
+- yacno
+- "\xBF"
+- aton
+- yec
+- ambi
+- "b\xEBdamboen"
+top_n_grams:
+- - 2
+  - 0.993
+- - 3
+  - 0.952
+- - 4
+  - 0.821

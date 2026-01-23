@@ -1,0 +1,48 @@
+dup_line_frac: 0.574
+dup_n_grams:
+- - 5
+  - 0.468
+- - 6
+  - 0.454
+- - 7
+  - 0.434
+- - 8
+  - 0.402
+- - 9
+  - 0.383
+- - 10
+  - 0.352
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.762
+min_avg_word_length: 4
+new_line_ratio: 0.077
+stopwords:
+- diau
+- ngan
+- jemau
+- di
+- mangku
+- kamu
+- nidau
+- allah
+- aku
+- la
+- itu
+- ughangtu
+- yesus
+- ka
+- karnau
+- endak
+- jak
+- luak
+- adau
+- pulau
+top_n_grams:
+- - 2
+  - 1.545
+- - 3
+  - 1.537
+- - 4
+  - 1.423

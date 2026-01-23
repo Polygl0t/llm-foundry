@@ -1,0 +1,43 @@
+dup_line_frac: 0.84
+dup_n_grams:
+- - 5
+  - 0.551
+- - 6
+  - 0.54
+- - 7
+  - 0.54
+- - 8
+  - 0.501
+- - 9
+  - 0.481
+- - 10
+  - 0.427
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 11
+max_non_alpha_words_ratio: 0.75
+min_avg_word_length: 3
+new_line_ratio: 0.083
+stopwords:
+- na
+- mmbo
+- fo
+- ni
+- wa
+- iruva
+- ya
+- nndu
+- kya
+- efo
+- yeto
+- vandu
+- a
+- naasa
+- mashika
+top_n_grams:
+- - 2
+  - 1.639
+- - 3
+  - 1.589
+- - 4
+  - 1.628

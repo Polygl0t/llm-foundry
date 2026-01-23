@@ -1,0 +1,49 @@
+dup_line_frac: 0.798
+dup_n_grams:
+- - 5
+  - 0.363
+- - 6
+  - 0.348
+- - 7
+  - 0.327
+- - 8
+  - 0.307
+- - 9
+  - 0.283
+- - 10
+  - 0.262
+language_score: 0.3
+line_punct_thr: 0.083
+max_avg_word_length: 17
+max_non_alpha_words_ratio: 0.722
+min_avg_word_length: 2
+new_line_ratio: 0.277
+stopwords:
+- i
+- nu
+- "ir\u0101"
+- ar
+- "god\u0101"
+- "n\u016Bvoda"
+- pogosta
+- kai
+- beja
+- iz
+- latgolys
+- "latga\u013Cu"
+- pogosts
+- pogostu
+- pa
+- par
+- a
+- latvejis
+- da
+- "pogost\u0101"
+- "n\u016Bruodis"
+top_n_grams:
+- - 2
+  - 0.943
+- - 3
+  - 0.817
+- - 4
+  - 0.801

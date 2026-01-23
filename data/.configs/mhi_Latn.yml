@@ -1,0 +1,52 @@
+dup_line_frac: 0.594
+dup_n_grams:
+- - 5
+  - 0.274
+- - 6
+  - 0.264
+- - 7
+  - 0.241
+- - 8
+  - 0.242
+- - 9
+  - 0.223
+- - 10
+  - 0.212
+language_score: 0.644
+line_punct_thr: -1
+max_avg_word_length: 6
+max_non_alpha_words_ratio: 0.733
+min_avg_word_length: 2
+new_line_ratio: 0.062
+stopwords:
+- ni
+- ri
+- a
+- dri
+- si
+- ta
+- rii
+- ani
+- ba
+- i
+- ma
+- tro
+- ra
+- ku
+- anyi
+- rubanga
+- di
+- vua
+- ai
+- "ma\u2019di"
+- dii
+- yesu
+- ki
+- jo
+top_n_grams:
+- - 2
+  - 1.112
+- - 3
+  - 1.12
+- - 4
+  - 1.098

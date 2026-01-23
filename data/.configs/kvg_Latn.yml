@@ -1,0 +1,51 @@
+dup_line_frac: 0.672
+dup_n_grams:
+- - 5
+  - 0.482
+- - 6
+  - 0.474
+- - 7
+  - 0.466
+- - 8
+  - 0.434
+- - 9
+  - 0.42
+- - 10
+  - 0.394
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.659
+min_avg_word_length: 4
+new_line_ratio: 0.048
+stopwords:
+- te
+- yaq
+- neka
+- ndego
+- ezoqam
+- mbumbukiam
+- ndigu
+- qa
+- zo
+- 'no'
+- ezoqa
+- matev
+- manqat
+- "nd\xF8go"
+- av
+- "gete\u0301"
+- ni
+- "n\xF8me"
+- yesu
+- "te\u0301"
+- "a\u0304v"
+- mokho
+- manqa
+top_n_grams:
+- - 2
+  - 0.782
+- - 3
+  - 0.699
+- - 4
+  - 0.545

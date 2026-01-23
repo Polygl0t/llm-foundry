@@ -1,0 +1,49 @@
+dup_line_frac: 0.621
+dup_n_grams:
+- - 5
+  - 0.535
+- - 6
+  - 0.515
+- - 7
+  - 0.492
+- - 8
+  - 0.446
+- - 9
+  - 0.424
+- - 10
+  - 0.399
+language_score: 0.488
+line_punct_thr: -1
+max_avg_word_length: 10
+max_non_alpha_words_ratio: 0.786
+min_avg_word_length: 3
+new_line_ratio: 0.077
+stopwords:
+- i
+- mo
+- ngo
+- kalak
+- "k\xE8n\xE8"
+- nai
+- idi
+- "d\xE8bata"
+- si
+- janah
+- oda
+- jesus
+- mi
+- dekket
+- ia
+- tapi
+- enggo
+- asa
+- taba
+- bai
+- aku
+top_n_grams:
+- - 2
+  - 1.966
+- - 3
+  - 1.964
+- - 4
+  - 1.826

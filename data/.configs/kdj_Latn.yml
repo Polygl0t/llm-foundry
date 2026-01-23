@@ -1,0 +1,49 @@
+dup_line_frac: 0.937
+dup_n_grams:
+- - 5
+  - 0.641
+- - 6
+  - 0.618
+- - 7
+  - 0.611
+- - 8
+  - 0.563
+- - 9
+  - 0.534
+- - 10
+  - 0.503
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 10
+max_non_alpha_words_ratio: 0.762
+min_avg_word_length: 3
+new_line_ratio: 0.077
+stopwords:
+- a
+- ka
+- "i\u014Bes"
+- "\u014Bulu"
+- "\u014Bina"
+- "\u014Bolo"
+- "\u014Buna"
+- "ayo\u014B"
+- ikes
+- nai
+- akuj
+- iyes
+- "ke\u014B"
+- yesu
+- neni
+- "daada\u014B"
+- "\u014Bakiro"
+- "\u014Bitu\u014Ba"
+- ani
+- atemar
+- tema
+top_n_grams:
+- - 2
+  - 1.81
+- - 3
+  - 1.896
+- - 4
+  - 1.821

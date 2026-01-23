@@ -1,0 +1,53 @@
+dup_line_frac: 0.137
+dup_n_grams:
+- - 5
+  - 0.15
+- - 6
+  - 0.122
+- - 7
+  - 0.114
+- - 8
+  - 0.085
+- - 9
+  - 0.067
+- - 10
+  - 0.061
+language_score: 0.691
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.762
+min_avg_word_length: 3
+new_line_ratio: 0.043
+stopwords:
+- na
+- "dh\xE8u"
+- dhu
+- ka
+- "d\xE8nge"
+- "ja\uA78Ca"
+- "\xE8\xE8na"
+- lamatua
+- miu
+- ne
+- te
+- "n\xE8ti"
+- ama
+- ngaa
+- "aa\uA78Ci"
+- boe
+- "\xE8tu"
+- "s\xE8mi"
+- lii
+- ra
+- "d\uA78Cara"
+- peka
+- "n\xE8ngu"
+- "r\xE8ngu"
+- yesus
+top_n_grams:
+- - 2
+  - 0.271
+- - 3
+  - 0.27
+- - 4
+  - 0.249

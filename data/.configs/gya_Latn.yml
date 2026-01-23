@@ -1,0 +1,51 @@
+dup_line_frac: 0.279
+dup_n_grams:
+- - 5
+  - 0.179
+- - 6
+  - 0.162
+- - 7
+  - 0.158
+- - 8
+  - 0.151
+- - 9
+  - 0.139
+- - 10
+  - 0.13
+language_score: 0.762
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.769
+min_avg_word_length: 2
+new_line_ratio: 0.059
+stopwords:
+- o
+- "n\u025B\u0300"
+- "n\u025B"
+- "t\u025B"
+- "a\u0327"
+- "\u0253\u025B\u025B"
+- wa
+- "m\u025B"
+- "n\u025B\u0301"
+- "ha\u0327"
+- in
+- wen
+- wi
+- ko
+- "m\u0254"
+- na
+- a
+- wan
+- "s\u0254\u0327"
+- de
+- zu
+- "b\xED\xED"
+- gasa
+top_n_grams:
+- - 2
+  - 0.403
+- - 3
+  - 0.366
+- - 4
+  - 0.35

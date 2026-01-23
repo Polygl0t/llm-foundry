@@ -1,0 +1,50 @@
+dup_line_frac: 0.749
+dup_n_grams:
+- - 5
+  - 0.657
+- - 6
+  - 0.632
+- - 7
+  - 0.616
+- - 8
+  - 0.589
+- - 9
+  - 0.563
+- - 10
+  - 0.534
+language_score: 0.621
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.71
+min_avg_word_length: 3
+new_line_ratio: 0.045
+stopwords:
+- dara
+- ara
+- neyung
+- imik
+- ak
+- adya
+- nang
+- aboka
+- era
+- yuba
+- wera
+- yesus
+- nim
+- nimi
+- ban
+- anasa
+- ek
+- ganya
+- bok
+- hnon
+- ab
+- alja
+top_n_grams:
+- - 2
+  - 2.305
+- - 3
+  - 2.481
+- - 4
+  - 2.411

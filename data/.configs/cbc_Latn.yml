@@ -1,0 +1,44 @@
+dup_line_frac: 0.422
+dup_n_grams:
+- - 5
+  - 0.191
+- - 6
+  - 0.177
+- - 7
+  - 0.161
+- - 8
+  - 0.146
+- - 9
+  - 0.138
+- - 10
+  - 0.127
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 10
+max_non_alpha_words_ratio: 0.767
+min_avg_word_length: 4
+new_line_ratio: 0.05
+stopwords:
+- bairo
+- na
+- "yu\u0336"
+- "cu\u0303\u0336"
+- "c\u0169\u0336"
+- "mu\u0336j\xE3\xE3"
+- dios
+- mena
+- "pu\u0336ame"
+- bairi
+- "c\u0289\u0303"
+- "mar\u0129"
+- tunu
+- "j\xE3\xE3"
+- "jes\xFAs"
+- yua
+top_n_grams:
+- - 2
+  - 0.385
+- - 3
+  - 0.365
+- - 4
+  - 0.328

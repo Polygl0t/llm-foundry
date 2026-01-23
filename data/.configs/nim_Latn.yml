@@ -1,0 +1,41 @@
+dup_line_frac: 0.163
+dup_n_grams:
+- - 5
+  - 0.129
+- - 6
+  - 0.124
+- - 7
+  - 0.118
+- - 8
+  - 0.111
+- - 9
+  - 0.101
+- - 10
+  - 0.091
+language_score: 0.819
+line_punct_thr: -1
+max_avg_word_length: 12
+max_non_alpha_words_ratio: 0.72
+min_avg_word_length: 4
+new_line_ratio: 0.1
+stopwords:
+- wa
+- ya
+- sika
+- "al\u0129"
+- "p\u0129na"
+- "\u0129pa"
+- "k\u0129na"
+- kunsooko
+- "kuit\u0129"
+- "naal\u0129"
+- "t\u0169l\u0169"
+- "k\u0129nzua"
+- sunga
+top_n_grams:
+- - 2
+  - 0.718
+- - 3
+  - 0.678
+- - 4
+  - 0.589

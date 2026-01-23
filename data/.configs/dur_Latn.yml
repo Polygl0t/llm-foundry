@@ -1,0 +1,54 @@
+dup_line_frac: 0.912
+dup_n_grams:
+- - 5
+  - 0.622
+- - 6
+  - 0.596
+- - 7
+  - 0.584
+- - 8
+  - 0.557
+- - 9
+  - 0.523
+- - 10
+  - 0.532
+language_score: 0.72
+line_punct_thr: -1
+max_avg_word_length: 6
+max_non_alpha_words_ratio: 0.771
+min_avg_word_length: 2
+new_line_ratio: 0.056
+stopwords:
+- "vu\u0335"
+- moo
+- "n\xE1n"
+- woo
+- "h\u0229n"
+- kan
+- "\u0131\u0335\u0301"
+- "v\xED"
+- "tay\u0268\u0268"
+- "m\xE1a"
+- ka
+- "y\u0229"
+- "\xE1\u0327\u1E3F"
+- "t\xF3\xF3"
+- ba
+- "k\u0254\u0301"
+- "n\xE9"
+- "z\xF3\u0327\xF3\u0327"
+- "n\u0254"
+- "t\xE9e"
+- "a\u0327m\xE1a"
+- "ku\u0335u\u0335"
+- a
+- "wool\u0131\u0335\u0301"
+- yesu
+- "m\xED"
+top_n_grams:
+- - 2
+  - 0.841
+- - 3
+  - 0.864
+- - 4
+  - 0.72

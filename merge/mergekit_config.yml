@@ -1,0 +1,14 @@
+# Specifies the method to use for merging models.
+# See [Merge Methods](https://github.com/arcee-ai/mergekit#merge-methods) for a list.
+merge_method: linear
+base_model: ./checkpoints/models/Tucano2-qwen-0.5B-Instruct
+models:
+  - model: ./checkpoints/models/Tucano2-qwen-0.5B-Base
+    parameters:
+      weight: 0.1
+  - model: ./checkpoints/models/Tucano2-qwen-0.5B-Instruct
+    parameters:
+      weight: 0.9
+merge_method: linear
+tokenizer_source: ./checkpoints/models/Tucano2-qwen-0.5B-Instruct
+dtype: bfloat16

@@ -1,0 +1,51 @@
+dup_line_frac: 0.913
+dup_n_grams:
+- - 5
+  - 0.494
+- - 6
+  - 0.471
+- - 7
+  - 0.442
+- - 8
+  - 0.409
+- - 9
+  - 0.375
+- - 10
+  - 0.341
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 13
+max_non_alpha_words_ratio: 0.76
+min_avg_word_length: 2
+new_line_ratio: 0.053
+stopwords:
+- eb
+- chi
+- max
+- tu
+- bay
+- a
+- is
+- yet
+- ti
+- yin
+- yuj
+- ok
+- cham
+- e
+- jun
+- tol
+- wal
+- axca
+- in
+- oc
+- ay
+- tzet
+- cax
+top_n_grams:
+- - 2
+  - 0.468
+- - 3
+  - 0.41
+- - 4
+  - 0.398

@@ -1,0 +1,49 @@
+dup_line_frac: 0.108
+dup_n_grams:
+- - 5
+  - 0.193
+- - 6
+  - 0.178
+- - 7
+  - 0.147
+- - 8
+  - 0.138
+- - 9
+  - 0.129
+- - 10
+  - 0.093
+language_score: 0.704
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.778
+min_avg_word_length: 3
+new_line_ratio: 0.05
+stopwords:
+- "ra\u0331"
+- ngue
+- "y\xF8"
+- bi
+- "da\u0331"
+- ja
+- ya
+- "ja\u0331'i\u0331"
+- "hya\u0331"
+- "r\xE1\u0331"
+- te
+- "oja\u0331"
+- "di\u0331"
+- "p'\u0289ya"
+- di
+- "bi\u0331"
+- "ga\u0331"
+- "p\u025B"
+- "na\u0331"
+- "ma\u0331"
+- "p'\u0289"
+top_n_grams:
+- - 2
+  - 1.024
+- - 3
+  - 1.139
+- - 4
+  - 0.993

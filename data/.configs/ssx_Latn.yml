@@ -1,0 +1,46 @@
+dup_line_frac: 0.11
+dup_n_grams:
+- - 5
+  - 0.112
+- - 6
+  - 0.108
+- - 7
+  - 0.1
+- - 8
+  - 0.09
+- - 9
+  - 0.083
+- - 10
+  - 0.077
+language_score: 0.717
+line_punct_thr: -1
+max_avg_word_length: 10
+max_non_alpha_words_ratio: 0.905
+min_avg_word_length: 4
+new_line_ratio: 0.062
+stopwords:
+- mo
+- "pa\uA789ta\uA789"
+- make
+- na
+- koto
+- pi
+- hone
+- "ipika\uA789"
+- "hata\uA789"
+- kutupa
+- hande
+- hali
+- pa
+- "alota\uA789"
+- "ika\uA789"
+- iki
+- kone
+- "wanda\uA789hali"
+top_n_grams:
+- - 2
+  - 0.524
+- - 3
+  - 0.487
+- - 4
+  - 0.429

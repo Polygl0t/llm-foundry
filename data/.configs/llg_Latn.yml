@@ -1,0 +1,58 @@
+dup_line_frac: 0.769
+dup_n_grams:
+- - 5
+  - 0.617
+- - 6
+  - 0.594
+- - 7
+  - 0.583
+- - 8
+  - 0.547
+- - 9
+  - 0.527
+- - 10
+  - 0.477
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.759
+min_avg_word_length: 3
+new_line_ratio: 0.045
+stopwords:
+- ndia
+- fo
+- ma
+- hataholi
+- ana
+- boe
+- au
+- ei
+- neu
+- nala
+- ala
+- de
+- tao
+- basa
+- manetualain
+- huu
+- ia
+- taa
+- na
+- mai
+- tehuu
+- so
+- mana
+- leo
+- nai
+- yesus
+- kala
+- nae
+- ita
+- sila
+top_n_grams:
+- - 2
+  - 2.134
+- - 3
+  - 2.281
+- - 4
+  - 2.13

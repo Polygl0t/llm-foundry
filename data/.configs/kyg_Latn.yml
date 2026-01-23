@@ -1,0 +1,39 @@
+dup_line_frac: 0.225
+dup_n_grams:
+- - 5
+  - 0.209
+- - 6
+  - 0.196
+- - 7
+  - 0.185
+- - 8
+  - 0.173
+- - 9
+  - 0.156
+- - 10
+  - 0.147
+language_score: 0.716
+line_punct_thr: -1
+max_avg_word_length: 12
+max_non_alpha_words_ratio: 0.85
+min_avg_word_length: 4
+new_line_ratio: 0.071
+stopwords:
+- huno
+- gemo
+- ani
+- kava
+- alino
+- "hu\uA78Ca"
+- muki
+- hapa
+- vekamo
+- alagepa
+- mago
+top_n_grams:
+- - 2
+  - 1.052
+- - 3
+  - 1.015
+- - 4
+  - 0.693

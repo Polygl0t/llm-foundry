@@ -1,0 +1,55 @@
+dup_line_frac: 0.515
+dup_n_grams:
+- - 5
+  - 0.471
+- - 6
+  - 0.469
+- - 7
+  - 0.45
+- - 8
+  - 0.429
+- - 9
+  - 0.413
+- - 10
+  - 0.385
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.773
+min_avg_word_length: 2
+new_line_ratio: 0.067
+stopwords:
+- ka
+- a
+- nda
+- go
+- se
+- i
+- war
+- ma
+- ga
+- ay
+- har
+- na
+- ci
+- yer
+- si
+- ra
+- kul
+- ta
+- yerkoy
+- nga
+- kuna
+- haya
+- ni
+- isa
+- dam
+- saadi
+- woodi
+top_n_grams:
+- - 2
+  - 1.042
+- - 3
+  - 1.007
+- - 4
+  - 0.915

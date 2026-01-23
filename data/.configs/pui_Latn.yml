@@ -1,0 +1,48 @@
+dup_line_frac: 0.365
+dup_n_grams:
+- - 5
+  - 0.296
+- - 6
+  - 0.238
+- - 7
+  - 0.207
+- - 8
+  - 0.195
+- - 9
+  - 0.178
+- - 10
+  - 0.159
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 10
+max_non_alpha_words_ratio: 0.742
+min_avg_word_length: 3
+new_line_ratio: 0.077
+stopwords:
+- naa
+- oyat
+- nat
+- poi
+- jet
+- wrijin
+- dios
+- dioat
+- "jes\xFAs"
+- jaa
+- tee
+- oje
+- ooshrt
+- shrt
+- wryu
+- ijei
+- jan
+- calat
+- shrm
+- moyerog
+top_n_grams:
+- - 2
+  - 0.663
+- - 3
+  - 0.543
+- - 4
+  - 0.484

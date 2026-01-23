@@ -1,0 +1,40 @@
+dup_line_frac: 0.325
+dup_n_grams:
+- - 5
+  - 0.224
+- - 6
+  - 0.208
+- - 7
+  - 0.191
+- - 8
+  - 0.175
+- - 9
+  - 0.16
+- - 10
+  - 0.145
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 28
+max_non_alpha_words_ratio: 0.786
+min_avg_word_length: 4
+new_line_ratio: 0.167
+stopwords:
+- enu
+- avan
+- njan
+- parranju
+- oru
+- ennu
+- avar
+- ningall
+- avane
+- avante
+- tanne
+- ente
+top_n_grams:
+- - 2
+  - 1.034
+- - 3
+  - 0.737
+- - 4
+  - 0.53

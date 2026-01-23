@@ -1,0 +1,40 @@
+dup_line_frac: 0.694
+dup_n_grams:
+- - 5
+  - 0.412
+- - 6
+  - 0.39
+- - 7
+  - 0.369
+- - 8
+  - 0.346
+- - 9
+  - 0.307
+- - 10
+  - 0.278
+language_score: 0.3
+line_punct_thr: 0.05
+max_avg_word_length: 23
+max_non_alpha_words_ratio: 0.809
+min_avg_word_length: 1
+new_line_ratio: 0.295
+stopwords:
+- ning
+- ing
+- a
+- king
+- yang
+- ya
+- at
+- metung
+- of
+- deng
+- kareng
+- keng
+top_n_grams:
+- - 2
+  - 0.794
+- - 3
+  - 0.702
+- - 4
+  - 0.645

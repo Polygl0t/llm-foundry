@@ -1,0 +1,51 @@
+dup_line_frac: 0.398
+dup_n_grams:
+- - 5
+  - 0.296
+- - 6
+  - 0.279
+- - 7
+  - 0.265
+- - 8
+  - 0.247
+- - 9
+  - 0.233
+- - 10
+  - 0.211
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.769
+min_avg_word_length: 4
+new_line_ratio: 0.077
+stopwords:
+- nye
+- kule
+- ce
+- om
+- kot
+- oko
+- yiyintet
+- piko
+- tokol
+- akwek
+- ani
+- yesu
+- wule
+- nyepo
+- puryo
+- yoto
+- neto
+- ntene
+- mite
+- ye
+- omnye
+- kunyo
+- cepo
+top_n_grams:
+- - 2
+  - 0.993
+- - 3
+  - 0.938
+- - 4
+  - 0.816

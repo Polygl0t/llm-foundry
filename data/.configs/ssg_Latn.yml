@@ -1,0 +1,50 @@
+dup_line_frac: 0.461
+dup_n_grams:
+- - 5
+  - 0.335
+- - 6
+  - 0.325
+- - 7
+  - 0.327
+- - 8
+  - 0.318
+- - 9
+  - 0.257
+- - 10
+  - 0.25
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.816
+min_avg_word_length: 3
+new_line_ratio: 0.062
+stopwords:
+- ti
+- i
+- haeu
+- seilon
+- tel
+- laha
+- teka
+- amuto
+- ape
+- nga
+- hani
+- ma
+- jises
+- na
+- ien
+- waliko
+- aile
+- kum
+- ukek
+- lato
+- tenen
+- ka
+top_n_grams:
+- - 2
+  - 1.289
+- - 3
+  - 1.295
+- - 4
+  - 1.193

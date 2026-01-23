@@ -1,0 +1,45 @@
+dup_line_frac: 0.519
+dup_n_grams:
+- - 5
+  - 0.349
+- - 6
+  - 0.392
+- - 7
+  - 0.184
+- - 8
+  - 0.175
+- - 9
+  - 0.166
+- - 10
+  - 0.154
+language_score: 0.635
+line_punct_thr: -1
+max_avg_word_length: 5
+max_non_alpha_words_ratio: 0.81
+min_avg_word_length: 2
+new_line_ratio: 0.05
+stopwords:
+- a
+- na
+- "\u028B"
+- "\u0269\u0303"
+- "n\u0269"
+- ba
+- "\u0269"
+- wa
+- "ny\u0269"
+- ma
+- "naa\u014Bm\u0269n"
+- ala
+- "s\u0269"
+- be
+- "l\u025B"
+- "m\u0269"
+- yel
+top_n_grams:
+- - 2
+  - 1.558
+- - 3
+  - 1.999
+- - 4
+  - 2.181

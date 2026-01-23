@@ -1,0 +1,53 @@
+dup_line_frac: 0.197
+dup_n_grams:
+- - 5
+  - 0.157
+- - 6
+  - 0.134
+- - 7
+  - 0.117
+- - 8
+  - 0.105
+- - 9
+  - 0.092
+- - 10
+  - 0.081
+language_score: 0.624
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.829
+min_avg_word_length: 2
+new_line_ratio: 0.056
+stopwords:
+- di
+- gi
+- e
+- i
+- nia
+- mee
+- hai
+- ga
+- gei
+- o
+- au
+- gaa
+- ala
+- mo
+- ne
+- gu
+- dela
+- digau
+- go
+- digaula
+- goodou
+- helekai
+- mai
+- haga
+- lodo
+top_n_grams:
+- - 2
+  - 0.507
+- - 3
+  - 0.355
+- - 4
+  - 0.27

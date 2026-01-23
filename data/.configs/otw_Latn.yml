@@ -1,0 +1,55 @@
+dup_line_frac: 0.444
+dup_n_grams:
+- - 5
+  - 0.232
+- - 6
+  - 0.225
+- - 7
+  - 0.206
+- - 8
+  - 0.196
+- - 9
+  - 0.183
+- - 10
+  - 0.171
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.627
+min_avg_word_length: 4
+new_line_ratio: 0.1
+stopwords:
+- gaa
+- kina
+- gii
+- e
+- gegoo
+- miinwaa
+- wa
+- wii
+- zhitoot
+- go
+- wiin
+- da
+- gchi
+- gchitwaa
+- bemaadzijik
+- kiing
+- gyak
+- mii
+- "mzin\u02BCigan"
+- wiikaa
+- zhi
+- na
+- pii
+- ge
+- mnidoo
+- maanpii
+- ki
+top_n_grams:
+- - 2
+  - 0.555
+- - 3
+  - 0.518
+- - 4
+  - 0.426

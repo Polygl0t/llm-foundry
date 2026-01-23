@@ -1,0 +1,49 @@
+dup_line_frac: 0.254
+dup_n_grams:
+- - 5
+  - 0.15
+- - 6
+  - 0.139
+- - 7
+  - 0.128
+- - 8
+  - 0.12
+- - 9
+  - 0.109
+- - 10
+  - 0.093
+language_score: 0.631
+line_punct_thr: 0.25
+max_avg_word_length: 13
+max_non_alpha_words_ratio: 0.691
+min_avg_word_length: 3
+new_line_ratio: 0.159
+stopwords:
+- va
+- bilan
+- u
+- uchun
+- joylashgan
+- bir
+- bu
+- "bo\u02BBlgan"
+- ham
+- uning
+- aholi
+- birinchi
+- edi
+- eng
+- tomonidan
+- "bo\u02BBlib"
+- nafar
+- qiladi
+- km2
+- yoki
+- sifatida
+top_n_grams:
+- - 2
+  - 0.871
+- - 3
+  - 0.543
+- - 4
+  - 0.357

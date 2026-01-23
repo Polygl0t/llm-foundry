@@ -1,0 +1,55 @@
+dup_line_frac: 0.563
+dup_n_grams:
+- - 5
+  - 0.445
+- - 6
+  - 0.417
+- - 7
+  - 0.382
+- - 8
+  - 0.367
+- - 9
+  - 0.357
+- - 10
+  - 0.333
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.741
+min_avg_word_length: 3
+new_line_ratio: 0.077
+stopwords:
+- oklah
+- at
+- "alh\xEDha"
+- im
+- yat
+- hicha
+- jesus
+- "i\u0331"
+- "\xE1chitt\xF3k"
+- "ma\u0331"
+- "hihma\u0331"
+- "\xF3sh"
+- "ka\u0331"
+- "\xF3kih"
+- "ya\u0331"
+- kat
+- isht
+- joseph
+- hattak
+- "n\xE1"
+- yakni
+- "n\xE1n"
+- hash
+- "chih\xF3wa"
+- mat
+- "a\u0331"
+- ish
+top_n_grams:
+- - 2
+  - 1.121
+- - 3
+  - 1.007
+- - 4
+  - 0.825

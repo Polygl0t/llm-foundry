@@ -1,0 +1,36 @@
+dup_line_frac: 0.319
+dup_n_grams:
+- - 5
+  - 0.176
+- - 6
+  - 0.165
+- - 7
+  - 0.152
+- - 8
+  - 0.14
+- - 9
+  - 0.127
+- - 10
+  - 0.115
+language_score: 0.667
+line_punct_thr: 0.0
+max_avg_word_length: 11
+max_non_alpha_words_ratio: 0.752
+min_avg_word_length: 2
+new_line_ratio: 0.214
+stopwords:
+- v
+- a
+- na
+- sa
+- je
+- z
+- roku
+- s
+top_n_grams:
+- - 2
+  - 0.316
+- - 3
+  - 0.218
+- - 4
+  - 0.171

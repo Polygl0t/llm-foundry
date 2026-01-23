@@ -1,0 +1,50 @@
+dup_line_frac: 0.717
+dup_n_grams:
+- - 5
+  - 0.475
+- - 6
+  - 0.461
+- - 7
+  - 0.441
+- - 8
+  - 0.422
+- - 9
+  - 0.401
+- - 10
+  - 0.369
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.833
+min_avg_word_length: 3
+new_line_ratio: 0.05
+stopwords:
+- le
+- ma
+- piti
+- pe
+- ili
+- mete
+- il
+- fei
+- pepe
+- wuso
+- ise
+- wem
+- olo
+- lepe
+- kolo
+- ki
+- metine
+- re
+- pite
+- jisas
+- ku
+- ye
+top_n_grams:
+- - 2
+  - 0.989
+- - 3
+  - 1.026
+- - 4
+  - 0.978

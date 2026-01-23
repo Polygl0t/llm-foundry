@@ -1,0 +1,49 @@
+dup_line_frac: 0.225
+dup_n_grams:
+- - 5
+  - 0.229
+- - 6
+  - 0.197
+- - 7
+  - 0.178
+- - 8
+  - 0.169
+- - 9
+  - 0.159
+- - 10
+  - 0.146
+language_score: 0.9
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.783
+min_avg_word_length: 3
+new_line_ratio: 0.056
+stopwords:
+- ka
+- "\u014Bga"
+- ci
+- ma
+- "n\u0259"
+- "k\u0259"
+- ca
+- tii
+- a
+- "t\u0259"
+- da
+- "d\u0259"
+- nyi
+- "\u0259nta\u014Bf\u0259"
+- "\u0259nji"
+- "t\u0259ya"
+- "mak\u0259"
+- acii
+- "ha'\u0259"
+- agi
+- "\u0259s\u0259"
+top_n_grams:
+- - 2
+  - 0.179
+- - 3
+  - 0.245
+- - 4
+  - 0.213

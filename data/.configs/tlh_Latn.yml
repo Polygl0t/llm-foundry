@@ -1,0 +1,48 @@
+dup_line_frac: 0.345
+dup_n_grams:
+- - 5
+  - 0.216
+- - 6
+  - 0.208
+- - 7
+  - 0.192
+- - 8
+  - 0.182
+- - 9
+  - 0.172
+- - 10
+  - 0.152
+language_score: 0.628
+line_punct_thr: -1
+max_avg_word_length: 18
+max_non_alpha_words_ratio: 0.571
+min_avg_word_length: 2
+new_line_ratio: 0.2
+stopwords:
+- the
+- daq
+- vo
+- je
+- ghah
+- soh
+- chah
+- dichdaq
+- jih
+- joh'a
+- oh
+- daj
+- vad
+- a
+- vetlh
+- iv
+- hoch
+- lij
+- tah
+- ghobe
+top_n_grams:
+- - 2
+  - 0.757
+- - 3
+  - 0.606
+- - 4
+  - 0.427

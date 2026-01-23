@@ -1,0 +1,49 @@
+dup_line_frac: 0.086
+dup_n_grams:
+- - 5
+  - 0.115
+- - 6
+  - 0.103
+- - 7
+  - 0.086
+- - 8
+  - 0.082
+- - 9
+  - 0.078
+- - 10
+  - 0.069
+language_score: 0.744
+line_punct_thr: -1
+max_avg_word_length: 6
+max_non_alpha_words_ratio: 0.829
+min_avg_word_length: 2
+new_line_ratio: 0.056
+stopwords:
+- la
+- a
+- wu
+- "n\xEA"
+- e
+- "mb\u0254\u0327\u0254\u0327m\xE0"
+- "t\xE0"
+- me
+- "b\u0254"
+- li
+- "b\xF2t"
+- ka
+- ane
+- "\xE8"
+- ko
+- "yes\xF2"
+- "w\xF2t"
+- abua
+- "mb\u0268\u0300\u02C8\u0268\u0300"
+- "t\xF2"
+- "n\xE8"
+top_n_grams:
+- - 2
+  - 0.46
+- - 3
+  - 0.478
+- - 4
+  - 0.451

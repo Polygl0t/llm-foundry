@@ -1,0 +1,61 @@
+dup_line_frac: 0.571
+dup_n_grams:
+- - 5
+  - 0.467
+- - 6
+  - 0.475
+- - 7
+  - 0.484
+- - 8
+  - 0.451
+- - 9
+  - 0.441
+- - 10
+  - 0.323
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.8
+min_avg_word_length: 2
+new_line_ratio: 0.091
+stopwords:
+- a
+- e
+- le
+- wo
+- "l\u025B"
+- "l\xE9\xE9"
+- "\u0272an"
+- ji
+- ye
+- "bhal\u0269"
+- min
+- "w\u0269"
+- "k\xE1"
+- kaa
+- ka
+- lo
+- ta
+- man
+- va
+- vale
+- "bh\u025B"
+- daan
+- zoova
+- "kl\u025B"
+- i
+- "b\u025B"
+- "d\u028B"
+- faa
+- "\u025B"
+- an
+- munun
+- biblu
+- "t\u025Br\u025B"
+top_n_grams:
+- - 2
+  - 1.654
+- - 3
+  - 1.539
+- - 4
+  - 1.348

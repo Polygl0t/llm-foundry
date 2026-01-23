@@ -1,0 +1,46 @@
+dup_line_frac: 0.168
+dup_n_grams:
+- - 5
+  - 0.125
+- - 6
+  - 0.114
+- - 7
+  - 0.104
+- - 8
+  - 0.096
+- - 9
+  - 0.089
+- - 10
+  - 0.08
+language_score: 0.65
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.794
+min_avg_word_length: 2
+new_line_ratio: 0.067
+stopwords:
+- a
+- hi
+- in
+- uh
+- ding
+- na
+- hong
+- ka
+- tua
+- le
+- ciangin
+- ahi
+- ci
+- tawh
+- kei
+- mite
+- topa
+- thu
+top_n_grams:
+- - 2
+  - 0.512
+- - 3
+  - 0.426
+- - 4
+  - 0.328

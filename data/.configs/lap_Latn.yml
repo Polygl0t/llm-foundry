@@ -1,0 +1,52 @@
+dup_line_frac: 0.884
+dup_n_grams:
+- - 5
+  - 0.573
+- - 6
+  - 0.602
+- - 7
+  - 0.532
+- - 8
+  - 0.549
+- - 9
+  - 0.557
+- - 10
+  - 0.38
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.844
+min_avg_word_length: 2
+new_line_ratio: 0.062
+stopwords:
+- ke
+- "t\xE9"
+- tokou
+- ta
+- tar
+- to
+- "n\xE8"
+- ang
+- "n\xE9"
+- mbata
+- lo
+- a
+- "m\xE8"
+- "d\xE8d\xE8"
+- allah
+- "to\xEF"
+- deo
+- "ndj\xE8"
+- "n\xE8n"
+- da
+- ma
+- "dooudj\xE9"
+- madji
+- doou
+top_n_grams:
+- - 2
+  - 0.92
+- - 3
+  - 0.907
+- - 4
+  - 0.9

@@ -1,0 +1,48 @@
+dup_line_frac: 0.523
+dup_n_grams:
+- - 5
+  - 0.311
+- - 6
+  - 0.307
+- - 7
+  - 0.294
+- - 8
+  - 0.284
+- - 9
+  - 0.27
+- - 10
+  - 0.245
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.781
+min_avg_word_length: 2
+new_line_ratio: 0.067
+stopwords:
+- "n\u1EE5"
+- be
+- a
+- ele
+- "an\u1EE5"
+- "\u1ECD"
+- m
+- nhne
+- ke
+- nye
+- "b\u1EE5"
+- chiokike
+- o
+- "z\u1ECB"
+- wam
+- "a\u1ECB"
+- kpakara
+- "k\u1ECDvu"
+- ka
+- "jiz\u1ECDsi"
+top_n_grams:
+- - 2
+  - 1.386
+- - 3
+  - 1.375
+- - 4
+  - 1.248

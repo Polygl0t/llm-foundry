@@ -1,0 +1,38 @@
+dup_line_frac: 0.492
+dup_n_grams:
+- - 5
+  - 0.327
+- - 6
+  - 0.331
+- - 7
+  - 0.325
+- - 8
+  - 0.272
+- - 9
+  - 0.258
+- - 10
+  - 0.206
+language_score: 0.3
+line_punct_thr: 0.071
+max_avg_word_length: 20
+max_non_alpha_words_ratio: 0.712
+min_avg_word_length: 2
+new_line_ratio: 0.409
+stopwords:
+- de
+- huk
+- llaqtapi
+- mama
+- nisqaqa
+- qhaway
+- kaypipas
+- simi
+- la
+- simipi
+top_n_grams:
+- - 2
+  - 1.227
+- - 3
+  - 1.27
+- - 4
+  - 1.249

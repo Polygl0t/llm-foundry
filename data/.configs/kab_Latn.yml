@@ -1,0 +1,36 @@
+dup_line_frac: 0.133
+dup_n_grams:
+- - 5
+  - 0.09
+- - 6
+  - 0.087
+- - 7
+  - 0.082
+- - 8
+  - 0.076
+- - 9
+  - 0.07
+- - 10
+  - 0.063
+language_score: 0.645
+line_punct_thr: 0.0
+max_avg_word_length: 11
+max_non_alpha_words_ratio: 0.758
+min_avg_word_length: 2
+new_line_ratio: 0.292
+stopwords:
+- n
+- d
+- deg
+- s
+- i
+- ad
+- is
+- di
+top_n_grams:
+- - 2
+  - 1.689
+- - 3
+  - 1.557
+- - 4
+  - 0.918

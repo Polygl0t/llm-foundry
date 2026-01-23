@@ -1,0 +1,47 @@
+dup_line_frac: 0.376
+dup_n_grams:
+- - 5
+  - 0.356
+- - 6
+  - 0.345
+- - 7
+  - 0.33
+- - 8
+  - 0.315
+- - 9
+  - 0.294
+- - 10
+  - 0.277
+language_score: 0.429
+line_punct_thr: -1
+max_avg_word_length: 15
+max_non_alpha_words_ratio: 0.723
+min_avg_word_length: 4
+new_line_ratio: 0.083
+stopwords:
+- ki
+- "k\u0101"
+- "\u0113"
+- kita
+- "m\u0101ka"
+- mina
+- ohci
+- "\u0113kosi"
+- "\u0113kwa"
+- isi
+- ni
+- o
+- "\u0113k\u0101"
+- namawiya
+- kahkiyaw
+- kihci
+- "cik\u0113m\u0101"
+- ana
+- "\u0113wako"
+top_n_grams:
+- - 2
+  - 0.33
+- - 3
+  - 0.372
+- - 4
+  - 0.374

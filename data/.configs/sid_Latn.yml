@@ -1,0 +1,68 @@
+dup_line_frac: 0.536
+dup_n_grams:
+- - 5
+  - 0.381
+- - 6
+  - 0.367
+- - 7
+  - 0.331
+- - 8
+  - 0.319
+- - 9
+  - 0.28
+- - 10
+  - 0.264
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 13
+max_non_alpha_words_ratio: 0.75
+min_avg_word_length: 4
+new_line_ratio: 0.143
+stopwords:
+- gede
+- yihowa
+- maganu
+- daafira
+- isi
+- qullaawu
+- yesuusi
+- giddo
+- manni
+- maxaafi
+- lowo
+- ledo
+- insa
+- togo
+- tenne
+- geeshsha
+- woy
+- woyite
+- yannara
+- mannu
+- noo
+- hattono
+- mittu
+- yee
+- qoleno
+- kayinni
+- konni
+- dandaanno
+- garinni
+- aana
+- manna
+- tini
+- gara
+- ikkiro
+- ikkirono
+- maa
+- manchi
+- 'no'
+- coye
+- qullaawa
+top_n_grams:
+- - 2
+  - 1.204
+- - 3
+  - 1.069
+- - 4
+  - 0.943

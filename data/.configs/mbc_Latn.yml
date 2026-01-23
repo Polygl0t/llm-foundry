@@ -1,0 +1,50 @@
+dup_line_frac: 0.633
+dup_n_grams:
+- - 5
+  - 0.476
+- - 6
+  - 0.466
+- - 7
+  - 0.438
+- - 8
+  - 0.422
+- - 9
+  - 0.394
+- - 10
+  - 0.367
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 13
+max_non_alpha_words_ratio: 0.7
+min_avg_word_length: 3
+new_line_ratio: 0.062
+stopwords:
+- pe
+- "m\xEEr\xEEr\xEE"
+- pra
+- moropai
+- "p\xEE"
+- to
+- paapa
+- "wan\xEE"
+- "t\xEE\xEEse"
+- to'ya
+- ye'nen
+- ya
+- "warant\xEE"
+- "pep\xEEn"
+- "s\xEEr\xEEr\xEE"
+- "awan\xEE"
+- "m\xEE\xEEk\xEEr\xEE"
+- maasa
+- "\xEE"
+- jesus
+- "mor\xEE"
+- "ta'p\xEE"
+top_n_grams:
+- - 2
+  - 1.291
+- - 3
+  - 1.26
+- - 4
+  - 1.072

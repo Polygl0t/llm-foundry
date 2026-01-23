@@ -1,0 +1,45 @@
+dup_line_frac: 0.893
+dup_n_grams:
+- - 5
+  - 0.603
+- - 6
+  - 0.61
+- - 7
+  - 0.484
+- - 8
+  - 0.521
+- - 9
+  - 0.55
+- - 10
+  - 0.45
+language_score: 0.345
+line_punct_thr: -1
+max_avg_word_length: 10
+max_non_alpha_words_ratio: 0.806
+min_avg_word_length: 3
+new_line_ratio: 0.062
+stopwords:
+- i
+- na
+- e
+- "th\u0268"
+- kaiwae
+- loi
+- hu
+- ma
+- ya
+- le
+- regha
+- ne
+- ko
+- va
+- iya
+- "mba\u014Ba"
+- "i\u014Ba"
+top_n_grams:
+- - 2
+  - 1.557
+- - 3
+  - 1.622
+- - 4
+  - 1.563

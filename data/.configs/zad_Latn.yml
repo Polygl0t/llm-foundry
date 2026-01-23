@@ -1,0 +1,44 @@
+dup_line_frac: 0.447
+dup_n_grams:
+- - 5
+  - 0.279
+- - 6
+  - 0.259
+- - 7
+  - 0.248
+- - 8
+  - 0.215
+- - 9
+  - 0.207
+- - 10
+  - 0.192
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 11
+max_non_alpha_words_ratio: 0.545
+min_avg_word_length: 3
+new_line_ratio: 0.05
+stopwords:
+- na
+- "be\u1E49"
+- ka
+- daa
+- chioza
+- bi
+- dii
+- "c\u0331he"
+- le
+- "be\u1E49'ka"
+- ba
+- to
+- "kwenc\u0331he"
+- beena
+- "ye\u1E3B"
+- "jes\xFAza"
+top_n_grams:
+- - 2
+  - 0.723
+- - 3
+  - 0.675
+- - 4
+  - 0.591

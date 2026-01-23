@@ -1,0 +1,46 @@
+dup_line_frac: 0.409
+dup_n_grams:
+- - 5
+  - 0.208
+- - 6
+  - 0.186
+- - 7
+  - 0.159
+- - 8
+  - 0.141
+- - 9
+  - 0.116
+- - 10
+  - 0.099
+language_score: 0.729
+line_punct_thr: -1
+max_avg_word_length: 10
+max_non_alpha_words_ratio: 0.842
+min_avg_word_length: 3
+new_line_ratio: 0.091
+stopwords:
+- "\u014Ben"
+- na
+- "\u1E6Fa"
+- "le\u0111a"
+- orn
+- "\u014Ban\u1E6Fa"
+- ildi
+- "nd\u01DD"
+- "e\u014Ben"
+- "i\u014Bi"
+- alo
+- "pre\u0111"
+- igi
+- yesu
+- "g\xEBn\u01DD\u014Bu"
+- "e\u0111a"
+- "r\u01DDmwa"
+- nano
+top_n_grams:
+- - 2
+  - 0.091
+- - 3
+  - 0.069
+- - 4
+  - 0.062

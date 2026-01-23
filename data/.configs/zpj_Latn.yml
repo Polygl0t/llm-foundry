@@ -1,0 +1,51 @@
+dup_line_frac: 0.524
+dup_n_grams:
+- - 5
+  - 0.497
+- - 6
+  - 0.477
+- - 7
+  - 0.448
+- - 8
+  - 0.414
+- - 9
+  - 0.388
+- - 10
+  - 0.354
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.75
+min_avg_word_length: 2
+new_line_ratio: 0.143
+stopwords:
+- me
+- "l\xE9"
+- diux
+- y
+- tep
+- biblia
+- "mi\xF1"
+- "r\xED"
+- laa
+- 'no'
+- ke
+- a
+- ba
+- "r\xE9"
+- "rn\xED"
+- "jehov\xE1"
+- lisdia
+- xreino
+- "lea\xF1"
+- de
+- par
+- na
+- "m\xE9"
+top_n_grams:
+- - 2
+  - 1.506
+- - 3
+  - 1.515
+- - 4
+  - 1.404

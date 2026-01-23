@@ -1,0 +1,40 @@
+dup_line_frac: 0.366
+dup_n_grams:
+- - 5
+  - 0.226
+- - 6
+  - 0.194
+- - 7
+  - 0.177
+- - 8
+  - 0.158
+- - 9
+  - 0.142
+- - 10
+  - 0.128
+language_score: 0.3
+line_punct_thr: 0.07
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.789
+min_avg_word_length: 3
+new_line_ratio: 0.237
+stopwords:
+- di
+- e
+- ta
+- a
+- na
+- i
+- un
+- den
+- ku
+- pa
+- su
+- tabata
+top_n_grams:
+- - 2
+  - 0.924
+- - 3
+  - 0.808
+- - 4
+  - 0.693

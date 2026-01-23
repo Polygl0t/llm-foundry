@@ -1,0 +1,43 @@
+dup_line_frac: 0.659
+dup_n_grams:
+- - 5
+  - 0.469
+- - 6
+  - 0.456
+- - 7
+  - 0.446
+- - 8
+  - 0.434
+- - 9
+  - 0.412
+- - 10
+  - 0.394
+language_score: 0.669
+line_punct_thr: -1
+max_avg_word_length: 11
+max_non_alpha_words_ratio: 0.784
+min_avg_word_length: 4
+new_line_ratio: 0.04
+stopwords:
+- ga
+- "\u014Bunhi"
+- "\u014Bayi"
+- yan
+- dhu
+- walal
+- bala
+- gan
+- bili
+- "\u014Buli"
+- dhuwal
+- god
+- mala
+- "m\xE4rr"
+- "\u014Barra"
+top_n_grams:
+- - 2
+  - 0.739
+- - 3
+  - 0.606
+- - 4
+  - 0.549

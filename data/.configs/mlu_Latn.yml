@@ -1,0 +1,58 @@
+dup_line_frac: 0.401
+dup_n_grams:
+- - 5
+  - 0.563
+- - 6
+  - 0.551
+- - 7
+  - 0.531
+- - 8
+  - 0.514
+- - 9
+  - 0.488
+- - 10
+  - 0.462
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.824
+min_avg_word_length: 2
+new_line_ratio: 0.111
+stopwords:
+- e
+- la
+- ki
+- na
+- tha
+- si
+- i
+- kera
+- god
+- ana
+- nia
+- uria
+- bia
+- kai
+- ni
+- ne
+- eri
+- imole
+- ka
+- baebol
+- sulia
+- lana
+- wane
+- sui
+- do
+- ma
+- fasia
+- keki
+- ta
+- fanua
+top_n_grams:
+- - 2
+  - 2.314
+- - 3
+  - 1.562
+- - 4
+  - 1.355

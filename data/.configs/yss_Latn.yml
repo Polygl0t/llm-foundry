@@ -1,0 +1,49 @@
+dup_line_frac: 0.601
+dup_n_grams:
+- - 5
+  - 0.395
+- - 6
+  - 0.389
+- - 7
+  - 0.353
+- - 8
+  - 0.338
+- - 9
+  - 0.321
+- - 10
+  - 0.29
+language_score: 0.414
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.808
+min_avg_word_length: 3
+new_line_ratio: 0.059
+stopwords:
+- re
+- tame
+- ere
+- god
+- rem
+- kem
+- eme
+- tuma
+- tatame
+- an
+- etep
+- reri
+- op
+- rene
+- jisas
+- yaper
+- wule
+- sene
+- remne
+- be
+- erne
+top_n_grams:
+- - 2
+  - 1.415
+- - 3
+  - 1.361
+- - 4
+  - 1.261

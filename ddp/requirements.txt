@@ -1,0 +1,12 @@
+torch==2.8.0
+torchaudio==2.8.0
+torchvision==0.23.0
+numpy==2.3.2
+transformers==4.53.2
+datasets==4.0.0
+sentencepiece==0.2.0
+accelerate==1.9.0
+codecarbon==3.0.6
+wandb==0.21.0
+pyyaml==6.0.2
+liger-kernel==0.6.1

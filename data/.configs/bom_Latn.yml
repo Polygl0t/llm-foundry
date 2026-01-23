@@ -1,0 +1,50 @@
+dup_line_frac: 0.45
+dup_n_grams:
+- - 5
+  - 0.283
+- - 6
+  - 0.276
+- - 7
+  - 0.266
+- - 8
+  - 0.248
+- - 9
+  - 0.223
+- - 10
+  - 0.208
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 6
+max_non_alpha_words_ratio: 0.826
+min_avg_word_length: 2
+new_line_ratio: 0.045
+stopwords:
+- a
+- e
+- de
+- na
+- ko
+- "s\xE9"
+- ba
+- ra
+- yin
+- dagwi
+- "y\u025Bn"
+- "w\u025Bt"
+- o
+- yaga
+- be
+- me
+- "m\u025B"
+- mo
+- wot
+- bemat
+- ma
+- "y\u025B"
+top_n_grams:
+- - 2
+  - 0.613
+- - 3
+  - 0.566
+- - 4
+  - 0.509

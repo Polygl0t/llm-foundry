@@ -1,0 +1,54 @@
+dup_line_frac: 0.095
+dup_n_grams:
+- - 5
+  - 0.124
+- - 6
+  - 0.099
+- - 7
+  - 0.079
+- - 8
+  - 0.07
+- - 9
+  - 0.059
+- - 10
+  - 0.054
+language_score: 0.849
+line_punct_thr: -1
+max_avg_word_length: 6
+max_non_alpha_words_ratio: 0.806
+min_avg_word_length: 2
+new_line_ratio: 0.045
+stopwords:
+- a
+- na
+- i
+- ka
+- ndo
+- hay
+- ta
+- aye
+- ha
+- "t\u0259"
+- ma
+- "nak\u0259"
+- "mb\u0259lom"
+- eye
+- bay
+- niye
+- wu
+- faya
+- "h\u0259rwi"
+- "g\u0259r"
+- ada
+- neheye
+- yesu
+- "\u014Bgay"
+- andza
+- "m\u0259"
+top_n_grams:
+- - 2
+  - 0.199
+- - 3
+  - 0.179
+- - 4
+  - 0.144

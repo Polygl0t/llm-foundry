@@ -1,0 +1,50 @@
+dup_line_frac: 0.332
+dup_n_grams:
+- - 5
+  - 0.289
+- - 6
+  - 0.278
+- - 7
+  - 0.268
+- - 8
+  - 0.253
+- - 9
+  - 0.237
+- - 10
+  - 0.222
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.88
+min_avg_word_length: 3
+new_line_ratio: 0.056
+stopwords:
+- ka
+- nga
+- ya
+- mga
+- na
+- kay
+- kamhan
+- diyos
+- iza
+- tao
+- daw
+- kamo
+- diri
+- siran
+- si
+- kon
+- ni
+- toong
+- di
+- kan
+- hisos
+- hao
+top_n_grams:
+- - 2
+  - 0.495
+- - 3
+  - 0.442
+- - 4
+  - 0.386

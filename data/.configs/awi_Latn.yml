@@ -1,0 +1,47 @@
+dup_line_frac: 0.461
+dup_n_grams:
+- - 5
+  - 0.355
+- - 6
+  - 0.352
+- - 7
+  - 0.348
+- - 8
+  - 0.326
+- - 9
+  - 0.294
+- - 10
+  - 0.272
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.833
+min_avg_word_length: 2
+new_line_ratio: 0.067
+stopwords:
+- ko
+- ma
+- ya
+- yo
+- dima
+- wike
+- hamo
+- 'no'
+- god
+- gyo
+- kru
+- ka
+- swa
+- ho
+- yesu
+- kyo
+- me
+- hokan
+- gu
+top_n_grams:
+- - 2
+  - 0.553
+- - 3
+  - 0.547
+- - 4
+  - 0.517

@@ -1,0 +1,45 @@
+dup_line_frac: 0.363
+dup_n_grams:
+- - 5
+  - 0.172
+- - 6
+  - 0.161
+- - 7
+  - 0.15
+- - 8
+  - 0.139
+- - 9
+  - 0.125
+- - 10
+  - 0.113
+language_score: 0.638
+line_punct_thr: 0.143
+max_avg_word_length: 13
+max_non_alpha_words_ratio: 0.722
+min_avg_word_length: 3
+new_line_ratio: 0.213
+stopwords:
+- ja
+- 'on'
+- oli
+- ta
+- aastal
+- eesti
+- ka
+- ning
+- et
+- mis
+- kui
+- aasta
+- ei
+- "v\xF5i"
+- see
+- oma
+- tema
+top_n_grams:
+- - 2
+  - 0.345
+- - 3
+  - 0.268
+- - 4
+  - 0.215

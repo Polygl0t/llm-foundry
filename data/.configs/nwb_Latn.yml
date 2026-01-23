@@ -1,0 +1,51 @@
+dup_line_frac: 0
+dup_n_grams:
+- - 5
+  - 0.162
+- - 6
+  - 0.12
+- - 7
+  - 0.082
+- - 8
+  - 0.066
+- - 9
+  - 0.053
+- - 10
+  - 0.04
+language_score: 0.575
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.583
+min_avg_word_length: 2
+new_line_ratio: 0.031
+stopwords:
+- "\u0254"
+- le
+- a
+- "\u025B"
+- "\u028Bn"
+- "m\u028B"
+- ke
+- ye
+- "\u028B"
+- "\u0269"
+- bho
+- "\u0269n"
+- "d\u0269"
+- -ke
+- yi
+- "ny\u028B"
+- na
+- ti
+- -kaa
+- o
+- li
+- e
+- "-lag\u0254'\u0254"
+top_n_grams:
+- - 2
+  - 0.689
+- - 3
+  - 0.144
+- - 4
+  - 0.116

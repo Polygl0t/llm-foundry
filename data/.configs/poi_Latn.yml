@@ -1,0 +1,46 @@
+dup_line_frac: 1.043
+dup_n_grams:
+- - 5
+  - 0.549
+- - 6
+  - 0.555
+- - 7
+  - 0.543
+- - 8
+  - 0.534
+- - 9
+  - 0.503
+- - 10
+  - 0.481
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 11
+max_non_alpha_words_ratio: 0.786
+min_avg_word_length: 4
+new_line_ratio: 0.071
+stopwords:
+- "j\xE9m"
+- iga
+- dios
+- "d\u0301a"
+- "jes\u0268c"
+- "tu\u0331m"
+- juuts
+- "p\u0268xi\xF1t\u0301am"
+- "tsa\u0331m"
+- "jes\xFAs"
+- pero
+- y
+- cuando
+- "p\u0268\u0331xi\xF1"
+- porque
+- con
+- "it\u0301u\u0331mp\u0268y"
+- siiga
+top_n_grams:
+- - 2
+  - 1.518
+- - 3
+  - 1.621
+- - 4
+  - 1.805

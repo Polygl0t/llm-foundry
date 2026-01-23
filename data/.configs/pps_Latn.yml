@@ -1,0 +1,47 @@
+dup_line_frac: 0.843
+dup_n_grams:
+- - 5
+  - 0.63
+- - 6
+  - 0.619
+- - 7
+  - 0.614
+- - 8
+  - 0.575
+- - 9
+  - 0.585
+- - 10
+  - 0.515
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 10
+max_non_alpha_words_ratio: 0.818
+min_avg_word_length: 3
+new_line_ratio: 0.067
+stopwords:
+- ndo
+- ko
+- sen
+- ixi
+- "na\u0331"
+- dio
+- ti
+- xa
+- "nge\uA78Ce"
+- kain
+- "me\uA78Ce"
+- ni
+- naa
+- nchakon
+- "je\uA78Ce"
+- xranchi
+- xi
+- "jes\xFAs"
+- chujni
+top_n_grams:
+- - 2
+  - 1.405
+- - 3
+  - 1.485
+- - 4
+  - 1.503

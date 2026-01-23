@@ -1,0 +1,42 @@
+dup_line_frac: 0.329
+dup_n_grams:
+- - 5
+  - 0.69
+- - 6
+  - 0.684
+- - 7
+  - 0.667
+- - 8
+  - 0.647
+- - 9
+  - 0.627
+- - 10
+  - 0.591
+language_score: 0.597
+line_punct_thr: -1
+max_avg_word_length: 11
+max_non_alpha_words_ratio: 0.743
+min_avg_word_length: 3
+new_line_ratio: 0.053
+stopwords:
+- mo
+- na
+- 'no'
+- monoi
+- noko
+- imo
+- mulu
+- ulai
+- pa
+- nokota
+- yo
+- kotoni
+- hani
+- molo
+top_n_grams:
+- - 2
+  - 1.198
+- - 3
+  - 1.216
+- - 4
+  - 1.147

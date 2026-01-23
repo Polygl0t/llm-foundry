@@ -1,0 +1,48 @@
+dup_line_frac: 0.326
+dup_n_grams:
+- - 5
+  - 0.252
+- - 6
+  - 0.235
+- - 7
+  - 0.208
+- - 8
+  - 0.194
+- - 9
+  - 0.182
+- - 10
+  - 0.168
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 10
+max_non_alpha_words_ratio: 0.743
+min_avg_word_length: 3
+new_line_ratio: 0.067
+stopwords:
+- au
+- i
+- hai
+- pue
+- iti
+- tauna
+- ala
+- ope
+- hangko
+- bara
+- yesu
+- ina
+- lawi
+- ara
+- ide
+- bona
+- agayana
+- ane
+- nodo
+- mewali
+top_n_grams:
+- - 2
+  - 0.511
+- - 3
+  - 0.448
+- - 4
+  - 0.392

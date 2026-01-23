@@ -1,0 +1,49 @@
+dup_line_frac: 0.547
+dup_n_grams:
+- - 5
+  - 0.242
+- - 6
+  - 0.21
+- - 7
+  - 0.199
+- - 8
+  - 0.175
+- - 9
+  - 0.162
+- - 10
+  - 0.142
+language_score: 0.342
+line_punct_thr: -1
+max_avg_word_length: 10
+max_non_alpha_words_ratio: 0.8
+min_avg_word_length: 2
+new_line_ratio: 0.056
+stopwords:
+- lei
+- ze
+- ne
+- de
+- zai
+- gu
+- gai
+- je
+- ge
+- ra
+- penui
+- "\xE2"
+- pe
+- ramme
+- lau
+- pa
+- i
+- bam
+- ningnui
+- gene
+- lu
+top_n_grams:
+- - 2
+  - 0.536
+- - 3
+  - 0.484
+- - 4
+  - 0.418

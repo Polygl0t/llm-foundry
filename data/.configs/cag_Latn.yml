@@ -1,0 +1,45 @@
+dup_line_frac: 0.479
+dup_n_grams:
+- - 5
+  - 0.31
+- - 6
+  - 0.289
+- - 7
+  - 0.265
+- - 8
+  - 0.253
+- - 9
+  - 0.231
+- - 10
+  - 0.216
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 11
+max_non_alpha_words_ratio: 0.783
+min_avg_word_length: 3
+new_line_ratio: 0.083
+stopwords:
+- pa
+- ti
+- ca
+- ja
+- lhech
+- papi
+- pava
+- dios
+- jayu
+- shta
+- na
+- japi
+- shi
+- lhayaash
+- vooy
+- taj
+- "jes\xFAs"
+top_n_grams:
+- - 2
+  - 1.258
+- - 3
+  - 1.196
+- - 4
+  - 1.07

@@ -1,0 +1,57 @@
+dup_line_frac: 0.379
+dup_n_grams:
+- - 5
+  - 0.581
+- - 6
+  - 0.573
+- - 7
+  - 0.555
+- - 8
+  - 0.535
+- - 9
+  - 0.51
+- - 10
+  - 0.481
+language_score: 0.392
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.812
+min_avg_word_length: 2
+new_line_ratio: 0.091
+stopwords:
+- "n\xE1"
+- ko
+- na
+- "k\u0289"
+- ni
+- dho
+- ma
+- ke
+- ka
+- ri
+- nari
+- ndi
+- ro
+- ndirigoti
+- le
+- "k\xE1"
+- "nr\u016D"
+- lo
+- yova
+- mungu
+- adi
+- kpa
+- djo
+- yesu
+- nji
+- "n\u0103"
+- ndima
+- si
+- nja
+top_n_grams:
+- - 2
+  - 1.454
+- - 3
+  - 1.602
+- - 4
+  - 1.581

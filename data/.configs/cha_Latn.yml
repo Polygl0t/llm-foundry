@@ -1,0 +1,46 @@
+dup_line_frac: 0.264
+dup_n_grams:
+- - 5
+  - 0.17
+- - 6
+  - 0.162
+- - 7
+  - 0.151
+- - 8
+  - 0.145
+- - 9
+  - 0.132
+- - 10
+  - 0.124
+language_score: 0.667
+line_punct_thr: 0.0
+max_avg_word_length: 12
+max_non_alpha_words_ratio: 0.76
+min_avg_word_length: 3
+new_line_ratio: 0.289
+stopwords:
+- i
+- na
+- gi
+- estados
+- unidos
+- sengsong
+- "gu\xE5ha"
+- populasion
+- nu
+- senso
+- tataogues
+- yan
+- dangkulo
+- ni
+- song
+- nasong
+- siha
+- giya
+top_n_grams:
+- - 2
+  - 0.624
+- - 3
+  - 0.575
+- - 4
+  - 0.505

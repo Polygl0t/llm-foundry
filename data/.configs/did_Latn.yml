@@ -1,0 +1,49 @@
+dup_line_frac: 0.521
+dup_n_grams:
+- - 5
+  - 0.414
+- - 6
+  - 0.336
+- - 7
+  - 0.362
+- - 8
+  - 0.331
+- - 9
+  - 0.278
+- - 10
+  - 0.28
+language_score: 0.345
+line_punct_thr: -1
+max_avg_word_length: 11
+max_non_alpha_words_ratio: 0.8
+min_avg_word_length: 3
+new_line_ratio: 0.067
+stopwords:
+- "\uA78Cc\u0129"
+- "h\u0129"
+- "n\u1EBD"
+- baa
+- "c\u0129"
+- "\uA78Cc\u0129g"
+- eet
+- ma
+- "hat\u0129"
+- ho
+- "c\u0129g"
+- "h\xF5ll\xF5ngaa"
+- nyekuci
+- "\u0129\u0129n"
+- "th\xF5\xF5th"
+- "v\u1EBDl\u1EBDk"
+- "h\u0129n\u0129ng\u0129t\u0129"
+- naa
+- eeta
+- "n\u1EBD\u1EBD"
+- "ngaat\u0129"
+top_n_grams:
+- - 2
+  - 1.205
+- - 3
+  - 0.935
+- - 4
+  - 0.589

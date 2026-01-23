@@ -1,0 +1,45 @@
+dup_line_frac: 0.524
+dup_n_grams:
+- - 5
+  - 0.411
+- - 6
+  - 0.385
+- - 7
+  - 0.371
+- - 8
+  - 0.347
+- - 9
+  - 0.275
+- - 10
+  - 0.254
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 13
+max_non_alpha_words_ratio: 0.783
+min_avg_word_length: 4
+new_line_ratio: 0.077
+stopwords:
+- hua
+- de
+- tli
+- inu
+- que
+- amo
+- ca
+- para
+- deus
+- ma
+- cuale
+- ipa
+- "\xF6que"
+- "cu\xF6c"
+- por
+- noche
+- sente
+top_n_grams:
+- - 2
+  - 1.124
+- - 3
+  - 1.036
+- - 4
+  - 0.934

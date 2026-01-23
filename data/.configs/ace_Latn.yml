@@ -1,0 +1,46 @@
+dup_line_frac: 0.373
+dup_n_grams:
+- - 5
+  - 0.27
+- - 6
+  - 0.224
+- - 7
+  - 0.208
+- - 8
+  - 0.178
+- - 9
+  - 0.162
+- - 10
+  - 0.144
+language_score: 0.3
+line_punct_thr: 0.125
+max_avg_word_length: 12
+max_non_alpha_words_ratio: 0.81
+min_avg_word_length: 4
+new_line_ratio: 0.273
+stopwords:
+- di
+- nakeuh
+- bak
+- "ac\xE8h"
+- nyoe
+- "gamp\xF4ng"
+- gunong
+- data
+- nyang
+- lam
+- laman
+- "n\xE8"
+- saboh
+- nibak
+- drosophila
+- seuneubeuet
+- na
+- "kabupat\xE8n"
+top_n_grams:
+- - 2
+  - 0.83
+- - 3
+  - 0.729
+- - 4
+  - 0.55

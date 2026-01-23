@@ -1,0 +1,58 @@
+dup_line_frac: 0.846
+dup_n_grams:
+- - 5
+  - 0.57
+- - 6
+  - 0.56
+- - 7
+  - 0.536
+- - 8
+  - 0.506
+- - 9
+  - 0.481
+- - 10
+  - 0.447
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.786
+min_avg_word_length: 2
+new_line_ratio: 0.111
+stopwords:
+- e
+- alamb
+- yu
+- wei
+- ende
+- got
+- wal
+- ka
+- mal
+- kenem
+- baibel
+- na
+- olom
+- ga
+- nim
+- embe
+- bar
+- god
+- "\xF1e"
+- meim
+- ya
+- kes
+- mambnem
+- nal
+- ne
+- kunum
+- mala
+- "\xF1im"
+- bol
+- jova
+top_n_grams:
+- - 2
+  - 1.252
+- - 3
+  - 1.315
+- - 4
+  - 1.264

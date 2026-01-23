@@ -1,0 +1,45 @@
+dup_line_frac: 0.828
+dup_n_grams:
+- - 5
+  - 0.516
+- - 6
+  - 0.485
+- - 7
+  - 0.472
+- - 8
+  - 0.454
+- - 9
+  - 0.433
+- - 10
+  - 0.404
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.757
+min_avg_word_length: 3
+new_line_ratio: 0.059
+stopwords:
+- o
+- de
+- "g\xEBnanga"
+- ma
+- jou
+- nyawa
+- ngohi
+- madutu
+- manga
+- mata
+- ngini
+- ai
+- yesus
+- aha
+- "\xF6nanga"
+- unanga
+- mangale
+top_n_grams:
+- - 2
+  - 1.052
+- - 3
+  - 1.121
+- - 4
+  - 1.089

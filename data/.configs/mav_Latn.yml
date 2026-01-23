@@ -1,0 +1,48 @@
+dup_line_frac: 0.51
+dup_n_grams:
+- - 5
+  - 0.373
+- - 6
+  - 0.355
+- - 7
+  - 0.333
+- - 8
+  - 0.313
+- - 9
+  - 0.295
+- - 10
+  - 0.268
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 11
+max_non_alpha_words_ratio: 0.878
+min_avg_word_length: 3
+new_line_ratio: 0.083
+stopwords:
+- hap
+- yt
+- i
+- mi'i
+- tupana
+- hawyi
+- e
+- kahato
+- pe
+- iesui
+- pote
+- waku
+- haria
+- ti
+- ewy
+- e.
+- ma'ato
+- ra'yn
+- ko'i
+- hamo
+top_n_grams:
+- - 2
+  - 1.107
+- - 3
+  - 0.851
+- - 4
+  - 0.767

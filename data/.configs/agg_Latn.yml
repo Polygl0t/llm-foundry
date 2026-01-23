@@ -1,0 +1,44 @@
+dup_line_frac: 0.375
+dup_n_grams:
+- - 5
+  - 0.389
+- - 6
+  - 0.381
+- - 7
+  - 0.367
+- - 8
+  - 0.349
+- - 9
+  - 0.333
+- - 10
+  - 0.314
+language_score: 0.878
+line_punct_thr: -1
+max_avg_word_length: 11
+max_non_alpha_words_ratio: 0.75
+min_avg_word_length: 4
+new_line_ratio: 0.056
+stopwords:
+- ai
+- asu
+- nindou
+- ra
+- "\u014Bga"
+- se
+- "hohoan\u0268mo"
+- "hoaf\u0268"
+- ranai
+- ro
+- "ran\u0268"
+- ana
+- "ahand\u0268"
+- ranahambo
+- god
+- "moat\xFCkun\u0268"
+top_n_grams:
+- - 2
+  - 0.178
+- - 3
+  - 0.176
+- - 4
+  - 0.181

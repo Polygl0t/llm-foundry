@@ -1,0 +1,43 @@
+dup_line_frac: 0.327
+dup_n_grams:
+- - 5
+  - 0.181
+- - 6
+  - 0.169
+- - 7
+  - 0.152
+- - 8
+  - 0.136
+- - 9
+  - 0.122
+- - 10
+  - 0.109
+language_score: 0.3
+line_punct_thr: 0.167
+max_avg_word_length: 20
+max_non_alpha_words_ratio: 0.75
+min_avg_word_length: 3
+new_line_ratio: 0.231
+stopwords:
+- vanoti
+- kureva
+- kana
+- n.
+- mazwi
+- mitauro
+- inoti
+- to
+- iri
+- ari
+- mazita
+- zita
+- mamwe
+- of
+- zvinoreva
+top_n_grams:
+- - 2
+  - 1.272
+- - 3
+  - 1.172
+- - 4
+  - 0.864

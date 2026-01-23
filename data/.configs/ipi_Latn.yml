@@ -1,0 +1,47 @@
+dup_line_frac: 0.12
+dup_n_grams:
+- - 5
+  - 0.163
+- - 6
+  - 0.143
+- - 7
+  - 0.121
+- - 8
+  - 0.112
+- - 9
+  - 0.102
+- - 10
+  - 0.09
+language_score: 0.719
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.778
+min_avg_word_length: 4
+new_line_ratio: 0.04
+stopwords:
+- wandakali
+- kola
+- lo
+- tupa
+- akali
+- oko
+- utupane
+- pii
+- bala
+- mane
+- mindi
+- okone
+- nembo
+- wuane
+- yakama
+- okona
+- mana
+- loto
+- balana
+top_n_grams:
+- - 2
+  - 0.401
+- - 3
+  - 0.389
+- - 4
+  - 0.342

@@ -1,0 +1,52 @@
+dup_line_frac: 0.538
+dup_n_grams:
+- - 5
+  - 0.416
+- - 6
+  - 0.4
+- - 7
+  - 0.381
+- - 8
+  - 0.364
+- - 9
+  - 0.339
+- - 10
+  - 0.308
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.809
+min_avg_word_length: 3
+new_line_ratio: 0.062
+stopwords:
+- me
+- ghe
+- va
+- tale
+- ateva
+- ta
+- tani
+- karika
+- laghe
+- am
+- aue
+- ia
+- la
+- atoa
+- o
+- taumattu
+- voto
+- nau
+- god
+- iesu
+- eteva
+- tau
+- lo
+- mene
+top_n_grams:
+- - 2
+  - 1.412
+- - 3
+  - 1.229
+- - 4
+  - 1.152

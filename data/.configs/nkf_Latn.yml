@@ -1,0 +1,51 @@
+dup_line_frac: 0.691
+dup_n_grams:
+- - 5
+  - 0.522
+- - 6
+  - 0.497
+- - 7
+  - 0.474
+- - 8
+  - 0.417
+- - 9
+  - 0.399
+- - 10
+  - 0.374
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.826
+min_avg_word_length: 3
+new_line_ratio: 0.067
+stopwords:
+- bi
+- ga
+- ding
+- rwe
+- lang
+- khatle
+- pi
+- thang
+- om
+- khou
+- nani
+- mi
+- bani
+- le
+- na
+- rwan
+- bing
+- to
+- atiyeda
+- ngaake
+- nun
+- maanna
+- rikrwang
+top_n_grams:
+- - 2
+  - 1.357
+- - 3
+  - 1.368
+- - 4
+  - 1.236

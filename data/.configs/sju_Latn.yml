@@ -1,0 +1,58 @@
+dup_line_frac: 0.822
+dup_n_grams:
+- - 5
+  - 0.508
+- - 6
+  - 0.488
+- - 7
+  - 0.47
+- - 8
+  - 0.45
+- - 9
+  - 0.422
+- - 10
+  - 0.39
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 33
+max_non_alpha_words_ratio: 0.81
+min_avg_word_length: 5
+new_line_ratio: 0.125
+stopwords:
+- jah
+- "le\xE4"
+- "le\xE4h"
+- kommuvdna
+- "lea\u0308h"
+- bijrra
+- "galgg\xE1"
+- jus
+- "g\xE5ssie"
+- muv
+- guh
+- mehte
+- vihtties
+- "lea\u0308"
+- gieh
+- rijkan
+- kommuvnasne
+- dan
+- "\xE1j"
+- "s\xE1miengiellije"
+- "m\xE1httiebe"
+- ubmejen
+- sverjen
+- "m\xE5nna"
+- "le\xE4b"
+- "ja\u0301bien"
+- "a\u0301j"
+- uvdietit
+- ij
+- kommuvnan
+top_n_grams:
+- - 2
+  - 0.811
+- - 3
+  - 0.712
+- - 4
+  - 0.578

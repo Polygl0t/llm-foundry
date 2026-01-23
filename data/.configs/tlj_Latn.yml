@@ -1,0 +1,45 @@
+dup_line_frac: 0.481
+dup_n_grams:
+- - 5
+  - 0.265
+- - 6
+  - 0.249
+- - 7
+  - 0.238
+- - 8
+  - 0.201
+- - 9
+  - 0.195
+- - 10
+  - 0.186
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 14
+max_non_alpha_words_ratio: 0.762
+min_avg_word_length: 4
+new_line_ratio: 0.077
+stopwords:
+- mu
+- na
+- kandi
+- oghu
+- luhanga
+- bantu
+- yesu
+- ati
+- ngoku
+- bhaatu
+- obu
+- ebi
+- eki
+- ya
+- haa
+- aba
+- kya
+top_n_grams:
+- - 2
+  - 0.976
+- - 3
+  - 0.838
+- - 4
+  - 0.665

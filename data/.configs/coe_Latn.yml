@@ -1,0 +1,42 @@
+dup_line_frac: 0.265
+dup_n_grams:
+- - 5
+  - 0.254
+- - 6
+  - 0.225
+- - 7
+  - 0.192
+- - 8
+  - 0.178
+- - 9
+  - 0.165
+- - 10
+  - 0.156
+language_score: 0.814
+line_punct_thr: -1
+max_avg_word_length: 12
+max_non_alpha_words_ratio: 0.75
+min_avg_word_length: 5
+new_line_ratio: 0.071
+stopwords:
+- "repa\u0289"
+- dios
+- "ch\u0289'\u0289"
+- chini
+- repana
+- "p\xE3i"
+- cu'ache
+- "r\u0289a"
+- re'oja'che
+- "m\u0289san\u0289kona"
+- "repa\u0289'te"
+- "j\xE3'aja'\xF1e"
+- "jes\xFAs"
+- ija'che
+top_n_grams:
+- - 2
+  - 0.197
+- - 3
+  - 0.252
+- - 4
+  - 0.224

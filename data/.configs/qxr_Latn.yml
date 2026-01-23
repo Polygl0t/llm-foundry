@@ -1,0 +1,40 @@
+dup_line_frac: 0.688
+dup_n_grams:
+- - 5
+  - 0.421
+- - 6
+  - 0.396
+- - 7
+  - 0.378
+- - 8
+  - 0.343
+- - 9
+  - 0.319
+- - 10
+  - 0.291
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 14
+max_non_alpha_words_ratio: 0.7
+min_avg_word_length: 4
+new_line_ratio: 0.111
+stopwords:
+- mana
+- shina
+- chai
+- alli
+- dios
+- ima
+- "\xBF"
+- nirca
+- chashna
+- tucui
+- cai
+- "\xF1uca"
+top_n_grams:
+- - 2
+  - 1.245
+- - 3
+  - 1.253
+- - 4
+  - 1.103

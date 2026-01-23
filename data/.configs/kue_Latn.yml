@@ -1,0 +1,47 @@
+dup_line_frac: 0.129
+dup_n_grams:
+- - 5
+  - 0.121
+- - 6
+  - 0.115
+- - 7
+  - 0.101
+- - 8
+  - 0.091
+- - 9
+  - 0.088
+- - 10
+  - 0.072
+language_score: 0.777
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.812
+min_avg_word_length: 3
+new_line_ratio: 0.059
+stopwords:
+- ana
+- i
+- ye
+- yomba
+- ene
+- mina
+- ta
+- na
+- te
+- god
+- ka
+- yegl
+- ende
+- yesus
+- ere
+- pre
+- ba
+- ya
+- wakai
+top_n_grams:
+- - 2
+  - 0.245
+- - 3
+  - 0.237
+- - 4
+  - 0.168

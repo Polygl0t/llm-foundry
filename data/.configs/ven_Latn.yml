@@ -1,0 +1,52 @@
+dup_line_frac: 0.43
+dup_n_grams:
+- - 5
+  - 0.293
+- - 6
+  - 0.279
+- - 7
+  - 0.268
+- - 8
+  - 0.246
+- - 9
+  - 0.227
+- - 10
+  - 0.209
+language_score: 0.3
+line_punct_thr: 0.0
+max_avg_word_length: 10
+max_non_alpha_words_ratio: 0.794
+min_avg_word_length: 1
+new_line_ratio: 0.194
+stopwords:
+- vha
+- ndi
+- na
+- "\u1E13orobo"
+- u
+- kha
+- limpopo
+- dza
+- la
+- nga
+- tshipembe
+- afurika
+- a
+- ya
+- wanala
+- ino
+- ha
+- hu
+- municipality
+- local
+- tshi
+- wa
+- vho
+- vhathu
+top_n_grams:
+- - 2
+  - 0.981
+- - 3
+  - 0.905
+- - 4
+  - 0.827

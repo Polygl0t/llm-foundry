@@ -1,0 +1,54 @@
+dup_line_frac: 0.014
+dup_n_grams:
+- - 5
+  - 0.069
+- - 6
+  - 0.052
+- - 7
+  - 0.041
+- - 8
+  - 0.032
+- - 9
+  - 0.025
+- - 10
+  - 0.02
+language_score: 0.889
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.815
+min_avg_word_length: 3
+new_line_ratio: 0.056
+stopwords:
+- ia
+- me
+- "m\u0259"
+- "n\u0259ha"
+- in
+- pen
+- "t\u0268"
+- "n\u0259rmama"
+- i
+- "ir\u0259ha"
+- "kumwes\u0259n"
+- "ir\u0259"
+- "s\u0259"
+- "n\u0259n\u0259"
+- "s\u0259v\u0259i"
+- "n\u0259p\u0268n"
+- riti
+- "k\u0268miaha"
+- "m\u0259t\u0259"
+- "mh\u0259"
+- "i\u0259rmama"
+- iesu
+- noien
+- mwi
+- "m\u0268ne"
+- "s\u0259v\u0259nhi"
+top_n_grams:
+- - 2
+  - 0.079
+- - 3
+  - 0.066
+- - 4
+  - 0.033

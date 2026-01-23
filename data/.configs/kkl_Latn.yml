@@ -1,0 +1,42 @@
+dup_line_frac: 0.998
+dup_n_grams:
+- - 5
+  - 0.709
+- - 6
+  - 0.686
+- - 7
+  - 0.666
+- - 8
+  - 0.642
+- - 9
+  - 0.621
+- - 10
+  - 0.586
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.7
+min_avg_word_length: 4
+new_line_ratio: 0.056
+stopwords:
+- nimi
+- aro
+- sembe
+- yubu
+- agha
+- uro
+- kom
+- allahri
+- wene
+- babe
+- allah
+- na
+- el
+- yesus
+top_n_grams:
+- - 2
+  - 1.324
+- - 3
+  - 1.472
+- - 4
+  - 1.59

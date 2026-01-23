@@ -1,0 +1,53 @@
+dup_line_frac: 1.301
+dup_n_grams:
+- - 5
+  - 0.888
+- - 6
+  - 0.882
+- - 7
+  - 0.872
+- - 8
+  - 0.844
+- - 9
+  - 0.826
+- - 10
+  - 0.799
+language_score: 0.681
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.8
+min_avg_word_length: 3
+new_line_ratio: 0.059
+stopwords:
+- dla
+- mate
+- "ya\uA789"
+- koko
+- epo
+- epame
+- ma
+- dulu
+- yu
+- so
+- "wua\uA789"
+- watle
+- "na\uA789"
+- tle
+- mo
+- "yia\uA789"
+- amasiyama
+- god
+- oplami
+- epedeme
+- opa
+- di
+- epalati
+- adipalati
+- "wa\uA789"
+top_n_grams:
+- - 2
+  - 3.193
+- - 3
+  - 3.64
+- - 4
+  - 3.808

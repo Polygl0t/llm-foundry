@@ -1,0 +1,58 @@
+dup_line_frac: 0.375
+dup_n_grams:
+- - 5
+  - 0.38
+- - 6
+  - 0.37
+- - 7
+  - 0.357
+- - 8
+  - 0.342
+- - 9
+  - 0.324
+- - 10
+  - 0.308
+language_score: 0.695
+line_punct_thr: -1
+max_avg_word_length: 10
+max_non_alpha_words_ratio: 0.766
+min_avg_word_length: 3
+new_line_ratio: 0.033
+stopwords:
+- nail
+- bhai
+- ngaol
+- a
+- dai
+- khi
+- juq
+- aq
+- ail
+- mail
+- neq
+- gaq
+- ge
+- maq
+- aivq
+- ai
+- tsaol
+- bhiq
+- nee
+- ngal
+- teevq
+- al
+- thaq
+- nuljuq
+- lal
+- i
+- phaq
+- yaoq
+- miqyail
+- phao
+top_n_grams:
+- - 2
+  - 0.25
+- - 3
+  - 0.253
+- - 4
+  - 0.242

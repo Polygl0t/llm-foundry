@@ -1,0 +1,53 @@
+dup_line_frac: 0.722
+dup_n_grams:
+- - 5
+  - 0.494
+- - 6
+  - 0.477
+- - 7
+  - 0.439
+- - 8
+  - 0.423
+- - 9
+  - 0.4
+- - 10
+  - 0.366
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.765
+min_avg_word_length: 2
+new_line_ratio: 0.056
+stopwords:
+- go
+- bo
+- re
+- a
+- jo
+- "\xE1"
+- kehm
+- e
+- esowo
+- ji
+- 'no'
+- n
+- ba
+- li
+- ane
+- nne
+- nyi
+- bahke
+- eji
+- fere
+- ma
+- kpo
+- ka
+- ana
+- jisos
+top_n_grams:
+- - 2
+  - 1.099
+- - 3
+  - 1.036
+- - 4
+  - 0.991

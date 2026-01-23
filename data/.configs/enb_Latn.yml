@@ -1,0 +1,52 @@
+dup_line_frac: 0.278
+dup_n_grams:
+- - 5
+  - 0.232
+- - 6
+  - 0.228
+- - 7
+  - 0.204
+- - 8
+  - 0.193
+- - 9
+  - 0.183
+- - 10
+  - 0.167
+language_score: 0.55
+line_punct_thr: -1
+max_avg_word_length: 12
+max_non_alpha_words_ratio: 0.688
+min_avg_word_length: 4
+new_line_ratio: 0.077
+stopwords:
+- nyoo
+- "kil\u0113"
+- choo
+- "nk\u014D\u014D"
+- iriin
+- ku
+- "y\u0113\u0113su"
+- piich
+- "t\u014Dk\u014Dl"
+- "n\u0113\u0113"
+- keey
+- chiich
+- aka
+- "\u0101k\u014D\u014D"
+- "ch\u0113p\u014D"
+- kii
+- "\u0101mu"
+- "ny\u0113p\u014D"
+- mii
+- paani
+- "kil\u0113\u0113"
+- nyuun
+- "w\u014Dloo"
+- "pichooch\u0113\u0113"
+top_n_grams:
+- - 2
+  - 0.506
+- - 3
+  - 0.491
+- - 4
+  - 0.472

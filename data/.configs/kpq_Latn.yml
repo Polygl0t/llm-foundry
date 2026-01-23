@@ -1,0 +1,51 @@
+dup_line_frac: 0.14
+dup_n_grams:
+- - 5
+  - 0.316
+- - 6
+  - 0.37
+- - 7
+  - 0.233
+- - 8
+  - 0.257
+- - 9
+  - 0.28
+- - 10
+  - 0.303
+language_score: 0.474
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.762
+min_avg_word_length: 3
+new_line_ratio: 0.059
+stopwords:
+- na
+- di
+- ag
+- nimi
+- ab
+- gom
+- yubu
+- bog
+- ba
+- wenena
+- eildi
+- se
+- nenege
+- aboga
+- babe
+- nisin
+- anda
+- "a\xB4un"
+- alna
+- eimayong
+- anese
+- yesus
+- gange
+top_n_grams:
+- - 2
+  - 1.144
+- - 3
+  - 1.508
+- - 4
+  - 1.732

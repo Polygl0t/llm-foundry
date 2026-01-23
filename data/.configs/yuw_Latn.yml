@@ -1,0 +1,41 @@
+dup_line_frac: 0.708
+dup_n_grams:
+- - 5
+  - 0.511
+- - 6
+  - 0.488
+- - 7
+  - 0.461
+- - 8
+  - 0.427
+- - 9
+  - 0.387
+- - 10
+  - 0.365
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.811
+min_avg_word_length: 4
+new_line_ratio: 0.056
+stopwords:
+- yu
+- amna
+- "w\xF6mai"
+- o
+- mata
+- ihoroc
+- owi
+- sinom
+- oro
+- au
+- tongga
+- son
+- wo
+top_n_grams:
+- - 2
+  - 1.419
+- - 3
+  - 1.466
+- - 4
+  - 1.373

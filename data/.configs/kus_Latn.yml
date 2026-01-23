@@ -1,0 +1,44 @@
+dup_line_frac: 0.167
+dup_n_grams:
+- - 5
+  - 0.115
+- - 6
+  - 0.109
+- - 7
+  - 0.099
+- - 8
+  - 0.093
+- - 9
+  - 0.086
+- - 10
+  - 0.078
+language_score: 0.883
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.803
+min_avg_word_length: 2
+new_line_ratio: 0.067
+stopwords:
+- ka
+- la
+- o
+- ye
+- ba
+- ne
+- na
+- ya
+- m
+- wina'am
+- n
+- li
+- ti
+- a
+- wusa
+- pu
+top_n_grams:
+- - 2
+  - 0.21
+- - 3
+  - 0.252
+- - 4
+  - 0.176

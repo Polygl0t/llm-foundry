@@ -1,0 +1,42 @@
+dup_line_frac: 0.424
+dup_n_grams:
+- - 5
+  - 0.515
+- - 6
+  - 0.511
+- - 7
+  - 0.499
+- - 8
+  - 0.47
+- - 9
+  - 0.448
+- - 10
+  - 0.419
+language_score: 0.641
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.783
+min_avg_word_length: 2
+new_line_ratio: 0.077
+stopwords:
+- a
+- zo
+- oi
+- zen
+- den
+- "\u014B\xE2i"
+- "m\xE2n"
+- sot
+- "z\xE2k"
+- "yat\xE2"
+- "s\xE2m"
+- "it\xE2"
+- zorat
+- op
+top_n_grams:
+- - 2
+  - 2.29
+- - 3
+  - 2.38
+- - 4
+  - 2.25

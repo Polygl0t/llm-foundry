@@ -1,0 +1,42 @@
+dup_line_frac: 0.465
+dup_n_grams:
+- - 5
+  - 0.294
+- - 6
+  - 0.284
+- - 7
+  - 0.262
+- - 8
+  - 0.247
+- - 9
+  - 0.232
+- - 10
+  - 0.207
+language_score: 0.3
+line_punct_thr: 0.166
+max_avg_word_length: 16
+max_non_alpha_words_ratio: 0.713
+min_avg_word_length: 5
+new_line_ratio: 0.194
+stopwords:
+- aamma
+- kalaallit
+- nunaat
+- soorlu
+- tassaavoq
+- nunaanni
+- aammalu
+- nunat
+- inuit
+- ullumikkut
+- mi
+- inuup
+- ukiut
+- qanoq
+top_n_grams:
+- - 2
+  - 0.728
+- - 3
+  - 0.637
+- - 4
+  - 0.567

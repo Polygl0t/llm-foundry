@@ -1,0 +1,52 @@
+dup_line_frac: 0.08
+dup_n_grams:
+- - 5
+  - 0.129
+- - 6
+  - 0.104
+- - 7
+  - 0.088
+- - 8
+  - 0.073
+- - 9
+  - 0.063
+- - 10
+  - 0.051
+language_score: 0.896
+line_punct_thr: -1
+max_avg_word_length: 6
+max_non_alpha_words_ratio: 0.833
+min_avg_word_length: 2
+new_line_ratio: 0.048
+stopwords:
+- na
+- wi
+- pe
+- ki
+- ma
+- ni
+- pye
+- wa
+- "f\u0254"
+- ye
+- "y\u025Bn"
+- a
+- we
+- ti
+- li
+- naa
+- "y\u025Bn\u014B\u025Bl\u025B"
+- si
+- mbe
+- yo
+- yaa
+- "w\xEC"
+- kan
+- ka
+top_n_grams:
+- - 2
+  - 0.087
+- - 3
+  - 0.072
+- - 4
+  - 0.057

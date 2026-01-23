@@ -1,0 +1,48 @@
+dup_line_frac: 0.521
+dup_n_grams:
+- - 5
+  - 0.359
+- - 6
+  - 0.332
+- - 7
+  - 0.314
+- - 8
+  - 0.293
+- - 9
+  - 0.273
+- - 10
+  - 0.255
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.793
+min_avg_word_length: 3
+new_line_ratio: 0.045
+stopwords:
+- jei
+- ga
+- angtane
+- aa
+- ane
+- jeiserem
+- ai
+- jam
+- uwa
+- aamei
+- gam
+- jes
+- ne
+- ge
+- jem
+- temawer
+- yesus
+- sanbagiri
+- taterisi
+- seyafter
+top_n_grams:
+- - 2
+  - 0.88
+- - 3
+  - 0.804
+- - 4
+  - 0.605

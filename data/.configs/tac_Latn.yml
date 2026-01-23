@@ -1,0 +1,46 @@
+dup_line_frac: 0.537
+dup_n_grams:
+- - 5
+  - 0.363
+- - 6
+  - 0.359
+- - 7
+  - 0.35
+- - 8
+  - 0.345
+- - 9
+  - 0.321
+- - 10
+  - 0.294
+language_score: 0.667
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.714
+min_avg_word_length: 3
+new_line_ratio: 0.083
+stopwords:
+- "alu\xE9"
+- lige
+- la
+- "ral\xE1muli"
+- "onor\xFAgame"
+- napu
+- ju
+- we
+- "tabil\xE9"
+- "napurig\xE1"
+- "al\xE9"
+- emi
+- ne
+- "ri\xF3"
+- "bil\xE9"
+- pe
+- esusi
+- ma
+top_n_grams:
+- - 2
+  - 1.595
+- - 3
+  - 1.557
+- - 4
+  - 1.434

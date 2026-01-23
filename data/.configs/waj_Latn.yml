@@ -1,0 +1,45 @@
+dup_line_frac: 0.389
+dup_n_grams:
+- - 5
+  - 0.305
+- - 6
+  - 0.313
+- - 7
+  - 0.269
+- - 8
+  - 0.271
+- - 9
+  - 0.249
+- - 10
+  - 0.192
+language_score: 0.534
+line_punct_thr: -1
+max_avg_word_length: 11
+max_non_alpha_words_ratio: 0.869
+min_avg_word_length: 4
+new_line_ratio: 0.062
+stopwords:
+- kua
+- iya
+- na
+- inna
+- hama
+- gioonna
+- kiaa
+- ngii
+- fai
+- ari
+- ngia
+- ivo
+- ni
+- ta
+- anutuuqo
+- tunoo
+- vaidi
+top_n_grams:
+- - 2
+  - 1.423
+- - 3
+  - 1.235
+- - 4
+  - 1.029

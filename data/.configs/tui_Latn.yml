@@ -1,0 +1,59 @@
+dup_line_frac: 0.695
+dup_n_grams:
+- - 5
+  - 0.442
+- - 6
+  - 0.406
+- - 7
+  - 0.394
+- - 8
+  - 0.361
+- - 9
+  - 0.336
+- - 10
+  - 0.318
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.857
+min_avg_word_length: 2
+new_line_ratio: 0.053
+stopwords:
+- wo
+- de
+- go
+- ma
+- ti
+- maga
+- jar
+- "\xE4e"
+- 'no'
+- "a\xE0"
+- ge
+- "di\xF1"
+- ga
+- mo
+- ne
+- hay
+- ndi
+- raw
+- "jo\xF1"
+- nen
+- mono
+- jag
+- ni
+- day
+- "\xE4i"
+- do
+- le
+- je
+- "ya\xF1"
+- baa
+- "\xE4uy"
+top_n_grams:
+- - 2
+  - 1.355
+- - 3
+  - 1.254
+- - 4
+  - 1.225

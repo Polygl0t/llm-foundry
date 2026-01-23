@@ -1,0 +1,45 @@
+dup_line_frac: 0.514
+dup_n_grams:
+- - 5
+  - 0.39
+- - 6
+  - 0.372
+- - 7
+  - 0.347
+- - 8
+  - 0.322
+- - 9
+  - 0.297
+- - 10
+  - 0.273
+language_score: 0.693
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.81
+min_avg_word_length: 2
+new_line_ratio: 0.1
+stopwords:
+- o
+- a
+- "n\xE1"
+- na
+- ba
+- e
+- di
+- nde
+- la
+- ma
+- yehova
+- "pe\u0331"
+- nje
+- "mo\u0331"
+- si
+- ta
+- be
+top_n_grams:
+- - 2
+  - 0.295
+- - 3
+  - 0.269
+- - 4
+  - 0.24

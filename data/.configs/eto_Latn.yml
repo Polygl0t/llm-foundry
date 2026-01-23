@@ -1,0 +1,60 @@
+dup_line_frac: 0.971
+dup_n_grams:
+- - 5
+  - 0.659
+- - 6
+  - 0.639
+- - 7
+  - 0.631
+- - 8
+  - 0.634
+- - 9
+  - 0.568
+- - 10
+  - 0.552
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.833
+min_avg_word_length: 2
+new_line_ratio: 0.111
+stopwords:
+- a
+- be
+- nga
+- i
+- na
+- te
+- "\xE8\xE8"
+- zama
+- bod
+- ye
+- ne
+- e
+- o
+- jehova
+- "b\xF4"
+- ba
+- yesous
+- bogbo
+- "d\xF4"
+- pe
+- dje
+- ma
+- si
+- wou
+- asou
+- bebe
+- "vog\u02BClo"
+- nye
+- mi
+- gbele
+- ngue
+- kad
+top_n_grams:
+- - 2
+  - 2.099
+- - 3
+  - 2.288
+- - 4
+  - 2.273

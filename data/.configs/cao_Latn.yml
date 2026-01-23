@@ -1,0 +1,51 @@
+dup_line_frac: 0.4
+dup_n_grams:
+- - 5
+  - 0.338
+- - 6
+  - 0.334
+- - 7
+  - 0.319
+- - 8
+  - 0.308
+- - 9
+  - 0.292
+- - 10
+  - 0.275
+language_score: 0.608
+line_punct_thr: -1
+max_avg_word_length: 16
+max_non_alpha_words_ratio: 0.776
+min_avg_word_length: 3
+new_line_ratio: 0.059
+stopwords:
+- tsi
+- ca
+- quiha
+- ja
+- qui
+- xo
+- bo
+- ra
+- toa
+- mato
+- dios
+- naa
+- "jahu\xEB"
+- jatsi
+- jato
+- na
+- jabi
+- 'no'
+- cabo
+- nohiria
+- "\xEB"
+- jasca
+- ma
+top_n_grams:
+- - 2
+  - 0.459
+- - 3
+  - 0.437
+- - 4
+  - 0.394

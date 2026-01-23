@@ -1,0 +1,48 @@
+dup_line_frac: 0.206
+dup_n_grams:
+- - 5
+  - 0.136
+- - 6
+  - 0.12
+- - 7
+  - 0.109
+- - 8
+  - 0.101
+- - 9
+  - 0.085
+- - 10
+  - 0.082
+language_score: 0.711
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.871
+min_avg_word_length: 3
+new_line_ratio: 0.056
+stopwords:
+- edo
+- awa
+- da
+- embo
+- mi
+- yei
+- god
+- de
+- umo
+- na
+- ingo
+- iesu
+- ainda
+- be
+- ungo
+- ari
+- uso
+- ge
+- awodo
+- embobo
+top_n_grams:
+- - 2
+  - 0.488
+- - 3
+  - 0.439
+- - 4
+  - 0.36

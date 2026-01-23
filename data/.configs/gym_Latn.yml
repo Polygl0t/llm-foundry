@@ -1,0 +1,44 @@
+dup_line_frac: 0.262
+dup_n_grams:
+- - 5
+  - 0.235
+- - 6
+  - 0.21
+- - 7
+  - 0.18
+- - 8
+  - 0.172
+- - 9
+  - 0.16
+- - 10
+  - 0.148
+language_score: 0.65
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.8
+min_avg_word_length: 3
+new_line_ratio: 0.1
+stopwords:
+- ye
+- ja
+- kukwe
+- ni
+- aune
+- nitre
+- "t\xE4"
+- "k\xE4"
+- kwe
+- gare
+- "\xF1aka"
+- ie
+- mike
+- abko
+- "yeb\xE4t\xE4"
+- kwin
+top_n_grams:
+- - 2
+  - 1.173
+- - 3
+  - 0.669
+- - 4
+  - 0.351

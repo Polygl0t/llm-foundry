@@ -1,0 +1,56 @@
+dup_line_frac: 0.095
+dup_n_grams:
+- - 5
+  - 0.09
+- - 6
+  - 0.082
+- - 7
+  - 0.07
+- - 8
+  - 0.063
+- - 9
+  - 0.059
+- - 10
+  - 0.054
+language_score: 0.9
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.833
+min_avg_word_length: 2
+new_line_ratio: 0.053
+stopwords:
+- na
+- u
+- "\u0272y\u025B"
+- pi
+- yii
+- "\xE0"
+- ke
+- mii
+- "n\xE1"
+- a
+- "m\u025B"
+- kile
+- si
+- mpyi
+- i
+- e
+- pyi
+- wuu
+- ka
+- "s\xED"
+- lire
+- maa
+- jwo
+- li
+- "\xE1"
+- "m\xE0"
+- mu
+- yesu
+top_n_grams:
+- - 2
+  - 0.134
+- - 3
+  - 0.189
+- - 4
+  - 0.135

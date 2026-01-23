@@ -1,0 +1,39 @@
+dup_line_frac: 0.628
+dup_n_grams:
+- - 5
+  - 0.42
+- - 6
+  - 0.415
+- - 7
+  - 0.407
+- - 8
+  - 0.395
+- - 9
+  - 0.381
+- - 10
+  - 0.365
+language_score: 0.563
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.778
+min_avg_word_length: 3
+new_line_ratio: 0.077
+stopwords:
+- chu
+- ahi
+- a
+- in
+- ding
+- chule
+- chun
+- le
+- ho
+- hi
+- jong
+top_n_grams:
+- - 2
+  - 0.747
+- - 3
+  - 0.51
+- - 4
+  - 0.351

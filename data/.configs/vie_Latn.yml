@@ -1,0 +1,41 @@
+dup_line_frac: 0.293
+dup_n_grams:
+- - 5
+  - 0.178
+- - 6
+  - 0.163
+- - 7
+  - 0.15
+- - 8
+  - 0.136
+- - 9
+  - 0.124
+- - 10
+  - 0.111
+language_score: 0.802
+line_punct_thr: 0.333
+max_avg_word_length: 11
+max_non_alpha_words_ratio: 0.803
+min_avg_word_length: 3
+new_line_ratio: 0.103
+stopwords:
+- "l\xE0"
+- "v\xE0"
+- "c\u1EE7a"
+- "m\u1ED9t"
+- "\u0111\u01B0\u1EE3c"
+- trong
+- "n\u0103m"
+- "c\xE1c"
+- "c\xF3"
+- "lo\xE0i"
+- "n\xE0y"
+- "\u0111\xE3"
+- "ng\u01B0\u1EDDi"
+top_n_grams:
+- - 2
+  - 0.223
+- - 3
+  - 0.197
+- - 4
+  - 0.171

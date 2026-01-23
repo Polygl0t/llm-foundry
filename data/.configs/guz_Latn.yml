@@ -1,0 +1,39 @@
+dup_line_frac: 0.511
+dup_n_grams:
+- - 5
+  - 0.383
+- - 6
+  - 0.352
+- - 7
+  - 0.317
+- - 8
+  - 0.285
+- - 9
+  - 0.265
+- - 10
+  - 0.245
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 13
+max_non_alpha_words_ratio: 0.733
+min_avg_word_length: 3
+new_line_ratio: 0.111
+stopwords:
+- korende
+- nyasaye
+- ase
+- naki
+- na
+- buna
+- yesu
+- ng'a
+- nere
+- naende
+- ekiagera
+top_n_grams:
+- - 2
+  - 1.155
+- - 3
+  - 1.134
+- - 4
+  - 1.0

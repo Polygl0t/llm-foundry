@@ -1,0 +1,41 @@
+dup_line_frac: 0.289
+dup_n_grams:
+- - 5
+  - 0.21
+- - 6
+  - 0.204
+- - 7
+  - 0.196
+- - 8
+  - 0.185
+- - 9
+  - 0.174
+- - 10
+  - 0.16
+language_score: 0.74
+line_punct_thr: -1
+max_avg_word_length: 11
+max_non_alpha_words_ratio: 0.839
+min_avg_word_length: 4
+new_line_ratio: 0.083
+stopwords:
+- "\xEDre"
+- "m\xF3"
+- mi
+- peh
+- aiq
+- ehweh
+- "manik\xE1nka"
+- ite
+- "s\xEDsa"
+- "keg\xE1"
+- "manik\xE1ne"
+- wene
+- itene
+top_n_grams:
+- - 2
+  - 0.977
+- - 3
+  - 0.994
+- - 4
+  - 0.899

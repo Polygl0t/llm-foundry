@@ -1,0 +1,55 @@
+dup_line_frac: 0.868
+dup_n_grams:
+- - 5
+  - 0.661
+- - 6
+  - 0.662
+- - 7
+  - 0.609
+- - 8
+  - 0.588
+- - 9
+  - 0.549
+- - 10
+  - 0.516
+language_score: 0.59
+line_punct_thr: -1
+max_avg_word_length: 6
+max_non_alpha_words_ratio: 0.825
+min_avg_word_length: 2
+new_line_ratio: 0.05
+stopwords:
+- yi
+- ke
+- "hu\u014B"
+- wo
+- ma
+- bo
+- "ya\u0301"
+- "n\u025B"
+- wa
+- "l\u025B"
+- "e\u0300"
+- "a\u0301"
+- "mb\u0254chu\u0300"
+- mu
+- nyi
+- ge
+- e
+- "nge\u0300"
+- "h\u025B"
+- be
+- "\u014B\u025B"
+- "\u014B"
+- "eb\u0254"
+- ya
+- ngru
+- "t\u0254"
+- bye
+top_n_grams:
+- - 2
+  - 0.832
+- - 3
+  - 1.23
+- - 4
+  - 0.678

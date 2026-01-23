@@ -1,0 +1,42 @@
+dup_line_frac: 0.151
+dup_n_grams:
+- - 5
+  - 0.098
+- - 6
+  - 0.087
+- - 7
+  - 0.082
+- - 8
+  - 0.076
+- - 9
+  - 0.068
+- - 10
+  - 0.064
+language_score: 0.76
+line_punct_thr: -1
+max_avg_word_length: 13
+max_non_alpha_words_ratio: 0.762
+min_avg_word_length: 5
+new_line_ratio: 0.056
+stopwords:
+- yurru
+- ga
+- "\u014Bayi"
+- "\u014Bunhi"
+- bala
+- yana
+- yukurra
+- walala
+- "li\u014Bgu"
+- "\u014Buli"
+- "m\xE4rr"
+- "\u014Barra"
+- "wal'\u014Bu"
+- yukurrana
+top_n_grams:
+- - 2
+  - 0.167
+- - 3
+  - 0.129
+- - 4
+  - 0.105

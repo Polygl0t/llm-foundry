@@ -1,0 +1,50 @@
+dup_line_frac: 0.007
+dup_n_grams:
+- - 5
+  - 0.078
+- - 6
+  - 0.062
+- - 7
+  - 0.05
+- - 8
+  - 0.036
+- - 9
+  - 0.03
+- - 10
+  - 0.022
+language_score: 0.484
+line_punct_thr: -1
+max_avg_word_length: 12
+max_non_alpha_words_ratio: 0.793
+min_avg_word_length: 4
+new_line_ratio: 0.071
+stopwords:
+- kru
+- "na\u014Bga"
+- "ha\u014B\u0268n\u0268\u014B"
+- kuyu
+- ambami
+- jisas
+- kamata
+- ha
+- "nu\u014Band\u0268"
+- vami
+- aru
+- vana
+- "got\u0268ndu"
+- "nar\u0268"
+- hara
+- krunavundi
+- hama
+- vamba
+- "\xF1amba"
+- yi
+- got
+- "ha\xF1\u0268"
+top_n_grams:
+- - 2
+  - 0.073
+- - 3
+  - 0.031
+- - 4
+  - 0.031

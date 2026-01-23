@@ -1,0 +1,46 @@
+dup_line_frac: 0.358
+dup_n_grams:
+- - 5
+  - 0.291
+- - 6
+  - 0.27
+- - 7
+  - 0.248
+- - 8
+  - 0.226
+- - 9
+  - 0.21
+- - 10
+  - 0.193
+language_score: 0.807
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.718
+min_avg_word_length: 2
+new_line_ratio: 0.048
+stopwords:
+- a
+- u
+- ti
+- t'an
+- ca
+- le'ec
+- ma
+- aj
+- cu
+- in
+- ti'i
+- tu
+- c'u
+- dioso
+- tan
+- men
+- yan
+- ilic
+top_n_grams:
+- - 2
+  - 1.103
+- - 3
+  - 1.12
+- - 4
+  - 1.021

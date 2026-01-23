@@ -1,0 +1,52 @@
+dup_line_frac: 0.167
+dup_n_grams:
+- - 5
+  - 0.957
+- - 6
+  - 0.957
+- - 7
+  - 0.949
+- - 8
+  - 0.933
+- - 9
+  - 0.909
+- - 10
+  - 0.885
+language_score: 0.505
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.75
+min_avg_word_length: 3
+new_line_ratio: 0.048
+stopwords:
+- "k\xF5"
+- e'i
+- kupa
+- "rem\u1EBD"
+- janejare'e
+- "t\xE8"
+- "p\xE8"
+- ipi
+- a'e
+- "\xE3m\u1EBD"
+- "r\xE8"
+- jesu
+- rupi
+- "m\xE3'\u1EBD"
+- "m\xF5"
+- "r\xF5m\xF5"
+- ky'y
+- ajawyi
+- kee
+- "m\xE3e"
+- "\xE3m\xF5"
+- "rewar\xE0"
+- ijupe
+- "j\u1EBD"
+top_n_grams:
+- - 2
+  - 3.514
+- - 3
+  - 4.261
+- - 4
+  - 4.743

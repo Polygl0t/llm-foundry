@@ -1,0 +1,49 @@
+dup_line_frac: 0.611
+dup_n_grams:
+- - 5
+  - 0.489
+- - 6
+  - 0.469
+- - 7
+  - 0.448
+- - 8
+  - 0.426
+- - 9
+  - 0.385
+- - 10
+  - 0.352
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 11
+max_non_alpha_words_ratio: 0.75
+min_avg_word_length: 3
+new_line_ratio: 0.071
+stopwords:
+- "riton\xF5po"
+- toto
+- xine
+- a
+- "t\xF5"
+- mana
+- roropa
+- eya
+- poko
+- pyra
+- tykase
+- ase
+- "m\xE3"
+- mame
+- ahtao
+- ynara
+- jezu
+- maro
+- "rok\u1EBD"
+- ropa
+- yrome
+top_n_grams:
+- - 2
+  - 1.342
+- - 3
+  - 1.363
+- - 4
+  - 1.235

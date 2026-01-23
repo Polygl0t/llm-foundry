@@ -1,0 +1,44 @@
+dup_line_frac: 1.018
+dup_n_grams:
+- - 5
+  - 0.652
+- - 6
+  - 0.642
+- - 7
+  - 0.626
+- - 8
+  - 0.588
+- - 9
+  - 0.571
+- - 10
+  - 0.517
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 11
+max_non_alpha_words_ratio: 0.75
+min_avg_word_length: 3
+new_line_ratio: 0.091
+stopwords:
+- ni
+- mu
+- leza
+- yesu
+- na
+- bantu
+- nangue
+- pa
+- inzi
+- ku
+- kabili
+- wa
+- i
+- pantu
+- muntu
+- evi
+top_n_grams:
+- - 2
+  - 1.999
+- - 3
+  - 2.187
+- - 4
+  - 2.173

@@ -1,0 +1,47 @@
+dup_line_frac: 0.35
+dup_n_grams:
+- - 5
+  - 0.353
+- - 6
+  - 0.345
+- - 7
+  - 0.333
+- - 8
+  - 0.317
+- - 9
+  - 0.301
+- - 10
+  - 0.283
+language_score: 0.9
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.803
+min_avg_word_length: 3
+new_line_ratio: 0.053
+stopwords:
+- du
+- "d\xE9"
+- wa
+- de
+- "gun\xE9"
+- wani
+- yo
+- "mawul\xE9"
+- yate
+- "wun\xE9"
+- "d\xE9ku"
+- kudi
+- nak
+- gotna
+- got
+- kundi
+- pulak
+- wan
+- "naan\xE9"
+top_n_grams:
+- - 2
+  - 0.183
+- - 3
+  - 0.178
+- - 4
+  - 0.175

@@ -1,0 +1,56 @@
+dup_line_frac: 0.483
+dup_n_grams:
+- - 5
+  - 0.361
+- - 6
+  - 0.336
+- - 7
+  - 0.308
+- - 8
+  - 0.28
+- - 9
+  - 0.251
+- - 10
+  - 0.222
+language_score: 0.3
+line_punct_thr: 0.667
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.818
+min_avg_word_length: 3
+new_line_ratio: 0.061
+stopwords:
+- dari
+- nan
+- ko
+- adolah
+- dan
+- asteroid
+- langau
+- di
+- spesies
+- marupokan
+- bagian
+- juo
+- famili
+- iko
+- ordo
+- filum
+- animalia
+- kingdom
+- arthropoda
+- insecta
+- kelas
+- kumbang
+- kayu
+- untuak
+- matoari
+- diptera
+- biasonyo
+- nebula
+top_n_grams:
+- - 2
+  - 0.616
+- - 3
+  - 0.548
+- - 4
+  - 0.481

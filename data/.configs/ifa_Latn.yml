@@ -1,0 +1,44 @@
+dup_line_frac: 1.2
+dup_n_grams:
+- - 5
+  - 0.545
+- - 6
+  - 0.538
+- - 7
+  - 0.53
+- - 8
+  - 0.522
+- - 9
+  - 0.509
+- - 10
+  - 0.499
+language_score: 0.716
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.864
+min_avg_word_length: 2
+new_line_ratio: 0.071
+stopwords:
+- ya
+- an
+- hi
+- nan
+- ta
+- di
+- i
+- nadan
+- ot
+- dios
+- apu
+- te
+- ad
+- hinan
+- mu
+- 'on'
+top_n_grams:
+- - 2
+  - 2.25
+- - 3
+  - 3.0
+- - 4
+  - 3.521

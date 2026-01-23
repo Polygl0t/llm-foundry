@@ -1,0 +1,54 @@
+dup_line_frac: 0.212
+dup_n_grams:
+- - 5
+  - 0.231
+- - 6
+  - 0.213
+- - 7
+  - 0.202
+- - 8
+  - 0.185
+- - 9
+  - 0.174
+- - 10
+  - 0.158
+language_score: 0.348
+line_punct_thr: -1
+max_avg_word_length: 6
+max_non_alpha_words_ratio: 0.781
+min_avg_word_length: 2
+new_line_ratio: 0.045
+stopwords:
+- u
+- "b\u0268"
+- gau
+- "n\u0268bi"
+- a
+- "man\xF6"
+- "n\u0268pe"
+- pen
+- "n\xF6p"
+- god
+- "r\xF6"
+- "g\u0268"
+- aij
+- nan
+- "n\u0268p"
+- kale
+- "kal\u0268p"
+- kub
+- "g\xF6m"
+- "an\u0268bu"
+- jisas
+- yad
+- hag
+- ke
+- ap
+- ga
+top_n_grams:
+- - 2
+  - 0.66
+- - 3
+  - 0.666
+- - 4
+  - 0.583

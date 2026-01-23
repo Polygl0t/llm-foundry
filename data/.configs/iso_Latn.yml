@@ -1,0 +1,50 @@
+dup_line_frac: 0.578
+dup_n_grams:
+- - 5
+  - 0.345
+- - 6
+  - 0.329
+- - 7
+  - 0.309
+- - 8
+  - 0.289
+- - 9
+  - 0.266
+- - 10
+  - 0.245
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.81
+min_avg_word_length: 2
+new_line_ratio: 0.083
+stopwords:
+- "n\u1ECD"
+- na
+- a
+- o
+- "\u1ECD"
+- re
+- te
+- "k\u1EB9"
+- "j\u1ECD"
+- ma
+- "r\u1EB9"
+- "ri\u1EB9"
+- "eva\u1ECD"
+- 'no'
+- ru
+- "r\u1ECD"
+- e
+- ahwo
+- u
+- "h\u1ECD"
+- ta
+- gbe
+top_n_grams:
+- - 2
+  - 1.064
+- - 3
+  - 1.009
+- - 4
+  - 0.894

@@ -1,0 +1,48 @@
+dup_line_frac: 0.625
+dup_n_grams:
+- - 5
+  - 0.442
+- - 6
+  - 0.44
+- - 7
+  - 0.408
+- - 8
+  - 0.39
+- - 9
+  - 0.371
+- - 10
+  - 0.335
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.788
+min_avg_word_length: 3
+new_line_ratio: 0.056
+stopwords:
+- u
+- ni
+- a
+- mach
+- aj
+- y
+- que
+- "c\xE4"
+- "t\xE4"
+- jini
+- dios
+- uc'a
+- chich
+- t'oc
+- ca
+- xe
+- tuba
+- chen
+- tu
+- cua
+top_n_grams:
+- - 2
+  - 1.489
+- - 3
+  - 1.482
+- - 4
+  - 1.356

@@ -1,0 +1,46 @@
+dup_line_frac: 0.481
+dup_n_grams:
+- - 5
+  - 0.296
+- - 6
+  - 0.275
+- - 7
+  - 0.261
+- - 8
+  - 0.236
+- - 9
+  - 0.22
+- - 10
+  - 0.199
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.571
+min_avg_word_length: 3
+new_line_ratio: 0.045
+stopwords:
+- na
+- ca
+- "be\u1E49\u0259"
+- de'e
+- "dioz\u0259n"
+- par
+- de'en
+- "c\u0331he"
+- len
+- de
+- can
+- bito
+- "nic\u0331h"
+- que
+- le'e
+- to
+- cui
+- nada
+top_n_grams:
+- - 2
+  - 0.654
+- - 3
+  - 0.565
+- - 4
+  - 0.489

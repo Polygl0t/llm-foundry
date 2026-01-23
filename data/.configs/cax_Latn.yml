@@ -1,0 +1,43 @@
+dup_line_frac: 0.179
+dup_n_grams:
+- - 5
+  - 0.144
+- - 6
+  - 0.137
+- - 7
+  - 0.126
+- - 8
+  - 0.118
+- - 9
+  - 0.11
+- - 10
+  - 0.097
+language_score: 0.696
+line_punct_thr: -1
+max_avg_word_length: 12
+max_non_alpha_words_ratio: 0.769
+min_avg_word_length: 4
+new_line_ratio: 0.077
+stopwords:
+- au
+- "ax\u0268na"
+- sane
+- "ax\u0268bama"
+- uiti
+- "jes\xFAs"
+- tupax
+- "arr\xFCna"
+- auki
+- bama
+- "ax\u0268manu"
+- "tuparr\xFC"
+- axti
+- "\u0268moti"
+- naki
+top_n_grams:
+- - 2
+  - 0.537
+- - 3
+  - 0.507
+- - 4
+  - 0.454

@@ -1,0 +1,43 @@
+dup_line_frac: 0.191
+dup_n_grams:
+- - 5
+  - 0.115
+- - 6
+  - 0.114
+- - 7
+  - 0.098
+- - 8
+  - 0.094
+- - 9
+  - 0.088
+- - 10
+  - 0.077
+language_score: 0.642
+line_punct_thr: -1
+max_avg_word_length: 11
+max_non_alpha_words_ratio: 0.8
+min_avg_word_length: 4
+new_line_ratio: 0.071
+stopwords:
+- "dsa\xB2"
+- "j\xF8ng\xB2"
+- "hi\xB2"
+- "hniah\xB9\xB2"
+- "j\u01FFg\xB3"
+- "jniang\xB3"
+- "b\xE1h\xB3"
+- "quiah\xB9\xB2"
+- "di\xFA\xB9\xB3"
+- "quianh\xB9\xB3"
+- "jes\xFAs"
+- "h\xE9i\xB2"
+- "di\xB3"
+- "ni\xB3"
+- "ju\xB3lah"
+top_n_grams:
+- - 2
+  - 0.357
+- - 3
+  - 0.41
+- - 4
+  - 0.376

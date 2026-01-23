@@ -1,0 +1,52 @@
+dup_line_frac: 0.489
+dup_n_grams:
+- - 5
+  - 0.345
+- - 6
+  - 0.322
+- - 7
+  - 0.295
+- - 8
+  - 0.275
+- - 9
+  - 0.253
+- - 10
+  - 0.229
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 8
+max_non_alpha_words_ratio: 0.852
+min_avg_word_length: 3
+new_line_ratio: 0.091
+stopwords:
+- manz
+- te
+- chu
+- ti
+- peth
+- chi
+- akh
+- yi
+- seet'
+- zi
+- kis
+- kor
+- hund
+- su
+- sit'
+- tem'
+- ami
+- ki
+- karne
+- ker
+- bapath
+- has
+- karan
+- os
+top_n_grams:
+- - 2
+  - 0.798
+- - 3
+  - 0.726
+- - 4
+  - 0.617

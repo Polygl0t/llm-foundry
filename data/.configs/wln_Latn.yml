@@ -1,0 +1,47 @@
+dup_line_frac: 0.641
+dup_n_grams:
+- - 5
+  - 0.485
+- - 6
+  - 0.489
+- - 7
+  - 0.539
+- - 8
+  - 0.292
+- - 9
+  - 0.21
+- - 10
+  - 0.135
+language_score: 0.535
+line_punct_thr: 0.05
+max_avg_word_length: 14
+max_non_alpha_words_ratio: 0.73
+min_avg_word_length: 2
+new_line_ratio: 0.202
+stopwords:
+- l
+- a
+- di
+- li
+- d
+- les
+- des
+- 'on'
+- est
+- e
+- et
+- do
+- c
+- ene
+- ki
+- k
+- del
+- dins
+- i
+top_n_grams:
+- - 2
+  - 0.457
+- - 3
+  - 0.508
+- - 4
+  - 0.474

@@ -1,0 +1,47 @@
+dup_line_frac: 0.294
+dup_n_grams:
+- - 5
+  - 0.279
+- - 6
+  - 0.241
+- - 7
+  - 0.199
+- - 8
+  - 0.189
+- - 9
+  - 0.182
+- - 10
+  - 0.165
+language_score: 0.861
+line_punct_thr: -1
+max_avg_word_length: 9
+max_non_alpha_words_ratio: 0.821
+min_avg_word_length: 3
+new_line_ratio: 0.053
+stopwords:
+- a
+- u
+- "\u014Ba"
+- na
+- "b\xE1"
+- "\u0254"
+- e
+- "any\xEDa"
+- "baac\u0254"
+- ne
+- "band\u0254\u0301m\u025Bs\u025B\u0301"
+- "b\u0254\u0301"
+- "ba\u0301"
+- "\u014Be"
+- "ban\u0254\u0301"
+- "\u014Ba\xE1"
+- "t\u025B"
+- o
+- "anyi\u0301a"
+top_n_grams:
+- - 2
+  - 0.191
+- - 3
+  - 0.285
+- - 4
+  - 0.25

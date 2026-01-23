@@ -1,0 +1,47 @@
+dup_line_frac: 0.143
+dup_n_grams:
+- - 5
+  - 0.112
+- - 6
+  - 0.102
+- - 7
+  - 0.089
+- - 8
+  - 0.083
+- - 9
+  - 0.078
+- - 10
+  - 0.069
+language_score: 0.635
+line_punct_thr: -1
+max_avg_word_length: 24
+max_non_alpha_words_ratio: 0.667
+min_avg_word_length: 4
+new_line_ratio: 0.2
+stopwords:
+- aisati
+- tasorentsi
+- te
+- ari
+- maaroni
+- eiro
+- "\xBF"
+- yora
+- iro
+- cantaincha
+- ariorica
+- anta
+- meeca
+- impoiji
+- irootaque
+- jesoshi
+- caari
+- oshequi
+- tempa
+top_n_grams:
+- - 2
+  - 1.536
+- - 3
+  - 1.015
+- - 4
+  - 0.711

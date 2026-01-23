@@ -1,0 +1,55 @@
+dup_line_frac: 0.301
+dup_n_grams:
+- - 5
+  - 0.252
+- - 6
+  - 0.242
+- - 7
+  - 0.221
+- - 8
+  - 0.211
+- - 9
+  - 0.196
+- - 10
+  - 0.174
+language_score: 0.854
+line_punct_thr: -1
+max_avg_word_length: 6
+max_non_alpha_words_ratio: 0.818
+min_avg_word_length: 2
+new_line_ratio: 0.077
+stopwords:
+- na
+- ti
+- lo
+- ya
+- "m\u025B"
+- ndo
+- e
+- "t\u025B"
+- la
+- ni
+- "b\u025B"
+- ala
+- yehova
+- azi
+- "m\u0254"
+- ma
+- ko
+- "t\u025Bn\u025B"
+- ta
+- nga
+- se
+- ngoi
+- ye
+- wa
+- li
+- du
+- "m\u025Bnd\xF3"
+top_n_grams:
+- - 2
+  - 1.038
+- - 3
+  - 0.616
+- - 4
+  - 0.227

@@ -1,0 +1,41 @@
+dup_line_frac: 0.504
+dup_n_grams:
+- - 5
+  - 0.228
+- - 6
+  - 0.218
+- - 7
+  - 0.202
+- - 8
+  - 0.181
+- - 9
+  - 0.167
+- - 10
+  - 0.153
+language_score: 0.3
+line_punct_thr: 0.0
+max_avg_word_length: 19
+max_non_alpha_words_ratio: 0.762
+min_avg_word_length: 2
+new_line_ratio: 0.286
+stopwords:
+- na
+- ni
+- e
+- ena
+- dua
+- kei
+- ka
+- me
+- sa
+- mai
+- kena
+- kina
+- se
+top_n_grams:
+- - 2
+  - 1.077
+- - 3
+  - 0.977
+- - 4
+  - 0.846

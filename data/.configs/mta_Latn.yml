@@ -1,0 +1,51 @@
+dup_line_frac: 0.389
+dup_n_grams:
+- - 5
+  - 0.279
+- - 6
+  - 0.276
+- - 7
+  - 0.255
+- - 8
+  - 0.249
+- - 9
+  - 0.224
+- - 10
+  - 0.216
+language_score: 0.68
+line_punct_thr: -1
+max_avg_word_length: 6
+max_non_alpha_words_ratio: 0.811
+min_avg_word_length: 3
+new_line_ratio: 0.05
+stopwords:
+- sa
+- di
+- i
+- da
+- "diy\xE0"
+- owoy
+- etaw
+- yu
+- nemula
+- ma
+- medoo
+- ka
+- "diya\u0300"
+- ku
+- egoh
+- si
+- eg
+- "end\xE0"
+- amuk
+- iya
+- dodoo
+- guwaen
+- duen
+top_n_grams:
+- - 2
+  - 0.665
+- - 3
+  - 0.671
+- - 4
+  - 0.634

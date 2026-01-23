@@ -1,0 +1,46 @@
+dup_line_frac: 1.099
+dup_n_grams:
+- - 5
+  - 0.716
+- - 6
+  - 0.746
+- - 7
+  - 0.666
+- - 8
+  - 0.714
+- - 9
+  - 0.648
+- - 10
+  - 0.568
+language_score: 0.3
+line_punct_thr: -1
+max_avg_word_length: 7
+max_non_alpha_words_ratio: 0.815
+min_avg_word_length: 3
+new_line_ratio: 0.062
+stopwords:
+- o
+- ma
+- ci
+- "\u0254l"
+- niini
+- ka
+- "n\u025B"
+- "n\u0254\u0254n\u0254"
+- zin
+- niigi
+- yesu
+- dook
+- "n\u0254\u0254g\u0254"
+- "ala\u014B"
+- bar
+- joowo
+- buk
+- kaal
+top_n_grams:
+- - 2
+  - 3.022
+- - 3
+  - 3.276
+- - 4
+  - 3.272

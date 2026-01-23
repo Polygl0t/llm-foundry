@@ -1,0 +1,57 @@
+dup_line_frac: 0.205
+dup_n_grams:
+- - 5
+  - 0.195
+- - 6
+  - 0.167
+- - 7
+  - 0.138
+- - 8
+  - 0.131
+- - 9
+  - 0.123
+- - 10
+  - 0.112
+language_score: 0.865
+line_punct_thr: -1
+max_avg_word_length: 6
+max_non_alpha_words_ratio: 0.812
+min_avg_word_length: 2
+new_line_ratio: 0.043
+stopwords:
+- a
+- ahay
+- "s\u0259"
+- anan
+- "\u0257o"
+- ata
+- "t\u0259"
+- awan
+- sa
+- "n\xE0"
+- aday
+- way
+- "mb\u0259rom"
+- "\xE0"
+- wa
+- "p\u0259"
+- anahan
+- anga
+- apan
+- nga
+- "an\xE0"
+- bay
+- "n\u0259"
+- inde
+- yesu
+- ta
+- i
+- ga
+- aya
+top_n_grams:
+- - 2
+  - 0.187
+- - 3
+  - 0.229
+- - 4
+  - 0.197
