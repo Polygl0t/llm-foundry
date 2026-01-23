@@ -45,7 +45,7 @@ source $workdir/.venv_eval_bengali/bin/activate  # <-- Activate the virtual envi
 
 # UNCOMMENT the following lines on first run to set up lm-evaluation-harness:
 # This is our fork of the lm-evaluation-harness with Bengali tasks added
-# git clone --branch polyglot_harness_bengali https://github.com/Nkluge-correa/lm-evaluation-harness.git
+# git clone --branch polyglot_harness_bengali https://github.com/Polygl0t/lm-evaluation-harness.git
 # mv $workdir/lm-evaluation-harness $workdir/lm_evaluation_harness_bengali
 # pip3 install -e $workdir/lm_evaluation_harness_bengali
 # pip3 install "lm_eval[hf,vllm]"          # <-- Install lm-eval with HuggingFace and vLLM support
