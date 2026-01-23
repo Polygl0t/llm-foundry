@@ -65,7 +65,21 @@ def convert_single_file(input_file, output_dir, file_start_idx, dataset_type, ca
         features_info = {}
         for name, feature in ds.features.items():
             if isinstance(feature, datasets.features.Sequence):
-                features_info[name] = {"type": "sequence", "feature": str(feature.feature)}
+                inner_feature = feature.feature
+                # Check if it's a dict/struct (list of dicts)
+                if isinstance(inner_feature, dict):
+                    features_info[name] = {
+                        "type": "list_of_dicts",
+                        "fields": {}
+                    }
+                    for field_name, field_type in inner_feature.items():
+                        if hasattr(field_type, 'dtype'):
+                            features_info[name]["fields"][field_name] = str(field_type.dtype)
+                        else:
+                            features_info[name]["fields"][field_name] = str(field_type)
+                else:
+                    # Simple sequence
+                    features_info[name] = {"type": "sequence", "feature": str(inner_feature)}
             else:
                 features_info[name] = {"type": "value", "dtype": str(feature.dtype)}
         
@@ -245,7 +259,11 @@ def generate_yaml_config(folder_stats, output_path, default_dataset_name):
         # Add features from schema
         if stats['features']:
             for feature_name, info in stats['features'].items():
-                if info['type'] == 'sequence':
+                if info['type'] == 'list_of_dicts':
+                    yaml_config += f"  - name: {feature_name}\n    list:\n"
+                    for field_name, field_dtype in info['fields'].items():
+                        yaml_config += f"      - name: {field_name}\n        dtype: {field_dtype}\n"
+                elif info['type'] == 'sequence':
                     yaml_config += f"  - name: {feature_name}\n    sequence: {info['feature']}\n"
                 else:
                     yaml_config += f"  - name: {feature_name}\n    dtype: {info['dtype']}\n"

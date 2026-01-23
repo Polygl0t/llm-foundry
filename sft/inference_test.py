@@ -611,11 +611,11 @@ def main():
         # Classification check (e.g., sentiment classification)
         if task_type == "Classification":
             # Check if output contains expected classification labels
-            has_positive = bool(re.search(r"\bpositivo\b", text.lower()))
-            has_negative = bool(re.search(r"\bnegativo\b", text.lower()))
-            has_neutral = bool(re.search(r"\bneutro\b", text.lower()))
+            has_positive = bool(re.search(r"\bpositiva\b", text.lower()))
+            has_negative = bool(re.search(r"\bnegativa\b", text.lower()))
+            has_neutral = bool(re.search(r"\bneutra\b", text.lower()))
             checks["has_classification_label"] = has_positive or has_negative or has_neutral
-            checks["classification_label"] = "Positivo" if has_positive else ("Negativo" if has_negative else ("Neutro" if has_neutral else None))
+            checks["classification_label"] = "Positiva" if has_positive else ("Negativa" if has_negative else ("Neutra" if has_neutral else None))
 
         # Structured JSON output
         if task_type == "Structured Output":
