@@ -5,7 +5,6 @@
 ██╔═══╝ ██║   ██║██║    ╚██╔╝  ██║   ██║████╔╝██║   ██║   
 ██║     ╚██████╔╝███████╗██║   ╚██████╔╝╚██████╔╝   ██║   
 ╚═╝      ╚═════╝ ╚══════╝╚═╝    ╚═════╝  ╚═════╝    ╚═╝   
-<pre>
 
 Developing foundation models for low-resource languages.
 
@@ -29,3 +28,4 @@ You can use the `installation.sh` script to set up a new working environment on 
 Polyglot is a project funded by the Federal Ministry of Education and Research (BMBF) and the Ministry of Culture and Science of the State of North Rhine-Westphalia (MWK) as part of TRA Sustainable Futures (University of Bonn) and the Excellence Strategy of the federal and state governments.
 
 We also gratefully acknowledge the granted access to the [Marvin cluster](https://www.hpc.uni-bonn.de/en/systems/marvin) hosted by [University of Bonn](https://www.uni-bonn.de/en) along with the support provided by its High Performance Computing & Analytics Lab.
+</pre>
