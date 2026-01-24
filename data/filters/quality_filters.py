@@ -194,9 +194,6 @@ def main(args):
                 exclusion_writer=None,
             ),
 
-            # [TokensCounter](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/tokens/counter.py#L7)
-            TokensCounter(tokenizer_name_or_path=TOKENIZER_NAME_OR_PATH),
-
             ##[formatters: FTFYFormatter, PIIFormatter, SymbolLinesFormatter](https://github.com/huggingface/datatrove/tree/main/src/datatrove/pipeline/formatters)
             # [FTFYFormatter](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/formatters/ftfy.py)
             FTFYFormatter(),  # Fix encoding issues. Important in a multilingual setting!
@@ -208,6 +205,9 @@ def main(args):
             # [SymbolLinesFormatter](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/formatters/symbol_lines_remover.py)
             # Removes lines that consist exclusively of symbols. Keeps lines that only have whitespace characters.
             SymbolLinesFormatter(symbols_to_remove=["|"], replace_char="\n"),
+
+            # [TokensCounter](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/tokens/counter.py#L7)
+            TokensCounter(tokenizer_name_or_path=TOKENIZER_NAME_OR_PATH),
 
             # [writers: JsonlWriter, ParquetWriter, HuggingFaceDatasetWriter](https://github.com/huggingface/datatrove/tree/main/src/datatrove/pipeline/writers)
             # [JsonlWriter](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/writers/jsonl.py)
