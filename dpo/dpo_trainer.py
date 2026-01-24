@@ -158,7 +158,7 @@ def main(args):
         attn_implementation=args.attn_implementation,
         dtype=dtype,
         trust_remote_code=True,
-        device_map={'': accelerate.PartialState().process_index},
+        device_map={'': state.process_index},
         use_cache=False if args.gradient_checkpointing else True,
     )
     
