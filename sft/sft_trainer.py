@@ -199,7 +199,7 @@ def main(args):
             "attn_implementation": args.attn_implementation,
             "dtype": torch.bfloat16 if args.bf16 else torch.float32,
             "trust_remote_code": True,
-            "device_map":{'':accelerate.PartialState().process_index},
+            "device_map":{'':state.process_index},
             "use_cache": False if args.gradient_checkpointing else True,  # Disable cache if using gradient checkpointing
         },
         output_dir=args.checkpoint_dir,

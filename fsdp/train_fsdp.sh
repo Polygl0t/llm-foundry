@@ -69,13 +69,10 @@ export TORCH_DISTRIBUTED_DEBUG=OFF
 export NCCL_IB_TIMEOUT=20
 export NCCL_IB_RETRY_CNT=7
 #export NCCL_DEBUG=INFO # Uncomment for NCCL debugging
-
-# Set MASTER_ADDR and MASTER_PORT for distributed training
-MASTER_ADDR="$(scontrol show hostnames "$SLURM_NODELIST" | head -n 1)"
-export MASTER_ADDR="$(nslookup "$MASTER_ADDR" | grep -oP '(?<=Address: ).*')"
-export MASTER_PORT=12340
-
-SPECS_FILE="$workdir/fsdp/train_config.yaml"
+MASTER_ADDR="$(scontrol show hostnames "$SLURM_NODELIST" | head -n 1)" # <-- Get the master node address
+export MASTER_ADDR="$(nslookup "$MASTER_ADDR" | grep -oP '(?<=Address: ).*')" # <-- Resolve to IP address
+export MASTER_PORT=12340 # <-- Ensure this port is open in your SLURM cluster
+export SPECS_FILE="$workdir/fsdp/train_config.yaml"  # <-- Change to your specs file path
 
 echo "# [${SLURM_JOB_ID}] Job started at: $(date)" > "$out"
 echo "# [${SLURM_JOB_ID}] Using $SLURM_NNODES node(s)" >> "$out"
