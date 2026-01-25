@@ -3,11 +3,12 @@ SFT Dataset Filter
 
 A comprehensive filtering and conversion tool for instruction-tuning (SFT) datasets.
 Designed to clean, validate, and transform instruction-following datasets by removing
-malformed code blocks, corrupted code content, undecoded Unicode sequences, and other
-crap that passed trough the quality filter.
+malformed code blocks, corrupted code content, undecoded Unicode sequences, word
+repetition loops (degenerate model outputs), and other issues that passed through 
+the quality filter.
 
 Expected Dataset Format:
-The script expects datasets with a 'messages' column containing conversation data:
+The script expects datasets with a messages column (configurable) containing conversation data:
     {
         "messages": [
             {"role": "user", "content": "..."},
@@ -22,13 +23,16 @@ Usage Examples:
         --output_dir ./filtered_data \
         --input_type parquet \
         --output_type parquet \
+        --messages_column messages \
         --filter_incomplete_sentences \
         --filter_malformed_code_blocks \
         --filter_corrupted_code \
         --filter_undecoded_sequences \
         --filter_invalid_markers \
+        --filter_repetition_loops \
         --remove_system_messages \
-        --max_tokens_per_chunk 100000000
+        --quality_score_column instruct_score \
+        --min_quality_score 4.5
 """
 import datasets
 import numpy as np
@@ -180,18 +184,19 @@ MISTRANSLATED_CODE_INDICATORS = re.compile(
 )
 
 
-def get_all_content(example):
+def get_all_content(example, messages_column="messages"):
     """
     Extract and concatenate all text content from a sample's messages.
     
     Args:
-        example: A dataset sample containing a 'messages' field with conversation data.
+        example: A dataset sample containing a messages field with conversation data.
+        messages_column: The name of the column containing messages.
     
     Returns:
         str: All message contents joined by newlines, or empty string if no content.
     """
     try:
-        messages = example.get("messages", [])
+        messages = example.get(messages_column, [])
         if not messages:
             return ""
         return "\n".join(msg.get("content", "") for msg in messages if msg.get("content"))
@@ -199,7 +204,7 @@ def get_all_content(example):
         return ""
 
 
-def filter_malformed_code_blocks(example):
+def filter_malformed_code_blocks(example, messages_column="messages"):
     """
     Filter out samples containing malformed code blocks.
     
@@ -209,11 +214,12 @@ def filter_malformed_code_blocks(example):
     
     Args:
         example: A dataset sample to validate.
+        messages_column: The name of the column containing messages.
     
     Returns:
         bool: True if sample is valid (should be kept), False if malformed.
     """
-    content = get_all_content(example)
+    content = get_all_content(example, messages_column)
     if not content:
         return True  # Keep empty samples (will be filtered by other rules)
     
@@ -248,7 +254,7 @@ def filter_malformed_code_blocks(example):
     return True
 
 
-def filter_corrupted_code_content(example):
+def filter_corrupted_code_content(example, messages_column="messages"):
     """
     Filter out samples with mistranslated code content.
     
@@ -260,11 +266,12 @@ def filter_corrupted_code_content(example):
     
     Args:
         example: A dataset sample to validate.
+        messages_column: The name of the column containing messages.
     
     Returns:
         bool: True if sample is valid (should be kept), False if corrupted.
     """
-    content = get_all_content(example)
+    content = get_all_content(example, messages_column)
     if not content:
         return True
     
@@ -284,7 +291,7 @@ def filter_corrupted_code_content(example):
     return True
 
 
-def filter_undecoded_sequences(example):
+def filter_undecoded_sequences(example, messages_column="messages"):
     """
     Filter out samples containing undecoded Unicode escape sequences.
     
@@ -296,11 +303,12 @@ def filter_undecoded_sequences(example):
     
     Args:
         example: A dataset sample to validate.
+        messages_column: The name of the column containing messages.
     
     Returns:
         bool: True if sample is valid (should be kept), False if contains escapes.
     """
-    content = get_all_content(example)
+    content = get_all_content(example, messages_column)
     if not content:
         return True
     
@@ -311,7 +319,7 @@ def filter_undecoded_sequences(example):
     return True
 
 
-def filter_invalid_structural_markers(example):
+def filter_invalid_structural_markers(example, messages_column="messages"):
     """
     Filter out samples containing invalid structural markers.
     
@@ -323,17 +331,109 @@ def filter_invalid_structural_markers(example):
     
     Args:
         example: A dataset sample to validate.
+        messages_column: The name of the column containing messages.
     
     Returns:
         bool: True if sample is valid (should be kept), False if contains markers.
     """
-    content = get_all_content(example)
+    content = get_all_content(example, messages_column)
     if not content:
         return True
     
     # Check for invalid structural markers
     if INVALID_MARKER_PATTERN.search(content):
         return False
+    
+    return True
+
+
+def filter_repetition_loops(example, messages_column="messages", 
+                            min_repeated_words=5, max_unique_ratio=0.3,
+                            window_size=50, min_window_matches=3):
+    """
+    Filter out samples where the model gets stuck in word repetition loops.
+    
+    Detects degenerate text patterns where the model repeatedly generates similar
+    words in sequence, typically adverbs, participles, or related terms.
+    Examples of repetitive patterns:
+    - "precisamente calculadamente programaticamente antecipadamente predeterminadamente"
+    - "consolidadas solidificadas fortalecidas reforçadas intensificadas ampliadas"
+    
+    The detection uses multiple heuristics:
+    1. Sliding window analysis: Checks for windows with low unique word ratio
+    2. Suffix pattern detection: Identifies long sequences of words with same suffix
+    3. N-gram repetition: Detects repeated word sequences
+    
+    Args:
+        example: A dataset sample to validate.
+        messages_column: The name of the column containing messages.
+        min_repeated_words: Minimum words in a sequence to check for repetition.
+        max_unique_ratio: Maximum ratio of unique words in a window to be flagged.
+        window_size: Size of sliding window for analysis.
+        min_window_matches: Minimum windows that must match to filter the sample.
+    
+    Returns:
+        bool: True if sample is valid (should be kept), False if contains repetition loops.
+    """
+    content = get_all_content(example, messages_column)
+    if not content:
+        return True
+    
+    # Tokenize into words (simple whitespace + punctuation split)
+    words = re.findall(r'\b[a-záàâãéèêíìîóòôõúùûüçñ]+\b', content.lower())
+    
+    if len(words) < window_size:
+        return True
+    
+    # Heuristic 1: Sliding window with low unique word ratio
+    # This catches sequences where the same or similar words repeat
+    repetitive_windows = 0
+    for i in range(len(words) - window_size + 1):
+        window = words[i:i + window_size]
+        unique_ratio = len(set(window)) / len(window)
+        if unique_ratio < max_unique_ratio:
+            repetitive_windows += 1
+            if repetitive_windows >= min_window_matches:
+                return False
+    
+    # Heuristic 2: Suffix pattern detection
+    # Catches sequences like "precisamente calculadamente programaticamente"
+    common_suffixes = ['mente', 'ando', 'endo', 'indo', 'ado', 'ido', 'ada', 'ida',
+                       'ção', 'ções', 'dade', 'dades', 'ável', 'ível', 'oso', 'osa']
+    
+    for suffix in common_suffixes:
+        consecutive_suffix_count = 0
+        max_consecutive = 0
+        for word in words:
+            if word.endswith(suffix) and len(word) > len(suffix) + 2:
+                consecutive_suffix_count += 1
+                max_consecutive = max(max_consecutive, consecutive_suffix_count)
+            else:
+                consecutive_suffix_count = 0
+        
+        # If we find 8+ consecutive words with the same suffix, it's likely a loop
+        if max_consecutive >= 8:
+            return False
+    
+    # Heuristic 3: N-gram repetition detection
+    # Catches exact phrase repetitions
+    if len(words) >= 10:
+        for n in [3, 4, 5]:  # Check trigrams, 4-grams, and 5-grams
+            ngrams = [tuple(words[i:i+n]) for i in range(len(words) - n + 1)]
+            ngram_counts = {}
+            for ng in ngrams:
+                ngram_counts[ng] = ngram_counts.get(ng, 0) + 1
+            
+            # If any n-gram appears more than 5 times, likely a loop
+            max_count = max(ngram_counts.values()) if ngram_counts else 0
+            if max_count >= 5:
+                return False
+    
+    # Heuristic 4: Long sequences of single-word repetition
+    # Catches "word word word word word..."
+    for i in range(len(words) - min_repeated_words):
+        if len(set(words[i:i + min_repeated_words])) == 1:
+            return False
     
     return True
 
@@ -355,7 +455,31 @@ def filter_minimum_tokens(example, min_tokens):
     except (KeyError, TypeError):
         return False
 
-def remove_system_messages(example):
+
+def filter_quality_score(example, score_column, min_score):
+    """
+    Filter out samples below the minimum quality score threshold.
+    
+    Used to filter based on quality annotation columns like 'instruct_score',
+    'educational_score', or similar metrics from quality classifiers.
+    
+    Args:
+        example: A dataset sample with a quality score field.
+        score_column: Name of the column containing the quality score.
+        min_score: Minimum score required to keep the sample.
+    
+    Returns:
+        bool: True if sample meets the threshold, False otherwise.
+    """
+    try:
+        score = example.get(score_column, None)
+        if score is None:
+            return False
+        return float(score) >= min_score
+    except (KeyError, TypeError, ValueError):
+        return False
+
+def remove_system_messages(example, messages_column="messages"):
     """
     Remove all system messages from the sample's conversation.
     
@@ -364,13 +488,14 @@ def remove_system_messages(example):
     they are corrupted.
     
     Args:
-        example: A dataset sample containing a 'messages' field.
+        example: A dataset sample containing a messages field.
+        messages_column: The name of the column containing messages.
     
     Returns:
         dict: A copy of the example with system messages removed.
     """
     try:
-        messages = example.get("messages", [])
+        messages = example.get(messages_column, [])
         if not messages:
             return example
         
@@ -382,13 +507,13 @@ def remove_system_messages(example):
         
         # Create a copy of the example with filtered messages
         new_example = dict(example)
-        new_example["messages"] = filtered_messages
+        new_example[messages_column] = filtered_messages
         return new_example
     except (KeyError, TypeError, AttributeError):
         return example
 
 
-def strip_message_content(example):
+def strip_message_content(example, messages_column="messages"):
     """
     Strip leading and trailing whitespace from all message content.
     
@@ -396,13 +521,14 @@ def strip_message_content(example):
     This ensures consistent handling of messages regardless of source formatting.
     
     Args:
-        example: A dataset sample containing a 'messages' field.
+        example: A dataset sample containing a messages field.
+        messages_column: The name of the column containing messages.
     
     Returns:
         dict: A copy of the example with whitespace-stripped message content.
     """
     try:
-        messages = example.get("messages", [])
+        messages = example.get(messages_column, [])
         if not messages:
             return example
         
@@ -416,13 +542,13 @@ def strip_message_content(example):
         
         # Create a copy of the example with stripped messages
         new_example = dict(example)
-        new_example["messages"] = stripped_messages
+        new_example[messages_column] = stripped_messages
         return new_example
     except (KeyError, TypeError, AttributeError):
         return example
 
 
-def filter_incomplete_sentences(example):
+def filter_incomplete_sentences(example, messages_column="messages"):
     """
     Filter out samples where the final message doesn't end with proper punctuation.
     
@@ -431,13 +557,14 @@ def filter_incomplete_sentences(example):
     The $ is included to support LaTeX math expressions.
     
     Args:
-        example: A dataset sample containing a 'messages' field.
+        example: A dataset sample containing a messages field.
+        messages_column: The name of the column containing messages.
     
     Returns:
         bool: True if the final message ends properly, False otherwise.
     """
     try:
-        messages = example["messages"]
+        messages = example[messages_column]
         if not messages or len(messages) == 0:
             return False
         
@@ -622,65 +749,115 @@ def main(args):
     assert args.input_type in ["jsonl", "parquet"], "Input type must be either 'jsonl' or 'parquet'."
     assert args.output_type in ["jsonl", "parquet"], "Output type must be either 'jsonl' or 'parquet'."
     
+    # Get the messages column name
+    messages_column = args.messages_column
+    
     # Load dataset
     print(f"[INFO] Loading dataset from {args.input_dir}")
     dataset, num_input_files = load_dataset(args.input_dir, args.input_type, args.cache_dir)
     print(f"[INFO] Loaded dataset with {len(dataset):,} examples")
-    print(f"[INFO] Columns: {dataset.column_names}\n")
+    print(f"[INFO] Columns: {dataset.column_names}")
+    print(f"[INFO] Messages column: {messages_column}\n")
     
     initial_count = len(dataset)
     
     # Default preprocessing: Strip whitespace from all message content
-    if "messages" in dataset.column_names:
+    if messages_column in dataset.column_names:
         print(f"[INFO] Stripping whitespace from message content...")
-        dataset = dataset.map(strip_message_content, num_proc=args.num_proc)
+        dataset = dataset.map(
+            lambda x: strip_message_content(x, messages_column), 
+            num_proc=args.num_proc
+        )
         print(f"[INFO] Whitespace stripped from {len(dataset):,} samples\n")
     
     # Preprocessing: Remove system messages if enabled
-    if args.remove_system_messages and "messages" in dataset.column_names:
+    if args.remove_system_messages and messages_column in dataset.column_names:
         print(f"[INFO] Removing system messages from all samples...")
-        dataset = dataset.map(remove_system_messages, num_proc=args.num_proc)
+        dataset = dataset.map(
+            lambda x: remove_system_messages(x, messages_column), 
+            num_proc=args.num_proc
+        )
         print(f"[INFO] System messages removed from {len(dataset):,} samples\n")
     
     # Apply filters
-    if args.filter_incomplete_sentences and "messages" in dataset.column_names:
+    if args.filter_incomplete_sentences and messages_column in dataset.column_names:
         print(f"[INFO] Filtering samples with incomplete sentences...")
-        dataset = dataset.filter(filter_incomplete_sentences, num_proc=args.num_proc)
+        dataset = dataset.filter(
+            lambda x: filter_incomplete_sentences(x, messages_column), 
+            num_proc=args.num_proc
+        )
         filtered_incomplete = initial_count - len(dataset)
         print(f"[INFO] Removed {filtered_incomplete:,} samples with incomplete sentences")
         print(f"[INFO] Remaining samples: {len(dataset):,}\n")
     
-    if args.filter_malformed_code_blocks and "messages" in dataset.column_names:
+    if args.filter_malformed_code_blocks and messages_column in dataset.column_names:
         print(f"[INFO] Filtering samples with malformed code blocks...")
         before_filter = len(dataset)
-        dataset = dataset.filter(filter_malformed_code_blocks, num_proc=args.num_proc)
+        dataset = dataset.filter(
+            lambda x: filter_malformed_code_blocks(x, messages_column), 
+            num_proc=args.num_proc
+        )
         filtered_count = before_filter - len(dataset)
         print(f"[INFO] Removed {filtered_count:,} samples with malformed code blocks")
         print(f"[INFO] Remaining samples: {len(dataset):,}\n")
     
-    if args.filter_corrupted_code and "messages" in dataset.column_names:
+    if args.filter_corrupted_code and messages_column in dataset.column_names:
         print(f"[INFO] Filtering samples with corrupted/mistranslated code content...")
         before_filter = len(dataset)
-        dataset = dataset.filter(filter_corrupted_code_content, num_proc=args.num_proc)
+        dataset = dataset.filter(
+            lambda x: filter_corrupted_code_content(x, messages_column), 
+            num_proc=args.num_proc
+        )
         filtered_count = before_filter - len(dataset)
         print(f"[INFO] Removed {filtered_count:,} samples with corrupted code content")
         print(f"[INFO] Remaining samples: {len(dataset):,}\n")
     
-    if args.filter_undecoded_sequences:
+    if args.filter_undecoded_sequences and messages_column in dataset.column_names:
         print(f"[INFO] Filtering samples with undecoded Unicode escape sequences...")
         before_filter = len(dataset)
-        dataset = dataset.filter(filter_undecoded_sequences, num_proc=args.num_proc)
+        dataset = dataset.filter(
+            lambda x: filter_undecoded_sequences(x, messages_column), 
+            num_proc=args.num_proc
+        )
         filtered_count = before_filter - len(dataset)
         print(f"[INFO] Removed {filtered_count:,} samples with undecoded sequences")
         print(f"[INFO] Remaining samples: {len(dataset):,}\n")
     
-    if args.filter_invalid_markers:
+    if args.filter_invalid_markers and messages_column in dataset.column_names:
         print(f"[INFO] Filtering samples with invalid structural markers (#### followed by number)...")
         before_filter = len(dataset)
-        dataset = dataset.filter(filter_invalid_structural_markers, num_proc=args.num_proc)
+        dataset = dataset.filter(
+            lambda x: filter_invalid_structural_markers(x, messages_column), 
+            num_proc=args.num_proc
+        )
         filtered_count = before_filter - len(dataset)
         print(f"[INFO] Removed {filtered_count:,} samples with invalid structural markers")
         print(f"[INFO] Remaining samples: {len(dataset):,}\n")
+    
+    if args.filter_repetition_loops and messages_column in dataset.column_names:
+        print(f"[INFO] Filtering samples with word repetition loops...")
+        before_filter = len(dataset)
+        dataset = dataset.filter(
+            lambda x: filter_repetition_loops(x, messages_column), 
+            num_proc=args.num_proc
+        )
+        filtered_count = before_filter - len(dataset)
+        print(f"[INFO] Removed {filtered_count:,} samples with repetition loops")
+        print(f"[INFO] Remaining samples: {len(dataset):,}\n")
+    
+    if args.min_quality_score is not None and args.quality_score_column:
+        if args.quality_score_column in dataset.column_names:
+            print(f"[INFO] Filtering samples with {args.quality_score_column} < {args.min_quality_score}...")
+            before_filter = len(dataset)
+            dataset = dataset.filter(
+                lambda x: filter_quality_score(x, args.quality_score_column, args.min_quality_score), 
+                num_proc=args.num_proc
+            )
+            filtered_count = before_filter - len(dataset)
+            print(f"[INFO] Removed {filtered_count:,} samples below quality score threshold")
+            print(f"[INFO] Remaining samples: {len(dataset):,}\n")
+        else:
+            print(f"[WARNING] Quality score column '{args.quality_score_column}' not found in dataset. Skipping filter.")
     
     if args.min_token_count is not None and "token_count" in dataset.column_names:
         print(f"[INFO] Filtering samples with token_count < {args.min_token_count:,}...")
@@ -710,7 +887,7 @@ def main(args):
         print(f"[INFO] Total tokens in filtered dataset: {total_tokens:,}")
     
     # Determine number of chunks based on total tokens after filtering
-    if total_tokens is not None and args.max_tokens_per_chunk is not None:
+    if total_tokens is not None:
         num_chunks = max(1, (total_tokens + args.max_tokens_per_chunk - 1) // args.max_tokens_per_chunk)
         print(f"[INFO] Calculating chunks based on token count (~{args.max_tokens_per_chunk:,} tokens per chunk, {num_chunks} chunk(s))")
     else:
@@ -764,6 +941,18 @@ if __name__ == "__main__":
                         help="Filter out samples containing invalid structural markers (lines starting with #### followed by a number)")
     parser.add_argument("--remove_system_messages", action="store_true",
                         help="Remove all system messages from samples before processing (disabled by default)")
+    parser.add_argument("--filter_repetition_loops", action="store_true",
+                        help="Filter out samples where the model gets stuck in word repetition loops")
+    
+    # Quality score filtering
+    parser.add_argument("--quality_score_column", type=str, default=None,
+                        help="Name of the column containing quality scores (e.g., 'instruct_score', 'educational_score')")
+    parser.add_argument("--min_quality_score", type=float, default=None,
+                        help="Minimum quality score threshold; samples below this will be filtered out")
+    
+    # Messages column configuration
+    parser.add_argument("--messages_column", type=str, default="messages",
+                        help="Name of the column containing the messages/conversation data (default: 'messages')")
     
     # Number of processes to use for parallel filtering
     parser.add_argument("--num_proc", type=int, default=4, help="Number of processes to use for filtering (default: 4)")
