@@ -439,7 +439,11 @@ def generate_markdown_report(samples: list, output_path: str):
                 json_status = "✅ Valid" if checks['valid_json'] else "❌ Invalid"
                 task_specific_info.append(f"- **JSON Validation:** {json_status}")
                 if checks['valid_json'] and checks.get('json_output'):
-                    task_specific_info.append(f"- **JSON Keys:** {list(checks['json_output'].keys())}")
+                    json_output = checks['json_output']
+                    if isinstance(json_output, dict):
+                        task_specific_info.append(f"- **JSON Keys:** {list(json_output.keys())}")
+                    else:
+                        task_specific_info.append(f"- **JSON Output:** {json_output}")
         
         elif task_type == "Function Call / Tool Use":
             if 'made_function_call' in checks:
@@ -494,8 +498,8 @@ def generate_markdown_report(samples: list, output_path: str):
         
         response = response.strip()
         
-        # Truncate very long responses for readability
-        if len(response) > 2000:
+        # Truncate very long responses for readability (only if no EOS token)
+        if len(response) > 2000 and not sample.get('checks', {}).get('has_eos', True):
             md_lines.append(f"**Response:** *(truncated - showing first 2000 of {len(response)} characters)*\n")
             response = response[:2000] + "\n\n[... truncated ...]"
         else:
@@ -555,12 +559,12 @@ def main():
     )
 
     # Helper functions
-    def format_chat(messages: List[Dict[str, str]], tools: List[Dict[str, Any]] = None, enable_thinking: bool = False) -> str:
+    def format_chat(messages: List[Dict[str, str]], tools: List[Dict[str, Any]] = None) -> str:
         """Apply the model chat template safely."""
         kwargs = {
             "tokenize": False,
             "add_generation_prompt": True,
-            "enable_thinking": enable_thinking,
+            "enable_thinking": args.enable_thinking,
         }
         
         if tools:
@@ -571,9 +575,9 @@ def main():
             **kwargs
         )
 
-    def generate_one(messages: List[Dict[str, str]], tools: List[Dict[str, Any]] = None, enable_thinking: bool = False) -> Dict[str, Any]:
+    def generate_one(messages: List[Dict[str, str]], tools: List[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Run a single generation and return text + metadata."""
-        prompt = format_chat(messages, tools=tools, enable_thinking=enable_thinking)
+        prompt = format_chat(messages, tools=tools)
         inputs = tokenizer(prompt, return_tensors="pt").to(device)
 
         with torch.no_grad():
@@ -616,7 +620,6 @@ def main():
             has_neutral = bool(re.search(r"\bneutra\b", text.lower()))
             checks["has_classification_label"] = has_positive or has_negative or has_neutral
             checks["classification_label"] = "Positiva" if has_positive else ("Negativa" if has_negative else ("Neutra" if has_neutral else None))
-
         # Structured JSON output
         if task_type == "Structured Output":
             try:
@@ -672,14 +675,7 @@ def main():
         if tools:
             print(f"Using {len(tools)} tool(s)")
         
-        # Enable thinking for reasoning tasks (or if globally enabled)
-        is_reasoning_task = "reasoning" in task_type.lower()
-        enable_thinking = args.enable_thinking or is_reasoning_task
-        
-        if enable_thinking:
-            print(f"Thinking mode enabled for this task")
-        
-        generation = generate_one(sample["messages"], tools=tools if tools else None, enable_thinking=enable_thinking)
+        generation = generate_one(sample["messages"], tools=tools if tools else None)
         checks = run_task_checks(task_type, generation)
 
         result = {
