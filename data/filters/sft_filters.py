@@ -184,6 +184,18 @@ MISTRANSLATED_CODE_INDICATORS = re.compile(
     re.IGNORECASE
 )
 
+# Portuguese stopwords to exclude from uniqueness calculations
+# These common words naturally repeat in normal text and shouldn't trigger the filter
+PORTUGUESE_STOPWORDS = {
+    'a', 'o', 'e', 'de', 'da', 'do', 'das', 'dos', 'em', 'na', 'no', 'nas', 'nos',
+    'um', 'uma', 'uns', 'umas', 'para', 'por', 'com', 'como', 'que', 'se', 'ou',
+    'mais', 'mas', 'ao', 'aos', 'à', 'às', 'ser', 'ter', 'estar', 'foi', 'são',
+    'é', 'esse', 'essa', 'este', 'esta', 'isso', 'isto', 'aquele', 'aquela',
+    'seu', 'sua', 'seus', 'suas', 'ele', 'ela', 'eles', 'elas', 'nós', 'você',
+    'entre', 'sobre', 'até', 'já', 'também', 'muito', 'bem', 'só', 'ainda',
+    'quando', 'onde', 'qual', 'quais', 'quem', 'porque', 'pode', 'podem',
+    'deve', 'devem', 'há', 'sem', 'pela', 'pelo', 'pelas', 'pelos', 'após',
+}
 
 def get_all_content(example, messages_column="messages"):
     """
@@ -349,8 +361,9 @@ def filter_invalid_structural_markers(example, messages_column="messages"):
 
 
 def filter_repetition_loops(example, messages_column="messages", 
-                            min_repeated_words=5, max_unique_ratio=0.3,
-                            window_size=50, min_window_matches=3):
+                            min_repeated_words=8, max_unique_ratio=0.15,
+                            window_size=30, min_window_matches=5,
+                            min_consecutive_suffix=12, min_ngram_repeats=10):
     """
     Filter out samples where the model gets stuck in word repetition loops.
     
@@ -361,17 +374,23 @@ def filter_repetition_loops(example, messages_column="messages",
     - "consolidadas solidificadas fortalecidas reforçadas intensificadas ampliadas"
     
     The detection uses multiple heuristics:
-    1. Sliding window analysis: Checks for windows with low unique word ratio
+    1. Sliding window analysis: Checks for windows with very low unique content word ratio
     2. Suffix pattern detection: Identifies long sequences of words with same suffix
-    3. N-gram repetition: Detects repeated word sequences
+    3. N-gram repetition: Detects repeated word sequences (scaled by document length)
+    4. Single-word repetition: Detects "word word word word..."
+    
+    Note: This filter excludes common stopwords from uniqueness calculations to avoid
+    false positives on normal prose that naturally repeats function words.
     
     Args:
         example: A dataset sample to validate.
         messages_column: The name of the column containing messages.
-        min_repeated_words: Minimum words in a sequence to check for repetition.
-        max_unique_ratio: Maximum ratio of unique words in a window to be flagged.
+        min_repeated_words: Minimum consecutive identical words to flag.
+        max_unique_ratio: Maximum ratio of unique content words in a window to be flagged.
         window_size: Size of sliding window for analysis.
         min_window_matches: Minimum windows that must match to filter the sample.
+        min_consecutive_suffix: Minimum consecutive words with same suffix to flag.
+        min_ngram_repeats: Minimum n-gram repetitions to flag.
     
     Returns:
         bool: True if sample is valid (should be kept), False if contains repetition loops.
@@ -386,49 +405,68 @@ def filter_repetition_loops(example, messages_column="messages",
     if len(words) < window_size:
         return True
     
-    # Heuristic 1: Sliding window with low unique word ratio
-    # This catches sequences where the same or similar words repeat
-    repetitive_windows = 0
-    for i in range(len(words) - window_size + 1):
-        window = words[i:i + window_size]
-        unique_ratio = len(set(window)) / len(window)
-        if unique_ratio < max_unique_ratio:
-            repetitive_windows += 1
-            if repetitive_windows >= min_window_matches:
-                return False
+    # Filter out stopwords for content analysis (but keep original for suffix/ngram checks)
+    content_words = [w for w in words if w not in PORTUGUESE_STOPWORDS and len(w) > 2]
     
-    # Heuristic 2: Suffix pattern detection
+    # Heuristic 1: Sliding window with low unique content word ratio
+    # This catches sequences where the same or similar content words repeat
+    # Only applies to content words (excluding stopwords)
+    if len(content_words) >= window_size:
+        repetitive_windows = 0
+        for i in range(len(content_words) - window_size + 1):
+            window = content_words[i:i + window_size]
+            unique_ratio = len(set(window)) / len(window)
+            if unique_ratio < max_unique_ratio:
+                repetitive_windows += 1
+                if repetitive_windows >= min_window_matches:
+                    return False
+    
+    # Heuristic 2: Suffix pattern detection (stricter)
     # Catches sequences like "precisamente calculadamente programaticamente"
-    common_suffixes = ['mente', 'ando', 'endo', 'indo', 'ado', 'ido', 'ada', 'ida',
-                       'ção', 'ções', 'dade', 'dades', 'ável', 'ível', 'oso', 'osa']
+    # Only check for the most problematic suffixes that indicate degenerate loops
+    degenerate_suffixes = ['mente', 'ando', 'endo', 'indo']  # Most indicative of loops
     
-    for suffix in common_suffixes:
+    for suffix in degenerate_suffixes:
         consecutive_suffix_count = 0
         max_consecutive = 0
         for word in words:
-            if word.endswith(suffix) and len(word) > len(suffix) + 2:
+            # Word must be substantial (not just the suffix)
+            if word.endswith(suffix) and len(word) > len(suffix) + 3:
                 consecutive_suffix_count += 1
                 max_consecutive = max(max_consecutive, consecutive_suffix_count)
             else:
                 consecutive_suffix_count = 0
         
-        # If we find 8+ consecutive words with the same suffix, it's likely a loop
-        if max_consecutive >= 8:
+        # High threshold: 12+ consecutive words with the same suffix is truly degenerate
+        if max_consecutive >= min_consecutive_suffix:
             return False
     
-    # Heuristic 3: N-gram repetition detection
-    # Catches exact phrase repetitions
-    if len(words) >= 10:
-        for n in [3, 4, 5]:  # Check trigrams, 4-grams, and 5-grams
-            ngrams = [tuple(words[i:i+n]) for i in range(len(words) - n + 1)]
-            ngram_counts = {}
-            for ng in ngrams:
-                ngram_counts[ng] = ngram_counts.get(ng, 0) + 1
+    # Heuristic 3: N-gram repetition detection (scaled by document length)
+    # Catches exact phrase repetitions, but with thresholds proportional to doc length
+    if len(words) >= 50:
+        # Scale threshold by document length - longer docs naturally have more repetition
+        # For a 500-word doc, threshold is ~10; for 1000-word doc, ~14
+        length_factor = max(1, len(words) / 500)
+        dynamic_threshold = int(min_ngram_repeats * (0.7 + 0.3 * length_factor))
+        
+        for n in [4, 5, 6]:  # Check 4-grams, 5-grams, and 6-grams (not trigrams - too common)
+            # Exclude n-grams that are mostly stopwords
+            ngrams = []
+            for i in range(len(words) - n + 1):
+                ng = tuple(words[i:i+n])
+                # Only count if at least half of the words are content words
+                content_count = sum(1 for w in ng if w not in PORTUGUESE_STOPWORDS)
+                if content_count >= n // 2:
+                    ngrams.append(ng)
             
-            # If any n-gram appears more than 5 times, likely a loop
-            max_count = max(ngram_counts.values()) if ngram_counts else 0
-            if max_count >= 5:
-                return False
+            if ngrams:
+                ngram_counts = {}
+                for ng in ngrams:
+                    ngram_counts[ng] = ngram_counts.get(ng, 0) + 1
+                
+                max_count = max(ngram_counts.values())
+                if max_count >= dynamic_threshold:
+                    return False
     
     # Heuristic 4: Long sequences of single-word repetition
     # Catches "word word word word word..."
