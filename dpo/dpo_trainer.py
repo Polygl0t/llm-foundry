@@ -333,7 +333,7 @@ if __name__ == "__main__":
     # Hub / reporting
     parser.add_argument("--hub_token", type=str, default=None)
     parser.add_argument("--hub_model_id", type=str, default=None)
-    parser.add_argument("--report_to", type=str, nargs="+", default=["wandb", "codecarbon"])
+    parser.add_argument("--report_to", type=str, nargs="+", default=None , help="The list of integrations to report the results and logs to. Supported platforms are 'tensorboard', 'wandb', 'comet_ml', 'mlflow', 'clearml', 'wandb' etc. See [here](https://huggingface.co/docs/transformers/main/en/main_classes/trainer#transformers.TrainingArguments.report_to) for more details.")
     parser.add_argument("--wandb_project", type=str, default="Polyglot")
     # Experimental / other
     parser.add_argument("--use_liger_kernel", action="store_true", help="Use the Liger kernel for training (experimental).")

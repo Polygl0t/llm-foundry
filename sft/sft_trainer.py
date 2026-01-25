@@ -209,7 +209,6 @@ def main(args):
         pad_token=tokenizer.pad_token,
         dataset_num_proc=args.num_proc,
         shuffle_dataset=args.shuffle_dataset,
-        neftune_noise_alpha=args.neftune_noise_alpha,
         use_liger_kernel=args.use_liger_kernel,
         activation_offloading=args.activation_offloading,
         gradient_checkpointing=args.gradient_checkpointing,
@@ -301,7 +300,6 @@ if __name__ == "__main__":
     # The `assistant_only_loss` requires that the chat template supports returning the assistant tokens mask via the {% generation %} keyword.
     parser.add_argument("--assistant_only_loss", action="store_true", help="If set, the loss will only be computed on the assistant's responses, ignoring the user inputs.")
     parser.add_argument("--system_message", type=str, default=None, help="System message to prepend to the user messages. If not set, no system message will be used, and we will default to the chat template's default behavior.")
-    parser.add_argument("--neftune_noise_alpha", type=int, default=5, help="Alpha value for the Neftune noise.")
     # Training and optimizer
     parser.add_argument("--eval_steps", type=int, default=1000)
     parser.add_argument("--save_steps", type=int, default=1000)
@@ -329,7 +327,7 @@ if __name__ == "__main__":
     # Hub / reporting
     parser.add_argument("--hub_token", type=str, default=None)
     parser.add_argument("--hub_model_id", type=str, default=None)
-    parser.add_argument("--report_to", type=str, nargs="+", default=["wandb", "codecarbon"])
+    parser.add_argument("--report_to", type=str, nargs="+", default=None , help="The list of integrations to report the results and logs to. Supported platforms are 'tensorboard', 'wandb', 'comet_ml', 'mlflow', 'clearml', 'wandb' etc. See [here](https://huggingface.co/docs/transformers/main/en/main_classes/trainer#transformers.TrainingArguments.report_to) for more details.")
     parser.add_argument("--wandb_project", type=str, default="Polyglot")
     # Experimental / other
     parser.add_argument("--use_liger_kernel", action="store_true", help="Use the Liger kernel for training. This is an experimental feature that may improve performance on some GPUs.")

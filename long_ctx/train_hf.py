@@ -629,8 +629,8 @@ if __name__ == "__main__":
         "--report_to", 
         type=str, 
         nargs="+", 
-        default=["wandb", "codecarbon"],
-        help="List of integrations to report results and logs to. Options: 'wandb', 'tensorboard', 'codecarbon', etc."
+        default=None,
+        help="The list of integrations to report the results and logs to. Supported platforms are 'tensorboard', 'wandb', 'comet_ml', 'mlflow', 'clearml', 'wandb' etc. See [here](https://huggingface.co/docs/transformers/main/en/main_classes/trainer#transformers.TrainingArguments.report_to) for more details."
     )
     logging_group.add_argument(
         "--wandb_project", 
