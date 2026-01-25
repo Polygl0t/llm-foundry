@@ -277,7 +277,7 @@ def main(args):
         weight_decay=args.weight_decay,
         max_grad_norm=args.max_grad_norm,
         lr_scheduler_type=args.lr_scheduler_type,
-        warmup_steps=args.warmup_steps,
+        warmup_ratio=args.warmup_ratio,
         num_train_epochs=args.num_train_epochs,
         seed=args.seed,
         per_device_train_batch_size=args.per_device_train_batch_size,
@@ -350,7 +350,7 @@ if __name__ == "__main__":
     parser.add_argument("--adam_epsilon", type=float, default=1e-8)
     parser.add_argument("--max_grad_norm", type=float, default=1.0)
     parser.add_argument("--lr_scheduler_type", type=str, default="linear", help="Type of learning rate scheduler to use. Options: 'linear', 'cosine', and all the other types listed [here](https://huggingface.co/docs/transformers/main/en/main_classes/optimizer_schedules#transformers.SchedulerType).")
-    parser.add_argument("--warmup_steps", type=int, default=0)
+    parser.add_argument("--warmup_ratio", type=float, default=0.0)
     parser.add_argument("--num_train_epochs", type=int, default=20)
     parser.add_argument("--save_total_limit", type=int, default=5)
     parser.add_argument("--eval_on_start", action="store_true")

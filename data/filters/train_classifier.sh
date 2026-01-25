@@ -91,7 +91,7 @@ export ARGS="--dataset_path ./portuguese/portuguese-instruct-quality-qwen-annota
 --learning_rate 0.00005 \
 --weight_decay 0.1 \
 --lr_scheduler_type cosine \
---warmup_steps 100 \
+--warmup_ratio 0.1 \
 --num_train_epochs 2 \
 --attn_implementation flash_attention_2 \
 --per_device_train_batch_size 4 \
@@ -120,4 +120,4 @@ else
     echo "# [${SLURM_JOB_ID}] Skipping cache cleanup (CLEAN_CACHE=$CLEAN_CACHE)" >> "$out"
 fi
 
-echo "# [${SLURM_JOB_ID}] Job finished at: $(date)" >> "$out
+echo "# [${SLURM_JOB_ID}] Job finished at: $(date)" >> "$out"
