@@ -24,6 +24,7 @@ Usage Examples:
         --input_type parquet \
         --output_type parquet \
         --messages_column messages \
+        --token_count_column token_count \
         --filter_incomplete_sentences \
         --filter_malformed_code_blocks \
         --filter_corrupted_code \
@@ -438,19 +439,20 @@ def filter_repetition_loops(example, messages_column="messages",
     return True
 
 
-def filter_minimum_tokens(example, min_tokens):
+def filter_minimum_tokens(example, min_tokens, token_count_column="token_count"):
     """
     Filter out samples below the minimum token count threshold.
     
     Args:
-        example: A dataset sample with a 'token_count' field.
+        example: A dataset sample with a token count field.
         min_tokens: Minimum number of tokens required.
+        token_count_column: Name of the column containing token counts.
     
     Returns:
         bool: True if sample meets the threshold, False otherwise.
     """
     try:
-        token_count = example.get("token_count", 0)
+        token_count = example.get(token_count_column, 0)
         return token_count >= min_tokens
     except (KeyError, TypeError):
         return False
@@ -584,19 +586,20 @@ def filter_incomplete_sentences(example, messages_column="messages"):
         return False
 
 
-def filter_token_count(example, max_tokens):
+def filter_token_count(example, max_tokens, token_count_column="token_count"):
     """
     Filter out samples exceeding the maximum token count threshold.
     
     Args:
-        example: A dataset sample with a 'token_count' field.
+        example: A dataset sample with a token count field.
         max_tokens: Maximum number of tokens allowed.
+        token_count_column: Name of the column containing token counts.
     
     Returns:
         bool: True if sample is within the limit, False otherwise.
     """
     try:
-        token_count = example.get("token_count", 0)
+        token_count = example.get(token_count_column, 0)
         return token_count <= max_tokens
     except (KeyError, TypeError):
         return False
@@ -634,7 +637,7 @@ def load_dataset(input_dir, input_type="jsonl", cache_dir=None):
     return dataset, len(data_files)
 
 
-def plot_token_distribution(dataset, output_dir):
+def plot_token_distribution(dataset, output_dir, token_count_column="token_count"):
     """
     Generate and save a histogram of the token count distribution.
     
@@ -642,17 +645,18 @@ def plot_token_distribution(dataset, output_dir):
     and saves it as a PNG file in the output directory.
     
     Args:
-        dataset: The filtered dataset with a 'token_count' column.
+        dataset: The filtered dataset with a token count column.
         output_dir: Directory where the histogram will be saved.
+        token_count_column: Name of the column containing token counts.
     
     Note:
-        Skips if 'token_count' column is not present in the dataset.
+        Skips if token count column is not present in the dataset.
     """
-    if "token_count" not in dataset.column_names:
-        print("[WARNING] 'token_count' column not found. Skipping histogram.")
+    if token_count_column not in dataset.column_names:
+        print(f"[WARNING] '{token_count_column}' column not found. Skipping histogram.")
         return
     
-    token_counts = dataset["token_count"]
+    token_counts = dataset[token_count_column]
     
     # Create figure
     plt.figure(figsize=(12, 6))
@@ -749,8 +753,9 @@ def main(args):
     assert args.input_type in ["jsonl", "parquet"], "Input type must be either 'jsonl' or 'parquet'."
     assert args.output_type in ["jsonl", "parquet"], "Output type must be either 'jsonl' or 'parquet'."
     
-    # Get the messages column name
+    # Get the column names
     messages_column = args.messages_column
+    token_count_column = args.token_count_column
     
     # Load dataset
     print(f"[INFO] Loading dataset from {args.input_dir}")
@@ -859,18 +864,18 @@ def main(args):
         else:
             print(f"[WARNING] Quality score column '{args.quality_score_column}' not found in dataset. Skipping filter.")
     
-    if args.min_token_count is not None and "token_count" in dataset.column_names:
-        print(f"[INFO] Filtering samples with token_count < {args.min_token_count:,}...")
+    if args.min_token_count is not None and token_count_column in dataset.column_names:
+        print(f"[INFO] Filtering samples with {token_count_column} < {args.min_token_count:,}...")
         before_filter = len(dataset)
-        dataset = dataset.filter(lambda x: filter_minimum_tokens(x, args.min_token_count), num_proc=args.num_proc)
+        dataset = dataset.filter(lambda x: filter_minimum_tokens(x, args.min_token_count, token_count_column), num_proc=args.num_proc)
         filtered_count = before_filter - len(dataset)
         print(f"[INFO] Removed {filtered_count:,} samples below minimum token threshold")
         print(f"[INFO] Remaining samples: {len(dataset):,}\n")
     
-    if args.max_token_count and "token_count" in dataset.column_names:
-        print(f"[INFO] Filtering samples with token_count > {args.max_token_count:,}...")
+    if args.max_token_count and token_count_column in dataset.column_names:
+        print(f"[INFO] Filtering samples with {token_count_column} > {args.max_token_count:,}...")
         before_token_filter = len(dataset)
-        dataset = dataset.filter(lambda x: filter_token_count(x, args.max_token_count), num_proc=args.num_proc)
+        dataset = dataset.filter(lambda x: filter_token_count(x, args.max_token_count, token_count_column), num_proc=args.num_proc)
         filtered_tokens = before_token_filter - len(dataset)
         print(f"[INFO] Removed {filtered_tokens:,} samples exceeding token limit")
         print(f"[INFO] Remaining samples: {len(dataset):,}\n")
@@ -882,8 +887,8 @@ def main(args):
     
     # Calculate total tokens if available
     total_tokens = None
-    if "token_count" in dataset.column_names:
-        total_tokens = sum(dataset["token_count"])
+    if token_count_column in dataset.column_names:
+        total_tokens = sum(dataset[token_count_column])
         print(f"[INFO] Total tokens in filtered dataset: {total_tokens:,}")
     
     # Determine number of chunks based on total tokens after filtering
@@ -906,7 +911,7 @@ def main(args):
     
     # Plot token distribution
     print(f"\n[INFO] Generating token distribution histogram...")
-    plot_token_distribution(dataset, args.output_dir)
+    plot_token_distribution(dataset, args.output_dir, token_count_column)
     
     print(f"\n[SUCCESS] Dataset saved to {args.output_dir}")
     print(f"[SUCCESS] Total samples: {len(dataset):,}")
@@ -953,6 +958,10 @@ if __name__ == "__main__":
     # Messages column configuration
     parser.add_argument("--messages_column", type=str, default="messages",
                         help="Name of the column containing the messages/conversation data (default: 'messages')")
+    
+    # Token count column configuration
+    parser.add_argument("--token_count_column", type=str, default="token_count",
+                        help="Name of the column containing token counts (default: 'token_count')")
     
     # Number of processes to use for parallel filtering
     parser.add_argument("--num_proc", type=int, default=4, help="Number of processes to use for filtering (default: 4)")
