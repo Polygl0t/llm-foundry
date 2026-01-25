@@ -269,6 +269,12 @@ def parse_args():
         action="store_true",
         help="Enable 'thinking' mode in chat template."
     )
+    parser.add_argument(
+        "--chat_template_path",
+        type=str,
+        default=None,
+        help="Path to a jinja chat template file. If provided, overrides the tokenizer's chat template."
+    )
     return parser.parse_args()
 
 
@@ -531,19 +537,24 @@ def main():
     # Load model and tokenizer
     print(f"\nLoading model: {args.model_path}")
     tokenizer = AutoTokenizer.from_pretrained(args.model_path)
+    
+    # Load external chat template if provided (ensures train-inference consistency)
+    if args.chat_template_path is not None:
+        print(f"Loading chat template from: {args.chat_template_path}")
+        with open(args.chat_template_path, "r") as f:
+            tokenizer.chat_template = f.read()
+    elif tokenizer.chat_template is None:
+        print("WARNING: Tokenizer has no chat_template! This may cause inference issues.")
 
     model = AutoModelForCausalLM.from_pretrained(
         args.model_path,
-        dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+        dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
     )
     model.eval()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     model.to(device)
-
-    if tokenizer.pad_token_id is None:
-        tokenizer.pad_token_id = tokenizer.eos_token_id
 
     generation_config = GenerationConfig(
         do_sample=True,
