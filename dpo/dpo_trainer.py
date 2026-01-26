@@ -104,14 +104,14 @@ def main(args):
 
     # Convert the dataset so that the prompt is explicitly defined.
     # Why? -> https://huggingface.co/docs/trl/main/en/dpo_trainer#expected-dataset-type
-    #if "prompt" not in dataset.column_names:
-    #   if master_process:
-    #       dataset = dataset.map(trl.extract_prompt, num_proc=args.num_proc, desc="Extracting prompt from the data")
-    #   state.wait_for_everyone()
-    #   if not master_process:
-    #       dataset = dataset.map(trl.extract_prompt, num_proc=args.num_proc, desc="Extracting prompt from the data")        
-    #
-    # Split the dataset into train and test sets if a test size is specified
+    if "prompt" not in dataset.column_names:
+        if master_process:
+            dataset = dataset.map(trl.extract_prompt, num_proc=args.num_proc, desc="Extracting prompt from the data", load_from_cache_file=False)
+
+        state.wait_for_everyone()
+        if not master_process:
+            dataset = dataset.map(trl.extract_prompt, num_proc=args.num_proc, desc="Extracting prompt from the data", load_from_cache_file=True)
+
     if args.test_size is not None:
         dataset = dataset.train_test_split(
             test_size=args.test_size,
