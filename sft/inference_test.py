@@ -1,21 +1,42 @@
 """
-Inference Testing and Evaluation Suite for Language Models
+Inference Testing
 
-This script performs comprehensive inference testing on trained language models across multiple task types:
-- Classification (sentiment analysis, category detection)
-- Structured Output (JSON generation and validation)
-- Function Call / Tool Use (tool calling capabilities)
-- Summarization (content condensation)
-- Reasoning (step-by-step thinking with <think> tags)
-- Math reasoning, Translation, Retrieval, and more
+This script performs inference testing on trained language models across multiple task types.
+Test samples are loaded from an external JSON file (default: default_samples.json).
+
+Input Format:
+    - JSON array of sample objects:
+    ```json
+    [
+        {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "Liste os principais eventos envolvendo a Revolução Farroupilha."
+                }
+            ],
+            "task_type": "History",
+            "tool" : []
+        }
+    ]
+    ```
 
 Example usage:
+    # Run with default samples
+    python inference_test.py --model_path checkpoints/model-sft/final
+    
+    # Run with custom samples and settings
     python inference_test.py \
         --model_path checkpoints/llama-sft/final \
         --samples_file custom_samples.json \
         --output_file results/evaluation.json \
         --max_new_tokens 1024 \
-        --temperature 0.1
+        --temperature 0.1 \
+        --enable_thinking
+
+Output:
+    - JSON file with detailed results and task-specific checks
+    - Markdown report with formatted analysis and statistics
 """
 import json
 import re
@@ -31,204 +52,6 @@ from transformers import (
     GenerationConfig,
 )
 
-DEFAULT_SAMPLES = [
-    {
-        "messages": [
-            {
-                "role": "system",
-                "content": "Você é um mentor técnico com foco em programação. Ensine o usuário com exemplos, analogias e linguagem acessível."
-            },
-            {
-                "role": "user",
-                "content": "Como eu posso abrir um arquivo CSV em Python usando a biblioteca pandas?"
-            }
-        ],
-        "task_type": "Coding",
-        "tool" : []
-    },
-    {
-        "messages": [
-            {
-                "role": "user",
-                "content": "Leia o conteúdo e produza um resumo em português que destaque os elementos centrais.\n\nO Tribunal Eleitoral da Bolívia retomou nesta segunda-feira (21) um sistema de contagem rápida de votos, após reclamações de opositores, da OEA e vários países, e situou o presidente Evo Morales na liderança (46,4%), seguido do opositor Carlos Mesa (37,07%), com 95,09% das cédulas apuradas.  Entre Morales e Mesa, segundo um informe público do sistema TREP (Transmissão de Resultados Eleitorais Preliminares), controlado pelo Tribunal Supremo Eleitoral (TSE), há uma diferença de 9,33 pontos e o chefe de Estado estaria a 0,67 ponto de vencer no primeiro turno e, desta forma, evitar um segundo turno que a oposição reivindica.  Segundo a lei boliviana, um candidato vence no primeiro turno se obtiver 50% mais um dos votos ou superar os 40% com dez pontos de diferença do segundo colocado.  Na noite de domingo, um primeiro boletim da contagem rápida, com 84% dos votos apurados pelo TREP, dava 45,28% a Morales e 38,16% a Mesa, mas o escrutínio foi paralisado até a tarde desta segunda-feira, provocando protestos de Mesa e dos observadores da Organização de Estados Americanos. Além disso, países como Brasil, Argentina e Estados Unidos pediram a reativação do TREP.  Mesa disse mais cedo nesta segunda que os resultados do TREP garantiriam um segundo turno contra Morales em dezembro, e denunciou que a situação, em cumplicidade com o TSE, está tentando manipular os votos. Por este motivo, convocou militantes e a população a se mobilizar para que seja respeitada a vontade popular.  Em La Paz, nos arredores de um luxuoso hotel onde o TSE faz a apuração dos votos, militantes do partido de Mesa, o Comunidade Cidadã, estiveram desde o meio-dia agitando bandeiras do partido e gritando para pedir respeito à votação que, insistem, assegura um segundo turno.  \"Eu vim pedir o respeito ao meu voto, é evidente que aqui houve uma fraude\", disse à AFP o jovem Alexis Romero.  Do lado oposto, Milka, uma militante pró-Morales, que não quis dar seu sobrenome, disse: \"estamos aqui para defender o voto da cidadania\".  - Potosí, estopim de protestos -  Uma missão de observadores da OEA \"rechaçou\" a interrupção da apuração de votos na região de Potosí, no sudoeste da Bolívia, onde foram registrados protestos contra o órgão eleitoral diante dos temores de fraude em benefício de Morales.  Os protestos obrigaram o Tribunal Departamental a suspender a apuração de votos na cidade, e veículos de comunicação locais revelaram que policiais se deslocavam da vizinha Sucre a Potosí, sem que o governo tenha confirmado ou informado as razões deste deslocamento.  \"A Missão de Observação Eleitoral da #OEAnaBolivia rejeita a interrupção da contagem definitiva no Tribunal Eleitoral Departamental (TED) de Potosí e faz um apelo a que se retome para dar certeza à cidadania. Urgimos que estes processos se realizem de forma pacífica\", destacou a organização no Twitter.  O tuíte foi publicado horas depois de o Ministério das Relações Exteriores informar, pela mesma rede social, que o chanceler Diego Pary e os observadores da OEA \"acordaram estabelecer uma equipe de acompanhamento permanente no processo de contagem oficial de votos\".  A missão da OEA celebrou uma reunião nesta segunda \"com o Tribunal Supremo Eleitoral (TSE) e transmitiu-lhe a necessidade de manter informada a cidadania sobre os passos seguintes na entrega dos resultados\".  Os protestos em Potosi diante da sede do tribunal eleitoral se estenderam para La Paz (oeste) e Santa Cruz (leste)."
-            }
-        ],
-        "task_type": "Summarization",
-        "tool" : []
-    },
-    {
-        "messages": [
-            {
-                "role": "system",
-                "content": "Você é um assistente matemático treinado para resolver problemas complexos com clareza. Resolva os problemas passo a passo, explicando cada raciocínio."
-            },
-            {
-                "role": "user",
-                "content": "Como eu posso resolver o seguinte problema: 2x + 3 = 11?"
-            }
-        ],
-        "task_type": "Math (Reasoning)",
-        "tool" : []
-    },
-    {
-        "messages": [
-            {
-                "role": "system",
-                "content": "Seu papel é traduzir conteúdos do português para o inglês. Evite traduções literais quando puder usar expressões naturais em inglês."
-            },
-            {
-                "role": "user",
-                "content": "A experiência anterior dos pacientes em DP com a outra modalidade de diálise pode ser devido ao manejo de situações de urgência."
-            }
-        ],
-        "task_type": "Translation",
-        "tool" : []
-    },
-    {
-        "messages": [
-            {
-                "role": "system",
-                "content": "Você é um assistente que utiliza apenas dados extraídos do contexto para responder perguntas. Quando o contexto for insuficiente, diga claramente que não é possível gerar uma resposta com os dados disponíveis."
-            },
-            {
-                "role": "user",
-                "content": "Como o autor do texto se sente sobre a opinião do deputado Manuel dos Santos?\n\n<context>\nNão aceito que o Sr. Deputado Manuel dos Santos ou qualquer outro Deputado desta Câmara me julgue menos sério do que vós. Não aceito isso de ninguém e foi isso o que o Sr. Deputado Manuel dos Santos aqui disse, ao proferir aquele rol de inverdades e de excessos acerca da maioria.\n</context>"
-            }
-        ],
-        "task_type": "Retrieval",
-        "tool" : []
-    },
-    {
-        "messages": [
-            {
-                "role": "system",
-                "content": "Você é um especialista em análise e resumo textual. Resuma os textos conforme solicitado, utilizando sempre a língua portuguesa e apresentando o resultado em formato JSON."
-            },
-            {
-                "role": "user",
-                "content": "Extraia e resuma as informações principais do e-mail abaixo. Escreva em português e organize a resposta em um JSON contendo: 'assunto', 'remetente', 'destinatário', 'resumo'. Deixe como 'null' se não encontrar alguma chave.\n\nAssunto: RE: Atualização sobre o Projeto de Conservação de Bacias Hidrográfica\n\nCarlos,\n\nObrigado por enviar o currículo atualizado. Tive a oportunidade de revisá-lo e achei que ficou ótimo! Você fez um excelente trabalho ao tornar as informações acessíveis e envolventes para uma ampla audiência.\n\nEm relação à possível resistência dos membros da comunidade, concordo que devemos estar preparados para abordar suas preocupações. Uma ideia que tive foi incluir alguns exemplos práticos de como o uso indevido das águas no rio Amazonas ou na Baía de Guanabara e o descarte incorreto de resíduos sólidos têm prejudicado essas áreas. Ouvi-los falar diretamente sobre as consequências pode ser muito mais persuasivo do que simplesmente mostrar dados estatísticos.\n\nAlém disso, também considero importante destacarmos os ganhos econômicos trazidos pela adoção de práticas mais sustentáveis, como tarifas de água menores e gastos diminutos relacionados à limpeza urbana. No final das contas, as pessoas costumam responder bem quando veem vantagens tangíveis além dos aspectos puramente ambientais.\n\nDiga-me o que você pensa dessas sugestões! Ficarei contente em ajudar a desenvolver ainda mais estratégias para vencer essa resistência e engajar as pessoas nessa nossa jornada.\n\nAtenciosamente,\nHelena"
-            }
-        ],
-        "task_type": "Structured Output",
-        "tool" : []
-    },
-    {
-        "messages": [
-            {
-                "role": "system",
-                "content": "Você deve explicar suas decisões passo a passo. Sua resposta final só deve vir depois que o processo completo for descrito."
-            },
-            {
-                "role": "user",
-                "content": "Você pode me dar uma receita simples de bolo de chocolate?"
-            }
-        ],
-        "task_type": "Reasoning",
-        "tool" : []
-    },
-    {
-        "messages": [
-            {
-                "role": "system",
-                "content": "Você é um assistente que resolve e revisa problemas matemáticos. Mostre o caminho completo até a resposta, incluindo conferência de unidades e coerência."
-            },
-            {
-                "role": "user",
-                "content": "Se Lucas tem 3/4 de um bolo e comeu 1/2 dele, quanto resta do bolo?"
-            }
-        ],
-        "task_type": "Math",
-        "tool" : []
-    },
-    {
-        "messages": [
-            {
-                "role": "user",
-                "content": "Remova todas as informações irrelevantes da frase a seguir.\n\n\"O novo restaurante que abriu o centro da cidade, de propriedade do primo de John, que costumava ser chef de um restaurante com classificação Michelin em Paris, serve uma variedade de cozinhas de todo o mundo.\""
-            }
-        ],
-        "task_type": "Rewriting",
-        "tool" : []
-    },
-    {
-        "messages": [
-            {
-                "role": "system",
-                "content": "Aja como um assistente atencioso e explicativo. Utilize as ferramentas para resolver tarefas. Se as ferramentas forem insuficientes, explique ao usuário que não é possível completar a tarefa."
-            },
-            {
-                "role": "user",
-                "content": "Eu preciso criar uma nova tarefa para o meu projeto."
-            },
-            {
-                "role": "assistant",
-                "content": "Claro, eu posso ajudar com isso. Você poderia, por favor, me fornecer a descrição da tarefa e a data de entrega?"
-            },
-            {
-                "role": "user",
-                "content": "A tarefa é finalizar o relatório do projeto e a data de entrega é 2022-03-15."
-            }
-        ],
-        "task_type": "Function Call / Tool Use",
-        "tool" : [
-            {
-                "type": "function",
-                "function": {
-                    "name": "create_todo",
-                    "description": "Cria uma nova tarefa no aplicativo de todo.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "task_description": {
-                                "type": "string",
-                                "description": "Descrição da tarefa a ser criada."
-                            },
-                            "due_date": {
-                                "type": "string",
-                                "description": "Data de entrega da tarefa no formato YYYY-MM-DD."
-                            }
-                        },
-                        "required": ["task_description", "due_date"]
-                    }
-                }
-            }
-        ]
-    },
-    {
-        "messages": [
-            {
-                "role": "system",
-                "content": "você é uma assistente de bate-papo IA projetada para sempre falar como um pirata do caribe."
-            },
-            {
-                "role": "user",
-                "content": "Pode fornecer informações sobre que tipo de dieta um Golden Retriever deve ter?"
-            }
-        ],
-        "task_type": "System Prompts / Steering",
-        "tool" : []
-    },
-    {
-        "messages": [
-            {
-                "role": "user",
-                "content": "Frase 1: O artista pintou um quadro inspirado nos campos floridos da primavera.\nFrase 2: O criador produziu uma obra que representava paisagens urbanas cinzentas.\nPergunta: Qu\\u00e3o similares s\\u00e3o as duas frases? D\\u00ea uma pontua\\u00e7\\u00e3o entre 1,0 a 5,0.\nResposta:"
-            }
-        ],
-        "task_type": "Similarity Scoring",
-        "tool" : []
-    },
-    {   "messages": [
-            {
-                "role": "user",
-                "content": "Classifique o sentimento da seguinte resenha de filme como 'Positiva', 'Negativa' ou 'Neutra':\n\n\"O filme foi uma experiência cinematográfica incrível, com atuações excepcionais e uma trama envolvente que me manteve na ponta da cadeira do começo ao fim.\""
-            }
-        ],  
-        "task_type": "Classification",
-        "tool" : []
-    }
-]
-
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -243,8 +66,8 @@ def parse_args():
     parser.add_argument(
         "--samples_file",
         type=str,
-        default=None,
-        help="Path to a JSON file containing test samples. If not provided, uses hardcoded samples."
+        required=True,
+        help="Path to a JSON file containing test samples."
     )
     parser.add_argument(
         "--output_file",
@@ -278,17 +101,17 @@ def parse_args():
     return parser.parse_args()
 
 
-def load_samples(samples_file: str = None) -> List[Dict[str, Any]]:
-    """Load samples from file or use default hardcoded samples."""
-    if samples_file is None:
-        print("Using hardcoded default samples.")
-        return DEFAULT_SAMPLES
+def load_samples(samples_file: str) -> List[Dict[str, Any]]:
+    """Load samples from a JSON file."""
+    # Try relative to script directory first, then absolute path
+    samples_path = Path(__file__).parent / samples_file
+    if not samples_path.exists():
+        samples_path = Path(samples_file)
     
-    samples_path = Path(samples_file)
     if not samples_path.exists():
         raise FileNotFoundError(f"Samples file not found: {samples_file}")
     
-    print(f"Loading samples from: {samples_file}")
+    print(f"Loading samples from: {samples_path}")
     with open(samples_path, "r", encoding="utf-8") as f:
         samples = json.load(f)
     
@@ -299,31 +122,16 @@ def load_samples(samples_file: str = None) -> List[Dict[str, Any]]:
     return samples
 
 
-def clean_prompt(prompt: str) -> str:
-    """Clean and format the prompt for display, preserving formatting."""
-    # Escape # to prevent markdown heading interpretation
-    prompt = prompt.replace('#', r'\#')
-    return prompt.strip()
-
-
-def clean_response(response: str, fix_encoding: bool = False) -> str:
-    """Clean and format the response for display, optionally handling encoding issues."""
-    if not fix_encoding:
-        return response.strip()
+def clean_text(text: str, escape_markdown: bool = False) -> str:
+    """Clean and format text for display.
     
-    # Handle potential encoding issues only when explicitly requested
-    if isinstance(response, bytes):
-        response = response.decode('utf-8', errors='replace')
-    
-    # Try to fix common encoding issues (mojibake from latin1->utf8 double encoding)
-    try:
-        # Ensure proper UTF-8 encoding
-        response = response.encode('latin1').decode('utf-8', errors='replace')
-    except:
-        # If conversion fails, just use the original with error replacement
-        response = str(response).encode('utf-8', errors='replace').decode('utf-8')
-    
-    return response.strip()
+    Args:
+        text: Text to clean
+        escape_markdown: If True, escape # to prevent markdown heading interpretation
+    """
+    if escape_markdown:
+        text = text.replace('#', r'\#')
+    return text.strip()
 
 
 def fix_json_encoding(json_str: str) -> str:
@@ -347,6 +155,32 @@ def indent_text(text: str, spaces: int = 4) -> str:
     indent = ' ' * spaces
     lines = text.split('\n')
     return '\n'.join(indent + line for line in lines)
+
+
+def build_status_indicators(sample: Dict[str, Any]) -> tuple:
+    """Build status indicators and notes for a sample.
+    
+    Returns:
+        tuple: (status_list, notes_list) for the sample
+    """
+    checks = sample.get('checks', {})
+    has_eos = checks.get('has_eos', False)
+    empty_output = checks.get('empty_output', False)
+    num_tokens = sample.get('num_generated_tokens', 0)
+    
+    status = ["✅ Has EOS" if has_eos else "❌ No EOS"]
+    if empty_output:
+        status.append("⚠️ Empty Output")
+    
+    notes = []
+    if not has_eos:
+        notes.append("⚠️ Missing EOS token")
+    if num_tokens >= 1024:
+        notes.append("📏 Hit max token limit")
+    if empty_output:
+        notes.append("❌ Empty output")
+    
+    return status, notes
 
 
 def generate_markdown_report(samples: list, output_path: str):
@@ -398,31 +232,13 @@ def generate_markdown_report(samples: list, output_path: str):
     for sample in samples:
         task_type = sample.get('task_type', 'Unknown')
         num_tokens = sample.get('num_generated_tokens', 0)
-        has_eos = sample.get('checks', {}).get('has_eos', False)
-        empty_output = sample.get('checks', {}).get('empty_output', False)
         
         md_lines.append(f"### {task_type}\n")
         
-        # Status indicators
-        status = []
-        if has_eos:
-            status.append("✅ Has EOS")
-        else:
-            status.append("❌ No EOS")
-        
-        if empty_output:
-            status.append("⚠️ Empty Output")
+        # Build status indicators and notes
+        status, notes = build_status_indicators(sample)
         
         md_lines.append(f"**Status:** {' | '.join(status)} | **Tokens:** {num_tokens}")
-        
-        # Analysis notes (show issues upfront if any)
-        notes = []
-        if not has_eos:
-            notes.append("⚠️ Missing EOS token")
-        if num_tokens >= 1024:
-            notes.append("📏 Hit max token limit")
-        if empty_output:
-            notes.append("❌ Empty output")
         
         if notes:
             md_lines.append(f" | {', '.join(notes)}")
@@ -464,23 +280,13 @@ def generate_markdown_report(samples: list, output_path: str):
                 task_specific_info.append(f"- **Prompt Length:** {checks['prompt_length']} chars")
                 task_specific_info.append(f"- **Output Length:** {checks['output_length']} chars")
         
-        elif "Reasoning" in task_type or task_type == "Math (Reasoning)":
-            if 'has_think_tags' in checks:
-                think_status = "✅ Yes" if checks['has_think_tags'] else "❌ No"
-                task_specific_info.append(f"- **Has Think Tags:** {think_status}")
-            if 'has_non_empty_think' in checks:
-                non_empty_status = "✅ Yes" if checks['has_non_empty_think'] else "❌ No"
-                task_specific_info.append(f"- **Non-empty Think Content:** {non_empty_status}")
-            if 'think_tag_count' in checks:
-                task_specific_info.append(f"- **Think Tag Count:** {checks['think_tag_count']}")
-        
         if task_specific_info:
             md_lines.append("**Task-Specific Checks:**\n")
             md_lines.extend(task_specific_info)
             md_lines.append("\n")
         
         # Prompt
-        prompt = clean_prompt(sample.get('prompt', ''))
+        prompt = clean_text(sample.get('prompt', ''), escape_markdown=True)
         md_lines.append("**Prompt:**\n")
         # Indent the prompt to preserve formatting and prevent # from being headings
         md_lines.append(indent_text(prompt))
@@ -616,23 +422,21 @@ def main():
         }
 
     def run_task_checks(task_type: str, output: Dict[str, Any]) -> Dict[str, Any]:
+        """Run task-specific checks on generated output."""
         text = output["generated_text"]
-        checks = {}
+        checks = {
+            "has_eos": output["eos_generated"],
+            "empty_output": len(text.strip()) == 0
+        }
 
-        # Generic checks
-        checks["has_eos"] = output["eos_generated"]
-        checks["empty_output"] = len(text.strip()) == 0
-
-        # Classification check (e.g., sentiment classification)
+        # Task-specific checks
         if task_type == "Classification":
-            # Check if output contains expected classification labels
-            has_positive = bool(re.search(r"\bpositiva\b", text.lower()))
-            has_negative = bool(re.search(r"\bnegativa\b", text.lower()))
-            has_neutral = bool(re.search(r"\bneutra\b", text.lower()))
-            checks["has_classification_label"] = has_positive or has_negative or has_neutral
-            checks["classification_label"] = "Positiva" if has_positive else ("Negativa" if has_negative else ("Neutra" if has_neutral else None))
-        # Structured JSON output
-        if task_type == "Structured Output":
+            labels = {"positiva": "Positiva", "negativa": "Negativa", "neutra": "Neutra"}
+            detected_label = next((v for k, v in labels.items() if re.search(rf"\b{k}\b", text.lower())), None)
+            checks["has_classification_label"] = detected_label is not None
+            checks["classification_label"] = detected_label
+        
+        elif task_type == "Structured Output":
             try:
                 json_string = json_repair.repair_json(text)
                 checks["valid_json"] = True
@@ -641,35 +445,25 @@ def main():
                 checks["valid_json"] = False
                 checks["json_output"] = None
         
-        # Function Call / Tool Use
-        if task_type == "Function Call / Tool Use":
-            # Check if reply is a function call (i.e., <tool_call> ... </tool_call>)
-            if re.search(r"<tool_call>.*</tool_call>", text, re.DOTALL):
-                checks["made_function_call"] = True
-            else:
-                checks["made_function_call"] = False
+        elif task_type == "Function Call / Tool Use":
+            checks["made_function_call"] = bool(re.search(r"<tool_call>.*</tool_call>", text, re.DOTALL))
         
-        # Summarization check
-        if task_type == "Summarization":
+        elif task_type == "Summarization":
             prompt_length = len(output.get("prompt", ""))
             output_length = len(text)
-            checks["output_shorter_than_prompt"] = output_length < prompt_length
-            checks["prompt_length"] = prompt_length
-            checks["output_length"] = output_length
+            checks.update({
+                "output_shorter_than_prompt": output_length < prompt_length,
+                "prompt_length": prompt_length,
+                "output_length": output_length
+            })
         
-        # Reasoning check - look for non-empty <think> tags
-        if "Reasoning" in task_type:
-            think_pattern = r"<think>(.*?)</think>"
-            think_matches = re.findall(think_pattern, text, re.DOTALL)
-            if think_matches:
-                # Check if any of the think tags have non-empty content
-                checks["has_think_tags"] = True
-                checks["has_non_empty_think"] = any(match.strip() for match in think_matches)
-                checks["think_tag_count"] = len(think_matches)
-            else:
-                checks["has_think_tags"] = False
-                checks["has_non_empty_think"] = False
-                checks["think_tag_count"] = 0
+        elif "Reasoning" in task_type:
+            think_matches = re.findall(r"<think>(.*?)</think>", text, re.DOTALL)
+            checks.update({
+                "has_think_tags": bool(think_matches),
+                "has_non_empty_think": any(match.strip() for match in think_matches),
+                "think_tag_count": len(think_matches)
+            })
 
         return checks
 

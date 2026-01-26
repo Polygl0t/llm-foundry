@@ -55,6 +55,7 @@ export CUDA_VISIBLE_DEVICES=0
 python3 $workdir/sft/inference_test.py \
     --model_path "$workdir/checkpoints/models/Tucano2-qwen-0.6B-Base-CPT-Instruct" \
     --output_file "$workdir/checkpoints/models/Tucano2-qwen-0.6B-Base-CPT-Instruct/inference_samples.json" \
+    --samples_file "$workdir/sft/instruct_samples.json" \
     --max_new_tokens 1024 \
     --temperature 0.2 1>$out 2>$err
 

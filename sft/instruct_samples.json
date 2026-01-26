@@ -1,0 +1,166 @@
+[
+    {
+        "messages": [
+            {
+                "role": "system",
+                "content": "Você é um mentor técnico com foco em programação. Ensine o usuário com exemplos, analogias e linguagem acessível."
+            },
+            {
+                "role": "user",
+                "content": "Como eu posso abrir um arquivo CSV em Python usando a biblioteca pandas?"
+            }
+        ],
+        "task_type": "Coding",
+        "tool" : []
+    },
+    {
+        "messages": [
+            {
+                "role": "user",
+                "content": "Faça um resumo em português que destaque os elementos centrais no texto abaixo.\n\nO Tribunal Eleitoral da Bolívia retomou nesta segunda-feira (21) um sistema de contagem rápida de votos, após reclamações de opositores, da OEA e vários países, e situou o presidente Evo Morales na liderança (46,4%), seguido do opositor Carlos Mesa (37,07%), com 95,09% das cédulas apuradas.  Entre Morales e Mesa, segundo um informe público do sistema TREP (Transmissão de Resultados Eleitorais Preliminares), controlado pelo Tribunal Supremo Eleitoral (TSE), há uma diferença de 9,33 pontos e o chefe de Estado estaria a 0,67 ponto de vencer no primeiro turno e, desta forma, evitar um segundo turno que a oposição reivindica.  Segundo a lei boliviana, um candidato vence no primeiro turno se obtiver 50% mais um dos votos ou superar os 40% com dez pontos de diferença do segundo colocado.  Na noite de domingo, um primeiro boletim da contagem rápida, com 84% dos votos apurados pelo TREP, dava 45,28% a Morales e 38,16% a Mesa, mas o escrutínio foi paralisado até a tarde desta segunda-feira, provocando protestos de Mesa e dos observadores da Organização de Estados Americanos. Além disso, países como Brasil, Argentina e Estados Unidos pediram a reativação do TREP.  Mesa disse mais cedo nesta segunda que os resultados do TREP garantiriam um segundo turno contra Morales em dezembro, e denunciou que a situação, em cumplicidade com o TSE, está tentando manipular os votos. Por este motivo, convocou militantes e a população a se mobilizar para que seja respeitada a vontade popular.  Em La Paz, nos arredores de um luxuoso hotel onde o TSE faz a apuração dos votos, militantes do partido de Mesa, o Comunidade Cidadã, estiveram desde o meio-dia agitando bandeiras do partido e gritando para pedir respeito à votação que, insistem, assegura um segundo turno.  \"Eu vim pedir o respeito ao meu voto, é evidente que aqui houve uma fraude\", disse à AFP o jovem Alexis Romero.  Do lado oposto, Milka, uma militante pró-Morales, que não quis dar seu sobrenome, disse: \"estamos aqui para defender o voto da cidadania\".  - Potosí, estopim de protestos -  Uma missão de observadores da OEA \"rechaçou\" a interrupção da apuração de votos na região de Potosí, no sudoeste da Bolívia, onde foram registrados protestos contra o órgão eleitoral diante dos temores de fraude em benefício de Morales.  Os protestos obrigaram o Tribunal Departamental a suspender a apuração de votos na cidade, e veículos de comunicação locais revelaram que policiais se deslocavam da vizinha Sucre a Potosí, sem que o governo tenha confirmado ou informado as razões deste deslocamento.  \"A Missão de Observação Eleitoral da #OEAnaBolivia rejeita a interrupção da contagem definitiva no Tribunal Eleitoral Departamental (TED) de Potosí e faz um apelo a que se retome para dar certeza à cidadania. Urgimos que estes processos se realizem de forma pacífica\", destacou a organização no Twitter.  O tuíte foi publicado horas depois de o Ministério das Relações Exteriores informar, pela mesma rede social, que o chanceler Diego Pary e os observadores da OEA \"acordaram estabelecer uma equipe de acompanhamento permanente no processo de contagem oficial de votos\".  A missão da OEA celebrou uma reunião nesta segunda \"com o Tribunal Supremo Eleitoral (TSE) e transmitiu-lhe a necessidade de manter informada a cidadania sobre os passos seguintes na entrega dos resultados\".  Os protestos em Potosi diante da sede do tribunal eleitoral se estenderam para La Paz (oeste) e Santa Cruz (leste)."
+            }
+        ],
+        "task_type": "Summarization",
+        "tool" : []
+    },
+    {
+        "messages": [
+            {
+                "role": "user",
+                "content": "Como eu posso resolver o seguinte problema: 2x + 3 = 11?"
+            }
+        ],
+        "task_type": "Math",
+        "tool" : []
+    },
+    {
+        "messages": [
+            {
+                "role": "system",
+                "content": "Você deve traduzir o texto fornecido para o idioma solicitado, mantendo o significado original e o contexto."
+            },
+            {
+                "role": "user",
+                "content": "Traduza a seguinte frase para o inglês:\n\nA experiência anterior dos pacientes em DP com a outra modalidade de diálise pode ser devido ao manejo de situações de urgência."
+            }
+        ],
+        "task_type": "Translation",
+        "tool" : []
+    },
+    {
+        "messages": [
+            {
+                "role": "system",
+                "content": "Você é um assistente que utiliza apenas dados extraídos do contexto para responder perguntas. Quando o contexto for insuficiente, diga claramente que não é possível gerar uma resposta com os dados disponíveis."
+            },
+            {
+                "role": "user",
+                "content": "De quem o autor to texto abaixo está se referindo?\n\n<context>\nNão aceito que o Sr. Deputado Manuel dos Santos ou qualquer outro Deputado desta Câmara me julgue menos sério do que vós. Não aceito isso de ninguém e foi isso o que o Sr. Deputado Manuel dos Santos aqui disse, ao proferir aquele rol de inverdades e de excessos acerca da maioria.\n</context>"
+            }
+        ],
+        "task_type": "Retrieval",
+        "tool" : []
+    },
+    {
+        "messages": [
+            {
+                "role": "system",
+                "content": "Sempre responda em formato JSON estruturado conforme solicitado."
+            },
+            {
+                "role": "user",
+                "content": "Extraia e resuma as informações principais do e-mail abaixo. Escreva sua resposta (em formato JSON) contendo as seguintes chaves: 'assunto', 'remetente', 'destinatário', 'resumo'. Aqui está o e-mail:\n\nAssunto: RE: Atualização sobre o Projeto de Conservação de Bacias Hidrográfica\n\nCarlos,\n\nObrigado por enviar o currículo atualizado. Tive a oportunidade de revisá-lo e achei que ficou ótimo! Você fez um excelente trabalho ao tornar as informações acessíveis e envolventes para uma ampla audiência.\n\nEm relação à possível resistência dos membros da comunidade, concordo que devemos estar preparados para abordar suas preocupações. Uma ideia que tive foi incluir alguns exemplos práticos de como o uso indevido das águas no rio Amazonas ou na Baía de Guanabara e o descarte incorreto de resíduos sólidos têm prejudicado essas áreas. Ouvi-los falar diretamente sobre as consequências pode ser muito mais persuasivo do que simplesmente mostrar dados estatísticos.\n\nAlém disso, também considero importante destacarmos os ganhos econômicos trazidos pela adoção de práticas mais sustentáveis, como tarifas de água menores e gastos diminutos relacionados à limpeza urbana. No final das contas, as pessoas costumam responder bem quando veem vantagens tangíveis além dos aspectos puramente ambientais.\n\nDiga-me o que você pensa dessas sugestões! Ficarei contente em ajudar a desenvolver ainda mais estratégias para vencer essa resistência e engajar as pessoas nessa nossa jornada.\n\nAtenciosamente,\nHelena"
+            }
+        ],
+        "task_type": "Structured Output",
+        "tool" : []
+    },
+    {
+        "messages": [
+            {
+                "role": "user",
+                "content": "Remova todas as informações irrelevantes da frase a seguir.\n\n\"O novo restaurante que abriu no centro da cidade, de propriedade do primo de Jorge, que costumava ser chef de um restaurante em Ipanema, serve uma variedade de cozinhas de todo o mundo.\""
+            }
+        ],
+        "task_type": "Rewriting",
+        "tool" : []
+    },
+    {
+        "messages": [
+            {
+                "role": "system",
+                "content": "Utilize as ferramentas para resolver as tarefas que o usuário lhe solicitar. Se as ferramentas forem insuficientes, explique ao usuário que não é possível completar a tarefa."
+            },
+            {
+                "role": "user",
+                "content": "Eu preciso criar uma nova tarefa para o meu projeto."
+            },
+            {
+                "role": "assistant",
+                "content": "Claro, eu posso ajudar com isso. Você poderia, por favor, me fornecer a descrição da tarefa e a data de entrega?"
+            },
+            {
+                "role": "user",
+                "content": "A tarefa é finalizar o relatório do projeto e a data de entrega é 2022-03-15."
+            }
+        ],
+        "task_type": "Function Call / Tool Use",
+        "tool" : [
+            {
+                "type": "function",
+                "function": {
+                    "name": "create_todo",
+                    "description": "Cria uma nova tarefa no aplicativo de todo.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "task_description": {
+                                "type": "string",
+                                "description": "Descrição da tarefa a ser criada."
+                            },
+                            "due_date": {
+                                "type": "string",
+                                "description": "Data de entrega da tarefa no formato YYYY-MM-DD."
+                            }
+                        },
+                        "required": ["task_description", "due_date"]
+                    }
+                }
+            }
+        ]
+    },
+    {
+        "messages": [
+            {
+                "role": "system",
+                "content": "Você é Jack Sparrow, o famoso pirata dos filmes. Responda às perguntas do usuário como se fosse ele, usando seu estilo característico."
+            },
+            {
+                "role": "user",
+                "content": "Quais são os melhores lugares para encontrar um tesouro escondido?"
+            }
+        ],
+        "task_type": "System Prompts / Steering",
+        "tool" : []
+    },
+    {
+        "messages": [
+            {
+                "role": "user",
+                "content": "Frase 1: O artista pintou um quadro inspirado nos campos floridos da primavera.\nFrase 2: O criador produziu uma obra que representava paisagens urbanas cinzentas.\nPergunta: Qu\\u00e3o similares s\\u00e3o as duas frases? D\\u00ea uma pontua\\u00e7\\u00e3o entre 1,0 a 5,0.\nResposta:"
+            }
+        ],
+        "task_type": "Similarity Scoring",
+        "tool" : []
+    },
+    {
+        "messages": [
+            {
+                "role": "user",
+                "content": "Classifique o sentimento da seguinte resenha de filme como 'Positiva', 'Negativa' ou 'Neutra':\n\n\"O filme foi uma experiência cinematográfica incrível, com atuações excepcionais e uma trama envolvente que me manteve na ponta da cadeira do começo ao fim.\""
+            }
+        ],  
+        "task_type": "Classification",
+        "tool" : []
+    }
+]
