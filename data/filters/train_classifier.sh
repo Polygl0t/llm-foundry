@@ -76,7 +76,9 @@ export LAUNCHER="accelerate launch --config_file $workdir/.ddp_config.yaml"
 
 export PYTHON_FILE="$workdir/train_classifier.py"
 
-export ARGS="--dataset_path ./portuguese/portuguese-instruct-quality-qwen-annotations/data \
+export ARGS="--train_dataset_dir ./portuguese/portuguese-instruct-quality-qwen-annotations/data \
+--dataset_type jsonl \
+--shuffle_dataset \
 --cache_dir $HF_DATASETS_CACHE \
 --num_proc $SLURM_CPUS_PER_TASK \
 --model_name Qwen/Qwen3-4B \

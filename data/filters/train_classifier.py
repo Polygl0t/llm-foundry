@@ -16,7 +16,9 @@ Output:
 
 Usage:
     # Train edu-score classifier
-    python train_classifier.py --dataset_path scored_data.jsonl \
+    python train_classifier.py --train_dataset_dir scored_data.jsonl \
+        --dataset_type jsonl \
+        --shuffle_dataset \
         --model_name microsoft/deberta-v3-base \
         --text_column text --target_column score --id_label Edu-Score \
         --checkpoint_dir checkpoints/ --max_length 512 \
@@ -24,7 +26,9 @@ Usage:
         --learning_rate 3e-4 --bf16
     
     # Train with frozen layers (faster)
-    python train_classifier.py --dataset_path data.jsonl \
+    python train_classifier.py --train_dataset_dir data.jsonl \
+        --dataset_type jsonl \
+        --shuffle_dataset \
         --model_name Qwen/Qwen2-1.5B --freeze \
         --checkpoint_dir ckpt/ --gradient_checkpointing \
         --hub_token TOKEN --hub_model_id username/my-classifier
@@ -82,40 +86,48 @@ def compute_metrics(eval_pred):
 
 def main(args):
 
-    if os.path.exists(args.dataset_path):
-        
-        # Try to load the dataset from the specified path (JSONL)
-        files = glob.glob(os.path.join(args.dataset_path, "*.jsonl"))
-        file_type = "json"
-        if not files:
-            # If no JSONL files found, try to load Parquet files
-            file_type = "parquet"
-            files = glob.glob(os.path.join(args.dataset_path, "*.parquet"))
+    # Initialize the partial state for distributed training
+    state = accelerate.PartialState()
+    # print the state of every process
+    master_process = int(state.process_index) == 0
+    if master_process:
+        print(f"{state}")
 
-        if files:
-            dataset = datasets.load_dataset(
-                file_type,
-                data_files=files,
-                cache_dir=args.cache_dir,
-                num_proc=len(files),
-                split="train",
-            )
-        else:
-            raise ValueError(f"No JSONL or Parquet files found in {args.dataset_path}")
-    else:
-        try:
-            # We assume the dataset is a Hugging Face dataset.
-            dataset = datasets.load_dataset(
-                args.dataset_path, 
-                split=args.split, 
-                cache_dir=args.cache_dir, 
-                num_proc=args.num_proc
-            )
-        except:
-            # If it also fails, we give up and raise an error.
-            raise ValueError(f"Dataset path {args.dataset_path} is not a directory or a Hugging Face dataset")
+    # Load our training dataset.
+    # We expect the dataset to be in a specific format: jsonl or parquet.
+    assert args.dataset_type in ["jsonl", "parquet"], f"Dataset type must be either 'jsonl' or 'parquet', got {args.dataset_type}."
 
-    # Given that the scores we generated in `filter.py` are in the range [1, 5], 
+    train_dataset_files = []
+    train_dirs = args.train_dataset_dir
+    if isinstance(train_dirs, str):
+        train_dirs = [train_dirs]
+
+    # Below, we loop over all training directories and collect the dataset files that
+    # have the correct file extension.
+    for train_dir in train_dirs:
+        if os.path.isfile(train_dir) and train_dir.endswith(f".{args.dataset_type}"):
+            train_dataset_files.append(train_dir)
+        elif os.path.isdir(train_dir):
+            train_dataset_files += glob.glob(f"{train_dir}/*.{args.dataset_type}")
+
+    # Ensure all processes have the same file list (synchronize before loading)
+    train_dataset_files = sorted(train_dataset_files)
+    state.wait_for_everyone()
+
+    # Load the datasets from disk
+    # [datasets.load_dataset](https://huggingface.co/docs/datasets/main/en/package_reference/loading_methods#datasets.load_dataset)
+    dataset = datasets.load_dataset(
+        "json" if args.dataset_type == "jsonl" else args.dataset_type,
+        data_files=train_dataset_files,
+        split='train',
+        num_proc=min(len(train_dataset_files), args.num_proc),
+        cache_dir=args.cache_dir,
+    )
+
+    if args.shuffle_dataset:
+        dataset = dataset.shuffle(seed=args.seed)
+
+    # Given that the scores we generated in `llm_filter.py` are in the range [1, 5], 
     # we need to convert them to the range [0, 4] for training.
     dataset = dataset.map(
         lambda x: {args.target_column: np.clip(int(x[args.target_column])-1, 0, 4)},
@@ -150,7 +162,7 @@ def main(args):
         "trust_remote_code": True,
         "use_cache": True if not args.gradient_checkpointing else False,
         "torch_dtype": torch.bfloat16 if args.bf16 else torch.float32,
-        "device_map":{'':accelerate.PartialState().process_index},
+        "device_map":{'':state.process_index},
     }
     
     # Add classifier_dropout for non-DeBERTa models (will be ignored by DeBERTa)
@@ -200,16 +212,31 @@ def main(args):
     if args.text_column not in dataset['train'].column_names:
         raise ValueError(f"Text column '{args.text_column}' not found in the dataset. Available columns: {dataset['train'].column_names}")
     
-    def preprocess(examples):
-        batch = tokenizer(examples[args.text_column], truncation=True)
-        batch["labels"] = np.float32(examples[args.target_column])
-        return batch
+    # Only main process runs the preprocessing and mapping
+    if master_process:
+        def preprocess(examples):
+            batch = tokenizer(examples[args.text_column], truncation=True)
+            batch["labels"] = np.float32(examples[args.target_column])
+            return batch
 
-    dataset = dataset.map(
-        preprocess, 
-        batched=True,
-        num_proc=args.num_proc,
-    )
+        dataset = dataset.map(
+            preprocess, 
+            batched=True,
+            num_proc=args.num_proc,
+            load_from_cache_file=True,
+            desc="Tokenizing dataset",
+        )
+    # Wait for main process to finish preprocessing
+    state.wait_for_everyone()
+
+    # Non-main processes reload from cache
+    if not master_process:
+        dataset = dataset.map(
+            preprocess,
+            num_proc=args.num_proc,
+            load_from_cache_file=True,
+            desc=f"Loading preprocessed dataset on process {state.process_index}",
+        )
 
     # Create a simple data collator that pads the inputs to the maximum length in the batch
     # [DataCollatorWithPadding](https://huggingface.co/docs/transformers/main_classes/data_collator#transformers.DataCollatorWithPadding)
@@ -311,21 +338,58 @@ def main(args):
         compute_metrics=compute_metrics,
     )
 
-    trainer.train(resume_from_checkpoint=args.resume_from_checkpoint)
-    trainer.save_model(os.path.join(args.checkpoint_dir, "final"))
+    # Make sure every process is synced before training
+    state.wait_for_everyone()
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier()
+    
+    if args.resume_from_checkpoint:
+
+        # We expect the `resume_from_checkpoint` argument to be the path to a directory of checkpoints,
+        # the logic below will find the latest checkpoint in that directory.
+        checkpoint_path = args.resume_from_checkpoint
+
+        try:
+            # We try to find the latest checkpoint in the directory.
+            checkpoint_dirs = os.listdir(checkpoint_path)
+            checkpoint_dirs = [dir for dir in checkpoint_dirs if dir.startswith(f"checkpoint-")] # Checkpoints are intended to be named like "checkpoint-"
+            checkpoint_path = os.path.join(checkpoint_path, sorted(checkpoint_dirs, key=lambda x: int(x.split("-")[-1].split(".")[0]))[-1])
+        except:
+            # If the checkpoint directory does not contain any checkpoints, we will assume
+            # that `resume_from_checkpoint` is already set to the latest checkpoint.
+            pass
+        if master_process:
+            print(f"Resuming training from checkpoint: {checkpoint_path}")
+
+    # Start the training
+    try:
+        trainer.train(resume_from_checkpoint=checkpoint_path if args.resume_from_checkpoint else None)
+    except Exception as e:
+        save_path = os.path.join(args.checkpoint_dir, "last")
+        trainer.save_model(save_path)
+        if master_process:
+            print(f"Training failed with error: {e}")
+            print(f"Model saved to 'last' checkpoint at {save_path}")
+
     try:
         trainer.evaluate()
     except Exception as e:
-        print(f"Evaluation failed with error: {e}")
-        print("Skipping final evaluation...")
+        if master_process:
+            print(f"Evaluation failed with error: {e}")
+            print("Skipping final evaluation...")
 
+    # Save the final model
+    trainer.save_model(os.path.join(args.checkpoint_dir, "final"))
+    # Done!
+    
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     # Core dataset/model args
-    parser.add_argument("--dataset_path", type=str, required=True)
-    parser.add_argument("--cache_dir", type=str, default=None)
-    parser.add_argument("--split", type=str, default="train")
+    parser.add_argument("--dataset_type", choices=["jsonl", "parquet"], default="parquet", help="Type of the dataset files. Can be either 'jsonl' or 'parquet'.")
+    parser.add_argument("--train_dataset_dir", type=str, nargs="+", required=True, help="Path(s) to the training dataset directory or file. Can be a single directory/file or a list of directories/files.")
+    parser.add_argument("--shuffle_dataset", action="store_true", help="If set, shuffle the dataset files before loading.")
+    parser.add_argument("--cache_dir", type=str, default=None, help="Path to a directory to use for caching the datasets and models.")
     parser.add_argument("--num_proc", type=int, default=16)
     parser.add_argument("--target_column", type=str, default="score")
     parser.add_argument("--text_column", type=str, default="text")
