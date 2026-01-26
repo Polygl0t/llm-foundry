@@ -3,11 +3,12 @@ SFT Dataset Filter
 
 A comprehensive filtering and conversion tool for instruction-tuning (SFT) datasets.
 Designed to clean, validate, and transform instruction-following datasets by removing
-malformed code blocks, corrupted code content, undecoded Unicode sequences, and other
-crap that passed trough the quality filter.
+malformed code blocks, corrupted code content, undecoded Unicode sequences, word
+repetition loops (degenerate model outputs), and other issues that passed through 
+the quality filter.
 
 Expected Dataset Format:
-The script expects datasets with a 'messages' column containing conversation data:
+The script expects datasets with a messages column (configurable) containing conversation data:
     {
         "messages": [
             {"role": "user", "content": "..."},
@@ -22,13 +23,17 @@ Usage Examples:
         --output_dir ./filtered_data \
         --input_type parquet \
         --output_type parquet \
+        --messages_column messages \
+        --token_count_column token_count \
         --filter_incomplete_sentences \
         --filter_malformed_code_blocks \
         --filter_corrupted_code \
         --filter_undecoded_sequences \
         --filter_invalid_markers \
+        --filter_repetition_loops \
         --remove_system_messages \
-        --max_tokens_per_chunk 100000000
+        --quality_score_column instruct_score \
+        --min_quality_score 4.5
 """
 import datasets
 import numpy as np
@@ -179,19 +184,32 @@ MISTRANSLATED_CODE_INDICATORS = re.compile(
     re.IGNORECASE
 )
 
+# Portuguese stopwords to exclude from uniqueness calculations
+# These common words naturally repeat in normal text and shouldn't trigger the filter
+PORTUGUESE_STOPWORDS = {
+    'a', 'o', 'e', 'de', 'da', 'do', 'das', 'dos', 'em', 'na', 'no', 'nas', 'nos',
+    'um', 'uma', 'uns', 'umas', 'para', 'por', 'com', 'como', 'que', 'se', 'ou',
+    'mais', 'mas', 'ao', 'aos', 'à', 'às', 'ser', 'ter', 'estar', 'foi', 'são',
+    'é', 'esse', 'essa', 'este', 'esta', 'isso', 'isto', 'aquele', 'aquela',
+    'seu', 'sua', 'seus', 'suas', 'ele', 'ela', 'eles', 'elas', 'nós', 'você',
+    'entre', 'sobre', 'até', 'já', 'também', 'muito', 'bem', 'só', 'ainda',
+    'quando', 'onde', 'qual', 'quais', 'quem', 'porque', 'pode', 'podem',
+    'deve', 'devem', 'há', 'sem', 'pela', 'pelo', 'pelas', 'pelos', 'após',
+}
 
-def get_all_content(example):
+def get_all_content(example, messages_column="messages"):
     """
     Extract and concatenate all text content from a sample's messages.
     
     Args:
-        example: A dataset sample containing a 'messages' field with conversation data.
+        example: A dataset sample containing a messages field with conversation data.
+        messages_column: The name of the column containing messages.
     
     Returns:
         str: All message contents joined by newlines, or empty string if no content.
     """
     try:
-        messages = example.get("messages", [])
+        messages = example.get(messages_column, [])
         if not messages:
             return ""
         return "\n".join(msg.get("content", "") for msg in messages if msg.get("content"))
@@ -199,7 +217,7 @@ def get_all_content(example):
         return ""
 
 
-def filter_malformed_code_blocks(example):
+def filter_malformed_code_blocks(example, messages_column="messages"):
     """
     Filter out samples containing malformed code blocks.
     
@@ -209,11 +227,12 @@ def filter_malformed_code_blocks(example):
     
     Args:
         example: A dataset sample to validate.
+        messages_column: The name of the column containing messages.
     
     Returns:
         bool: True if sample is valid (should be kept), False if malformed.
     """
-    content = get_all_content(example)
+    content = get_all_content(example, messages_column)
     if not content:
         return True  # Keep empty samples (will be filtered by other rules)
     
@@ -248,7 +267,7 @@ def filter_malformed_code_blocks(example):
     return True
 
 
-def filter_corrupted_code_content(example):
+def filter_corrupted_code_content(example, messages_column="messages"):
     """
     Filter out samples with mistranslated code content.
     
@@ -260,11 +279,12 @@ def filter_corrupted_code_content(example):
     
     Args:
         example: A dataset sample to validate.
+        messages_column: The name of the column containing messages.
     
     Returns:
         bool: True if sample is valid (should be kept), False if corrupted.
     """
-    content = get_all_content(example)
+    content = get_all_content(example, messages_column)
     if not content:
         return True
     
@@ -284,7 +304,7 @@ def filter_corrupted_code_content(example):
     return True
 
 
-def filter_undecoded_sequences(example):
+def filter_undecoded_sequences(example, messages_column="messages"):
     """
     Filter out samples containing undecoded Unicode escape sequences.
     
@@ -296,11 +316,12 @@ def filter_undecoded_sequences(example):
     
     Args:
         example: A dataset sample to validate.
+        messages_column: The name of the column containing messages.
     
     Returns:
         bool: True if sample is valid (should be kept), False if contains escapes.
     """
-    content = get_all_content(example)
+    content = get_all_content(example, messages_column)
     if not content:
         return True
     
@@ -311,7 +332,7 @@ def filter_undecoded_sequences(example):
     return True
 
 
-def filter_invalid_structural_markers(example):
+def filter_invalid_structural_markers(example, messages_column="messages"):
     """
     Filter out samples containing invalid structural markers.
     
@@ -323,11 +344,12 @@ def filter_invalid_structural_markers(example):
     
     Args:
         example: A dataset sample to validate.
+        messages_column: The name of the column containing messages.
     
     Returns:
         bool: True if sample is valid (should be kept), False if contains markers.
     """
-    content = get_all_content(example)
+    content = get_all_content(example, messages_column)
     if not content:
         return True
     
@@ -338,24 +360,166 @@ def filter_invalid_structural_markers(example):
     return True
 
 
-def filter_minimum_tokens(example, min_tokens):
+def filter_repetition_loops(example, messages_column="messages", 
+                            min_repeated_words=8, max_unique_ratio=0.15,
+                            window_size=30, min_window_matches=5,
+                            min_consecutive_suffix=12, min_ngram_repeats=10):
+    """
+    Filter out samples where the model gets stuck in word repetition loops.
+    
+    Detects degenerate text patterns where the model repeatedly generates similar
+    words in sequence, typically adverbs, participles, or related terms.
+    Examples of repetitive patterns:
+    - "precisamente calculadamente programaticamente antecipadamente predeterminadamente"
+    - "consolidadas solidificadas fortalecidas reforçadas intensificadas ampliadas"
+    
+    The detection uses multiple heuristics:
+    1. Sliding window analysis: Checks for windows with very low unique content word ratio
+    2. Suffix pattern detection: Identifies long sequences of words with same suffix
+    3. N-gram repetition: Detects repeated word sequences (scaled by document length)
+    4. Single-word repetition: Detects "word word word word..."
+    
+    Note: This filter excludes common stopwords from uniqueness calculations to avoid
+    false positives on normal prose that naturally repeats function words.
+    
+    Args:
+        example: A dataset sample to validate.
+        messages_column: The name of the column containing messages.
+        min_repeated_words: Minimum consecutive identical words to flag.
+        max_unique_ratio: Maximum ratio of unique content words in a window to be flagged.
+        window_size: Size of sliding window for analysis.
+        min_window_matches: Minimum windows that must match to filter the sample.
+        min_consecutive_suffix: Minimum consecutive words with same suffix to flag.
+        min_ngram_repeats: Minimum n-gram repetitions to flag.
+    
+    Returns:
+        bool: True if sample is valid (should be kept), False if contains repetition loops.
+    """
+    content = get_all_content(example, messages_column)
+    if not content:
+        return True
+    
+    # Tokenize into words (simple whitespace + punctuation split)
+    words = re.findall(r'\b[a-záàâãéèêíìîóòôõúùûüçñ]+\b', content.lower())
+    
+    if len(words) < window_size:
+        return True
+    
+    # Filter out stopwords for content analysis (but keep original for suffix/ngram checks)
+    content_words = [w for w in words if w not in PORTUGUESE_STOPWORDS and len(w) > 2]
+    
+    # Heuristic 1: Sliding window with low unique content word ratio
+    # This catches sequences where the same or similar content words repeat
+    # Only applies to content words (excluding stopwords)
+    if len(content_words) >= window_size:
+        repetitive_windows = 0
+        for i in range(len(content_words) - window_size + 1):
+            window = content_words[i:i + window_size]
+            unique_ratio = len(set(window)) / len(window)
+            if unique_ratio < max_unique_ratio:
+                repetitive_windows += 1
+                if repetitive_windows >= min_window_matches:
+                    return False
+    
+    # Heuristic 2: Suffix pattern detection (stricter)
+    # Catches sequences like "precisamente calculadamente programaticamente"
+    # Only check for the most problematic suffixes that indicate degenerate loops
+    degenerate_suffixes = ['mente', 'ando', 'endo', 'indo']  # Most indicative of loops
+    
+    for suffix in degenerate_suffixes:
+        consecutive_suffix_count = 0
+        max_consecutive = 0
+        for word in words:
+            # Word must be substantial (not just the suffix)
+            if word.endswith(suffix) and len(word) > len(suffix) + 3:
+                consecutive_suffix_count += 1
+                max_consecutive = max(max_consecutive, consecutive_suffix_count)
+            else:
+                consecutive_suffix_count = 0
+        
+        # High threshold: 12+ consecutive words with the same suffix is truly degenerate
+        if max_consecutive >= min_consecutive_suffix:
+            return False
+    
+    # Heuristic 3: N-gram repetition detection (scaled by document length)
+    # Catches exact phrase repetitions, but with thresholds proportional to doc length
+    if len(words) >= 50:
+        # Scale threshold by document length - longer docs naturally have more repetition
+        # For a 500-word doc, threshold is ~10; for 1000-word doc, ~14
+        length_factor = max(1, len(words) / 500)
+        dynamic_threshold = int(min_ngram_repeats * (0.7 + 0.3 * length_factor))
+        
+        for n in [4, 5, 6]:  # Check 4-grams, 5-grams, and 6-grams (not trigrams - too common)
+            # Exclude n-grams that are mostly stopwords
+            ngrams = []
+            for i in range(len(words) - n + 1):
+                ng = tuple(words[i:i+n])
+                # Only count if at least half of the words are content words
+                content_count = sum(1 for w in ng if w not in PORTUGUESE_STOPWORDS)
+                if content_count >= n // 2:
+                    ngrams.append(ng)
+            
+            if ngrams:
+                ngram_counts = {}
+                for ng in ngrams:
+                    ngram_counts[ng] = ngram_counts.get(ng, 0) + 1
+                
+                max_count = max(ngram_counts.values())
+                if max_count >= dynamic_threshold:
+                    return False
+    
+    # Heuristic 4: Long sequences of single-word repetition
+    # Catches "word word word word word..."
+    for i in range(len(words) - min_repeated_words):
+        if len(set(words[i:i + min_repeated_words])) == 1:
+            return False
+    
+    return True
+
+
+def filter_minimum_tokens(example, min_tokens, token_count_column="token_count"):
     """
     Filter out samples below the minimum token count threshold.
     
     Args:
-        example: A dataset sample with a 'token_count' field.
+        example: A dataset sample with a token count field.
         min_tokens: Minimum number of tokens required.
+        token_count_column: Name of the column containing token counts.
     
     Returns:
         bool: True if sample meets the threshold, False otherwise.
     """
     try:
-        token_count = example.get("token_count", 0)
+        token_count = example.get(token_count_column, 0)
         return token_count >= min_tokens
     except (KeyError, TypeError):
         return False
 
-def remove_system_messages(example):
+
+def filter_quality_score(example, score_column, min_score):
+    """
+    Filter out samples below the minimum quality score threshold.
+    
+    Used to filter based on quality annotation columns like 'instruct_score',
+    'educational_score', or similar metrics from quality classifiers.
+    
+    Args:
+        example: A dataset sample with a quality score field.
+        score_column: Name of the column containing the quality score.
+        min_score: Minimum score required to keep the sample.
+    
+    Returns:
+        bool: True if sample meets the threshold, False otherwise.
+    """
+    try:
+        score = example.get(score_column, None)
+        if score is None:
+            return False
+        return float(score) >= min_score
+    except (KeyError, TypeError, ValueError):
+        return False
+
+def remove_system_messages(example, messages_column="messages"):
     """
     Remove all system messages from the sample's conversation.
     
@@ -364,13 +528,14 @@ def remove_system_messages(example):
     they are corrupted.
     
     Args:
-        example: A dataset sample containing a 'messages' field.
+        example: A dataset sample containing a messages field.
+        messages_column: The name of the column containing messages.
     
     Returns:
         dict: A copy of the example with system messages removed.
     """
     try:
-        messages = example.get("messages", [])
+        messages = example.get(messages_column, [])
         if not messages:
             return example
         
@@ -382,13 +547,13 @@ def remove_system_messages(example):
         
         # Create a copy of the example with filtered messages
         new_example = dict(example)
-        new_example["messages"] = filtered_messages
+        new_example[messages_column] = filtered_messages
         return new_example
     except (KeyError, TypeError, AttributeError):
         return example
 
 
-def strip_message_content(example):
+def strip_message_content(example, messages_column="messages"):
     """
     Strip leading and trailing whitespace from all message content.
     
@@ -396,13 +561,14 @@ def strip_message_content(example):
     This ensures consistent handling of messages regardless of source formatting.
     
     Args:
-        example: A dataset sample containing a 'messages' field.
+        example: A dataset sample containing a messages field.
+        messages_column: The name of the column containing messages.
     
     Returns:
         dict: A copy of the example with whitespace-stripped message content.
     """
     try:
-        messages = example.get("messages", [])
+        messages = example.get(messages_column, [])
         if not messages:
             return example
         
@@ -416,13 +582,13 @@ def strip_message_content(example):
         
         # Create a copy of the example with stripped messages
         new_example = dict(example)
-        new_example["messages"] = stripped_messages
+        new_example[messages_column] = stripped_messages
         return new_example
     except (KeyError, TypeError, AttributeError):
         return example
 
 
-def filter_incomplete_sentences(example):
+def filter_incomplete_sentences(example, messages_column="messages"):
     """
     Filter out samples where the final message doesn't end with proper punctuation.
     
@@ -431,13 +597,14 @@ def filter_incomplete_sentences(example):
     The $ is included to support LaTeX math expressions.
     
     Args:
-        example: A dataset sample containing a 'messages' field.
+        example: A dataset sample containing a messages field.
+        messages_column: The name of the column containing messages.
     
     Returns:
         bool: True if the final message ends properly, False otherwise.
     """
     try:
-        messages = example["messages"]
+        messages = example[messages_column]
         if not messages or len(messages) == 0:
             return False
         
@@ -457,19 +624,20 @@ def filter_incomplete_sentences(example):
         return False
 
 
-def filter_token_count(example, max_tokens):
+def filter_token_count(example, max_tokens, token_count_column="token_count"):
     """
     Filter out samples exceeding the maximum token count threshold.
     
     Args:
-        example: A dataset sample with a 'token_count' field.
+        example: A dataset sample with a token count field.
         max_tokens: Maximum number of tokens allowed.
+        token_count_column: Name of the column containing token counts.
     
     Returns:
         bool: True if sample is within the limit, False otherwise.
     """
     try:
-        token_count = example.get("token_count", 0)
+        token_count = example.get(token_count_column, 0)
         return token_count <= max_tokens
     except (KeyError, TypeError):
         return False
@@ -507,7 +675,7 @@ def load_dataset(input_dir, input_type="jsonl", cache_dir=None):
     return dataset, len(data_files)
 
 
-def plot_token_distribution(dataset, output_dir):
+def plot_token_distribution(dataset, output_dir, token_count_column="token_count"):
     """
     Generate and save a histogram of the token count distribution.
     
@@ -515,17 +683,18 @@ def plot_token_distribution(dataset, output_dir):
     and saves it as a PNG file in the output directory.
     
     Args:
-        dataset: The filtered dataset with a 'token_count' column.
+        dataset: The filtered dataset with a token count column.
         output_dir: Directory where the histogram will be saved.
+        token_count_column: Name of the column containing token counts.
     
     Note:
-        Skips if 'token_count' column is not present in the dataset.
+        Skips if token count column is not present in the dataset.
     """
-    if "token_count" not in dataset.column_names:
-        print("[WARNING] 'token_count' column not found. Skipping histogram.")
+    if token_count_column not in dataset.column_names:
+        print(f"[WARNING] '{token_count_column}' column not found. Skipping histogram.")
         return
     
-    token_counts = dataset["token_count"]
+    token_counts = dataset[token_count_column]
     
     # Create figure
     plt.figure(figsize=(12, 6))
@@ -622,78 +791,129 @@ def main(args):
     assert args.input_type in ["jsonl", "parquet"], "Input type must be either 'jsonl' or 'parquet'."
     assert args.output_type in ["jsonl", "parquet"], "Output type must be either 'jsonl' or 'parquet'."
     
+    # Get the column names
+    messages_column = args.messages_column
+    token_count_column = args.token_count_column
+    
     # Load dataset
     print(f"[INFO] Loading dataset from {args.input_dir}")
     dataset, num_input_files = load_dataset(args.input_dir, args.input_type, args.cache_dir)
     print(f"[INFO] Loaded dataset with {len(dataset):,} examples")
-    print(f"[INFO] Columns: {dataset.column_names}\n")
+    print(f"[INFO] Columns: {dataset.column_names}")
+    print(f"[INFO] Messages column: {messages_column}\n")
     
     initial_count = len(dataset)
     
     # Default preprocessing: Strip whitespace from all message content
-    if "messages" in dataset.column_names:
+    if messages_column in dataset.column_names:
         print(f"[INFO] Stripping whitespace from message content...")
-        dataset = dataset.map(strip_message_content, num_proc=args.num_proc)
+        dataset = dataset.map(
+            lambda x: strip_message_content(x, messages_column), 
+            num_proc=args.num_proc
+        )
         print(f"[INFO] Whitespace stripped from {len(dataset):,} samples\n")
     
     # Preprocessing: Remove system messages if enabled
-    if args.remove_system_messages and "messages" in dataset.column_names:
+    if args.remove_system_messages and messages_column in dataset.column_names:
         print(f"[INFO] Removing system messages from all samples...")
-        dataset = dataset.map(remove_system_messages, num_proc=args.num_proc)
+        dataset = dataset.map(
+            lambda x: remove_system_messages(x, messages_column), 
+            num_proc=args.num_proc
+        )
         print(f"[INFO] System messages removed from {len(dataset):,} samples\n")
     
     # Apply filters
-    if args.filter_incomplete_sentences and "messages" in dataset.column_names:
+    if args.filter_incomplete_sentences and messages_column in dataset.column_names:
         print(f"[INFO] Filtering samples with incomplete sentences...")
-        dataset = dataset.filter(filter_incomplete_sentences, num_proc=args.num_proc)
+        dataset = dataset.filter(
+            lambda x: filter_incomplete_sentences(x, messages_column), 
+            num_proc=args.num_proc
+        )
         filtered_incomplete = initial_count - len(dataset)
         print(f"[INFO] Removed {filtered_incomplete:,} samples with incomplete sentences")
         print(f"[INFO] Remaining samples: {len(dataset):,}\n")
     
-    if args.filter_malformed_code_blocks and "messages" in dataset.column_names:
+    if args.filter_malformed_code_blocks and messages_column in dataset.column_names:
         print(f"[INFO] Filtering samples with malformed code blocks...")
         before_filter = len(dataset)
-        dataset = dataset.filter(filter_malformed_code_blocks, num_proc=args.num_proc)
+        dataset = dataset.filter(
+            lambda x: filter_malformed_code_blocks(x, messages_column), 
+            num_proc=args.num_proc
+        )
         filtered_count = before_filter - len(dataset)
         print(f"[INFO] Removed {filtered_count:,} samples with malformed code blocks")
         print(f"[INFO] Remaining samples: {len(dataset):,}\n")
     
-    if args.filter_corrupted_code and "messages" in dataset.column_names:
+    if args.filter_corrupted_code and messages_column in dataset.column_names:
         print(f"[INFO] Filtering samples with corrupted/mistranslated code content...")
         before_filter = len(dataset)
-        dataset = dataset.filter(filter_corrupted_code_content, num_proc=args.num_proc)
+        dataset = dataset.filter(
+            lambda x: filter_corrupted_code_content(x, messages_column), 
+            num_proc=args.num_proc
+        )
         filtered_count = before_filter - len(dataset)
         print(f"[INFO] Removed {filtered_count:,} samples with corrupted code content")
         print(f"[INFO] Remaining samples: {len(dataset):,}\n")
     
-    if args.filter_undecoded_sequences:
+    if args.filter_undecoded_sequences and messages_column in dataset.column_names:
         print(f"[INFO] Filtering samples with undecoded Unicode escape sequences...")
         before_filter = len(dataset)
-        dataset = dataset.filter(filter_undecoded_sequences, num_proc=args.num_proc)
+        dataset = dataset.filter(
+            lambda x: filter_undecoded_sequences(x, messages_column), 
+            num_proc=args.num_proc
+        )
         filtered_count = before_filter - len(dataset)
         print(f"[INFO] Removed {filtered_count:,} samples with undecoded sequences")
         print(f"[INFO] Remaining samples: {len(dataset):,}\n")
     
-    if args.filter_invalid_markers:
+    if args.filter_invalid_markers and messages_column in dataset.column_names:
         print(f"[INFO] Filtering samples with invalid structural markers (#### followed by number)...")
         before_filter = len(dataset)
-        dataset = dataset.filter(filter_invalid_structural_markers, num_proc=args.num_proc)
+        dataset = dataset.filter(
+            lambda x: filter_invalid_structural_markers(x, messages_column), 
+            num_proc=args.num_proc
+        )
         filtered_count = before_filter - len(dataset)
         print(f"[INFO] Removed {filtered_count:,} samples with invalid structural markers")
         print(f"[INFO] Remaining samples: {len(dataset):,}\n")
     
-    if args.min_token_count is not None and "token_count" in dataset.column_names:
-        print(f"[INFO] Filtering samples with token_count < {args.min_token_count:,}...")
+    if args.filter_repetition_loops and messages_column in dataset.column_names:
+        print(f"[INFO] Filtering samples with word repetition loops...")
         before_filter = len(dataset)
-        dataset = dataset.filter(lambda x: filter_minimum_tokens(x, args.min_token_count), num_proc=args.num_proc)
+        dataset = dataset.filter(
+            lambda x: filter_repetition_loops(x, messages_column), 
+            num_proc=args.num_proc
+        )
+        filtered_count = before_filter - len(dataset)
+        print(f"[INFO] Removed {filtered_count:,} samples with repetition loops")
+        print(f"[INFO] Remaining samples: {len(dataset):,}\n")
+    
+    if args.min_quality_score is not None and args.quality_score_column:
+        if args.quality_score_column in dataset.column_names:
+            print(f"[INFO] Filtering samples with {args.quality_score_column} < {args.min_quality_score}...")
+            before_filter = len(dataset)
+            dataset = dataset.filter(
+                lambda x: filter_quality_score(x, args.quality_score_column, args.min_quality_score), 
+                num_proc=args.num_proc
+            )
+            filtered_count = before_filter - len(dataset)
+            print(f"[INFO] Removed {filtered_count:,} samples below quality score threshold")
+            print(f"[INFO] Remaining samples: {len(dataset):,}\n")
+        else:
+            print(f"[WARNING] Quality score column '{args.quality_score_column}' not found in dataset. Skipping filter.")
+    
+    if args.min_token_count is not None and token_count_column in dataset.column_names:
+        print(f"[INFO] Filtering samples with {token_count_column} < {args.min_token_count:,}...")
+        before_filter = len(dataset)
+        dataset = dataset.filter(lambda x: filter_minimum_tokens(x, args.min_token_count, token_count_column), num_proc=args.num_proc)
         filtered_count = before_filter - len(dataset)
         print(f"[INFO] Removed {filtered_count:,} samples below minimum token threshold")
         print(f"[INFO] Remaining samples: {len(dataset):,}\n")
     
-    if args.max_token_count and "token_count" in dataset.column_names:
-        print(f"[INFO] Filtering samples with token_count > {args.max_token_count:,}...")
+    if args.max_token_count and token_count_column in dataset.column_names:
+        print(f"[INFO] Filtering samples with {token_count_column} > {args.max_token_count:,}...")
         before_token_filter = len(dataset)
-        dataset = dataset.filter(lambda x: filter_token_count(x, args.max_token_count), num_proc=args.num_proc)
+        dataset = dataset.filter(lambda x: filter_token_count(x, args.max_token_count, token_count_column), num_proc=args.num_proc)
         filtered_tokens = before_token_filter - len(dataset)
         print(f"[INFO] Removed {filtered_tokens:,} samples exceeding token limit")
         print(f"[INFO] Remaining samples: {len(dataset):,}\n")
@@ -705,12 +925,12 @@ def main(args):
     
     # Calculate total tokens if available
     total_tokens = None
-    if "token_count" in dataset.column_names:
-        total_tokens = sum(dataset["token_count"])
+    if token_count_column in dataset.column_names:
+        total_tokens = sum(dataset[token_count_column])
         print(f"[INFO] Total tokens in filtered dataset: {total_tokens:,}")
     
     # Determine number of chunks based on total tokens after filtering
-    if total_tokens is not None and args.max_tokens_per_chunk is not None:
+    if total_tokens is not None:
         num_chunks = max(1, (total_tokens + args.max_tokens_per_chunk - 1) // args.max_tokens_per_chunk)
         print(f"[INFO] Calculating chunks based on token count (~{args.max_tokens_per_chunk:,} tokens per chunk, {num_chunks} chunk(s))")
     else:
@@ -729,7 +949,7 @@ def main(args):
     
     # Plot token distribution
     print(f"\n[INFO] Generating token distribution histogram...")
-    plot_token_distribution(dataset, args.output_dir)
+    plot_token_distribution(dataset, args.output_dir, token_count_column)
     
     print(f"\n[SUCCESS] Dataset saved to {args.output_dir}")
     print(f"[SUCCESS] Total samples: {len(dataset):,}")
@@ -764,6 +984,22 @@ if __name__ == "__main__":
                         help="Filter out samples containing invalid structural markers (lines starting with #### followed by a number)")
     parser.add_argument("--remove_system_messages", action="store_true",
                         help="Remove all system messages from samples before processing (disabled by default)")
+    parser.add_argument("--filter_repetition_loops", action="store_true",
+                        help="Filter out samples where the model gets stuck in word repetition loops")
+    
+    # Quality score filtering
+    parser.add_argument("--quality_score_column", type=str, default=None,
+                        help="Name of the column containing quality scores (e.g., 'instruct_score', 'educational_score')")
+    parser.add_argument("--min_quality_score", type=float, default=None,
+                        help="Minimum quality score threshold; samples below this will be filtered out")
+    
+    # Messages column configuration
+    parser.add_argument("--messages_column", type=str, default="messages",
+                        help="Name of the column containing the messages/conversation data (default: 'messages')")
+    
+    # Token count column configuration
+    parser.add_argument("--token_count_column", type=str, default="token_count",
+                        help="Name of the column containing token counts (default: 'token_count')")
     
     # Number of processes to use for parallel filtering
     parser.add_argument("--num_proc", type=int, default=4, help="Number of processes to use for filtering (default: 4)")

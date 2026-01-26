@@ -321,15 +321,34 @@ def main(args):
     state.wait_for_everyone()
     if torch.distributed.is_initialized():
         torch.distributed.barrier()
+    
+    if args.resume_from_checkpoint:
+
+        # We expect the `resume_from_checkpoint` argument to be the path to a directory of checkpoints,
+        # the logic below will find the latest checkpoint in that directory.
+        checkpoint_path = args.resume_from_checkpoint
+
+        try:
+            # We try to find the latest checkpoint in the directory.
+            checkpoint_dirs = os.listdir(checkpoint_path)
+            checkpoint_dirs = [dir for dir in checkpoint_dirs if dir.startswith(f"checkpoint-")] # Checkpoints are intended to be named like "checkpoint-"
+            checkpoint_path = os.path.join(checkpoint_path, sorted(checkpoint_dirs, key=lambda x: int(x.split("-")[-1].split(".")[0]))[-1])
+        except:
+            # If the checkpoint directory does not contain any checkpoints, we will assume
+            # that `resume_from_checkpoint` is already set to the latest checkpoint.
+            pass
+        if master_process:
+            print(f"Resuming training from checkpoint: {checkpoint_path}")
 
     # Start the training
     try:
-        trainer.train(resume_from_checkpoint=args.resume_from_checkpoint)
+        trainer.train(resume_from_checkpoint=checkpoint_path if args.resume_from_checkpoint else None)
     except Exception as e:
         save_path = os.path.join(args.checkpoint_dir, "last")
         trainer.save_model(save_path)
-        print(f"Training failed with error: {e}")
-        print(f"Model saved to 'last' checkpoint at {save_path}")
+        if master_process:
+            print(f"Training failed with error: {e}")
+            print(f"Model saved to 'last' checkpoint at {save_path}")
 
     # Save the final model
     trainer.save_model(os.path.join(args.checkpoint_dir, "final"))
@@ -629,8 +648,8 @@ if __name__ == "__main__":
         "--report_to", 
         type=str, 
         nargs="+", 
-        default=["wandb", "codecarbon"],
-        help="List of integrations to report results and logs to. Options: 'wandb', 'tensorboard', 'codecarbon', etc."
+        default=None,
+        help="The list of integrations to report the results and logs to. Supported platforms are 'tensorboard', 'wandb', 'comet_ml', 'mlflow', 'clearml', 'wandb' etc. See [here](https://huggingface.co/docs/transformers/main/en/main_classes/trainer#transformers.TrainingArguments.report_to) for more details."
     )
     logging_group.add_argument(
         "--wandb_project", 

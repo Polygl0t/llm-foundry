@@ -209,7 +209,6 @@ def main(args):
         pad_token=tokenizer.pad_token,
         dataset_num_proc=args.num_proc,
         shuffle_dataset=args.shuffle_dataset,
-        neftune_noise_alpha=args.neftune_noise_alpha,
         use_liger_kernel=args.use_liger_kernel,
         activation_offloading=args.activation_offloading,
         gradient_checkpointing=args.gradient_checkpointing,
@@ -229,7 +228,7 @@ def main(args):
         adam_epsilon=args.adam_epsilon,
         max_grad_norm=args.max_grad_norm,
         lr_scheduler_type=args.lr_scheduler_type,
-        warmup_steps=args.warmup_steps,
+        warmup_ratio=args.warmup_ratio,
         num_train_epochs=args.num_train_epochs,
         max_steps=-1 if args.max_steps is None else args.max_steps,
         per_device_train_batch_size=args.per_device_train_batch_size,
@@ -262,15 +261,34 @@ def main(args):
     state.wait_for_everyone()
     if torch.distributed.is_initialized():
         torch.distributed.barrier()
+    
+    if args.resume_from_checkpoint:
+
+        # We expect the `resume_from_checkpoint` argument to be the path to a directory of checkpoints,
+        # the logic below will find the latest checkpoint in that directory.
+        checkpoint_path = args.resume_from_checkpoint
+
+        try:
+            # We try to find the latest checkpoint in the directory.
+            checkpoint_dirs = os.listdir(checkpoint_path)
+            checkpoint_dirs = [dir for dir in checkpoint_dirs if dir.startswith(f"checkpoint-")] # Checkpoints are intended to be named like "checkpoint-"
+            checkpoint_path = os.path.join(checkpoint_path, sorted(checkpoint_dirs, key=lambda x: int(x.split("-")[-1].split(".")[0]))[-1])
+        except:
+            # If the checkpoint directory does not contain any checkpoints, we will assume
+            # that `resume_from_checkpoint` is already set to the latest checkpoint.
+            pass
+        if master_process:
+            print(f"Resuming training from checkpoint: {checkpoint_path}")
 
     # Start the training
     try:
-        trainer.train(resume_from_checkpoint=args.resume_from_checkpoint)
+        trainer.train(resume_from_checkpoint=checkpoint_path if args.resume_from_checkpoint else None)
     except Exception as e:
         save_path = os.path.join(args.checkpoint_dir, "last")
         trainer.save_model(save_path)
-        print(f"Training failed with error: {e}")
-        print(f"Model saved to 'last' checkpoint at {save_path}")
+        if master_process:
+            print(f"Training failed with error: {e}")
+            print(f"Model saved to 'last' checkpoint at {save_path}")
 
     # Save the final model
     trainer.save_model(os.path.join(args.checkpoint_dir, "final"))
@@ -301,7 +319,6 @@ if __name__ == "__main__":
     # The `assistant_only_loss` requires that the chat template supports returning the assistant tokens mask via the {% generation %} keyword.
     parser.add_argument("--assistant_only_loss", action="store_true", help="If set, the loss will only be computed on the assistant's responses, ignoring the user inputs.")
     parser.add_argument("--system_message", type=str, default=None, help="System message to prepend to the user messages. If not set, no system message will be used, and we will default to the chat template's default behavior.")
-    parser.add_argument("--neftune_noise_alpha", type=int, default=5, help="Alpha value for the Neftune noise.")
     # Training and optimizer
     parser.add_argument("--eval_steps", type=int, default=1000)
     parser.add_argument("--save_steps", type=int, default=1000)
@@ -313,7 +330,7 @@ if __name__ == "__main__":
     parser.add_argument("--adam_epsilon", type=float, default=1e-8)
     parser.add_argument("--max_grad_norm", type=float, default=1.0)
     parser.add_argument("--lr_scheduler_type", type=str, default="linear", help="Type of learning rate scheduler to use. Options: 'linear', 'cosine', and all the other types listed [here](https://huggingface.co/docs/transformers/main/en/main_classes/optimizer_schedules#transformers.SchedulerType).")
-    parser.add_argument("--warmup_steps", type=int, default=0)
+    parser.add_argument("--warmup_ratio", type=float, default=0.0)
     parser.add_argument("--num_train_epochs", type=int, default=1)
     parser.add_argument("--max_steps", type=int, default=None, help="Total number of training steps to perform. If set, overrides num_train_epochs.")
     # Precision / performance
@@ -329,7 +346,7 @@ if __name__ == "__main__":
     # Hub / reporting
     parser.add_argument("--hub_token", type=str, default=None)
     parser.add_argument("--hub_model_id", type=str, default=None)
-    parser.add_argument("--report_to", type=str, nargs="+", default=["wandb", "codecarbon"])
+    parser.add_argument("--report_to", type=str, nargs="+", default=None , help="The list of integrations to report the results and logs to. Supported platforms are 'tensorboard', 'wandb', 'comet_ml', 'mlflow', 'clearml', 'wandb' etc. See [here](https://huggingface.co/docs/transformers/main/en/main_classes/trainer#transformers.TrainingArguments.report_to) for more details.")
     parser.add_argument("--wandb_project", type=str, default="Polyglot")
     # Experimental / other
     parser.add_argument("--use_liger_kernel", action="store_true", help="Use the Liger kernel for training. This is an experimental feature that may improve performance on some GPUs.")

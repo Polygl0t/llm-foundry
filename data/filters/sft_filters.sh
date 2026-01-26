@@ -52,20 +52,23 @@ echo "# Python executable: $(which python3)" >> "$out"
 #############################################
 # Main Job Execution
 #############################################
-python3 $workdir/portuguese/gigaverbo-v2-sft/filter.py \
+python3 $workdir/scripts/filter.py \
     --input_dir "$workdir/portuguese/gigaverbo-v2-sft/general" \
     --input_type jsonl \
     --output_dir "$workdir/portuguese/gigaverbo-v2-sft/general_filtered" \
     --output_type jsonl \
     --cache_dir "$HF_DATASETS_CACHE" \
-    --min_token_count 500 \
-    --max_token_count 2048 \
+    --messages_column "messages" \
+    --min_token_count 120 \
+    --max_token_count 1000 \
+    --filter_invalid_markers \
+    --filter_repetition_loops \
+    --filter_undecoded_sequences \
     --filter_incomplete_sentences \
     --filter_malformed_code_blocks \
     --filter_corrupted_code \
-    --filter_undecoded_sequences \
-    --filter_invalid_markers \
-    --remove_system_messages \
+    --quality_score_column "instruct_score" \
+    --min_quality_score 4.5 \
     --num_proc 32 1>>"$out" 2>>"$err"
 
 #############################################

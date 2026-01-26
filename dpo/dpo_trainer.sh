@@ -125,7 +125,7 @@ export ARGS="--dataset_type jsonl \
 --learning_rate 0.000005 \
 --weight_decay 0.0 \
 --lr_scheduler_type cosine \
---warmup_steps 100 \
+--warmup_ratio 0.1 \
 --num_train_epochs 2 \
 --attn_implementation flash_attention_2 \
 --per_device_train_batch_size 8 \
