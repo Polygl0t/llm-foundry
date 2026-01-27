@@ -1,8 +1,11 @@
 """
-Dataset Decontamination via K-gram Matching
+Dataset Decontamination via K-token ("n-gram") Matching
 
-Removes examples from a training dataset that contain k-grams found in reference
+Removes examples from a training dataset that contain k-token sequences found in reference
 datasets (e.g., test/validation sets) to prevent data leakage and contamination.
+
+- Note: This decontamination operates at the token level, matching sequences of token IDs
+rather than raw text or characters.
 
 Workflow:
 - Builds k-gram indices from reference datasets for lengths [min_k, max_k]
@@ -192,7 +195,7 @@ def main(args):
 		chunk.to_json(f"{output_dir}/train-{i:05d}-of-{len(chunks):05d}.jsonl")
 
 if __name__ == "__main__":
-	parser = argparse.ArgumentParser("Decontaminate JSONL dataset using k-gram matching against reference datasets.")
+	parser = argparse.ArgumentParser("Decontaminate JSONL dataset using contiguous k-token matching against reference datasets.")
 	parser.add_argument("--input_pattern", type=str, required=True, help="Glob pattern for input contaminated JSONL files.")
 	parser.add_argument("--reference_files", type=str, nargs='+', required=True, help="List of reference JSONL files.")
 	parser.add_argument("--cache_dir", type=str, default=None, help="Cache directory for datasets.")

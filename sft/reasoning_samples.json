@@ -1,0 +1,52 @@
+[
+    {
+        "messages": [
+            {
+                "role": "user",
+                "content": "Você pode me dar uma receita simples de Bolo de Brigadeiro?"
+            }
+        ],
+        "task_type": "Cooking",
+        "tool" : []
+    },
+    {
+        "messages": [
+            {
+                "role": "user",
+                "content": "Como eu posso resolver o seguinte problema: 2x + 3 = 11?"
+            }
+        ],
+        "task_type": "Math",
+        "tool" : []
+    },
+    {
+        "messages": [
+            {
+                "role": "user",
+                "content": "Remova todas as informações irrelevantes da frase a seguir.\n\n\"O novo restaurante que abriu no centro da cidade, de propriedade do primo de Jorge, que costumava ser chef de um restaurante em Ipanema, serve uma variedade de cozinhas de todo o mundo.\""
+            }
+        ],
+        "task_type": "Rewriting",
+        "tool" : []
+    },
+    {
+        "messages": [
+            {
+                "role": "user",
+                "content": "Explique a teoria da relatividade de forma simples (ELI5)."
+            }
+        ],
+        "task_type": "Science Explanation",
+        "tool" : []
+    },
+    {
+        "messages": [
+            {
+                "role": "user",
+                "content": "Liste os principais eventos envolvendo a Revolução Farroupilha."
+            }
+        ],
+        "task_type": "History",
+        "tool" : []
+    }
+]
