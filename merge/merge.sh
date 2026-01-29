@@ -44,6 +44,7 @@ export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE"
 echo "# [${SLURM_JOB_ID}] Job started at: $(date)" > "$out"
 echo "# [${SLURM_JOB_ID}] Using $SLURM_NNODES nodes" >> "$out"
 echo "# [${SLURM_JOB_ID}] Using $SLURM_CPUS_PER_TASK CPUs per task" >> "$out"
+echo "# [${SLURM_JOB_ID}] Running on nodes: $(scontrol show hostnames "$SLURM_NODELIST" | tr '\n' ' ')" >> "$out"
 echo "# Working directory: $workdir" >> "$out"
 echo "# Python executable: $(which python3)" >> "$out"
 

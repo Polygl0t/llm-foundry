@@ -77,6 +77,7 @@ export SPECS_FILE="$workdir/fsdp/train_config.yaml"  # <-- Change to your specs 
 echo "# [${SLURM_JOB_ID}] Job started at: $(date)" > "$out"
 echo "# [${SLURM_JOB_ID}] Using $SLURM_NNODES node(s)" >> "$out"
 echo "# [${SLURM_JOB_ID}] Using $SLURM_NTASKS GPUs in total ($SLURM_NTASKS_PER_NODE per node)" >> "$out"
+echo "# [${SLURM_JOB_ID}] Running on nodes: $(scontrol show hostnames "$SLURM_NODELIST" | tr '\n' ' ')" >> "$out"
 echo "# Working directory: $workdir" >> "$out"
 echo "# Python executable: $(which python3)" >> "$out"
 
