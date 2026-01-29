@@ -45,6 +45,7 @@ export CLEAN_CACHE="1"  # Set to "1" to clean cache after job completion
 echo "# [${SLURM_JOB_ID}] Job started on $SLURM_JOB_NODELIST at: $(date)" > "$out"
 echo "# [${SLURM_JOB_ID}] Using $SLURM_NNODES nodes" >> "$out"
 echo "# [${SLURM_JOB_ID}] Using $SLURM_NTASKS GPUs in total ($SLURM_NTASKS_PER_NODE per node)" >> "$out"
+echo "# [${SLURM_JOB_ID}] Running on nodes: $(scontrol show hostnames "$SLURM_NODELIST" | tr '\n' ' ')" >> "$out"
 echo "# Working directory: $workdir" >> "$out"
 echo "# Python executable: $(which python3)" >> "$out"
 

@@ -61,6 +61,7 @@ for i in $(seq 0 $((SLURM_NTASKS_PER_NODE - 1))); do
     echo "# [${SLURM_JOB_ID}] Job started at: $(date)" > "$out_var"
     echo "# [${SLURM_JOB_ID}] Using $SLURM_NNODES nodes" >> "$out_var"
     echo "# [${SLURM_JOB_ID}] Using $SLURM_NTASKS GPUs in total ($SLURM_NTASKS_PER_NODE per node)" >> "$out_var"
+    echo "# [${SLURM_JOB_ID}] Running on nodes: $(scontrol show hostnames "$SLURM_NODELIST" | tr '\n' ' ')" >> "$out_var"
     echo "# Working directory: $workdir" >> "$out_var"
     echo "# Python executable: $(which python3)" >> "$out_var"
 done
