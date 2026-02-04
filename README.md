@@ -10,7 +10,7 @@ Developing foundation models for low-resource languages.
 
 ## Overview
 
-- data: Scripts for downloading and preprocessing datasets. It also contains code for creating/using several types of filters and classifiers.
+- data: Scripts for downloading and preprocessing datasets.
 - ddp: Our current implementation of Distributed Data Parallel training.
 - dpo: Implementation for Direct Preference Optimization via TRL.
 - evals: Scripts for evaluating language models via the lm-evaluation-harness.
