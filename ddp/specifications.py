@@ -214,7 +214,7 @@ class TrainingArguments:
         metadata={"help": "The learning rate for the Muon optimizer."},
     )
     weight_decay: Optional[float] = field(
-        default=0.1,
+        default=0.0,
         metadata={"help": "The weight decay to apply."},
     )
     beta1: Optional[float] = field(
