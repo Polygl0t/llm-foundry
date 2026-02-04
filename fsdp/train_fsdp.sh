@@ -38,7 +38,7 @@ err="$workdir/run_training_outputs/err.$SLURM_JOB_ID"
 source $workdir/.modules_amd.sh
 # python3 -m venv $workdir/.venv_fsdp
 source $workdir/.venv_fsdp/bin/activate
-which python3
+
 # pip3 install --upgrade pip
 # pip3 install wheel==0.45.1 packaging==25.0 --no-cache-dir
 # pip3 install -r "$workdir/fsdp/requirements.txt" --no-cache-dir
