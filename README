@@ -10,11 +10,13 @@ Developing foundation models for low-resource languages
 Overview
 --------
 
-* data: Scripts for downloading and preprocessing datasets.
+This repository (the foundry) contains all the source code we use in our research and development pipeline.
+
+* data: Scripts for downloading and preprocessing datasets (e.g., HF Hub, Common Craul).
 * ddp: Our current implementation of Distributed Data Parallel training.
 * dpo: Implementation for Direct Preference Optimization via TRL.
 * evals: Scripts for evaluating language models via the lm-evaluation-harness.
-* fsdp: Our current implementation of Fully Sharded Data Parallel 2.
+* fsdp: Our current implementation of Fully Sharded Data Parallel v2.
 * hf_hub: Scripts for interacting with the Hugging Face Hub.
 * merge: Scripts for running different merging techniques via mergekit.
 * sft: Implementation of Supervised Fine-Tuning via TRL.
