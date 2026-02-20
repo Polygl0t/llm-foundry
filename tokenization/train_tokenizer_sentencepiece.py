@@ -21,6 +21,21 @@ Example usage:
         --num_samples 10000000 \
         --tokenizer_name username/llama-tokenizer \
         --token hf_xxx
+
+BUG: Tokens like "<think>" or "<tool_call>" should not be special tokens in the tokenizer.
+        This is because, if they are special tokens, evals from the harness will not be able
+        to strip them from the input (bad for reasoning models). Also, the tokenizer will always
+        skip them when decoding, which means that they will not appear in the decoded output (bad for interpretability
+        and the probable reason why the eval harness is not parsing them correctly).
+        Only the BOS, EOS, UNK, and PAD tokens should be special tokens in the tokenizer. 
+        The rest of the tokens should just be normal tokens in the tokenizer.
+
+TODO: For now, I'm manually removing the special tokens from the tokenizer after training it. This is a very hacky, but it works. 
+        In the future, we should consider implementing the addition of special tokens in a different way.
+
+        - `special_tokens_map.json` should only contain the BOS, EOS, UNK, and PAD tokens.
+        - `special_tokens_map.json` should have no add_special_tokens field. Also, all the non special tokens should be set with `"special": false`.
+        - `tokenizer.json` all non special tokens should be set with `"special": false`. Only the BOS, EOS, UNK, and PAD tokens should be set with `"special": true`.
 """
 import os
 import json
