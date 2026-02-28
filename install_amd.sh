@@ -23,11 +23,10 @@ set -euo pipefail
 #############################################
 # Working Directory Setup
 #############################################
-username="nklugeco_hpc"                    # <-- Change to the corresponding username that created the workspace
-file_system="mlnvme"                       # <-- Change to your filesystem
-workspace_name="polyglot"                  # <-- Change to your workspace/project name
-
-workdir="/lustre/$file_system/data/$username-$workspace_name"
+# Dynamically resolve workdir from the script's own location.
+# This works because installation.sh copies this script into workdir
+# and submits it via: sbatch $workdir/install_amd.sh
+workdir="$(cd "$(dirname "$0")" && pwd)"
 mkdir -p "$workdir/run_outputs"
 cd "$workdir"
 ulimit -c 0
