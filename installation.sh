@@ -83,8 +83,9 @@ echo "Python virtual environment created for Intel Stack."
 # Submit Installation Jobs
 #############################################
 echo "Submitting installation jobs to the scheduler."
-sbatch $workdir/install_amd.sh
-sbatch $workdir/install_intel.sh
+export WORKDIR="$workdir"
+sbatch --export=ALL,WORKDIR="$workdir" $workdir/install_amd.sh
+sbatch --export=ALL,WORKDIR="$workdir" $workdir/install_intel.sh
 #############################################
 # End of Script
 #############################################
