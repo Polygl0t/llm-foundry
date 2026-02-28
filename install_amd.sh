@@ -23,10 +23,8 @@ set -euo pipefail
 #############################################
 # Working Directory Setup
 #############################################
-# Dynamically resolve workdir from the script's own location.
-# This works because installation.sh copies this script into workdir
-# and submits it via: sbatch $workdir/install_amd.sh
-workdir="$(cd "$(dirname "$0")" && pwd)"
+# Inherit WORKDIR environment variable from sbatch submission command in installation.sh
+workdir="${WORKDIR:?WORKDIR environment variable is not set}"
 mkdir -p "$workdir/run_outputs"
 cd "$workdir"
 ulimit -c 0
