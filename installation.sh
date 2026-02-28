@@ -14,7 +14,7 @@
 # ----------- User Customization Section -----------
 username="nklugeco_hpc"        # <-- Change to your username
 file_system="mlnvme"           # <-- Change to your filesystem
-work_group="ag_cst_gabriel"    # <-- Change to your work group
+work_group="ag_bit_flek"       # <-- Change to your work group
 email="kluge@uni-bonn.de"      # <-- Change to your email
 remainder=7                    # <-- Change as needed
 num_days=90                    # <-- Change as needed

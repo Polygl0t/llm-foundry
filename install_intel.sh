@@ -155,7 +155,7 @@ log_step "Starting validation phase..."
 echo "" | tee -a "$log"
 
 # Run validation script
-python3 "$workdir/install_intel_v2.py" 2>&1 | tee -a "$log"
+python3 "$workdir/install_intel.py" 2>&1 | tee -a "$log"
 validation_exit_code=$?
 
 if [ $validation_exit_code -eq 0 ]; then
