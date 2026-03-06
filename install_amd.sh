@@ -151,6 +151,9 @@ else
     exit 1
 fi
 
+# Install psutil (required by flash-attn build)
+install_package "psutil" "--no-cache-dir" || exit 1
+
 # Install flash-attn (can be problematic)
 log_step "Installing flash-attn (this may take a while)..."
 if pip3 install flash-attn --no-build-isolation --no-cache-dir 2>&1 | tee -a "$log"; then
