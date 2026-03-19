@@ -1,5 +1,5 @@
 """
-Base prompt templates.
+Instruction prompt templates.
 
 Each template defines a task type with variable slots.
 Instruction constraints (modifiers) are applied separately by the generator,

@@ -152,6 +152,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-tokens", type=int, default=8192, help="Max output tokens per generation")
     parser.add_argument("--rollouts-per-document", type=int, default=1)
     parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducible generation")
+    parser.add_argument("--enable-thinking", type=str, default=None,
+                        help="Control reasoning/thinking for supported models (e.g. Qwen3): true, false, or omit to use model default")
 
     # Processing settings
     parser.add_argument("--examples-per-chunk", type=int, default=500, help="Documents per checkpoint chunk")
@@ -196,6 +198,7 @@ def main(args: argparse.Namespace) -> None:
     max_tokens = args.max_tokens
     rollouts_per_document = args.rollouts_per_document
     seed = args.seed
+    enable_thinking = args.enable_thinking
     examples_per_chunk = args.examples_per_chunk
     tasks = args.tasks
     workers = args.workers
@@ -248,6 +251,13 @@ def main(args: argparse.Namespace) -> None:
     top_p = top_p if top_p is not None else getattr(generation_config, "top_p", 1.0)
     top_k = top_k if top_k is not None else getattr(generation_config, "top_k", -1)
 
+    # Build chat_template_kwargs for reasoning/thinking control
+    chat_template_kwargs: dict[str, Any] | None = None
+    if enable_thinking is not None:
+        thinking_val = enable_thinking.strip().lower() in ("true", "1", "yes")
+        chat_template_kwargs = {"enable_thinking": thinking_val}
+        logger.info(f"Thinking/reasoning mode: {'enabled' if thinking_val else 'disabled'}")
+
     # Rollout function for a single document
     async def simple_rollout(
         document: Document,
@@ -287,6 +297,9 @@ def main(args: argparse.Namespace) -> None:
                 "top_k": top_k,
                 "top_p": top_p,
                 **({"seed": seed} if seed is not None else {}),
+                **({
+                    "chat_template_kwargs": chat_template_kwargs
+                } if chat_template_kwargs else {}),
             }
         )
 

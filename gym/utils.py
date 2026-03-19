@@ -1,4 +1,3 @@
-"""Utility library of instructions."""
 import os
 import re
 import nltk

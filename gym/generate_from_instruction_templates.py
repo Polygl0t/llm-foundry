@@ -1,5 +1,5 @@
 """
-Template-based generation instruction samples.
+Template-based generation of instruction samples.
 
 This generator constructs each sample from scratch:
 
@@ -14,7 +14,7 @@ Usage:
 
     python generate_from_templates.py \
         --output_file output.json \
-        --num_samples 2000 \
+        --num_samples 50000 \
         --min_modifiers 2 --max_modifiers 5 \
         --seed 123 --verbose
 """
@@ -25,24 +25,24 @@ import argparse
 from pathlib import Path
 
 from instruction_metadata import (
-    ALL_INSTRUCTION_IDS,
-    get_addable_instructions,
+    ALL_VERIFIER_IDS,
+    get_addable_verifiers,
     is_combination_valid,
-    generate_kwargs_for_instruction,
-    generate_description_for_instruction,
+    generate_kwargs_for_verifier,
+    generate_description_for_verifier,
 )
-from base_templates import TEMPLATES
+from instruction_templates import TEMPLATES
 
 # Constants
-# Instructions excluded from automatic modifier selection
+# Verifiers excluded from automatic modifier selection
 _EXCLUDED_MODIFIERS = {
     # constrained_response conflicts with everything - not useful as a modifier
     "detectable_format:constrained_response",
 }
 
-# All instruction IDs available as modifiers
+# All verifier IDs available as modifiers
 MODIFIER_IDS = sorted(
-    iid for iid in ALL_INSTRUCTION_IDS if iid not in _EXCLUDED_MODIFIERS
+    iid for iid in ALL_VERIFIER_IDS if iid not in _EXCLUDED_MODIFIERS
 )
 
 # Must be appended last (its kwargs depend on the final prompt text)
@@ -64,17 +64,17 @@ def fill_template(template):
 
 # Modifier Selection
 def select_modifier_ids(count):
-    """Greedily select count mutually-compatible modifier instruction IDs.
+    """Greedily select count mutually-compatible modifier verifier IDs.
 
     At each step the conflict matrix is consulted to ensure the new ID
     is compatible with all previously selected ones.
 
-    Returns a list of instruction IDs (may be shorter than count if no
+    Returns a list of verifier IDs (may be shorter than count if no
     compatible candidates remain).
     """
     selected = []
     for _ in range(count):
-        addable = get_addable_instructions(selected)
+        addable = get_addable_verifiers(selected)
         candidates = [iid for iid in addable if iid in MODIFIER_IDS]
         if not candidates:
             break
@@ -100,7 +100,7 @@ def build_sample(template, key, min_modifiers=1, max_modifiers=4):
     # 1. Fill template → base prompt
     base_prompt = fill_template(template)
 
-    # 2. Select modifier instruction IDs
+    # 2. Select modifier verifier IDs
     num_modifiers = random.randint(min_modifiers, max_modifiers)
     modifier_ids = select_modifier_ids(num_modifiers)
 
@@ -110,24 +110,24 @@ def build_sample(template, key, min_modifiers=1, max_modifiers=4):
 
     # 4. Generate descriptions + kwargs for regular modifiers
     prompt_parts = [base_prompt.rstrip()]
-    instruction_ids = []
+    verifier_ids = []
     kwargs_list = []
 
     for iid in regular_ids:
-        kw = generate_kwargs_for_instruction(iid)
-        desc = generate_description_for_instruction(iid, kw)
+        kw = generate_kwargs_for_verifier(iid)
+        desc = generate_description_for_verifier(iid, kw)
         prompt_parts.append(desc)
-        instruction_ids.append(iid)
+        verifier_ids.append(iid)
         kwargs_list.append(_normalize_kwargs(kw))
 
     # 5. Handle repeat_prompt last (needs the full prompt so far)
     if has_repeat:
         prompt_before_repeat = " ".join(prompt_parts)
-        kw = generate_kwargs_for_instruction(
+        kw = generate_kwargs_for_verifier(
             _REPEAT_PROMPT_ID, prompt_before_repeat
         )
-        desc = generate_description_for_instruction(_REPEAT_PROMPT_ID, kw)
-        instruction_ids.append(_REPEAT_PROMPT_ID)
+        desc = generate_description_for_verifier(_REPEAT_PROMPT_ID, kw)
+        verifier_ids.append(_REPEAT_PROMPT_ID)
         kwargs_list.append(_normalize_kwargs(kw))
         final_prompt = prompt_before_repeat + "\n" + desc
     else:
@@ -136,7 +136,7 @@ def build_sample(template, key, min_modifiers=1, max_modifiers=4):
     return {
         "key": key,
         "prompt": final_prompt,
-        "instruction_id_list": instruction_ids,
+        "verifier_id_list": verifier_ids,
         "kwargs": kwargs_list,
     }
 
@@ -144,33 +144,33 @@ def build_sample(template, key, min_modifiers=1, max_modifiers=4):
 # Validation
 def sample_fingerprint(sample):
     """Hashable fingerprint for uniqueness checking."""
-    return (sample["prompt"], tuple(sorted(sample["instruction_id_list"])))
+    return (sample["prompt"], tuple(sorted(sample["verifier_id_list"])))
 
 def validate_sample(sample):
     """Return a list of issues (empty means valid)."""
     issues = []
 
-    n_ids = len(sample.get("instruction_id_list", []))
+    n_ids = len(sample.get("verifier_id_list", []))
     n_kw = len(sample.get("kwargs", []))
     if n_ids != n_kw:
         issues.append(
-            f"instruction_id_list length ({n_ids}) != kwargs length ({n_kw})"
+            f"verifier_id_list length ({n_ids}) != kwargs length ({n_kw})"
         )
 
-    for iid in sample.get("instruction_id_list", []):
-        if iid not in ALL_INSTRUCTION_IDS:
+    for iid in sample.get("verifier_id_list", []):
+        if iid not in ALL_VERIFIER_IDS:
             issues.append(f"Unknown instruction ID: {iid}")
 
-    if not is_combination_valid(sample.get("instruction_id_list", [])):
+    if not is_combination_valid(sample.get("verifier_id_list", [])):
         issues.append("Instruction combination has conflicts")
 
     if not sample.get("prompt", "").strip():
         issues.append("Empty prompt")
 
     # Verify each modifier description appears in the prompt
-    for i, iid in enumerate(sample.get("instruction_id_list", [])):
+    for i, iid in enumerate(sample.get("verifier_id_list", [])):
         kw = sample["kwargs"][i]
-        desc = generate_description_for_instruction(iid, kw)
+        desc = generate_description_for_verifier(iid, kw)
         if desc and desc not in sample.get("prompt", ""):
             issues.append(f"Description for {iid} not found in prompt")
 
@@ -233,7 +233,7 @@ def main(args):
                 print(f"  Key {s['key']}: {issues}")
 
     conflict_free = sum(
-        1 for s in samples if is_combination_valid(s["instruction_id_list"])
+        1 for s in samples if is_combination_valid(s["verifier_id_list"])
     )
     unique_fps = len({sample_fingerprint(s) for s in samples})
 

@@ -1,4 +1,4 @@
-"""Library of instructions."""
+"""A collection of verifiers for procedurally generated tasks."""
 import collections
 import json
 import logging
@@ -6,11 +6,11 @@ import random
 import re
 import string
 import langdetect
-import instructions_util
+import utils
 
 logger = logging.getLogger(__name__)
 
-_LANGUAGES = instructions_util.LANGUAGE_CODES
+_LANGUAGES = utils.LANGUAGE_CODES
 
 # The relational operation for comparison.
 _COMPARISON_RELATION = ("less than", "at least")
@@ -51,7 +51,6 @@ _STARTER_OPTIONS = (
 )
 
 # The options of ending keywords.
-# TODO(jeffreyzhou) add more ending options
 _ENDING_OPTIONS = ("Isso faz sentido?", "Há algo mais que eu possa ajudar?")
 
 # The number of highlighted sections.
@@ -86,7 +85,7 @@ _NUM_WORDS_LOWER_LIMIT = 50
 _NUM_WORDS_UPPER_LIMIT = 300
 
 
-class Instruction:
+class TaskVerifier:
     """An instruction template."""
 
     def __init__(self, instruction_id):
@@ -105,7 +104,7 @@ class Instruction:
         raise NotImplementedError("`check_following` not implemented.")
 
 
-class ResponseLanguageChecker(Instruction):
+class ResponseLanguageChecker(TaskVerifier):
     """Check the language of the entire response."""
 
     def build_description(self, *, language=None):
@@ -160,7 +159,7 @@ class ResponseLanguageChecker(Instruction):
             return True
 
 
-class NumberOfSentences(Instruction):
+class NumberOfSentences(TaskVerifier):
     """Check the number of sentences."""
 
     def build_description(self, *, num_sentences=None, relation=None):
@@ -225,14 +224,14 @@ class NumberOfSentences(Instruction):
             ValueError if the string in `instruction_args` is not in
             [`less_than`, `at_least`].
         """
-        num_sentences = instructions_util.count_sentences(value)
+        num_sentences = utils.count_sentences(value)
         if self._comparison_relation == _COMPARISON_RELATION[0]:
             return num_sentences < self._num_sentences_threshold
         elif self._comparison_relation == _COMPARISON_RELATION[1]:
             return num_sentences >= self._num_sentences_threshold
 
 
-class PlaceholderChecker(Instruction):
+class PlaceholderChecker(TaskVerifier):
     """Check the placeholders in template writing."""
 
     def build_description(self, *, num_placeholders=None):
@@ -277,7 +276,7 @@ class PlaceholderChecker(Instruction):
         return num_placeholders >= self._num_placeholders
 
 
-class BulletListChecker(Instruction):
+class BulletListChecker(TaskVerifier):
     """Checks the bullet list in the prompt."""
 
     def build_description(self, *, num_bullets=None):
@@ -326,7 +325,7 @@ class BulletListChecker(Instruction):
         return num_bullet_lists == self._num_bullets
 
 
-class ConstrainedResponseChecker(Instruction):
+class ConstrainedResponseChecker(TaskVerifier):
     """Checks the constrained response."""
 
     def build_description(self):
@@ -365,7 +364,7 @@ class ConstrainedResponseChecker(Instruction):
         return False
 
 
-class ConstrainedStartChecker(Instruction):
+class ConstrainedStartChecker(TaskVerifier):
     """Checks the response start."""
 
     def build_description(self, *, starter=None):
@@ -412,7 +411,7 @@ class ConstrainedStartChecker(Instruction):
         return True if response_with_constrained_start else False
 
 
-class HighlightSectionChecker(Instruction):
+class HighlightSectionChecker(TaskVerifier):
     """Checks the highlighted section."""
 
     def build_description(self, *, num_highlights=None):
@@ -468,7 +467,7 @@ class HighlightSectionChecker(Instruction):
         return num_highlights >= self._num_highlights
 
 
-class SectionChecker(Instruction):
+class SectionChecker(TaskVerifier):
     """Checks the sections."""
 
     def build_description(self, *, section_spliter=None, num_sections=None):
@@ -537,7 +536,7 @@ class SectionChecker(Instruction):
         return num_sections >= self._num_sections
 
 
-class ParagraphChecker(Instruction):
+class ParagraphChecker(TaskVerifier):
     """Checks the paragraphs."""
 
     def build_description(self, *, num_paragraphs=None):
@@ -592,7 +591,7 @@ class ParagraphChecker(Instruction):
         return num_paragraphs == self._num_paragraphs
 
 
-class PostscriptChecker(Instruction):
+class PostscriptChecker(TaskVerifier):
     """Checks the postscript."""
 
     def build_description(self, *, postscript_marker=None):
@@ -650,7 +649,7 @@ class PostscriptChecker(Instruction):
         return True if postscript else False
 
 
-class RephraseChecker(Instruction):
+class RephraseChecker(TaskVerifier):
     """Checks the rephrase."""
 
     def build_description(self, *, original_message):
@@ -718,7 +717,7 @@ class RephraseChecker(Instruction):
         return re.sub(r"\*.*\*", "", response)
 
 
-class KeywordChecker(Instruction):
+class KeywordChecker(TaskVerifier):
     """Check the existence of certain keywords."""
 
     def build_description(self, *, keywords=None):
@@ -733,7 +732,7 @@ class KeywordChecker(Instruction):
         """
 
         if not keywords:
-            self._keywords = instructions_util.generate_keywords(
+            self._keywords = utils.generate_keywords(
                 num_keywords=_NUM_KEYWORDS
             )
         else:
@@ -760,7 +759,7 @@ class KeywordChecker(Instruction):
         return True
 
 
-class KeywordFrequencyChecker(Instruction):
+class KeywordFrequencyChecker(TaskVerifier):
     """Check the keyword frequency."""
 
     def build_description(self, *, keyword=None, frequency=None, relation=None):
@@ -780,7 +779,7 @@ class KeywordFrequencyChecker(Instruction):
           A string representing the instruction description.
         """
         if not keyword:
-            self._keyword = instructions_util.generate_keywords(num_keywords=1)[0]
+            self._keyword = utils.generate_keywords(num_keywords=1)[0]
         else:
             self._keyword = keyword.strip()
 
@@ -831,7 +830,7 @@ class KeywordFrequencyChecker(Instruction):
             return actual_occurrences >= self._frequency
 
 
-class NumberOfWords(Instruction):
+class NumberOfWords(TaskVerifier):
     """Checks the number of words."""
 
     def build_description(self, *, num_words=None, relation=None):
@@ -882,7 +881,7 @@ class NumberOfWords(Instruction):
 
     def check_following(self, value):
         """Checks if the response contains the expected number of words."""
-        num_words = instructions_util.count_words(value)
+        num_words = utils.count_words(value)
 
         if self._comparison_relation == _COMPARISON_RELATION[0]:
             return num_words < self._num_words
@@ -890,7 +889,7 @@ class NumberOfWords(Instruction):
             return num_words >= self._num_words
 
 
-class JsonFormat(Instruction):
+class JsonFormat(TaskVerifier):
     """Check the Json format."""
 
     def build_description(self):
@@ -925,7 +924,7 @@ class JsonFormat(Instruction):
         return True
 
 
-class ParagraphFirstWordCheck(Instruction):
+class ParagraphFirstWordCheck(TaskVerifier):
     """Check the paragraph and the first word of the nth paragraph."""
 
     def build_description(
@@ -958,7 +957,7 @@ class ParagraphFirstWordCheck(Instruction):
 
         self._first_word = first_word
         if self._first_word is None:
-            self._first_word = instructions_util.generate_keywords(num_keywords=1)[0]
+            self._first_word = utils.generate_keywords(num_keywords=1)[0]
         self._first_word = self._first_word.lower()
 
         self._description_pattern = (
@@ -1030,9 +1029,7 @@ class ParagraphFirstWordCheck(Instruction):
 
         return num_paragraphs == self._num_paragraphs and first_word == self._first_word
 
-
-# TODO(jeffrey) add relation - at least/at most?
-class KeySentenceChecker(Instruction):
+class KeySentenceChecker(TaskVerifier):
     """Check the existence of certain key sentences."""
 
     def build_description(self, key_sentences=None, num_sentences=None):
@@ -1081,7 +1078,7 @@ class KeySentenceChecker(Instruction):
     def check_following(self, value):
         """Checks if the response contains the expected key sentences."""
         count = 0
-        sentences = instructions_util.split_into_sentences(value)
+        sentences = utils.split_into_sentences(value)
         for sentence in self._key_sentences:
             if sentence in sentences:
                 count += 1
@@ -1089,7 +1086,7 @@ class KeySentenceChecker(Instruction):
         return count == self._num_sentences
 
 
-class ForbiddenWords(Instruction):
+class ForbiddenWords(TaskVerifier):
     """Checks that specified words are not used in response."""
 
     def build_description(self, forbidden_words=None):
@@ -1104,7 +1101,7 @@ class ForbiddenWords(Instruction):
         """
 
         if not forbidden_words:
-            self._forbidden_words = instructions_util.generate_keywords(
+            self._forbidden_words = utils.generate_keywords(
                 num_keywords=_NUM_KEYWORDS
             )
         else:
@@ -1132,7 +1129,7 @@ class ForbiddenWords(Instruction):
         return True
 
 
-class RephraseParagraph(Instruction):
+class RephraseParagraph(TaskVerifier):
     """Checks that the paragraph is rephrased."""
 
     def build_description(self, *, original_paragraph, low, high):
@@ -1192,7 +1189,7 @@ class RephraseParagraph(Instruction):
         return similar_words >= self._low and similar_words <= self._high
 
 
-class TwoResponsesChecker(Instruction):
+class TwoResponsesChecker(TaskVerifier):
     """Check that two responses were given."""
 
     def build_description(self):
@@ -1234,7 +1231,7 @@ class TwoResponsesChecker(Instruction):
         )
 
 
-class RepeatPromptThenAnswer(Instruction):
+class RepeatPromptThenAnswer(TaskVerifier):
     """Checks that Prompt is first repeated then answered."""
 
     def build_description(self, *, prompt_to_repeat=None):
@@ -1271,7 +1268,7 @@ class RepeatPromptThenAnswer(Instruction):
         return False
 
 
-class EndChecker(Instruction):
+class EndChecker(TaskVerifier):
     """Checks that the prompt ends with a given phrase."""
 
     def build_description(self, *, end_phrase=None):
@@ -1308,7 +1305,7 @@ class EndChecker(Instruction):
         return value.endswith(self._end_phrase)
 
 
-class TitleChecker(Instruction):
+class TitleChecker(TaskVerifier):
     """Checks the response for a title."""
 
     def build_description(self):
@@ -1338,7 +1335,7 @@ class TitleChecker(Instruction):
         return False
 
 
-class LetterFrequencyChecker(Instruction):
+class LetterFrequencyChecker(TaskVerifier):
     """Checks letter frequency."""
 
     def build_description(self, *, letter=None, let_frequency=None, let_relation=None):
@@ -1416,7 +1413,7 @@ class LetterFrequencyChecker(Instruction):
             return letters[self._letter] >= self._frequency
 
 
-class CapitalLettersPortugueseChecker(Instruction):
+class CapitalLettersPortugueseChecker(TaskVerifier):
     """Checks that the response is in portuguese and is in all capital letters."""
 
     def build_description(self):
@@ -1447,7 +1444,7 @@ class CapitalLettersPortugueseChecker(Instruction):
             return True
 
 
-class LowercaseLettersPortugueseChecker(Instruction):
+class LowercaseLettersPortugueseChecker(TaskVerifier):
     """Checks that the response is in portuguese and is in all lowercase letters."""
 
     def build_description(self):
@@ -1479,7 +1476,7 @@ class LowercaseLettersPortugueseChecker(Instruction):
             return True
 
 
-class CommaChecker(Instruction):
+class CommaChecker(TaskVerifier):
     """Checks the response for no commas."""
 
     def build_description(self):
@@ -1501,7 +1498,7 @@ class CommaChecker(Instruction):
         return not re.search(r"\,", value)
 
 
-class CapitalWordFrequencyChecker(Instruction):
+class CapitalWordFrequencyChecker(TaskVerifier):
     """Checks frequency of words with all capital letters."""
 
     def build_description(
@@ -1556,7 +1553,7 @@ class CapitalWordFrequencyChecker(Instruction):
     def check_following(self, value):
         """Checks the frequency of words with all capital letters."""
         # Hyphenated words will count as one word
-        words = instructions_util.nltk.word_tokenize(value)
+        words = utils.nltk.word_tokenize(value)
         capital_words = [word for word in words if word.isupper()]
 
         capital_words = len(capital_words)
@@ -1567,7 +1564,7 @@ class CapitalWordFrequencyChecker(Instruction):
             return capital_words >= self._frequency
 
 
-class QuotationChecker(Instruction):
+class QuotationChecker(TaskVerifier):
     """Checks response is wrapped with double quotation marks."""
 
     def build_description(self):

@@ -1,14 +1,14 @@
 """
-Verifier for procedurally generated instructions.
+Verifier for arbitrary instructions.
 
-Given a model completion and a set of instructions with parameters,
-the Verifier evaluates whether the completion satisfies each instruction.
+Given a model completion and a set of verification arguments (verifier IDs and kwargs),
+the Verifier evaluates whether the completion satisfies the instruction constraints specified by the verifiers.
 
 Usage:
-    from iverifier import InstructVerifier
+    from verifier import Verifier
 
-    v = InstructVerifier(
-        instruction_id_list=["detectable_format:title", "punctuation:no_comma"],
+    v = Verifier(
+        verifier_id_list=["detectable_format:title", "punctuation:no_comma"],
         kwargs=[
             {"capital_frequency": None},  # full kwargs dict (Nones ignored)
             {"capital_frequency": None},
@@ -19,7 +19,7 @@ Usage:
     # [True, True]
 """
 
-from instructions import (
+from verifiers import (
     BulletListChecker,
     CapitalLettersPortugueseChecker,
     CapitalWordFrequencyChecker,
@@ -47,9 +47,9 @@ from instructions import (
     TwoResponsesChecker,
 )
 
-# Registry: instruction_id → checker class
+# Registry: verifier_id → checker class
 # To add a new verifier, add a single entry here.
-INSTRUCTION_REGISTRY = {
+VERIFICATION_REGISTRY = {
     "keywords:existence": KeywordChecker,
     "keywords:frequency": KeywordFrequencyChecker,
     "keywords:forbidden_words": ForbiddenWords,
@@ -78,37 +78,37 @@ INSTRUCTION_REGISTRY = {
 }
 
 
-class InstructVerifier:
-    """Evaluates whether a model completion satisfies a set of instructions.
+class Verifier:
+    """Evaluates whether a model completion satisfies a set of constraints.
 
     Args:
-        instruction_id_list: List of instruction IDs to verify.
-        kwargs: List of kwarg dicts (one per instruction), matching the
+        verifier_id_list: List of verifier IDs to apply.
+        kwargs: List of kwarg dicts (one per verifier), matching the
             format produced by the generator (full template with None values
             for unused keys).
         completion: The model-generated response to evaluate.
     """
 
-    def __init__(self, instruction_id_list, kwargs, completion):
-        self.instruction_id_list = instruction_id_list
+    def __init__(self, verifier_id_list, kwargs, completion):
+        self.verifier_id_list = verifier_id_list
         self.kwargs = kwargs
         self.completion = completion
 
     def verify(self):
         """Run all verifiers and return a list of booleans."""
         results = []
-        for i, instruction_id in enumerate(self.instruction_id_list):
-            passed = self._verify_one(instruction_id, self.kwargs[i])
+        for i, verifier_id in enumerate(self.verifier_id_list):
+            passed = self._verify_one(verifier_id, self.kwargs[i])
             results.append(passed)
         return results
 
-    def _verify_one(self, instruction_id, raw_kwargs):
+    def _verify_one(self, verifier_id, raw_kwargs):
         """Instantiate the checker, build its description, and run verification."""
-        cls = INSTRUCTION_REGISTRY.get(instruction_id)
+        cls = VERIFICATION_REGISTRY.get(verifier_id)
         if cls is None:
-            raise ValueError(f"Unknown instruction ID: {instruction_id}")
+            raise ValueError(f"Unknown verifier ID: {verifier_id}")
 
-        checker = cls(instruction_id)
+        checker = cls(verifier_id)
 
         # Filter out None values — build_description only accepts relevant kwargs.
         filtered = {k: v for k, v in raw_kwargs.items() if v is not None}

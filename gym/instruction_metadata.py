@@ -1,12 +1,12 @@
 """
-Standalone instruction metadata for instruction variation generation.
-Contains conflict sets, kwargs templates, and description/kwargs generators.
+Metadata for the procedural generation of instructions in the Portuguese gym environment. This file
+contains conflict sets, kwargs templates, and description/kwargs generators.
 """
 
 import random
 import copy
 
-# Instruction Category Prefixes
+# Verifier Category Prefixes
 _KEYWORD = "keywords:"
 _LANGUAGE = "language:"
 _LENGTH = "length_constraints:"
@@ -17,8 +17,8 @@ _STARTEND = "startend:"
 _CHANGE_CASES = "change_case:"
 _PUNCTUATION = "punctuation:"
 
-# All Instruction IDs
-ALL_INSTRUCTION_IDS = [
+# All Verifier IDs
+ALL_VERIFIER_IDS = [
     _KEYWORD + "existence",
     _KEYWORD + "frequency",
     _KEYWORD + "forbidden_words",
@@ -77,7 +77,7 @@ _RAW_CONFLICTS = {
     _CONTENT + "number_placeholders": {_CONTENT + "number_placeholders"},
     _CONTENT + "postscript": {_CONTENT + "postscript"},
     _FORMAT + "number_bullet_lists": {_FORMAT + "number_bullet_lists"},
-    _FORMAT + "constrained_response": set(ALL_INSTRUCTION_IDS),
+    _FORMAT + "constrained_response": set(ALL_VERIFIER_IDS),
     _FORMAT + "number_highlighted_sections": {
         _FORMAT + "number_highlighted_sections"
     },
@@ -86,10 +86,10 @@ _RAW_CONFLICTS = {
         _LANGUAGE + "response_language",
         _FORMAT + "number_highlighted_sections",
     },
-    _FORMAT + "json_format": set(ALL_INSTRUCTION_IDS)
+    _FORMAT + "json_format": set(ALL_VERIFIER_IDS)
     - {_KEYWORD + "forbidden_words", _KEYWORD + "existence"},
     _FORMAT + "title": {_FORMAT + "title"},
-    _COMBINATION + "two_responses": set(ALL_INSTRUCTION_IDS)
+    _COMBINATION + "two_responses": set(ALL_VERIFIER_IDS)
     - {
         _KEYWORD + "forbidden_words",
         _KEYWORD + "existence",
@@ -97,7 +97,7 @@ _RAW_CONFLICTS = {
         _FORMAT + "title",
         _PUNCTUATION + "no_comma",
     },
-    _COMBINATION + "repeat_prompt": set(ALL_INSTRUCTION_IDS)
+    _COMBINATION + "repeat_prompt": set(ALL_VERIFIER_IDS)
     - {
         _KEYWORD + "existence",
         _FORMAT + "title",
@@ -132,7 +132,7 @@ def conflict_make(conflicts):
 
 
 # Build the symmetric conflict matrix once at import time
-INSTRUCTION_CONFLICTS = conflict_make(_RAW_CONFLICTS)
+VERIFIER_CONFLICTS = conflict_make(_RAW_CONFLICTS)
 
 # Empty Kwargs Template
 EMPTY_KWARGS_TEMPLATE = {
@@ -255,27 +255,27 @@ LETTERS_PT = list("aeiorlsnpqmtbc")
 
 
 # Conflict Resolution
-def get_conflict_set(instruction_ids):
-    """Get all instructions that conflict with any of the given instruction IDs."""
+def get_conflict_set(verifier_ids):
+    """Get all verifiers that conflict with any of the given verifier IDs."""
     conflicting = set()
-    for iid in instruction_ids:
-        if iid in INSTRUCTION_CONFLICTS:
-            conflicting |= INSTRUCTION_CONFLICTS[iid]
+    for vid in verifier_ids:
+        if vid in VERIFIER_CONFLICTS:
+            conflicting |= VERIFIER_CONFLICTS[vid]
     return conflicting
 
 
-def get_addable_instructions(current_ids):
-    """Get instruction IDs that can be added without creating conflicts."""
+def get_addable_verifiers(current_ids):
+    """Get verifier IDs that can be added without creating conflicts."""
     conflicting = get_conflict_set(current_ids)
-    all_ids = set(ALL_INSTRUCTION_IDS)
+    all_ids = set(ALL_VERIFIER_IDS)
     return sorted(all_ids - conflicting)
 
 
-def is_combination_valid(instruction_ids):
-    """Check if a list of instruction IDs has no internal conflicts."""
-    for i, iid in enumerate(instruction_ids):
-        conflicts = INSTRUCTION_CONFLICTS.get(iid, set())
-        for j, other_id in enumerate(instruction_ids):
+def is_combination_valid(verifier_ids):
+    """Check if a list of verifier IDs has no internal conflicts."""
+    for i, vid in enumerate(verifier_ids):
+        conflicts = VERIFIER_CONFLICTS.get(vid, set())
+        for j, other_id in enumerate(verifier_ids):
             if i != j and other_id in conflicts:
                 return False
     return True
@@ -287,72 +287,72 @@ def make_empty_kwargs():
     return copy.deepcopy(EMPTY_KWARGS_TEMPLATE)
 
 
-def generate_kwargs_for_instruction(instruction_id, prompt_text=""):
-    """Generate random kwargs for a specific instruction type."""
+def generate_kwargs_for_verifier(verifier_id, prompt_text=""):
+    """Generate random kwargs for a specific verifier type."""
     kw = make_empty_kwargs()
 
-    if instruction_id == _KEYWORD + "existence":
+    if verifier_id == _KEYWORD + "existence":
         kw["keywords"] = sorted(random.sample(KEYWORDS_PT, k=random.randint(1, 3)))
 
-    elif instruction_id == _KEYWORD + "frequency":
+    elif verifier_id == _KEYWORD + "frequency":
         kw["keyword"] = random.choice(KEYWORDS_PT)
         kw["frequency"] = random.randint(1, 3)
         kw["relation"] = random.choice(COMPARISON_RELATIONS)
 
-    elif instruction_id == _KEYWORD + "forbidden_words":
+    elif verifier_id == _KEYWORD + "forbidden_words":
         kw["forbidden_words"] = sorted(
             random.sample(FORBIDDEN_WORDS_PT, k=random.randint(1, 3))
         )
 
-    elif instruction_id == _KEYWORD + "letter_frequency":
+    elif verifier_id == _KEYWORD + "letter_frequency":
         kw["letter"] = random.choice(LETTERS_PT)
         kw["let_frequency"] = random.randint(3, 10)
         kw["let_relation"] = random.choice(COMPARISON_RELATIONS)
 
-    elif instruction_id == _LANGUAGE + "response_language":
+    elif verifier_id == _LANGUAGE + "response_language":
         kw["language"] = random.choice(list(LANGUAGE_CODES.keys()))
 
-    elif instruction_id == _LENGTH + "number_sentences":
+    elif verifier_id == _LENGTH + "number_sentences":
         kw["num_sentences"] = random.randint(3, 20)
         kw["relation"] = random.choice(COMPARISON_RELATIONS)
 
-    elif instruction_id == _LENGTH + "number_paragraphs":
+    elif verifier_id == _LENGTH + "number_paragraphs":
         kw["num_paragraphs"] = random.randint(2, 5)
 
-    elif instruction_id == _LENGTH + "number_words":
+    elif verifier_id == _LENGTH + "number_words":
         kw["num_words"] = random.choice([50, 100, 150, 200, 250, 300, 400, 500])
         kw["relation"] = random.choice(COMPARISON_RELATIONS)
 
-    elif instruction_id == _LENGTH + "nth_paragraph_first_word":
+    elif verifier_id == _LENGTH + "nth_paragraph_first_word":
         n_para = random.randint(2, 5)
         kw["num_paragraphs"] = n_para
         kw["nth_paragraph"] = random.randint(1, n_para)
         kw["first_word"] = random.choice(FIRST_WORDS_PT)
 
-    elif instruction_id == _CONTENT + "number_placeholders":
+    elif verifier_id == _CONTENT + "number_placeholders":
         kw["num_placeholders"] = random.randint(2, 8)
 
-    elif instruction_id == _CONTENT + "postscript":
+    elif verifier_id == _CONTENT + "postscript":
         kw["postscript_marker"] = random.choice(POSTSCRIPT_MARKERS)
 
-    elif instruction_id == _FORMAT + "number_bullet_lists":
+    elif verifier_id == _FORMAT + "number_bullet_lists":
         kw["num_bullets"] = random.randint(2, 8)
 
-    elif instruction_id == _FORMAT + "number_highlighted_sections":
+    elif verifier_id == _FORMAT + "number_highlighted_sections":
         kw["num_highlights"] = random.randint(2, 5)
 
-    elif instruction_id == _FORMAT + "multiple_sections":
+    elif verifier_id == _FORMAT + "multiple_sections":
         kw["section_spliter"] = random.choice(SECTION_SPLITTERS)
         kw["num_sections"] = random.randint(2, 5)
 
-    elif instruction_id == _STARTEND + "end_checker":
+    elif verifier_id == _STARTEND + "end_checker":
         kw["end_phrase"] = random.choice(ENDING_OPTIONS_PT)
 
-    elif instruction_id == _CHANGE_CASES + "capital_word_frequency":
+    elif verifier_id == _CHANGE_CASES + "capital_word_frequency":
         kw["capital_frequency"] = random.randint(3, 20)
         kw["capital_relation"] = random.choice(COMPARISON_RELATIONS)
 
-    elif instruction_id == _COMBINATION + "repeat_prompt":
+    elif verifier_id == _COMBINATION + "repeat_prompt":
         kw["prompt_to_repeat"] = prompt_text
 
     # These instructions have no kwargs:
@@ -370,14 +370,14 @@ def _relation_pt(relation):
     return "menos de"
 
 
-def generate_description_for_instruction(instruction_id, kwargs):
-    """Generate Portuguese description text for an instruction with given kwargs."""
+def generate_description_for_verifier(verifier_id, kwargs):
+    """Generate Portuguese description text for a verifier with given kwargs."""
 
-    if instruction_id == _KEYWORD + "existence":
+    if verifier_id == _KEYWORD + "existence":
         keywords = kwargs.get("keywords") or ["exemplo"]
         return f"Inclua as palavras-chave {keywords} na resposta."
 
-    elif instruction_id == _KEYWORD + "frequency":
+    elif verifier_id == _KEYWORD + "frequency":
         keyword = kwargs.get("keyword") or "exemplo"
         frequency = int(kwargs.get("frequency") or 2)
         relation = kwargs.get("relation") or "at least"
@@ -386,11 +386,11 @@ def generate_description_for_instruction(instruction_id, kwargs):
             f" {_relation_pt(relation)} {frequency} vezes."
         )
 
-    elif instruction_id == _KEYWORD + "forbidden_words":
+    elif verifier_id == _KEYWORD + "forbidden_words":
         words = kwargs.get("forbidden_words") or ["exemplo"]
         return f"Não inclua as palavras-chave {words} na resposta."
 
-    elif instruction_id == _KEYWORD + "letter_frequency":
+    elif verifier_id == _KEYWORD + "letter_frequency":
         letter = kwargs.get("letter") or "a"
         freq = int(kwargs.get("let_frequency") or 5)
         rel = kwargs.get("let_relation") or "at least"
@@ -399,7 +399,7 @@ def generate_description_for_instruction(instruction_id, kwargs):
             f" {_relation_pt(rel)} {freq} vezes."
         )
 
-    elif instruction_id == _LANGUAGE + "response_language":
+    elif verifier_id == _LANGUAGE + "response_language":
         lang = kwargs.get("language") or "pt"
         lang_name = LANGUAGE_CODES.get(lang, lang)
         return (
@@ -407,24 +407,24 @@ def generate_description_for_instruction(instruction_id, kwargs):
             " nenhuma outra linguagem é permitida."
         )
 
-    elif instruction_id == _LENGTH + "number_sentences":
+    elif verifier_id == _LENGTH + "number_sentences":
         num = int(kwargs.get("num_sentences") or 5)
         relation = kwargs.get("relation") or "at least"
         return f"Sua resposta deve conter {_relation_pt(relation)} {num} sentenças."
 
-    elif instruction_id == _LENGTH + "number_paragraphs":
+    elif verifier_id == _LENGTH + "number_paragraphs":
         num = int(kwargs.get("num_paragraphs") or 3)
         return (
             f"Sua resposta deve ter {num} parágrafos."
             " Os parágrafos são separados pelo divisor markdown: ***"
         )
 
-    elif instruction_id == _LENGTH + "number_words":
+    elif verifier_id == _LENGTH + "number_words":
         num = int(kwargs.get("num_words") or 200)
         relation = kwargs.get("relation") or "at least"
         return f"Responda com {_relation_pt(relation)} {num} palavras."
 
-    elif instruction_id == _LENGTH + "nth_paragraph_first_word":
+    elif verifier_id == _LENGTH + "nth_paragraph_first_word":
         n_para = int(kwargs.get("num_paragraphs") or 3)
         nth = int(kwargs.get("nth_paragraph") or 1)
         word = kwargs.get("first_word") or "primeiramente"
@@ -433,21 +433,21 @@ def generate_description_for_instruction(instruction_id, kwargs):
             f" O parágrafo {nth} deve começar com a palavra {word}."
         )
 
-    elif instruction_id == _CONTENT + "number_placeholders":
+    elif verifier_id == _CONTENT + "number_placeholders":
         num = int(kwargs.get("num_placeholders") or 3)
         return (
             f"A resposta deve conter pelo menos {num} espaços reservados"
             " representados por colchetes, como [endereço]."
         )
 
-    elif instruction_id == _CONTENT + "postscript":
+    elif verifier_id == _CONTENT + "postscript":
         marker = kwargs.get("postscript_marker") or "P.S."
         return (
             "No final da sua resposta, por favor adicione explicitamente"
             f" um posfácio começando com {marker}"
         )
 
-    elif instruction_id == _FORMAT + "number_bullet_lists":
+    elif verifier_id == _FORMAT + "number_bullet_lists":
         num = int(kwargs.get("num_bullets") or 3)
         return (
             f"Sua resposta deve conter exatamente {num} itens."
@@ -455,20 +455,20 @@ def generate_description_for_instruction(instruction_id, kwargs):
             "* Este é o ponto 1.\n* Este é o ponto 2"
         )
 
-    elif instruction_id == _FORMAT + "constrained_response":
+    elif verifier_id == _FORMAT + "constrained_response":
         return (
             "Responda com uma das seguintes opções: Minha resposta é sim.,"
             " Minha resposta é não., Minha resposta é talvez."
         )
 
-    elif instruction_id == _FORMAT + "number_highlighted_sections":
+    elif verifier_id == _FORMAT + "number_highlighted_sections":
         num = int(kwargs.get("num_highlights") or 3)
         return (
             f"Destaque pelo menos {num} seções em sua resposta com"
             " markdown, ou seja, *seção destacada*."
         )
 
-    elif instruction_id == _FORMAT + "multiple_sections":
+    elif verifier_id == _FORMAT + "multiple_sections":
         spliter = kwargs.get("section_spliter") or "Seção"
         num = int(kwargs.get("num_sections") or 3)
         return (
@@ -476,25 +476,25 @@ def generate_description_for_instruction(instruction_id, kwargs):
             f" Marque o início de cada seção com {spliter} X."
         )
 
-    elif instruction_id == _FORMAT + "json_format":
+    elif verifier_id == _FORMAT + "json_format":
         return (
             "Todo o output deve estar em formato JSON."
             " Você pode usar marcadores markdown como ```."
         )
 
-    elif instruction_id == _FORMAT + "title":
+    elif verifier_id == _FORMAT + "title":
         return (
             "Sua resposta deve conter um título, envolto em duplas setas"
             " angulares, como <<poema de alegria>>."
         )
 
-    elif instruction_id == _COMBINATION + "two_responses":
+    elif verifier_id == _COMBINATION + "two_responses":
         return (
             "Dê duas respostas diferentes. As respostas e somente as respostas"
             " devem ser separadas por 6 símbolos de asterisco: ******."
         )
 
-    elif instruction_id == _COMBINATION + "repeat_prompt":
+    elif verifier_id == _COMBINATION + "repeat_prompt":
         return (
             "Primeiro repita o pedido palavra por palavra sem alterações,"
             " depois dê sua resposta (1. não diga nenhuma palavra ou caractere"
@@ -502,14 +502,14 @@ def generate_description_for_instruction(instruction_id, kwargs):
             " não inclui esta frase)"
         )
 
-    elif instruction_id == _STARTEND + "end_checker":
+    elif verifier_id == _STARTEND + "end_checker":
         phrase = kwargs.get("end_phrase") or "Há algo mais que eu possa ajudar?"
         return (
             f"Termine sua resposta com esta frase exata {phrase}."
             " Nenhuma outra palavra deve seguir esta frase."
         )
 
-    elif instruction_id == _CHANGE_CASES + "capital_word_frequency":
+    elif verifier_id == _CHANGE_CASES + "capital_word_frequency":
         freq = int(kwargs.get("capital_frequency") or 10)
         rel = kwargs.get("capital_relation") or "less than"
         return (
@@ -517,30 +517,30 @@ def generate_description_for_instruction(instruction_id, kwargs):
             f" aparecer {_relation_pt(rel)} {freq} vezes."
         )
 
-    elif instruction_id == _CHANGE_CASES + "portuguese_capital":
+    elif verifier_id == _CHANGE_CASES + "portuguese_capital":
         return (
             "Sua resposta inteira deve estar em português e em todas"
             " as letras maiúsculas."
         )
 
-    elif instruction_id == _CHANGE_CASES + "portuguese_lowercase":
+    elif verifier_id == _CHANGE_CASES + "portuguese_lowercase":
         return (
             "Sua resposta inteira deve estar em português e em todas"
             " as letras minúsculas. Nenhuma letra maiúscula é permitida."
         )
 
-    elif instruction_id == _PUNCTUATION + "no_comma":
+    elif verifier_id == _PUNCTUATION + "no_comma":
         return "Em sua resposta, evite o uso de vírgulas."
 
-    elif instruction_id == _STARTEND + "quotation":
+    elif verifier_id == _STARTEND + "quotation":
         return "Envolva toda a sua resposta com aspas duplas."
 
     return ""
 
 
-# Instructions that are straightforward to add (no complex setup needed)
+# Verifiers that are straightforward to add (no complex setup needed)
 # and that work well as additional constraints
-SAFE_ADDABLE_INSTRUCTIONS = [
+SAFE_ADDABLE_VERIFIERS = [
     _PUNCTUATION + "no_comma",
     _STARTEND + "quotation",
     _FORMAT + "title",
