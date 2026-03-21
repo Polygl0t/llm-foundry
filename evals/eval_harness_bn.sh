@@ -383,13 +383,14 @@ else
                 echo "results:"
                 
                 # Extract and flatten results from nested JSON structure
-                # Removes ",none" suffix from metric names for cleaner output
+                # Prepends benchmark name to each metric and removes ",none" suffix
                 jq -r '
                     (.results // .) | 
                     to_entries[] | 
                     if .value | type == "object" then
+                        .key as $parent |
                         .value | to_entries[] | 
-                        "  " + (.key | sub(",none$"; "")) + ": " + (.value | tostring)
+                        "  " + $parent + "_" + (.key | sub(",none$"; "")) + ": " + (.value | tostring)
                     else
                         "  " + .key + ": " + (.value | tostring)
                     end
