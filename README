@@ -17,6 +17,7 @@ This repository (the foundry) contains all the source code we use in our researc
 * dpo: Implementation for Direct Preference Optimization via TRL.
 * evals: Scripts for evaluating language models via the lm-evaluation-harness.
 * fsdp: Our current implementation of Fully Sharded Data Parallel v2.
+* gym: Scripts for training and evaluating language models on custom environments (WIP).
 * hf_hub: Scripts for interacting with the Hugging Face Hub.
 * merge: Scripts for running different merging techniques via mergekit.
 * sft: Implementation of Supervised Fine-Tuning via TRL.

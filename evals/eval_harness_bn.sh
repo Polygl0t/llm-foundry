@@ -96,6 +96,7 @@ if [ -n "$HF_TOKEN" ]; then
 fi
 
 # Download models to local cache before evaluation (only in models mode)
+# This prevents re-downloading during evaluation and ensures all models are available locally
 if [ "$EVAL_MODE" == "models" ]; then
     echo "====================================="
     echo "Downloading HuggingFace models to cache"
@@ -105,8 +106,13 @@ if [ "$EVAL_MODE" == "models" ]; then
     read -ra MODEL_DOWNLOAD_LIST <<< "$MODELS_TO_EVAL"
     
     for model in "${MODEL_DOWNLOAD_LIST[@]}"; do
-        model_name=$(basename "$model")
-        model_dir="$HUGGINGFACE_HUB_CACHE/$model_name"
+        model_name=$(basename "$model")        # <-- Extract model name from HuggingFace ID
+        # If the model path is already an existing local directory, skip download
+        if [ -d "$model" ]; then
+            echo "Model $model is a local directory, skipping download"
+            continue
+        fi
+        model_dir="$HUGGINGFACE_HUB_CACHE/$model_name"  # <-- Construct local cache path
         if [ ! -d "$model_dir" ]; then
             echo "Downloading model $model to $model_dir"
             if hf download "$model" --local-dir "$model_dir" >/dev/null 2>&1; then  # <-- Download silently
@@ -260,6 +266,8 @@ for i in $(seq 0 $((NUM_TO_EVAL - 1))); do
     # Set MODEL_PATH based on evaluation mode
     if [ "$EVAL_MODE" == "checkpoints" ]; then
         export MODEL_PATH="$model"                          # <-- Use checkpoint directory directly
+    elif [ -d "$model" ]; then
+        export MODEL_PATH="$model"                          # <-- Model is already a local directory
     else
         export MODEL_PATH="$HUGGINGFACE_HUB_CACHE/$model_name"  # <-- Path to locally cached model
     fi
@@ -375,13 +383,14 @@ else
                 echo "results:"
                 
                 # Extract and flatten results from nested JSON structure
-                # Removes ",none" suffix from metric names for cleaner output
+                # Prepends benchmark name to each metric and removes ",none" suffix
                 jq -r '
                     (.results // .) | 
                     to_entries[] | 
                     if .value | type == "object" then
+                        .key as $parent |
                         .value | to_entries[] | 
-                        "  " + (.key | sub(",none$"; "")) + ": " + (.value | tostring)
+                        "  " + $parent + "_" + (.key | sub(",none$"; "")) + ": " + (.value | tostring)
                     else
                         "  " + .key + ": " + (.value | tostring)
                     end

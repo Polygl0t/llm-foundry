@@ -70,6 +70,7 @@ export TOP_K=20
 export TOP_P=0.8
 export ROLLOUTS_PER_DOCUMENT=1
 export EXAMPLES_PER_CHUNK=500               # <-- Documents per checkpoint chunk
+export ENABLE_THINKING="false"              # <-- Control reasoning/thinking for models like Qwen3 (true/false, or leave empty to use model default)
 mkdir -p "$OUTPUT_DIR"
 
 if [[ -n "$HF_TOKEN" ]]; then
@@ -95,6 +96,9 @@ if [[ -n "$SYSTEM_PROMPT" ]]; then
 fi
 if [[ -n "$PROMPT_TEMPLATE" ]]; then
     OPTIONAL_ARGS="$OPTIONAL_ARGS --prompt-template \"$PROMPT_TEMPLATE\""
+fi
+if [[ -n "$ENABLE_THINKING" ]]; then
+    OPTIONAL_ARGS="$OPTIONAL_ARGS --enable-thinking $ENABLE_THINKING"
 fi
 
 # Use eval to properly handle the optional arguments with spaces.
