@@ -59,7 +59,7 @@ export DP=8                                             # <-- Data parallelism a
 export TP=1                                             # <-- Tensor parallelism (for bigger models)
 export MODEL_NAME_OR_PATH="Qwen/Qwen3-4B-Instruct-2507" # <-- Change to your model name or path
 export DATASET_PATH="$workdir/portuguese/personas"      # <-- Change to your dataset path (directory with JSONL or Parquet files)
-export TEXT_COLUMN="text"                   # <-- Change to your dataset text column name
+export TEXT_COLUMN="text"                  # <-- Change to your dataset text column name
 export OUTPUT_DIR="$workdir/synth/personas_bio"    # <-- Change to your desired output directory
 export SYSTEM_PROMPT="Você é um gerador de livros auto biográficos. Seu objetivo é criar livros biográficos detalhados e precisos."          # <-- Change to your system prompt (or leave empty)
 export PROMPT_TEMPLATE="Cria um livro biográfico sobre está pessoa: [[DOCUMENT]]"   # <-- Optional: template with [[DOCUMENT]] placeholder (e.g. "Summarize: [[DOCUMENT]]")
@@ -70,7 +70,7 @@ export TOP_K=20
 export TOP_P=0.8
 export ROLLOUTS_PER_DOCUMENT=1
 export EXAMPLES_PER_CHUNK=500               # <-- Documents per checkpoint chunk
-export ENABLE_THINKING="false"              # <-- Control reasoning/thinking for models like Qwen3 (true/false, or leave empty to use model default)
+export ENABLE_THINKING=""                   # <-- Set to any non-empty value (e.g. "1") to enable reasoning/thinking for models like Qwen3; leave empty to disable
 mkdir -p "$OUTPUT_DIR"
 
 if [[ -n "$HF_TOKEN" ]]; then

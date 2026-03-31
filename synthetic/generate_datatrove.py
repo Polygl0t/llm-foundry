@@ -152,8 +152,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-tokens", type=int, default=8192, help="Max output tokens per generation")
     parser.add_argument("--rollouts-per-document", type=int, default=1)
     parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducible generation")
-    parser.add_argument("--enable-thinking", type=str, default=None,
-                        help="Control reasoning/thinking for supported models (e.g. Qwen3): true, false, or omit to use model default")
+    parser.add_argument("--enable-thinking", action="store_true",
+                        help="Enable reasoning/thinking for supported models (e.g. Qwen3). If set, thinking is enabled; otherwise disabled.")
 
     # Processing settings
     parser.add_argument("--examples-per-chunk", type=int, default=500, help="Documents per checkpoint chunk")
@@ -253,10 +253,9 @@ def main(args: argparse.Namespace) -> None:
 
     # Build chat_template_kwargs for reasoning/thinking control
     chat_template_kwargs: dict[str, Any] | None = None
-    if enable_thinking is not None:
-        thinking_val = enable_thinking.strip().lower() in ("true", "1", "yes")
-        chat_template_kwargs = {"enable_thinking": thinking_val}
-        logger.info(f"Thinking/reasoning mode: {'enabled' if thinking_val else 'disabled'}")
+    if enable_thinking:
+        chat_template_kwargs = {"enable_thinking": True}
+        logger.info("Thinking/reasoning mode: enabled")
 
     # Rollout function for a single document
     async def simple_rollout(

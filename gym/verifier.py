@@ -24,15 +24,23 @@ from verifiers import (
     CapitalLettersPortugueseChecker,
     CapitalWordFrequencyChecker,
     CommaChecker,
+    CommonWordsChecker,
     ConstrainedResponseChecker,
+    CountWordChecker,
     EndChecker,
     ForbiddenWords,
+    FrequencyComparisonChecker,
     HighlightSectionChecker,
     JsonFormat,
     KeywordChecker,
     KeywordFrequencyChecker,
     LetterFrequencyChecker,
     LowercaseLettersPortugueseChecker,
+    MathAnswerChecker,
+    NeedleMultiNumberDiffKeysChecker,
+    NeedleMultiNumberSameKeyChecker,
+    NeedleSingleNumberChecker,
+    NeedleUUIDChecker,
     NumberOfSentences,
     NumberOfWords,
     ParagraphChecker,
@@ -40,16 +48,19 @@ from verifiers import (
     PlaceholderChecker,
     PostscriptChecker,
     QuotationChecker,
+    RareWordsChecker,
     RepeatPromptThenAnswer,
     ResponseLanguageChecker,
     SectionChecker,
     TitleChecker,
     TwoResponsesChecker,
+    WordAtPositionChecker,
 )
 
 # Registry: verifier_id → checker class
 # To add a new verifier, add a single entry here.
 VERIFICATION_REGISTRY = {
+    # General Instruction Constraints
     "keywords:existence": KeywordChecker,
     "keywords:frequency": KeywordFrequencyChecker,
     "keywords:forbidden_words": ForbiddenWords,
@@ -75,6 +86,19 @@ VERIFICATION_REGISTRY = {
     "change_case:portuguese_lowercase": LowercaseLettersPortugueseChecker,
     "punctuation:no_comma": CommaChecker,
     "startend:quotation": QuotationChecker,
+    # Long context retrieval tasks (word-list retrieval, frequency comparison)
+    "long_context:common_words": CommonWordsChecker,
+    "long_context:rare_words": RareWordsChecker,
+    "long_context:count_word": CountWordChecker,
+    "long_context:word_at_position": WordAtPositionChecker,
+    "long_context:frequency_comparison": FrequencyComparisonChecker,
+    # Haystack tasks (retrieving specific numbers or UUIDs from a long document)
+    "haystack:needle_single_number": NeedleSingleNumberChecker,
+    "haystack:needle_multi_number_same_key": NeedleMultiNumberSameKeyChecker,
+    "haystack:needle_multi_number_diff_keys": NeedleMultiNumberDiffKeysChecker,
+    "haystack:needle_uuid": NeedleUUIDChecker,
+    # Math tasks (verifying correct numerical answer)
+    "math:answer_check": MathAnswerChecker,
 }
 
 

@@ -1586,3 +1586,261 @@ class QuotationChecker(TaskVerifier):
         """Checks if the response is wrapped with double quotation marks."""
         value = value.strip()
         return len(value) > 1 and value[0] == '"' and value[-1] == '"'
+
+
+class CommonWordsChecker(TaskVerifier):
+    """Checks that the response contains the most frequent words from a list."""
+
+    def build_description(self, *, expected_words=None):
+        self._expected_words = expected_words or []
+        self._description_pattern = (
+            "Identifique as {n} palavras mais frequentes na lista."
+        )
+        return self._description_pattern.format(n=len(self._expected_words))
+
+    def get_instruction_args(self):
+        return {"expected_words": self._expected_words}
+
+    def get_instruction_args_keys(self):
+        return ["expected_words"]
+
+    def check_following(self, value):
+        """Check if the response mentions all expected common words."""
+        if not self._expected_words:
+            return True
+        value_lower = value.lower()
+        found = sum(1 for w in self._expected_words if w.lower() in value_lower)
+        return found / len(self._expected_words) >= 0.5
+
+
+class RareWordsChecker(TaskVerifier):
+    """Checks that the response contains the least frequent words from a list."""
+
+    def build_description(self, *, expected_words=None):
+        self._expected_words = expected_words or []
+        self._description_pattern = (
+            "Identifique as {n} palavras menos frequentes na lista."
+        )
+        return self._description_pattern.format(n=len(self._expected_words))
+
+    def get_instruction_args(self):
+        return {"expected_words": self._expected_words}
+
+    def get_instruction_args_keys(self):
+        return ["expected_words"]
+
+    def check_following(self, value):
+        """Check if the response mentions all expected rare words."""
+        if not self._expected_words:
+            return True
+        value_lower = value.lower()
+        found = sum(1 for w in self._expected_words if w.lower() in value_lower)
+        return found / len(self._expected_words) >= 0.5
+
+
+class CountWordChecker(TaskVerifier):
+    """Checks that the response contains the correct count for a target word."""
+
+    def build_description(self, *, target_word=None, expected_count=None):
+        self._target_word = target_word or ""
+        self._expected_count = int(expected_count) if expected_count is not None else 0
+        self._description_pattern = (
+            "Conte quantas vezes a palavra \"{word}\" aparece na lista."
+        )
+        return self._description_pattern.format(word=self._target_word)
+
+    def get_instruction_args(self):
+        return {
+            "target_word": self._target_word,
+            "expected_count": self._expected_count,
+        }
+
+    def get_instruction_args_keys(self):
+        return ["target_word", "expected_count"]
+
+    def check_following(self, value):
+        """Check if the response contains the correct count number."""
+        return str(self._expected_count) in value
+
+
+class WordAtPositionChecker(TaskVerifier):
+    """Checks that the response contains the word found at a given position."""
+
+    def build_description(self, *, position=None, expected_word=None):
+        self._position = int(position) if position is not None else 0
+        self._expected_word = expected_word or ""
+        self._description_pattern = (
+            "Identifique a palavra na posição {pos} da lista."
+        )
+        return self._description_pattern.format(pos=self._position)
+
+    def get_instruction_args(self):
+        return {
+            "position": self._position,
+            "expected_word": self._expected_word,
+        }
+
+    def get_instruction_args_keys(self):
+        return ["position", "expected_word"]
+
+    def check_following(self, value):
+        """Check if the response contains the expected word."""
+        return self._expected_word.lower() in value.lower()
+
+
+class FrequencyComparisonChecker(TaskVerifier):
+    """Checks that the response correctly identifies which word is more frequent."""
+
+    def build_description(self, *, word_a=None, word_b=None, expected_winner=None):
+        self._word_a = word_a or ""
+        self._word_b = word_b or ""
+        self._expected_winner = expected_winner or ""
+        self._description_pattern = (
+            "Compare a frequência de \"{a}\" e \"{b}\" na lista."
+        )
+        return self._description_pattern.format(a=self._word_a, b=self._word_b)
+
+    def get_instruction_args(self):
+        return {
+            "word_a": self._word_a,
+            "word_b": self._word_b,
+            "expected_winner": self._expected_winner,
+        }
+
+    def get_instruction_args_keys(self):
+        return ["word_a", "word_b", "expected_winner"]
+
+    def check_following(self, value):
+        """Check if the response mentions the expected winner word."""
+        return self._expected_winner.lower() in value.lower()
+
+
+class NeedleSingleNumberChecker(TaskVerifier):
+    """Checks that the response contains the single hidden number."""
+
+    def build_description(self, *, key=None, expected_values=None):
+        self._key = key or ""
+        self._expected_values = expected_values or {}
+        self._description_pattern = (
+            "Encontre o número especial para {key} no texto."
+        )
+        return self._description_pattern.format(key=self._key)
+
+    def get_instruction_args(self):
+        return {"key": self._key, "expected_values": self._expected_values}
+
+    def get_instruction_args_keys(self):
+        return ["key", "expected_values"]
+
+    def check_following(self, value):
+        """Check if the response contains all expected numbers for the key."""
+        for _key, vals in self._expected_values.items():
+            for v in vals:
+                if str(v) not in value:
+                    return False
+        return bool(self._expected_values)
+
+
+class NeedleMultiNumberSameKeyChecker(TaskVerifier):
+    """Checks that the response lists all hidden numbers for a single key."""
+
+    def build_description(self, *, key=None, expected_values=None):
+        self._key = key or ""
+        self._expected_values = expected_values or {}
+        self._description_pattern = (
+            "Liste todos os números especiais para {key} no texto."
+        )
+        return self._description_pattern.format(key=self._key)
+
+    def get_instruction_args(self):
+        return {"key": self._key, "expected_values": self._expected_values}
+
+    def get_instruction_args_keys(self):
+        return ["key", "expected_values"]
+
+    def check_following(self, value):
+        """Check if response contains all expected numbers (≥50% threshold)."""
+        all_vals = []
+        for _key, vals in self._expected_values.items():
+            all_vals.extend(vals)
+        if not all_vals:
+            return True
+        found = sum(1 for v in all_vals if str(v) in value)
+        return found / len(all_vals) >= 0.5
+
+
+class NeedleMultiNumberDiffKeysChecker(TaskVerifier):
+    """Checks that the response contains numbers for different keys."""
+
+    def build_description(self, *, expected_values=None):
+        self._expected_values = expected_values or {}
+        keys_str = ", ".join(self._expected_values.keys()) if self._expected_values else ""
+        self._description_pattern = (
+            "Liste os números especiais para {keys} no texto."
+        )
+        return self._description_pattern.format(keys=keys_str)
+
+    def get_instruction_args(self):
+        return {"expected_values": self._expected_values}
+
+    def get_instruction_args_keys(self):
+        return ["expected_values"]
+
+    def check_following(self, value):
+        """Check if response contains numbers for each key (≥50% of all values)."""
+        all_vals = []
+        for _key, vals in self._expected_values.items():
+            all_vals.extend(vals)
+        if not all_vals:
+            return True
+        found = sum(1 for v in all_vals if str(v) in value)
+        return found / len(all_vals) >= 0.5
+
+
+class NeedleUUIDChecker(TaskVerifier):
+    """Checks that the response contains the correct UUID value for the queried key."""
+
+    def build_description(self, *, query_key=None, expected_values=None):
+        self._query_key = query_key or ""
+        self._expected_values = expected_values or {}
+        self._description_pattern = (
+            "Encontre o código UUID para {key} no texto."
+        )
+        return self._description_pattern.format(key=self._query_key)
+
+    def get_instruction_args(self):
+        return {"query_key": self._query_key, "expected_values": self._expected_values}
+
+    def get_instruction_args_keys(self):
+        return ["query_key", "expected_values"]
+
+    def check_following(self, value):
+        """Check if the response contains the expected UUID value."""
+        for _key, vals in self._expected_values.items():
+            for v in vals:
+                if str(v).lower() in value.lower():
+                    return True
+        return not self._expected_values
+
+
+class MathAnswerChecker(TaskVerifier):
+    """Checks that the response contains the expected numerical answer."""
+
+    def build_description(self, *, expected_answer=None):
+        self._expected_answer = str(expected_answer) if expected_answer is not None else ""
+        self._description_pattern = (
+            "Resolva o problema matemático e forneça a resposta correta."
+        )
+        return self._description_pattern
+
+    def get_instruction_args(self):
+        return {"expected_answer": self._expected_answer}
+
+    def get_instruction_args_keys(self):
+        return ["expected_answer"]
+
+    def check_following(self, value):
+        """Check if the response contains the expected answer."""
+        if not self._expected_answer:
+            return False
+        return self._expected_answer in value
