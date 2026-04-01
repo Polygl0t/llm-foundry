@@ -813,6 +813,286 @@ print("Test 18 — math end-to-end (build + validate + verify): OK ✓")
 
 # %%
 #######################################
+# 19. Email JSON format verifier — pass, fail, edge cases
+#######################################
+from generate_from_email_templates import (
+    build_email_sample,
+    validate_email_sample,
+    generate_injected_values,
+)
+from tasks_metadata import (
+    EMAIL_TASK_IDS,
+    EMAIL_ALL_FIELDS,
+    EMAIL_INJECTED_FIELDS,
+)
+
+# Pass: valid JSON object in ```json``` block
+v = Verifier(
+    verifier_id_list=["email:json_format"],
+    kwargs=[{}],
+    completion='```json\n{"subject": "Reunião"}\n```',
+)
+assert v.verify() == [True]
+
+# Pass: ```JSON``` specifier (uppercase) accepted
+v2 = Verifier(
+    verifier_id_list=["email:json_format"],
+    kwargs=[{}],
+    completion='```JSON\n{"subject": "Teste", "sender": "Ana"}\n```',
+)
+assert v2.verify() == [True]
+
+# Fail: raw JSON without fenced block
+v3 = Verifier(
+    verifier_id_list=["email:json_format"],
+    kwargs=[{}],
+    completion='{"subject": "Reunião"}',
+)
+assert v3.verify() == [False], "Raw JSON without code block should fail"
+
+# Fail: fenced block with invalid JSON syntax
+v4 = Verifier(
+    verifier_id_list=["email:json_format"],
+    kwargs=[{}],
+    completion='```json\n{subject: Reunião}\n```',
+)
+assert v4.verify() == [False], "Invalid JSON syntax should fail"
+
+# Fail: plain text response
+v5 = Verifier(
+    verifier_id_list=["email:json_format"],
+    kwargs=[{}],
+    completion="O assunto do e-mail é Reunião.",
+)
+assert v5.verify() == [False]
+
+# Pass: multi-field JSON with booleans
+v6 = Verifier(
+    verifier_id_list=["email:json_format"],
+    kwargs=[{}],
+    completion='```json\n{"subject": "Reunião", "spam": false, "attachments": true}\n```',
+)
+assert v6.verify() == [True]
+print("Test 19 — email:json_format verifier (pass/fail/edge): OK ✓")
+
+# %%
+#######################################
+# 20. Email schema keys verifier — pass, fail, edge cases
+#######################################
+# Pass: exact key match — single key
+v = Verifier(
+    verifier_id_list=["email:schema_keys"],
+    kwargs=[{"required_keys": ["subject"]}],
+    completion='```json\n{"subject": "Proposta Comercial"}\n```',
+)
+assert v.verify() == [True]
+
+# Pass: exact key match — multiple keys
+v2 = Verifier(
+    verifier_id_list=["email:schema_keys"],
+    kwargs=[{"required_keys": ["subject", "sender", "spam"]}],
+    completion='```json\n{"subject": "Proposta", "sender": "Carlos", "spam": false}\n```',
+)
+assert v2.verify() == [True]
+
+# Fail: missing required key
+v3 = Verifier(
+    verifier_id_list=["email:schema_keys"],
+    kwargs=[{"required_keys": ["subject", "sender", "spam"]}],
+    completion='```json\n{"subject": "Proposta", "sender": "Carlos"}\n```',
+)
+assert v3.verify() == [False], "Missing key 'spam' should fail"
+
+# Fail: extra key not in required_keys
+v4 = Verifier(
+    verifier_id_list=["email:schema_keys"],
+    kwargs=[{"required_keys": ["subject"]}],
+    completion='```json\n{"subject": "Proposta", "sender": "Carlos"}\n```',
+)
+assert v4.verify() == [False], "Extra key 'sender' should fail"
+
+# Fail: no parseable JSON
+v5 = Verifier(
+    verifier_id_list=["email:schema_keys"],
+    kwargs=[{"required_keys": ["subject"]}],
+    completion="Não é JSON.",
+)
+assert v5.verify() == [False]
+
+# Pass: key order does not matter
+v6 = Verifier(
+    verifier_id_list=["email:schema_keys"],
+    kwargs=[{"required_keys": ["sender", "subject"]}],
+    completion='```json\n{"subject": "Teste", "sender": "Maria"}\n```',
+)
+assert v6.verify() == [True], "Key order should not matter"
+print("Test 20 — email:schema_keys verifier (pass/fail/edge): OK ✓")
+
+# %%
+#######################################
+# 21. Email field value verifier — pass, fail, edge cases (str + bool)
+#######################################
+# Pass: string field exact match
+v = Verifier(
+    verifier_id_list=["email:field_value"],
+    kwargs=[{"field_name": "date", "expected_value": "2023-04-15T11:30:00"}],
+    completion='```json\n{"date": "2023-04-15T11:30:00"}\n```',
+)
+assert v.verify() == [True]
+
+# Fail: wrong string value
+v2 = Verifier(
+    verifier_id_list=["email:field_value"],
+    kwargs=[{"field_name": "date", "expected_value": "2023-04-15T11:30:00"}],
+    completion='```json\n{"date": "2024-12-01T09:00:00"}\n```',
+)
+assert v2.verify() == [False]
+
+# Pass: boolean False field
+v3 = Verifier(
+    verifier_id_list=["email:field_value"],
+    kwargs=[{"field_name": "spam", "expected_value": False}],
+    completion='```json\n{"spam": false}\n```',
+)
+assert v3.verify() == [True]
+
+# Pass: boolean True field
+v4 = Verifier(
+    verifier_id_list=["email:field_value"],
+    kwargs=[{"field_name": "attachments", "expected_value": True}],
+    completion='```json\n{"attachments": true}\n```',
+)
+assert v4.verify() == [True]
+
+# Fail: wrong boolean value
+v5 = Verifier(
+    verifier_id_list=["email:field_value"],
+    kwargs=[{"field_name": "spam", "expected_value": False}],
+    completion='```json\n{"spam": true}\n```',
+)
+assert v5.verify() == [False], "Expected False but got True"
+
+# Fail: field missing from JSON
+v6 = Verifier(
+    verifier_id_list=["email:field_value"],
+    kwargs=[{"field_name": "spam", "expected_value": False}],
+    completion='```json\n{"subject": "Teste"}\n```',
+)
+assert v6.verify() == [False], "Missing field should fail"
+
+# Pass: sender_email string match
+v7 = Verifier(
+    verifier_id_list=["email:field_value"],
+    kwargs=[{"field_name": "sender_email", "expected_value": "carlos.silva@empresa.com"}],
+    completion='```json\n{"sender_email": "carlos.silva@empresa.com"}\n```',
+)
+assert v7.verify() == [True]
+
+# Pass: raw JSON accepted for field_value (lenient parsing)
+v8 = Verifier(
+    verifier_id_list=["email:field_value"],
+    kwargs=[{"field_name": "spam", "expected_value": False}],
+    completion='{"spam": false, "subject": "Oi"}',
+)
+assert v8.verify() == [True], "field_value should accept raw JSON"
+print("Test 21 — email:field_value verifier (pass/fail/edge): OK ✓")
+
+# %%
+#######################################
+# 22. Email — end-to-end build + validate + verify
+#######################################
+import json as _json_mod
+
+_test_email = (
+    "Assunto: Proposta de Parceria\n\n"
+    "Olá Maria,\n\n"
+    "Gostaria de apresentar uma proposta de parceria entre nossas empresas.\n"
+    "Temos interesse em colaborar no próximo trimestre.\n\n"
+    "Aguardo seu retorno.\n\nAbraços,\nCarlos"
+)
+
+rng_test = random.Random(42)
+_injected = generate_injected_values(rng_test)
+
+_fields = ["subject", "sender", "spam", "date", "attachments"]
+
+sample_email = build_email_sample(
+    email_text=_test_email,
+    key=100,
+    fields=_fields,
+    injected_values=_injected,
+    rng=rng_test,
+)
+
+# Structural assertions
+assert sample_email["key"] == 100
+assert "email:json_format" in sample_email["verifier_id_list"]
+assert "email:schema_keys" in sample_email["verifier_id_list"]
+assert len(sample_email["verifier_id_list"]) == len(sample_email["kwargs"])
+
+# Validate the sample
+issues_email = validate_email_sample(sample_email)
+assert issues_email == [], f"Email sample has issues: {issues_email}"
+
+# Count expected field_value verifiers (spam, date, attachments are injected)
+fv_count = sample_email["verifier_id_list"].count("email:field_value")
+injected_requested = [f for f in _fields if f in EMAIL_INJECTED_FIELDS]
+assert fv_count == len(injected_requested), (
+    f"Expected {len(injected_requested)} field_value verifiers, got {fv_count}"
+)
+
+# Build a correct completion using the known injected values
+schema_idx = sample_email["verifier_id_list"].index("email:schema_keys")
+req_keys = sample_email["kwargs"][schema_idx]["required_keys"]
+correct_obj = {}
+for k in req_keys:
+    if k in EMAIL_INJECTED_FIELDS:
+        for i, iid in enumerate(sample_email["verifier_id_list"]):
+            if iid == "email:field_value" and sample_email["kwargs"][i]["field_name"] == k:
+                correct_obj[k] = sample_email["kwargs"][i]["expected_value"]
+                break
+    elif k == "subject":
+        correct_obj[k] = "Proposta de Parceria"
+    elif k == "sender":
+        correct_obj[k] = "Carlos"
+    else:
+        correct_obj[k] = "valor genérico"
+
+correct_completion = "```json\n" + _json_mod.dumps(correct_obj, ensure_ascii=False) + "\n```"
+
+v_email = Verifier(
+    verifier_id_list=sample_email["verifier_id_list"],
+    kwargs=sample_email["kwargs"],
+    completion=correct_completion,
+)
+results_email = v_email.verify()
+assert results_email[0] == True, f"email:json_format failed: {correct_completion}"
+assert results_email[1] == True, f"email:schema_keys failed: {correct_completion}"
+for i, (iid, res) in enumerate(zip(sample_email["verifier_id_list"], results_email)):
+    if iid == "email:field_value":
+        assert res == True, (
+            f"email:field_value[{i}] failed for field "
+            f"'{sample_email['kwargs'][i]['field_name']}': {correct_completion}"
+        )
+
+# A wrong completion must fail schema_keys
+wrong_completion = '```json\n{"wrong_key": "value"}\n```'
+v_wrong = Verifier(
+    verifier_id_list=sample_email["verifier_id_list"],
+    kwargs=sample_email["kwargs"],
+    completion=wrong_completion,
+)
+results_wrong = v_wrong.verify()
+assert results_wrong[1] == False, "schema_keys should fail for wrong keys"
+
+# All EMAIL_TASK_IDS must be in VERIFICATION_REGISTRY
+for tid in EMAIL_TASK_IDS:
+    assert tid in VERIFICATION_REGISTRY, f"Missing registry entry for {tid}"
+
+print("Test 22 — email end-to-end (build + validate + verify): OK ✓")
+
+# %%
+#######################################
 # Summary
 #######################################
 print("\n" + "=" * 40)

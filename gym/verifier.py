@@ -27,6 +27,9 @@ from verifiers import (
     CommonWordsChecker,
     ConstrainedResponseChecker,
     CountWordChecker,
+    EmailFieldValueChecker,
+    EmailJsonFormatChecker,
+    EmailSchemaKeysChecker,
     EndChecker,
     ForbiddenWords,
     FrequencyComparisonChecker,
@@ -99,6 +102,10 @@ VERIFICATION_REGISTRY = {
     "haystack:needle_uuid": NeedleUUIDChecker,
     # Math tasks (verifying correct numerical answer)
     "math:answer_check": MathAnswerChecker,
+    # Email extraction tasks
+    "email:json_format": EmailJsonFormatChecker,
+    "email:schema_keys": EmailSchemaKeysChecker,
+    "email:field_value": EmailFieldValueChecker,
 }
 
 

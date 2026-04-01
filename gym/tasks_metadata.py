@@ -656,3 +656,67 @@ def generate_math_task_description(task_id):
             "Resolver um problema matemático e fornecer a resposta numérica correta.",
     }
     return descriptions.get(task_id, "")
+
+
+# Email Extraction Tasks
+_EMAIL = "email:"
+
+# Fields extractable directly from email content (no injection needed)
+EMAIL_DIRECT_FIELDS = [
+    "subject",          # Assunto do e-mail
+    "sender",           # Nome do remetente
+    "receiver",         # Nome do destinatário
+    "intent",           # Intenção/propósito do e-mail
+    "summary",          # Resumo breve do conteúdo
+]
+
+# Fields synthetically injected into the email context at generation time,
+# enabling deterministic verification via exact-match.
+EMAIL_INJECTED_FIELDS = [
+    "date",             # Data/hora de recebimento (ISO 8601)
+    "attachments",      # Presença de anexos (booleano)
+    "spam",             # Classificação de spam (booleano)
+    "sender_email",     # Endereço de e-mail do remetente
+    "telephone_number", # Número de telefone mencionado
+]
+
+EMAIL_ALL_FIELDS = EMAIL_DIRECT_FIELDS + EMAIL_INJECTED_FIELDS
+
+# Portuguese field-description labels used inside prompts
+EMAIL_FIELD_LABELS = {
+    "subject":          "subject (assunto do e-mail)",
+    "sender":           "sender (nome do remetente)",
+    "receiver":         "receiver (nome do destinatário)",
+    "intent":           "intent (intenção/propósito principal do e-mail)",
+    "summary":          "summary (resumo breve do conteúdo)",
+    "date":             "date (data de recebimento conforme cabeçalho, formato ISO 8601)",
+    "attachments":      "attachments (true se há anexos, false caso contrário)",
+    "spam":             "spam (true se é spam, false caso contrário)",
+    "sender_email":     "sender_email (endereço de e-mail do remetente)",
+    "telephone_number": "telephone_number (número de telefone mencionado no e-mail)",
+}
+
+EMAIL_TASK_IDS = [
+    _EMAIL + "json_format",
+    _EMAIL + "schema_keys",
+    _EMAIL + "field_value",
+]
+
+EMAIL_DEFAULTS = {
+    "min_fields": 3,
+    "max_fields": 7,
+    "tokens_to_generate": 300,
+}
+
+
+def generate_email_task_description(task_id):
+    """Return a brief Portuguese description for an email extraction task ID."""
+    descriptions = {
+        _EMAIL + "json_format":
+            "Formatar a resposta como objeto JSON válido dentro de bloco markdown.",
+        _EMAIL + "schema_keys":
+            "O JSON deve conter exatamente as chaves solicitadas.",
+        _EMAIL + "field_value":
+            "Um campo específico deve ter o valor exato esperado.",
+    }
+    return descriptions.get(task_id, "")

@@ -1844,3 +1844,131 @@ class MathAnswerChecker(TaskVerifier):
         if not self._expected_answer:
             return False
         return self._expected_answer in value
+
+
+def _extract_email_json(value):
+    """Extract and parse a JSON object from a response string.
+
+    Accepts both ```json...``` (or ```) code blocks and raw JSON strings.
+    Returns a dict on success, or None if parsing fails.
+    """
+    stripped = value.strip()
+    # Try to extract from a fenced code block first
+    m = re.search(r"```(?:json|JSON|Json)?\s*(.*?)\s*```", stripped, re.DOTALL)
+    if m:
+        try:
+            obj = json.loads(m.group(1))
+            if isinstance(obj, dict):
+                return obj
+        except (ValueError, json.JSONDecodeError):
+            pass
+    # Fall back to parsing the whole string as JSON
+    try:
+        obj = json.loads(stripped)
+        if isinstance(obj, dict):
+            return obj
+    except (ValueError, json.JSONDecodeError):
+        pass
+    return None
+
+
+class EmailJsonFormatChecker(TaskVerifier):
+    """Checks that the response is a valid JSON object inside a ```json``` block."""
+
+    def build_description(self):
+        self._description_pattern = (
+            "Formate sua resposta EXATAMENTE como um bloco JSON markdown:\n"
+            "```json\n{\n  ...\n}\n```\n"
+            "O JSON deve conter apenas as chaves solicitadas, sem texto adicional."
+        )
+        return self._description_pattern
+
+    def get_instruction_args(self):
+        return None
+
+    def get_instruction_args_keys(self):
+        return []
+
+    def check_following(self, value):
+        """Return True only if response has a ```json``` block with a valid JSON object."""
+        stripped = value.strip()
+        # Require a fenced code block with json/JSON/Json specifier or plain ```
+        if not re.search(r"```(?:json|JSON|Json)?", stripped):
+            return False
+        return _extract_email_json(value) is not None
+
+
+class EmailSchemaKeysChecker(TaskVerifier):
+    """Checks that the JSON response contains exactly the required keys."""
+
+    def build_description(self, *, required_keys=None):
+        self._required_keys = sorted(required_keys or [])
+        self._description_pattern = (
+            "O objeto JSON deve conter EXATAMENTE as chaves: {keys}. "
+            "Nenhuma chave adicional ou faltante é permitida."
+        )
+        return self._description_pattern.format(keys=", ".join(self._required_keys))
+
+    def get_instruction_args(self):
+        return {"required_keys": self._required_keys}
+
+    def get_instruction_args_keys(self):
+        return ["required_keys"]
+
+    def check_following(self, value):
+        """Return True if the JSON object has exactly the required keys."""
+        obj = _extract_email_json(value)
+        if obj is None:
+            return False
+        return set(obj.keys()) == set(self._required_keys)
+
+
+class EmailFieldValueChecker(TaskVerifier):
+    """Checks that a specific field in the JSON response matches the expected value.
+
+    Supports both string and boolean expected values.  For booleans the model
+    output may be a JSON boolean (True/False) or a string representation.
+    """
+
+    def build_description(self, *, field_name=None, expected_value=None):
+        self._field_name = field_name or ""
+        self._expected_value = expected_value
+        if isinstance(self._expected_value, bool):
+            val_str = "true" if self._expected_value else "false"
+        else:
+            val_str = str(self._expected_value)
+        self._description_pattern = (
+            "O campo \"{field}\" deve ter o valor: {value}."
+        )
+        return self._description_pattern.format(
+            field=self._field_name, value=val_str
+        )
+
+    def get_instruction_args(self):
+        return {
+            "field_name": self._field_name,
+            "expected_value": self._expected_value,
+        }
+
+    def get_instruction_args_keys(self):
+        return ["field_name", "expected_value"]
+
+    def check_following(self, value):
+        """Return True if the JSON field matches the expected value."""
+        obj = _extract_email_json(value)
+        if obj is None or self._field_name not in obj:
+            return False
+        actual = obj[self._field_name]
+        if isinstance(self._expected_value, bool):
+            if isinstance(actual, bool):
+                return actual == self._expected_value
+            if isinstance(actual, str):
+                true_strs = {"true", "sim", "verdadeiro", "yes"}
+                false_strs = {"false", "não", "nao", "falso", "no"}
+                return (
+                    actual.lower() in true_strs
+                    if self._expected_value
+                    else actual.lower() in false_strs
+                )
+            return False
+        return str(actual).strip() == str(self._expected_value).strip()
