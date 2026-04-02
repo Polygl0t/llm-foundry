@@ -1972,3 +1972,183 @@ class EmailFieldValueChecker(TaskVerifier):
                 )
             return False
         return str(actual).strip() == str(self._expected_value).strip()
+
+
+_TOOL_CALL_OPEN = "<tool_call>"
+_TOOL_CALL_CLOSE = "</tool_call>"
+
+
+def _extract_tool_call_json(text):
+    """Extract the JSON object from within <tool_call>...</tool_call> tags.
+
+    Returns the parsed dict, or None if extraction fails.
+    """
+    start = text.find(_TOOL_CALL_OPEN)
+    end = text.find(_TOOL_CALL_CLOSE)
+    if start == -1 or end == -1 or end <= start:
+        return None
+    inner = text[start + len(_TOOL_CALL_OPEN):end].strip()
+    try:
+        return json.loads(inner)
+    except (json.JSONDecodeError, ValueError):
+        return None
+
+
+class ToolCallFormatChecker(TaskVerifier):
+    """Check that the response contains a well-formed <tool_call> block.
+
+    For valid tasks (``expect_call=True``) the response must contain a
+    properly formatted ``<tool_call>...</tool_call>`` block with parseable
+    JSON inside.
+
+    For invalid/refusal tasks (``expect_call=False``) the response must
+    NOT contain any ``<tool_call>`` tag.
+    """
+
+    def build_description(self, *, expect_call=True):
+        self._expect_call = expect_call
+        if self._expect_call:
+            return (
+                "A resposta deve conter uma chamada de ferramenta "
+                "formatada dentro de tags <tool_call>...</tool_call>."
+            )
+        return (
+            "A resposta NÃO deve conter nenhuma chamada de ferramenta. "
+            "Explique educadamente por que nenhuma ferramenta se aplica."
+        )
+
+    def get_instruction_args(self):
+        return {"expect_call": self._expect_call}
+
+    def get_instruction_args_keys(self):
+        return ["expect_call"]
+
+    def check_following(self, value):
+        has_tag = _TOOL_CALL_OPEN in value
+        if self._expect_call:
+            return _extract_tool_call_json(value) is not None
+        return not has_tag
+
+
+class ToolCallNameChecker(TaskVerifier):
+    """Check that the tool_call uses the correct function name."""
+
+    def build_description(self, *, expected_name=None):
+        self._expected_name = expected_name or ""
+        return (
+            f"A chamada de ferramenta deve invocar a função \"{self._expected_name}\"."
+        )
+
+    def get_instruction_args(self):
+        return {"expected_name": self._expected_name}
+
+    def get_instruction_args_keys(self):
+        return ["expected_name"]
+
+    def check_following(self, value):
+        obj = _extract_tool_call_json(value)
+        if obj is None:
+            return False
+        return obj.get("name") == self._expected_name
+
+
+class ToolCallArgsKeysChecker(TaskVerifier):
+    """Check that the tool_call arguments contain exactly the required keys."""
+
+    def build_description(self, *, required_arg_keys=None):
+        self._required_keys = sorted(required_arg_keys or [])
+        keys_str = ", ".join(self._required_keys)
+        return (
+            f"Os argumentos da chamada devem conter as chaves: {keys_str}."
+        )
+
+    def get_instruction_args(self):
+        return {"required_arg_keys": self._required_keys}
+
+    def get_instruction_args_keys(self):
+        return ["required_arg_keys"]
+
+    def check_following(self, value):
+        obj = _extract_tool_call_json(value)
+        if obj is None:
+            return False
+        args = obj.get("arguments", {})
+        if not isinstance(args, dict):
+            return False
+        return set(self._required_keys).issubset(set(args.keys()))
+
+
+class ToolCallArgsTypesChecker(TaskVerifier):
+    """Check that the tool_call argument values match the expected JSON types.
+
+    ``expected_arg_types`` maps argument name → JSON type string
+    (``"string"``, ``"number"``, ``"integer"``, ``"boolean"``, ``"array"``,
+    ``"object"``).
+    """
+
+    _TYPE_MAP = {
+        "string": str,
+        "number": (int, float),
+        "integer": int,
+        "boolean": bool,
+        "array": list,
+        "object": dict,
+    }
+
+    def build_description(self, *, expected_arg_types=None):
+        self._expected_types = expected_arg_types or {}
+        parts = [f"{k}: {v}" for k, v in sorted(self._expected_types.items())]
+        return (
+            "Os tipos dos argumentos devem ser: "
+            + ", ".join(parts) + "."
+        )
+
+    def get_instruction_args(self):
+        return {"expected_arg_types": self._expected_types}
+
+    def get_instruction_args_keys(self):
+        return ["expected_arg_types"]
+
+    def check_following(self, value):
+        obj = _extract_tool_call_json(value)
+        if obj is None:
+            return False
+        args = obj.get("arguments", {})
+        if not isinstance(args, dict):
+            return False
+        for key, expected_type_str in self._expected_types.items():
+            if key not in args:
+                return False
+            py_type = self._TYPE_MAP.get(expected_type_str)
+            if py_type is None:
+                continue
+            if not isinstance(args[key], py_type):
+                # Allow int where number is expected
+                if expected_type_str == "number" and isinstance(args[key], (int, float)):
+                    continue
+                return False
+        return True
+
+
+class ToolCallRefusalChecker(TaskVerifier):
+    """Check that a refusal response does NOT contain tool_call tags
+    and provides a minimum-length explanation."""
+
+    def build_description(self, *, min_refusal_words=None):
+        self._min_words = min_refusal_words or 5
+        return (
+            "A resposta deve recusar educadamente sem usar nenhuma ferramenta "
+            f"e conter pelo menos {self._min_words} palavras de explicação."
+        )
+
+    def get_instruction_args(self):
+        return {"min_refusal_words": self._min_words}
+
+    def get_instruction_args_keys(self):
+        return ["min_refusal_words"]
+
+    def check_following(self, value):
+        if _TOOL_CALL_OPEN in value:
+            return False
+        word_count = len(value.split())
+        return word_count >= self._min_words

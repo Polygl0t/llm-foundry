@@ -822,7 +822,6 @@ from generate_from_email_templates import (
 )
 from tasks_metadata import (
     EMAIL_TASK_IDS,
-    EMAIL_ALL_FIELDS,
     EMAIL_INJECTED_FIELDS,
 )
 
@@ -1090,6 +1089,225 @@ for tid in EMAIL_TASK_IDS:
     assert tid in VERIFICATION_REGISTRY, f"Missing registry entry for {tid}"
 
 print("Test 22 — email end-to-end (build + validate + verify): OK ✓")
+
+# %%
+#######################################
+# 23. Tool-call verifiers — pass and fail scenarios
+#######################################
+from tasks_metadata import TOOL_CALL_TASK_IDS
+
+# 23a. Valid tool call — all verifiers pass
+v_tc = Verifier(
+    verifier_id_list=[
+        "tool_call:format",
+        "tool_call:name",
+        "tool_call:args_keys",
+        "tool_call:args_types",
+    ],
+    kwargs=[
+        {"expect_call": True},
+        {"expected_name": "calculate_distance"},
+        {"required_arg_keys": ["source", "destination"]},
+        {"expected_arg_types": {"source": "string", "destination": "string"}},
+    ],
+    completion=(
+        '<tool_call>\n'
+        '{"name": "calculate_distance", "arguments": '
+        '{"source": "New York", "destination": "Los Angeles"}}\n'
+        '</tool_call>'
+    ),
+)
+assert v_tc.verify() == [True, True, True, True]
+
+# 23b. Wrong tool name
+v_tc2 = Verifier(
+    verifier_id_list=["tool_call:format", "tool_call:name"],
+    kwargs=[
+        {"expect_call": True},
+        {"expected_name": "calculate_distance"},
+    ],
+    completion='<tool_call>\n{"name": "wrong_tool", "arguments": {}}\n</tool_call>',
+)
+assert v_tc2.verify() == [True, False]
+
+# 23c. Missing required arg keys
+v_tc3 = Verifier(
+    verifier_id_list=["tool_call:args_keys"],
+    kwargs=[{"required_arg_keys": ["source", "destination"]}],
+    completion='<tool_call>\n{"name": "x", "arguments": {"source": "NYC"}}\n</tool_call>',
+)
+assert v_tc3.verify() == [False]
+
+# 23d. Wrong argument types
+v_tc4 = Verifier(
+    verifier_id_list=["tool_call:args_types"],
+    kwargs=[{"expected_arg_types": {"amount": "number", "currency": "string"}}],
+    completion='<tool_call>\n{"name": "x", "arguments": {"amount": "abc", "currency": "USD"}}\n</tool_call>',
+)
+assert v_tc4.verify() == [False]
+
+# 23e. Refusal — correct
+v_tc5 = Verifier(
+    verifier_id_list=["tool_call:format", "tool_call:refusal"],
+    kwargs=[{"expect_call": False}, {"min_refusal_words": 5}],
+    completion="Sinto muito, mas não posso fazer isso. Minhas funções são limitadas.",
+)
+assert v_tc5.verify() == [True, True]
+
+# 23f. Refusal fails — model called a tool when it shouldn't
+v_tc6 = Verifier(
+    verifier_id_list=["tool_call:format", "tool_call:refusal"],
+    kwargs=[{"expect_call": False}, {"min_refusal_words": 5}],
+    completion='<tool_call>\n{"name": "x", "arguments": {}}\n</tool_call>',
+)
+assert v_tc6.verify() == [False, False]
+
+# 23g. No tool_call tags when expected
+v_tc7 = Verifier(
+    verifier_id_list=["tool_call:format"],
+    kwargs=[{"expect_call": True}],
+    completion="Aqui está a resposta sem ferramenta.",
+)
+assert v_tc7.verify() == [False]
+
+# 23h. Malformed JSON in tool_call
+v_tc8 = Verifier(
+    verifier_id_list=["tool_call:format"],
+    kwargs=[{"expect_call": True}],
+    completion="<tool_call>\nnot json\n</tool_call>",
+)
+assert v_tc8.verify() == [False]
+
+# 23i. Refusal too short
+v_tc9 = Verifier(
+    verifier_id_list=["tool_call:refusal"],
+    kwargs=[{"min_refusal_words": 10}],
+    completion="Não posso.",
+)
+assert v_tc9.verify() == [False]
+
+print("Test 23 — tool-call verifiers (pass/fail/edge): OK ✓")
+
+# %%
+#######################################
+# 24. Tool-call end-to-end (generate + validate + verify)
+#######################################
+from generate_from_tool_call_templates import (
+    load_tool_call_data,
+    build_tool_call_sample,
+    build_valid_completion,
+    validate_tool_call_sample,
+    sample_fingerprint as tc_fingerprint,
+)
+from pathlib import Path
+
+_data_dir = Path(__file__).resolve().parent / "data"
+all_tools, _examples = load_tool_call_data(_data_dir / "tools.json")
+assert len(all_tools) > 0, "No tools loaded"
+
+rng = random.Random(42)
+
+# Verify output format matches the canonical gym schema
+for i in range(5):
+    tool = rng.choice(all_tools)
+    sample = build_tool_call_sample(
+        key=i, tool=tool, all_tools=all_tools,
+        rng=random.Random(42 + i), is_valid=True,
+    )
+    assert set(sample.keys()) == {"key", "prompt", "verifier_id_list", "kwargs"}, \
+        f"Valid sample has wrong keys: {set(sample.keys())}"
+
+for i in range(5):
+    sample = build_tool_call_sample(
+        key=50 + i, tool=None, all_tools=all_tools,
+        rng=random.Random(99 + i), is_valid=False,
+    )
+    assert set(sample.keys()) == {"key", "prompt", "verifier_id_list", "kwargs"}, \
+        f"Refusal sample has wrong keys: {set(sample.keys())}"
+
+# Generate valid samples and verify with a matching completion
+rng2 = random.Random(42)
+for i in range(10):
+    tool = rng2.choice(all_tools)
+    sample_rng = random.Random(42 + i)
+    sample = build_tool_call_sample(
+        key=i, tool=tool, all_tools=all_tools,
+        rng=sample_rng, is_valid=True,
+    )
+    issues = validate_tool_call_sample(sample)
+    assert not issues, f"Valid sample {i} has issues: {issues}"
+
+    # Build a completion that matches the expected tool call
+    expected_name = sample["kwargs"][1]["expected_name"]
+    expected_arg_keys = sample["kwargs"][2]["required_arg_keys"]
+    expected_arg_types = sample["kwargs"][3]["expected_arg_types"]
+    # Generate arguments that satisfy the verifiers (include all typed args)
+    args = {}
+    for key in expected_arg_types:
+        t = expected_arg_types[key]
+        if t == "string":
+            args[key] = "test_value"
+        elif t in ("number", "integer"):
+            args[key] = 42
+        elif t == "boolean":
+            args[key] = True
+        elif t == "array":
+            args[key] = ["a", "b"]
+        elif t == "object":
+            args[key] = {"k": "v"}
+        else:
+            args[key] = "test"
+    completion = build_valid_completion(expected_name, args)
+
+    v = Verifier(
+        verifier_id_list=sample["verifier_id_list"],
+        kwargs=sample["kwargs"],
+        completion=completion,
+    )
+    results = v.verify()
+    assert all(results), f"Valid sample {i} verification failed: {results}"
+
+# Generate and verify refusal samples
+for i in range(10):
+    sample = build_tool_call_sample(
+        key=100 + i, tool=None, all_tools=all_tools,
+        rng=random.Random(99 + i), is_valid=False,
+    )
+    issues = validate_tool_call_sample(sample)
+    assert not issues, f"Refusal sample {i} has issues: {issues}"
+
+    refusal_text = (
+        "Sinto muito, mas não tenho a capacidade de realizar essa tarefa. "
+        "Minhas funções são limitadas às que me foram fornecidas."
+    )
+    v = Verifier(
+        verifier_id_list=sample["verifier_id_list"],
+        kwargs=sample["kwargs"],
+        completion=refusal_text,
+    )
+    results = v.verify()
+    assert all(results), f"Refusal sample {i} verification failed: {results}"
+
+# Uniqueness check
+fps = set()
+rng3 = random.Random(42)
+for i in range(50):
+    tool = rng3.choice(all_tools)
+    sample = build_tool_call_sample(
+        key=200 + i,
+        tool=tool,
+        all_tools=all_tools,
+        rng=random.Random(200 + i),
+        is_valid=True,
+    )
+    fps.add(tc_fingerprint(sample))
+assert len(fps) == 50, f"Expected 50 unique fingerprints, got {len(fps)}"
+
+# All TOOL_CALL_TASK_IDS must be in VERIFICATION_REGISTRY
+for tid in TOOL_CALL_TASK_IDS:
+    assert tid in VERIFICATION_REGISTRY, f"Missing registry entry for {tid}"
+
+print("Test 24 — tool-call end-to-end (generate + validate + verify): OK ✓")
 
 # %%
 #######################################

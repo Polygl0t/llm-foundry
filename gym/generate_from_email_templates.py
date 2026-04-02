@@ -14,7 +14,7 @@ Two categories of fields are supported:
       date, attachments, spam, sender_email, telephone_number
 
 For injected fields an explicit metadata header is prepended to the email
-text, and a corresponding ``email:field_value`` verifier is added so the
+text, and a corresponding `email:field_value` verifier is added so the
 extraction can be verified exactly.
 
 Usage:
@@ -38,7 +38,6 @@ from pathlib import Path
 
 from tasks_metadata import (
     EMAIL_ALL_FIELDS,
-    EMAIL_DIRECT_FIELDS,
     EMAIL_INJECTED_FIELDS,
     EMAIL_FIELD_LABELS,
     EMAIL_TASK_IDS,
@@ -60,19 +59,16 @@ _PROMPT_PREAMBLES = [
 _FORMAT_INSTRUCTION = (
     "Formate sua resposta EXATAMENTE como um bloco JSON markdown, "
     "sem nenhum texto antes ou depois:\n"
-    "```json\n"
+    "``json\n"
     "{\n"
     "  ...\n"
     "}\n"
-    "```\n"
+    "``\n"
     "O JSON deve conter SOMENTE as chaves solicitadas, sem campos adicionais."
 )
 
 
-# ---------------------------------------------------------------------------
 # Random value generators for injected fields
-# ---------------------------------------------------------------------------
-
 _EMAIL_DOMAINS = [
     "gmail.com",
     "yahoo.com.br",
@@ -192,7 +188,7 @@ def build_email_sample(email_text, key, fields, injected_values, rng):
         key: Integer identifier for this sample.
         fields: List of field names to request in the output JSON.
         injected_values: Dict of all five injected field values.
-        rng: ``random.Random`` instance for reproducibility.
+        rng: `random.Random` instance for reproducibility.
 
     Returns:
         Dict with keys: key, prompt, verifier_id_list, kwargs.
@@ -291,7 +287,7 @@ def sample_fingerprint(sample):
 def load_emails(emails_file):
     """Load emails from a JSONL file.
 
-    Each line must be a JSON object with an ``"email"`` key.
+    Each line must be a JSON object with an `"email"` key.
     Returns a list of email strings.
     """
     path = Path(emails_file)
