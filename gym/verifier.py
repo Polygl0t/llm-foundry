@@ -56,6 +56,11 @@ from verifiers import (
     ResponseLanguageChecker,
     SectionChecker,
     TitleChecker,
+    ToolCallArgsKeysChecker,
+    ToolCallArgsTypesChecker,
+    ToolCallFormatChecker,
+    ToolCallNameChecker,
+    ToolCallRefusalChecker,
     TwoResponsesChecker,
     WordAtPositionChecker,
 )
@@ -106,6 +111,12 @@ VERIFICATION_REGISTRY = {
     "email:json_format": EmailJsonFormatChecker,
     "email:schema_keys": EmailSchemaKeysChecker,
     "email:field_value": EmailFieldValueChecker,
+    # Tool-call tasks
+    "tool_call:format": ToolCallFormatChecker,
+    "tool_call:name": ToolCallNameChecker,
+    "tool_call:args_keys": ToolCallArgsKeysChecker,
+    "tool_call:args_types": ToolCallArgsTypesChecker,
+    "tool_call:refusal": ToolCallRefusalChecker,
 }
 
 

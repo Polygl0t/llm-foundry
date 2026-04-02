@@ -720,3 +720,39 @@ def generate_email_task_description(task_id):
             "Um campo específico deve ter o valor exato esperado.",
     }
     return descriptions.get(task_id, "")
+
+
+# Tool-call Tasks
+_TOOL_CALL = "tool_call:"
+
+TOOL_CALL_TASK_IDS = [
+    _TOOL_CALL + "format",
+    _TOOL_CALL + "name",
+    _TOOL_CALL + "args_keys",
+    _TOOL_CALL + "args_types",
+    _TOOL_CALL + "refusal",
+]
+
+TOOL_CALL_DEFAULTS = {
+    "min_tools": 1,
+    "max_tools": 3,
+    "refusal_ratio": 0.5,
+    "min_refusal_words": 5,
+}
+
+
+def generate_tool_call_task_description(task_id):
+    """Return a brief Portuguese description for a tool-call task ID."""
+    descriptions = {
+        _TOOL_CALL + "format":
+            "Verificar se a resposta contém uma chamada de ferramenta formatada corretamente.",
+        _TOOL_CALL + "name":
+            "Verificar se a ferramenta correta foi invocada.",
+        _TOOL_CALL + "args_keys":
+            "Verificar se os argumentos contêm as chaves obrigatórias.",
+        _TOOL_CALL + "args_types":
+            "Verificar se os tipos dos argumentos estão corretos.",
+        _TOOL_CALL + "refusal":
+            "Verificar se o modelo recusou corretamente sem chamar ferramentas.",
+    }
+    return descriptions.get(task_id, "")
