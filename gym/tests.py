@@ -2,8 +2,13 @@
 #######################################
 # 1. Imports & Setup
 #######################################
+import json
 import random
 import string as _string
+
+def _parse_kw(kw):
+    """Deserialize a kwargs entry (string or dict) into a dict."""
+    return json.loads(kw) if isinstance(kw, str) else kw
 
 from tasks_metadata import (
     ALL_VERIFIER_IDS,
@@ -28,7 +33,7 @@ from generate_from_instruction_templates import (
     MODIFIER_IDS,
 )
 
-print("All imports OK ✓")
+print("All imports OK ✅")
 
 # %%
 #######################################
@@ -75,7 +80,7 @@ v2 = Verifier(
 )
 r2 = v2.verify()
 assert r2 == [False, False, True], f"Expected [False, False, True], got {r2}"
-print("Test 2 — multi-constraint pass + partial failure: OK ✓")
+print("Test 2 — multi-constraint pass + partial failure: OK ✅")
 
 # %%
 #######################################
@@ -111,7 +116,7 @@ v2 = Verifier(
     completion="Entretanto nada de especial aqui.",
 )
 assert v2.verify() == [False, False, False]
-print("Test 3 — keywords + forbidden + frequency: OK ✓")
+print("Test 3 — keywords + forbidden + frequency: OK ✅")
 
 # %%
 #######################################
@@ -162,7 +167,7 @@ v2 = Verifier(
     completion="Curto.",
 )
 assert v2.verify() == [False, False, False, False, False]
-print("Test 4 — length constraints + detectable content: OK ✓")
+print("Test 4 — length constraints + detectable content: OK ✅")
 
 # %%
 #######################################
@@ -232,7 +237,7 @@ v9 = Verifier(
     completion="Isso não é JSON.",
 )
 assert v9.verify() == [False]
-print("Test 5 — detectable format verifiers: OK ✓")
+print("Test 5 — detectable format verifiers: OK ✅")
 
 # %%
 #######################################
@@ -281,7 +286,7 @@ v6 = Verifier(
     completion="Esta resposta não está entre aspas.",
 )
 assert v6.verify() == [False]
-print("Test 6 — combination + startend verifiers: OK ✓")
+print("Test 6 — combination + startend verifiers: OK ✅")
 
 # %%
 #######################################
@@ -297,7 +302,7 @@ try:
     assert False, "Should have raised ValueError"
 except ValueError as e:
     assert "Unknown verifier ID" in str(e)
-print("Test 7 — unknown verifier raises error: OK ✓")
+print("Test 7 — unknown verifier raises error: OK ✅")
 
 # %%
 #######################################
@@ -325,7 +330,7 @@ for tid in LONG_CONTEXT_TASK_IDS:
     assert tid in VERIFICATION_REGISTRY, f"Missing registry entry: {tid}"
 for tid in HAYSTACK_TASK_IDS:
     assert tid in VERIFICATION_REGISTRY, f"Missing registry entry: {tid}"
-print("Test 8 — metadata integrity (registry + conflicts): OK ✓")
+print("Test 8 — metadata integrity (registry + conflicts): OK ✅")
 
 # %%
 #######################################
@@ -349,7 +354,7 @@ assert all(val is None for val in kw.values()), "All empty kwargs should be None
 kw["language"] = "pt"
 kw2 = make_empty_kwargs()
 assert kw2["language"] is None, "make_empty_kwargs should return independent copies"
-print("Test 9 — metadata helpers: OK ✓")
+print("Test 9 — metadata helpers: OK ✅")
 
 # %%
 #######################################
@@ -389,7 +394,7 @@ for t in TEMPLATES:
     filled = fill_template(t)
     assert isinstance(filled, str) and len(filled) > 0
     assert "{" not in filled, f"Unfilled slot in template {t['id']}: {filled}"
-print(f"Test 10 — generation pipeline ({len(TEMPLATES)} templates, {len(ALL_VERIFIER_IDS)} verifiers): OK ✓")
+print(f"Test 10 — generation pipeline ({len(TEMPLATES)} templates, {len(ALL_VERIFIER_IDS)} verifiers): OK ✅")
 
 # %%
 #######################################
@@ -405,25 +410,25 @@ for iid in ids:
 
 # build_sample
 template = TEMPLATES[0]
-sample = build_sample(template, key=99, min_modifiers=1, max_modifiers=3)
-assert "key" in sample and sample["key"] == 99
+sample = build_sample(template, min_modifiers=1, max_modifiers=3)
+assert "id" in sample and isinstance(sample["id"], str) and len(sample["id"]) == 32
 assert "prompt" in sample and len(sample["prompt"]) > 0
 assert len(sample["verifier_id_list"]) == len(sample["kwargs"])
 assert is_combination_valid(sample["verifier_id_list"])
 
 # validate_sample — valid
-sample2 = build_sample(TEMPLATES[0], key=1, min_modifiers=1, max_modifiers=2)
+sample2 = build_sample(TEMPLATES[0], min_modifiers=1, max_modifiers=2)
 assert validate_sample(sample2) == [], f"Expected no issues, got {validate_sample(sample2)}"
 
 # validate_sample — bad (unknown verifier + empty prompt)
 bad_sample = {
-    "key": 0, "prompt": "Test",
+    "id": "dummy", "prompt": "Test",
     "verifier_id_list": ["fake_category:nonexistent"], "kwargs": [{}],
 }
 issues = validate_sample(bad_sample)
 assert len(issues) > 0 and any("Unknown" in i for i in issues)
 bad_sample2 = {
-    "key": 0, "prompt": "   ",
+    "id": "dummy", "prompt": "   ",
     "verifier_id_list": [], "kwargs": [],
 }
 assert any("Empty prompt" in i for i in validate_sample(bad_sample2))
@@ -432,10 +437,10 @@ assert any("Empty prompt" in i for i in validate_sample(bad_sample2))
 fps = set()
 for i in range(20):
     random.seed(i)
-    s = build_sample(random.choice(TEMPLATES), key=i, min_modifiers=1, max_modifiers=3)
+    s = build_sample(random.choice(TEMPLATES), min_modifiers=1, max_modifiers=3)
     fps.add(sample_fingerprint(s))
 assert len(fps) > 10, f"Expected >10 unique fingerprints, got {len(fps)}"
-print(f"Test 11 — sample building + validation + fingerprints ({len(fps)}/20 unique): OK ✓")
+print(f"Test 11 — sample building + validation + fingerprints ({len(fps)}/20 unique): OK ✅")
 
 # %%
 #######################################
@@ -443,7 +448,7 @@ print(f"Test 11 — sample building + validation + fingerprints ({len(fps)}/20 u
 #######################################
 random.seed(123)
 template = TEMPLATES[0]
-sample = build_sample(template, key=1, min_modifiers=1, max_modifiers=1)
+sample = build_sample(template, min_modifiers=1, max_modifiers=1)
 assert validate_sample(sample) == [], f"Sample has validation issues: {validate_sample(sample)}"
 
 v = Verifier(
@@ -455,7 +460,7 @@ results = v.verify()
 assert isinstance(results, list)
 assert len(results) == len(sample["verifier_id_list"])
 assert all(isinstance(r, bool) for r in results)
-print("Test 12 — end-to-end generate + verify: OK ✓")
+print("Test 12 — end-to-end generate + verify: OK ✅")
 
 # %%
 #######################################
@@ -546,7 +551,7 @@ v12 = Verifier(
     completion="A palavra \"cachorro\" é mais frequente na lista.",
 )
 assert v12.verify() == [False]
-print("Test 13 — long context verifiers (pass/fail/partial/edge): OK ✓")
+print("Test 13 — long context verifiers (pass/fail/partial/edge): OK ✅")
 
 # %%
 #######################################
@@ -564,13 +569,13 @@ for idx, template in enumerate(LONG_CONTEXT_TEMPLATES[:5]):
     # Word-list tasks use num_words; haystack tasks use documents/num_chars/rng
     if tt.startswith("needle_"):
         continue  # tested separately in haystack tests
-    sample = build_lc_sample(template, key=idx, num_words=30)
+    sample = build_lc_sample(template, num_words=30)
     issues = validate_lc_sample(sample)
     assert issues == [], f"Template {idx} has issues: {issues}"
     assert "completion" not in sample
 
     # Build a correct completion from kwargs
-    kw = sample["kwargs"][0]
+    kw = _parse_kw(sample["kwargs"][0])
     if "expected_words" in kw and kw["expected_words"] is not None:
         completion = "Palavras: " + ", ".join(kw["expected_words"])
     elif "target_word" in kw and kw["target_word"] is not None:
@@ -589,7 +594,7 @@ for idx, template in enumerate(LONG_CONTEXT_TEMPLATES[:5]):
     )
     results = v.verify()
     assert results == [True], f"Template {idx}: expected [True], got {results}"
-print("Test 14 — long context end-to-end (all templates): OK ✓")
+print("Test 14 — long context end-to-end (all templates): OK ✅")
 
 # %%
 #######################################
@@ -679,7 +684,7 @@ v11 = Verifier(
     completion="Qualquer resposta.",
 )
 assert v11.verify() == [True], "Empty expected_values should pass"
-print("Test 15 — haystack verifiers (pass/fail/partial/edge): OK ✓")
+print("Test 15 — haystack verifiers (pass/fail/partial/edge): OK ✅")
 
 # %%
 #######################################
@@ -698,14 +703,14 @@ _hs_docs = load_documents("./data")
 for idx, hs_template in enumerate(HAYSTACK_TEMPLATES):
     random.seed(42 + idx)
     hs_sample = build_hs_sample(
-        hs_template, key=idx, documents=_hs_docs,
+        hs_template, documents=_hs_docs,
         num_chars=2000, rng=random.Random(42 + idx),
     )
     hs_issues = validate_hs_sample(hs_sample)
     assert hs_issues == [], f"Haystack template {idx} has issues: {hs_issues}"
     assert "completion" not in hs_sample
 
-    kw = hs_sample["kwargs"][0]
+    kw = _parse_kw(hs_sample["kwargs"][0])
     values = list(kw["expected_values"].values())[0] if kw["expected_values"] else []
     # diff_keys needs key names in the completion; uuid needs the value only
     tt = hs_template["task_type"]
@@ -723,7 +728,7 @@ for idx, hs_template in enumerate(HAYSTACK_TEMPLATES):
     )
     results = v.verify()
     assert results == [True], f"Haystack template {idx}: expected [True], got {results}"
-print(f"Test 16 — haystack end-to-end ({len(HAYSTACK_TEMPLATES)} templates): OK ✓")
+print(f"Test 16 — haystack end-to-end ({len(HAYSTACK_TEMPLATES)} templates): OK ✅")
 
 # %%
 #######################################
@@ -777,7 +782,7 @@ v6 = Verifier(
 )
 assert v6.verify() == [True]
 
-print("Test 17 — math verifier (pass/fail/edge): OK ✓")
+print("Test 17 — math verifier (pass/fail/edge): OK ✅")
 
 # %%
 #######################################
@@ -788,9 +793,10 @@ from generate_from_math_dataset import (
     validate_sample as validate_math_sample,
 )
 
-sample = build_math_sample("Quanto é 2 + 2?", "4", key=0)
+sample = build_math_sample("Quanto é 2 + 2?", "4")
+assert isinstance(sample["id"], str) and len(sample["id"]) == 32
 assert sample["verifier_id_list"] == ["math:answer_check"]
-assert sample["kwargs"] == [{"expected_answer": "4"}]
+assert _parse_kw(sample["kwargs"][0]) == {"expected_answer": "4"}
 assert validate_math_sample(sample) == []
 
 # Verify it passes with a correct completion
@@ -809,7 +815,7 @@ v2 = Verifier(
 )
 assert v2.verify() == [False]
 
-print("Test 18 — math end-to-end (build + validate + verify): OK ✓")
+print("Test 18 — math end-to-end (build + validate + verify): OK ✅")
 
 # %%
 #######################################
@@ -872,7 +878,7 @@ v6 = Verifier(
     completion='```json\n{"subject": "Reunião", "spam": false, "attachments": true}\n```',
 )
 assert v6.verify() == [True]
-print("Test 19 — email:json_format verifier (pass/fail/edge): OK ✓")
+print("Test 19 — email:json_format verifier (pass/fail/edge): OK ✅")
 
 # %%
 #######################################
@@ -925,7 +931,7 @@ v6 = Verifier(
     completion='```json\n{"subject": "Teste", "sender": "Maria"}\n```',
 )
 assert v6.verify() == [True], "Key order should not matter"
-print("Test 20 — email:schema_keys verifier (pass/fail/edge): OK ✓")
+print("Test 20 — email:schema_keys verifier (pass/fail/edge): OK ✅")
 
 # %%
 #######################################
@@ -994,7 +1000,7 @@ v8 = Verifier(
     completion='{"spam": false, "subject": "Oi"}',
 )
 assert v8.verify() == [True], "field_value should accept raw JSON"
-print("Test 21 — email:field_value verifier (pass/fail/edge): OK ✓")
+print("Test 21 — email:field_value verifier (pass/fail/edge): OK ✅")
 
 # %%
 #######################################
@@ -1017,14 +1023,13 @@ _fields = ["subject", "sender", "spam", "date", "attachments"]
 
 sample_email = build_email_sample(
     email_text=_test_email,
-    key=100,
     fields=_fields,
     injected_values=_injected,
     rng=rng_test,
 )
 
 # Structural assertions
-assert sample_email["key"] == 100
+assert isinstance(sample_email["id"], str) and len(sample_email["id"]) == 32
 assert "email:json_format" in sample_email["verifier_id_list"]
 assert "email:schema_keys" in sample_email["verifier_id_list"]
 assert len(sample_email["verifier_id_list"]) == len(sample_email["kwargs"])
@@ -1042,13 +1047,14 @@ assert fv_count == len(injected_requested), (
 
 # Build a correct completion using the known injected values
 schema_idx = sample_email["verifier_id_list"].index("email:schema_keys")
-req_keys = sample_email["kwargs"][schema_idx]["required_keys"]
+req_keys = _parse_kw(sample_email["kwargs"][schema_idx])["required_keys"]
 correct_obj = {}
 for k in req_keys:
     if k in EMAIL_INJECTED_FIELDS:
         for i, iid in enumerate(sample_email["verifier_id_list"]):
-            if iid == "email:field_value" and sample_email["kwargs"][i]["field_name"] == k:
-                correct_obj[k] = sample_email["kwargs"][i]["expected_value"]
+            _kw_i = _parse_kw(sample_email["kwargs"][i])
+            if iid == "email:field_value" and _kw_i["field_name"] == k:
+                correct_obj[k] = _kw_i["expected_value"]
                 break
     elif k == "subject":
         correct_obj[k] = "Proposta de Parceria"
@@ -1071,7 +1077,7 @@ for i, (iid, res) in enumerate(zip(sample_email["verifier_id_list"], results_ema
     if iid == "email:field_value":
         assert res == True, (
             f"email:field_value[{i}] failed for field "
-            f"'{sample_email['kwargs'][i]['field_name']}': {correct_completion}"
+            f"'{_parse_kw(sample_email['kwargs'][i])['field_name']}': {correct_completion}"
         )
 
 # A wrong completion must fail schema_keys
@@ -1088,7 +1094,7 @@ assert results_wrong[1] == False, "schema_keys should fail for wrong keys"
 for tid in EMAIL_TASK_IDS:
     assert tid in VERIFICATION_REGISTRY, f"Missing registry entry for {tid}"
 
-print("Test 22 — email end-to-end (build + validate + verify): OK ✓")
+print("Test 22 — email end-to-end (build + validate + verify): OK ✅")
 
 # %%
 #######################################
@@ -1186,7 +1192,7 @@ v_tc9 = Verifier(
 )
 assert v_tc9.verify() == [False]
 
-print("Test 23 — tool-call verifiers (pass/fail/edge): OK ✓")
+print("Test 23 — tool-call verifiers (pass/fail/edge): OK ✅")
 
 # %%
 #######################################
@@ -1211,18 +1217,18 @@ rng = random.Random(42)
 for i in range(5):
     tool = rng.choice(all_tools)
     sample = build_tool_call_sample(
-        key=i, tool=tool, all_tools=all_tools,
+        tool=tool, all_tools=all_tools,
         rng=random.Random(42 + i), is_valid=True,
     )
-    assert set(sample.keys()) == {"key", "prompt", "verifier_id_list", "kwargs"}, \
+    assert set(sample.keys()) == {"id", "prompt", "verifier_id_list", "kwargs"}, \
         f"Valid sample has wrong keys: {set(sample.keys())}"
 
 for i in range(5):
     sample = build_tool_call_sample(
-        key=50 + i, tool=None, all_tools=all_tools,
+        tool=None, all_tools=all_tools,
         rng=random.Random(99 + i), is_valid=False,
     )
-    assert set(sample.keys()) == {"key", "prompt", "verifier_id_list", "kwargs"}, \
+    assert set(sample.keys()) == {"id", "prompt", "verifier_id_list", "kwargs"}, \
         f"Refusal sample has wrong keys: {set(sample.keys())}"
 
 # Generate valid samples and verify with a matching completion
@@ -1231,16 +1237,16 @@ for i in range(10):
     tool = rng2.choice(all_tools)
     sample_rng = random.Random(42 + i)
     sample = build_tool_call_sample(
-        key=i, tool=tool, all_tools=all_tools,
+        tool=tool, all_tools=all_tools,
         rng=sample_rng, is_valid=True,
     )
     issues = validate_tool_call_sample(sample)
     assert not issues, f"Valid sample {i} has issues: {issues}"
 
     # Build a completion that matches the expected tool call
-    expected_name = sample["kwargs"][1]["expected_name"]
-    expected_arg_keys = sample["kwargs"][2]["required_arg_keys"]
-    expected_arg_types = sample["kwargs"][3]["expected_arg_types"]
+    expected_name = _parse_kw(sample["kwargs"][1])["expected_name"]
+    expected_arg_keys = _parse_kw(sample["kwargs"][2])["required_arg_keys"]
+    expected_arg_types = _parse_kw(sample["kwargs"][3])["expected_arg_types"]
     # Generate arguments that satisfy the verifiers (include all typed args)
     args = {}
     for key in expected_arg_types:
@@ -1270,7 +1276,7 @@ for i in range(10):
 # Generate and verify refusal samples
 for i in range(10):
     sample = build_tool_call_sample(
-        key=100 + i, tool=None, all_tools=all_tools,
+        tool=None, all_tools=all_tools,
         rng=random.Random(99 + i), is_valid=False,
     )
     issues = validate_tool_call_sample(sample)
@@ -1294,7 +1300,6 @@ rng3 = random.Random(42)
 for i in range(50):
     tool = rng3.choice(all_tools)
     sample = build_tool_call_sample(
-        key=200 + i,
         tool=tool,
         all_tools=all_tools,
         rng=random.Random(200 + i),
@@ -1307,12 +1312,72 @@ assert len(fps) == 50, f"Expected 50 unique fingerprints, got {len(fps)}"
 for tid in TOOL_CALL_TASK_IDS:
     assert tid in VERIFICATION_REGISTRY, f"Missing registry entry for {tid}"
 
-print("Test 24 — tool-call end-to-end (generate + validate + verify): OK ✓")
+print("Test 24 — tool-call end-to-end (generate + validate + verify): OK ✅")
+
+# %%
+#######################################
+# 25. Thinking format verifier — enable_thinking flag
+#######################################
+# 25a. enable_thinking=True, valid <think> block → first result True
+v_think = Verifier(
+    verifier_id_list=["punctuation:no_comma"],
+    kwargs=[{}],
+    completion="<think>\nPreciso responder sem vírgulas.\n</think>\nResposta sem pontuação extra.",
+    enable_thinking=True,
+)
+r_think = v_think.verify()
+assert len(r_think) == 2, f"Expected 2 results, got {len(r_think)}"
+assert r_think[0] == True, "thinking_format should pass with non-empty <think> block"
+assert r_think[1] == True, "no_comma should pass"
+
+# 25b. enable_thinking=True, missing <think> tags → first result False
+v_think2 = Verifier(
+    verifier_id_list=["punctuation:no_comma"],
+    kwargs=[{}],
+    completion="Resposta direta sem bloco de raciocínio.",
+    enable_thinking=True,
+)
+r_think2 = v_think2.verify()
+assert r_think2[0] == False, "thinking_format should fail without <think> tags"
+assert r_think2[1] == True, "no_comma should still pass"
+
+# 25c. enable_thinking=True, empty <think></think> tags → fail
+v_think3 = Verifier(
+    verifier_id_list=[],
+    kwargs=[],
+    completion="<think>   </think>\nResposta.",
+    enable_thinking=True,
+)
+assert v_think3.verify() == [False], "Empty <think> tags should fail"
+
+# 25d. enable_thinking=True, <think> with content → pass
+v_think4 = Verifier(
+    verifier_id_list=[],
+    kwargs=[],
+    completion="<think>Vou pensar sobre isso.</think>\nA resposta é 42.",
+    enable_thinking=True,
+)
+assert v_think4.verify() == [True]
+
+# 25e. enable_thinking=False (default) — no extra check prepended
+v_think5 = Verifier(
+    verifier_id_list=["punctuation:no_comma"],
+    kwargs=[{}],
+    completion="Resposta simples sem vírgulas.",
+)
+r_think5 = v_think5.verify()
+assert len(r_think5) == 1, "Without enable_thinking, result length should match verifier_id_list"
+assert r_think5 == [True]
+
+# 25f. Direct checker in registry
+assert "reasoning:thinking_format" in VERIFICATION_REGISTRY
+
+print("Test 25 — thinking format verifier (enable_thinking flag): OK ✅")
 
 # %%
 #######################################
 # Summary
 #######################################
 print("\n" + "=" * 40)
-print("All tests passed!")
+print("All tests passed 🎉🎉🎉")
 print("=" * 40)

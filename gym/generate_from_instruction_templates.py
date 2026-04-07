@@ -9,18 +9,19 @@ This generator constructs each sample from scratch:
 
 Usage:
     python generate_from_instruction_templates.py \
-        --output_file output.json \
-        --num_samples 10
+        --output_file instruct_tasks.jsonl \
+        --num_samples 50000
 
     python generate_from_instruction_templates.py \
-        --output_file output.json \
-        --num_samples 10 \
+        --output_file instruct_tasks.jsonl \
+        --num_samples 50000 \
         --min_modifiers 1 --max_modifiers 4 \
-        --seed 123 --verbose --start_key 0
+        --seed 123 --verbose
 """
 
 import json
 import random
+import hashlib
 import argparse
 from pathlib import Path
 
@@ -90,7 +91,7 @@ def _normalize_kwargs(kw):
         for k, v in kw.items()
     }
 
-def build_sample(template, key, min_modifiers=1, max_modifiers=4):
+def build_sample(template, min_modifiers=1, max_modifiers=4):
     """Build one complete sample from a template + random modifiers.
 
     The prompt is constructed by concatenating:
@@ -134,11 +135,12 @@ def build_sample(template, key, min_modifiers=1, max_modifiers=4):
     else:
         final_prompt = " ".join(prompt_parts)
 
+    sample_id = hashlib.md5(final_prompt.encode()).hexdigest()
     return {
-        "key": key,
+        "id": sample_id,
         "prompt": final_prompt,
         "verifier_id_list": verifier_ids,
-        "kwargs": kwargs_list,
+        "kwargs": [json.dumps(kw, ensure_ascii=False) for kw in kwargs_list],
     }
 
 
@@ -171,6 +173,8 @@ def validate_sample(sample):
     # Verify each modifier description appears in the prompt
     for i, iid in enumerate(sample.get("verifier_id_list", [])):
         kw = sample["kwargs"][i]
+        if isinstance(kw, str):
+            kw = json.loads(kw)
         desc = generate_description_for_verifier(iid, kw)
         if desc and desc not in sample.get("prompt", ""):
             issues.append(f"Description for {iid} not found in prompt")
@@ -190,7 +194,6 @@ def main(args):
 
     samples = []
     seen = set()
-    key_counter = args.start_key
     retries_used = 0
 
     for i in range(num_samples):
@@ -203,15 +206,14 @@ def main(args):
             template = random.choice(TEMPLATES)
             candidate = build_sample(
                 template,
-                key=key_counter,
                 min_modifiers=args.min_modifiers,
                 max_modifiers=args.max_modifiers,
             )
 
-            fp = sample_fingerprint(candidate)
-            if fp not in seen:
+            sid = candidate["id"]
+            if sid not in seen:
                 sample = candidate
-                seen.add(fp)
+                seen.add(sid)
                 break
 
             retries_used += 1
@@ -222,7 +224,6 @@ def main(args):
             continue
 
         samples.append(sample)
-        key_counter += 1
 
     # Validate
     total_issues = 0
@@ -231,12 +232,12 @@ def main(args):
         if issues:
             total_issues += len(issues)
             if args.verbose:
-                print(f"  Key {s['key']}: {issues}")
+                print(f"  ID {s['id']}: {issues}")
 
     conflict_free = sum(
         1 for s in samples if is_combination_valid(s["verifier_id_list"])
     )
-    unique_fps = len({sample_fingerprint(s) for s in samples})
+    unique_ids = len({s['id'] for s in samples})
 
     print(f"\nResults:")
     print(f"  Generated samples:  {len(samples)}")
@@ -245,8 +246,8 @@ def main(args):
         f"  ({100 * conflict_free / max(len(samples), 1):.1f}%)"
     )
     print(
-        f"  Unique:             {unique_fps}/{len(samples)}"
-        f"  ({100 * unique_fps / max(len(samples), 1):.1f}%)"
+        f"  Unique:             {unique_ids}/{len(samples)}"
+        f"  ({100 * unique_ids / max(len(samples), 1):.1f}%)"
     )
     print(f"  Validation issues:  {total_issues}")
     if retries_used:
@@ -256,8 +257,8 @@ def main(args):
     assert conflict_free == len(samples), (
         f"FAIL: {len(samples) - conflict_free} samples have instruction conflicts"
     )
-    assert unique_fps == len(samples), (
-        f"FAIL: {len(samples) - unique_fps} duplicate samples"
+    assert unique_ids == len(samples), (
+        f"FAIL: {len(samples) - unique_ids} duplicate samples"
     )
     assert total_issues == 0, (
         f"FAIL: {total_issues} validation issues found"
@@ -297,12 +298,6 @@ if __name__ == "__main__":
         type=int,
         default=42,
         help="Random seed for reproducibility (default: 42).",
-    )
-    parser.add_argument(
-        "--start_key",
-        type=int,
-        default=0,
-        help="Starting key value for generated samples (default: 0).",
     )
     parser.add_argument(
         "--min_modifiers",

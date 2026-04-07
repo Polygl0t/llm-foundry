@@ -21,18 +21,19 @@ Usage:
     python generate_from_email_templates.py \
         --emails_file ./data/emails.jsonl \
         --output_file email_tasks.jsonl \
-        --num_samples 500
+        --num_samples 10000
 
     python generate_from_email_templates.py \
         --emails_file ./data/emails.jsonl \
-        --output_file email_tasks.json \
-        --num_samples 1000 \
+        --output_file email_tasks.jsonl \
+        --num_samples 10000 \
         --min_fields 3 --max_fields 7 \
-        --seed 42 --start_key 0 --verbose
+        --seed 42 --verbose
 """
 
 import json
 import random
+import hashlib
 import argparse
 from pathlib import Path
 
@@ -180,18 +181,17 @@ def build_email_context(email_text, injected_values):
 
 
 # Sample construction
-def build_email_sample(email_text, key, fields, injected_values, rng):
+def build_email_sample(email_text, fields, injected_values, rng):
     """Build one email extraction gym sample.
 
     Args:
         email_text: Raw email content (will have metadata header prepended).
-        key: Integer identifier for this sample.
         fields: List of field names to request in the output JSON.
         injected_values: Dict of all five injected field values.
         rng: `random.Random` instance for reproducibility.
 
     Returns:
-        Dict with keys: key, prompt, verifier_id_list, kwargs.
+        Dict with keys: id, prompt, verifier_id_list, kwargs.
     """
     email_with_meta = build_email_context(email_text, injected_values)
 
@@ -226,11 +226,12 @@ def build_email_sample(email_text, key, fields, injected_values, rng):
                 "expected_value": injected_values[field],
             })
 
+    sample_id = hashlib.md5(prompt.encode()).hexdigest()
     return {
-        "key": key,
+        "id": sample_id,
         "prompt": prompt,
         "verifier_id_list": verifier_id_list,
-        "kwargs": kwargs_list,
+        "kwargs": [json.dumps(kw, ensure_ascii=False) for kw in kwargs_list],
     }
 
 
@@ -261,6 +262,8 @@ def validate_email_sample(sample):
 
     for i, iid in enumerate(vids):
         kw = sample["kwargs"][i] if i < len(sample.get("kwargs", [])) else {}
+        if isinstance(kw, str):
+            kw = json.loads(kw)
         if iid == "email:schema_keys":
             keys = kw.get("required_keys", [])
             if not keys:
@@ -340,7 +343,6 @@ def main(args):
 
     samples = []
     seen = set()
-    key_counter = args.start_key
     retries_used = 0
     max_retries = 20
 
@@ -358,16 +360,15 @@ def main(args):
 
             candidate = build_email_sample(
                 email_text=email_text,
-                key=key_counter,
                 fields=fields,
                 injected_values=injected,
                 rng=rng,
             )
 
-            fp = sample_fingerprint(candidate)
-            if fp not in seen:
+            sid = candidate["id"]
+            if sid not in seen:
                 sample = candidate
-                seen.add(fp)
+                seen.add(sid)
                 break
 
             retries_used += 1
@@ -377,7 +378,6 @@ def main(args):
             continue
 
         samples.append(sample)
-        key_counter += 1
 
     # Validate all samples
     total_issues = 0
@@ -386,23 +386,23 @@ def main(args):
         if issues:
             total_issues += len(issues)
             if args.verbose:
-                print(f"  Key {s['key']}: {issues}")
+                print(f"  ID {s['id']}: {issues}")
 
-    unique_fps = len({sample_fingerprint(s) for s in samples})
+    unique_ids = len({s['id'] for s in samples})
 
     print(f"\nResults:")
     print(f"  Generated samples:  {len(samples)}")
     print(
-        f"  Unique:             {unique_fps}/{len(samples)}"
-        f"  ({100 * unique_fps / max(len(samples), 1):.1f}%)"
+        f"  Unique:             {unique_ids}/{len(samples)}"
+        f"  ({100 * unique_ids / max(len(samples), 1):.1f}%)"
     )
     print(f"  Validation issues:  {total_issues}")
     if retries_used:
         print(f"  Retries used:       {retries_used}")
 
     assert total_issues == 0, f"FAIL: {total_issues} validation issues found"
-    assert unique_fps == len(samples), (
-        f"FAIL: {len(samples) - unique_fps} duplicate samples"
+    assert unique_ids == len(samples), (
+        f"FAIL: {len(samples) - unique_ids} duplicate samples"
     )
 
     use_jsonl = output_path.suffix.lower() == ".jsonl"
@@ -458,12 +458,6 @@ if __name__ == "__main__":
         type=int,
         default=42,
         help="Random seed for reproducibility (default: 42).",
-    )
-    parser.add_argument(
-        "--start_key",
-        type=int,
-        default=0,
-        help="Starting integer key for generated samples (default: 0).",
     )
     parser.add_argument(
         "--verbose",

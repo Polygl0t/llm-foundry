@@ -21,49 +21,49 @@ Sizing parameters:
   Haystack tasks use --max_seq_length + --tokenizer (target context in tokens).
 
 Usage examples:
-    # Word-list tasks only (5 types x 100 = 500 samples)
+    # Word-list tasks only (5 types x 2000 = 10000 samples)
     python generate_from_long_context_templates.py \
-        --output_file word_list.json \
-        --num_samples 100 \
+        --output_file word_list.jsonl \
+        --num_samples 2000 \
         --num_context_words 50 \
         --task_types common_words rare_words count_word \
                      word_at_position frequency_comparison
 
-    # Word-list tasks at multiple context sizes (5 types x 3 sizes x 100 = 1500 samples)
+    # Word-list tasks at multiple context sizes (5 types x 3 sizes x 2000 = 30000 samples)
     python generate_from_long_context_templates.py \
-        --output_file word_list.json \
-        --num_samples 100 \
+        --output_file word_list.jsonl \
+        --num_samples 2000 \
         --num_context_words 50 100 200 \
         --task_types common_words rare_words count_word \
                      word_at_position frequency_comparison
 
-    # Haystack tasks only (4 types x 1 seq_len x 100 = 400 samples)
+    # Haystack tasks only (4 types x 1 seq_len x 2000 = 8000 samples)
     python generate_from_long_context_templates.py \
-        --output_file haystack.json \
-        --num_samples 100 \
+        --output_file haystack.jsonl \
+        --num_samples 2000 \
         --max_seq_length 4096 \
-        --tokenizer gpt2 \
+        --tokenizer Polygl0t/Tucano2-0.6B-Base \
         --docs_dir data \
         --task_types needle_single_number needle_multi_number_same_key \
                      needle_multi_number_diff_keys needle_uuid
 
-    # Haystack tasks at multiple sequence lengths (4 types x 3 lengths x 100 = 1200 samples)
+    # Haystack tasks at multiple sequence lengths (4 types x 3 lengths x 2000 = 24000 samples)
     python generate_from_long_context_templates.py \
-        --output_file haystack.json \
-        --num_samples 100 \
+        --output_file haystack.jsonl \
+        --num_samples 2000 \
         --max_seq_length 2048 4096 8192 \
-        --tokenizer gpt2 \
+        --tokenizer Polygl0t/Tucano2-0.6B-Base \
         --docs_dir data \
         --task_types needle_single_number needle_multi_number_same_key \
                      needle_multi_number_diff_keys needle_uuid
 
     # All tasks (word-list sized by words, haystack sized by tokens)
     python generate_from_long_context_templates.py \
-        --output_file all_tasks.json \
-        --num_samples 100 \
-        --num_context_words 50 100 200 \
-        --max_seq_length 4096 \
-        --tokenizer gpt2 \
+        --output_file long_tasks.jsonl \
+        --num_samples 1000 \
+        --num_context_words 50 100 200 400 \
+        --max_seq_length 1024 2048 4096 8192 \
+        --tokenizer Polygl0t/Tucano2-0.6B-Base \
         --docs_dir data
 """
 
@@ -72,6 +72,7 @@ import uuid
 import random
 import re
 import sys
+import hashlib
 import argparse
 from collections import Counter
 from pathlib import Path
@@ -385,7 +386,7 @@ def calibrate_num_chars(tokenizer, max_seq_length, task_type, documents, rng, st
         local_rng = random.Random(rng.randint(0, 2**31))
         try:
             sample = build_sample(
-                template, key=0, documents=documents,
+                template, documents=documents,
                 num_chars=num_chars, rng=local_rng,
             )
         except Exception:
@@ -402,14 +403,14 @@ def calibrate_num_chars(tokenizer, max_seq_length, task_type, documents, rng, st
 
 
 #  Unified sample construction
-def build_sample(template, key, *, num_words=None,
+def build_sample(template, *, num_words=None,
                  documents=None, num_chars=None, rng=None):
     """Build one complete retrieval sample in the standardized format.
 
     For word-list tasks, provide *num_words* (target total list length).
     For haystack tasks, provide *documents*, *num_chars*, and *rng*.
 
-    Returns a dict with keys: key, prompt, verifier_id_list, kwargs.
+    Returns a dict with keys: id, prompt, verifier_id_list, kwargs.
     """
     task_type = template["task_type"]
     verifier_id = TASK_TYPE_TO_VERIFIER[task_type]
@@ -426,11 +427,12 @@ def build_sample(template, key, *, num_words=None,
     else:
         raise ValueError(f"Unknown task type: {task_type}")
 
+    sample_id = hashlib.md5(prompt.encode()).hexdigest()
     return {
-        "key": key,
+        "id": sample_id,
         "prompt": prompt,
         "verifier_id_list": [verifier_id],
-        "kwargs": [verifier_kwargs],
+        "kwargs": [json.dumps(verifier_kwargs, ensure_ascii=False)],
     }
 
 
@@ -659,7 +661,7 @@ def main(args):
     # Generate samples
     samples = []
     seen = set()
-    key_counter = args.start_key
+    sample_counter = 0
     retries_used = 0
     type_dist = Counter()
     size_dist = Counter()
@@ -671,28 +673,26 @@ def main(args):
             sample = None
 
             for attempt in range(max_retries):
-                random.seed(seed + key_counter * max_retries + attempt)
+                random.seed(seed + sample_counter * max_retries + attempt)
 
                 if tt in WORD_LIST_TASK_TYPES:
                     candidate = build_sample(
                         template,
-                        key=key_counter,
                         num_words=build_kwargs["num_words"],
                     )
                 else:
                     sample_rng = random.Random(rng.randint(0, 2**63))
                     candidate = build_sample(
                         template,
-                        key=key_counter,
                         documents=documents,
                         num_chars=build_kwargs["num_chars"],
                         rng=sample_rng,
                     )
 
-                fp = (candidate["prompt"], tt)
-                if fp not in seen:
+                sid = candidate["id"]
+                if sid not in seen:
                     sample = candidate
-                    seen.add(fp)
+                    seen.add(sid)
                     break
 
                 retries_used += 1
@@ -704,7 +704,7 @@ def main(args):
             samples.append(sample)
             type_dist[tt] += 1
             size_dist[ctx_size] += 1
-            key_counter += 1
+            sample_counter += 1
 
     # Validate
     total_issues = 0
@@ -713,9 +713,9 @@ def main(args):
         if issues:
             total_issues += len(issues)
             if args.verbose:
-                print(f"  Key {s['key']}: {issues}")
+                print(f"  ID {s['id']}: {issues}")
 
-    unique_count = len({s["prompt"] for s in samples})
+    unique_count = len({s["id"] for s in samples})
 
     print(f"\nResults:")
     print(f"  Generated samples:  {len(samples)}")
@@ -806,12 +806,6 @@ if __name__ == "__main__":
         type=int,
         default=42,
         help="Random seed for reproducibility (default: 42).",
-    )
-    parser.add_argument(
-        "--start_key",
-        type=int,
-        default=0,
-        help="Starting key index for samples (default: 0).",
     )
     parser.add_argument(
         "--verbose",

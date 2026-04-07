@@ -19,6 +19,8 @@ Usage:
     # [True, True]
 """
 
+import json
+
 from verifiers import (
     BulletListChecker,
     CapitalLettersPortugueseChecker,
@@ -55,6 +57,7 @@ from verifiers import (
     RepeatPromptThenAnswer,
     ResponseLanguageChecker,
     SectionChecker,
+    ThinkingFormatChecker,
     TitleChecker,
     ToolCallArgsKeysChecker,
     ToolCallArgsTypesChecker,
@@ -117,6 +120,8 @@ VERIFICATION_REGISTRY = {
     "tool_call:args_keys": ToolCallArgsKeysChecker,
     "tool_call:args_types": ToolCallArgsTypesChecker,
     "tool_call:refusal": ToolCallRefusalChecker,
+    # Reasoning / thinking format
+    "reasoning:thinking_format": ThinkingFormatChecker,
 }
 
 
@@ -131,21 +136,39 @@ class Verifier:
         completion: The model-generated response to evaluate.
     """
 
-    def __init__(self, verifier_id_list, kwargs, completion):
+    def __init__(self, verifier_id_list, kwargs, completion, enable_thinking=False):
         self.verifier_id_list = verifier_id_list
         self.kwargs = kwargs
         self.completion = completion
+        self.enable_thinking = enable_thinking
 
     def verify(self):
-        """Run all verifiers and return a list of booleans."""
+        """Run all verifiers and return a list of booleans.
+
+        If *enable_thinking* is True, an extra ``reasoning:thinking_format``
+        check is prepended to the results list.
+        """
         results = []
+        if self.enable_thinking:
+            results.append(
+                self._verify_one("reasoning:thinking_format", {})
+            )
         for i, verifier_id in enumerate(self.verifier_id_list):
             passed = self._verify_one(verifier_id, self.kwargs[i])
             results.append(passed)
         return results
 
+    @staticmethod
+    def _parse_kwargs(raw_kwargs):
+        """Accept a dict or a JSON string and return a dict."""
+        if isinstance(raw_kwargs, str):
+            raw_kwargs = json.loads(raw_kwargs)
+        return raw_kwargs
+
     def _verify_one(self, verifier_id, raw_kwargs):
         """Instantiate the checker, build its description, and run verification."""
+        raw_kwargs = self._parse_kwargs(raw_kwargs)
+
         cls = VERIFICATION_REGISTRY.get(verifier_id)
         if cls is None:
             raise ValueError(f"Unknown verifier ID: {verifier_id}")

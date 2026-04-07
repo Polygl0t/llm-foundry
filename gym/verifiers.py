@@ -2152,3 +2152,27 @@ class ToolCallRefusalChecker(TaskVerifier):
             return False
         word_count = len(value.split())
         return word_count >= self._min_words
+
+
+class ThinkingFormatChecker(TaskVerifier):
+    """Check that the completion contains non-empty <think>...</think> tags."""
+
+    _THINK_RE = re.compile(r"<think>(.*?)</think>", re.DOTALL)
+
+    def build_description(self):
+        return (
+            "A resposta deve incluir um bloco de raciocínio dentro das tags "
+            "<think>...</think> antes da resposta final."
+        )
+
+    def get_instruction_args(self):
+        return {}
+
+    def get_instruction_args_keys(self):
+        return []
+
+    def check_following(self, value):
+        match = self._THINK_RE.search(value)
+        if match is None:
+            return False
+        return bool(match.group(1).strip())

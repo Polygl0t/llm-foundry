@@ -12,29 +12,30 @@ Sources:
 
 Usage:
     python generate_from_math_dataset.py \
-        --output_file math_tasks.json \
-        --num_samples 500
+        --output_file math_tasks.jsonl \
+        --num_samples 20000
 
     python generate_from_math_dataset.py \
-        --output_file math_tasks.json \
-        --num_samples 500 \
+        --output_file math_tasks.jsonl \
+        --num_samples 20000 \
         --sources gsm8k math_sft \
-        --seed 42 --start_key 0 \
+        --seed 42 \
         --cache_dir ./.cache
 
     # Only GSM8K:
     python generate_from_math_dataset.py \
-        --output_file gsm8k_tasks.json \
+        --output_file gsm8k_tasks.jsonl \
         --sources gsm8k
 
     # Only gigaverbo math SFT:
     python generate_from_math_dataset.py \
-        --output_file math_sft_tasks.json \
+        --output_file math_sft_tasks.jsonl \
         --sources math_sft
 """
 
 import json
 import random
+import hashlib
 import argparse
 from pathlib import Path
 import datasets
@@ -95,13 +96,14 @@ def _is_valid_number(s):
 
 # Sample construction
 
-def build_sample(question, answer, key):
+def build_sample(question, answer):
     """Build one gym sample from a math (question, answer) pair."""
+    sample_id = hashlib.md5(question.encode()).hexdigest()
     return {
-        "key": key,
+        "id": sample_id,
         "prompt": question,
         "verifier_id_list": [VERIFIER_ID],
-        "kwargs": [{"expected_answer": answer}],
+        "kwargs": [json.dumps({"expected_answer": answer}, ensure_ascii=False)],
     }
 
 
@@ -114,7 +116,10 @@ def validate_sample(sample):
         issues.append("Empty verifier_id_list")
     if len(sample.get("verifier_id_list", [])) != len(sample.get("kwargs", [])):
         issues.append("verifier_id_list and kwargs length mismatch")
-    answer = sample.get("kwargs", [{}])[0].get("expected_answer", "")
+    first_kw = sample.get("kwargs", ["{}"])[0]
+    if isinstance(first_kw, str):
+        first_kw = json.loads(first_kw)
+    answer = first_kw.get("expected_answer", "")
     if not answer:
         issues.append("Missing expected_answer")
     return issues
@@ -156,19 +161,22 @@ def main(args):
     selected = all_pairs[:args.num_samples]
 
     samples = []
-    key_counter = args.start_key
+    seen = set()
     total_issues = 0
 
     for question, answer in selected:
-        sample = build_sample(question, answer, key_counter)
+        sample = build_sample(question, answer)
+        sid = sample["id"]
+        if sid in seen:
+            continue
+        seen.add(sid)
         issues = validate_sample(sample)
         if issues:
             total_issues += len(issues)
             if args.verbose:
-                print(f"  Key {key_counter}: {issues}")
+                print(f"  ID {sid}: {issues}")
             continue
         samples.append(sample)
-        key_counter += 1
 
     print(f"\nResults:")
     print(f"  Generated samples:  {len(samples)}")
@@ -210,12 +218,6 @@ if __name__ == "__main__":
         type=int,
         default=42,
         help="Random seed for reproducibility (default: 42).",
-    )
-    parser.add_argument(
-        "--start_key",
-        type=int,
-        default=0,
-        help="Starting key value for generated samples (default: 0).",
     )
     parser.add_argument(
         "--sources",

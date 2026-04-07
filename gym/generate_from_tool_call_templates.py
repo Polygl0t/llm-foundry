@@ -13,15 +13,16 @@ Usage:
         --num_samples 500
 
     python generate_from_tool_call_templates.py \
-        --output_file tool_call_tasks.json \
-        --num_samples 1000 \
+        --output_file tool_call_tasks.jsonl \
+        --num_samples 20000 \
         --min_tools 1 --max_tools 3 \
-        --refusal_ratio 0.5 \
-        --seed 42 --start_key 0 --verbose
+        --refusal_ratio 0.2 \
+        --seed 42 --verbose
 """
 
 import json
 import random
+import hashlib
 import argparse
 from pathlib import Path
 
@@ -427,14 +428,13 @@ def build_valid_completion(tool_name, args):
 
 # Sample construction
 def build_tool_call_sample(
-    key, tool, all_tools, rng,
+    tool, all_tools, rng,
     min_tools=1, max_tools=3,
     is_valid=True, min_refusal_words=5,
 ):
     """Build one complete tool-call gym sample.
 
     Args:
-        key: Integer sample identifier.
         tool: The target tool (used for valid tasks; ignored for refusal).
         all_tools: Full pool of available tools.
         rng: `random.Random` instance.
@@ -444,7 +444,7 @@ def build_tool_call_sample(
         min_refusal_words: Minimum words expected in a refusal response.
 
     Returns:
-        Dict with keys: key, prompt, verifier_id_list, kwargs.
+        Dict with keys: id, prompt, verifier_id_list, kwargs.
     """
     if is_valid:
         # Select distractor tools
@@ -490,11 +490,12 @@ def build_tool_call_sample(
             {"min_refusal_words": min_refusal_words},
         ]
 
+    sample_id = hashlib.md5(prompt.encode()).hexdigest()
     return {
-        "key": key,
+        "id": sample_id,
         "prompt": prompt,
         "verifier_id_list": verifier_ids,
-        "kwargs": kwargs_list,
+        "kwargs": [json.dumps(kw, ensure_ascii=False) for kw in kwargs_list],
     }
 
 
@@ -519,7 +520,7 @@ def validate_tool_call_sample(sample):
         issues.append("Empty prompt")
 
     # Must contain only the canonical keys
-    allowed_keys = {"key", "prompt", "verifier_id_list", "kwargs"}
+    allowed_keys = {"id", "prompt", "verifier_id_list", "kwargs"}
     extra_keys = set(sample.keys()) - allowed_keys
     if extra_keys:
         issues.append(f"Unexpected keys in sample: {extra_keys}")
@@ -557,7 +558,6 @@ def main(args):
 
     samples = []
     seen = set()
-    key_counter = args.start_key
     retries_used = 0
     max_retries = 20
 
@@ -569,7 +569,6 @@ def main(args):
             tool = rng.choice(all_tools)
 
             candidate = build_tool_call_sample(
-                key=key_counter,
                 tool=tool,
                 all_tools=all_tools,
                 rng=rng,
@@ -579,10 +578,10 @@ def main(args):
                 min_refusal_words=args.min_refusal_words,
             )
 
-            fp = sample_fingerprint(candidate)
-            if fp not in seen:
+            sid = candidate["id"]
+            if sid not in seen:
                 sample = candidate
-                seen.add(fp)
+                seen.add(sid)
                 break
             retries_used += 1
 
@@ -590,7 +589,6 @@ def main(args):
             print(f"  Warning: could not produce unique valid sample #{i+1}")
             continue
         samples.append(sample)
-        key_counter += 1
 
     # Generate refusal samples
     for i in range(num_refusals):
@@ -600,7 +598,6 @@ def main(args):
             rng = random.Random(args.seed + offset + i * max_retries + attempt)
 
             candidate = build_tool_call_sample(
-                key=key_counter,
                 tool=None,
                 all_tools=all_tools,
                 rng=rng,
@@ -610,10 +607,10 @@ def main(args):
                 min_refusal_words=args.min_refusal_words,
             )
 
-            fp = sample_fingerprint(candidate)
-            if fp not in seen:
+            sid = candidate["id"]
+            if sid not in seen:
                 sample = candidate
-                seen.add(fp)
+                seen.add(sid)
                 break
             retries_used += 1
 
@@ -621,7 +618,6 @@ def main(args):
             print(f"  Warning: could not produce unique refusal sample #{i+1}")
             continue
         samples.append(sample)
-        key_counter += 1
 
     # Shuffle to interleave valid and refusal
     rng_shuffle = random.Random(args.seed)
@@ -634,30 +630,33 @@ def main(args):
         if issues:
             total_issues += len(issues)
             if args.verbose:
-                print(f"  Key {s['key']}: {issues}")
+                print(f"  ID {s['id']}: {issues}")
 
     n_valid = sum(
         1 for s in samples
-        if any(kw.get("expect_call") is True for kw in s["kwargs"])
+        if any(
+            json.loads(kw).get("expect_call") is True
+            for kw in s["kwargs"]
+        )
     )
     n_refusal = len(samples) - n_valid
-    unique_fps = len({sample_fingerprint(s) for s in samples})
+    unique_ids = len({s['id'] for s in samples})
 
     print(f"\nResults:")
     print(f"  Generated samples:  {len(samples)}")
     print(f"  Valid tool-calls:   {n_valid}")
     print(f"  Refusals:           {n_refusal}")
     print(
-        f"  Unique:             {unique_fps}/{len(samples)}"
-        f"  ({100 * unique_fps / max(len(samples), 1):.1f}%)"
+        f"  Unique:             {unique_ids}/{len(samples)}"
+        f"  ({100 * unique_ids / max(len(samples), 1):.1f}%)"
     )
     print(f"  Validation issues:  {total_issues}")
     if retries_used:
         print(f"  Uniqueness retries: {retries_used}")
 
     # Hard assertions
-    assert unique_fps == len(samples), (
-        f"FAIL: {len(samples) - unique_fps} duplicate samples"
+    assert unique_ids == len(samples), (
+        f"FAIL: {len(samples) - unique_ids} duplicate samples"
     )
     assert total_issues == 0, (
         f"FAIL: {total_issues} validation issues found"
@@ -697,12 +696,6 @@ if __name__ == "__main__":
         type=int,
         default=42,
         help="Random seed for reproducibility (default: 42).",
-    )
-    parser.add_argument(
-        "--start_key",
-        type=int,
-        default=0,
-        help="Starting key value for generated samples (default: 0).",
     )
     parser.add_argument(
         "--min_tools",
