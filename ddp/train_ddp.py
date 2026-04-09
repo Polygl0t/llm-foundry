@@ -2,23 +2,16 @@
 Distributed Data Parallel (DDP) Training for Large Language Models
 
 Production-ready training script for transformer-based causal language models using
-PyTorch DDP with AdamW optimizer. Designed for multi-GPU, multi-node SLURM clusters.
+PyTorch DDP with either standard AdamW or a hybrid Muon + Adam optimizer.
+Designed for multi-GPU, multi-node SLURM clusters.
 
-Training pipeline:
-1. SLURM setup: Initialize DDP process group
-2. Model loading: From scratch, checkpoint, or reference model
-3. Data loading: Create distributed samplers and dataloaders
-4. Optimizer setup: AdamW with grouped parameters
-5. LR scheduler: Cosine or WSD decay
-6. Training loop: Forward, backward, gradient accumulation, optimizer step
-7. Validation: Periodic evaluation on val_dataset
-8. Checkpointing: Save model, optimizer, scheduler states
-9. Monitoring: Log to W&B and local log file
+How to Use:
 
-Requirements:
-    - SLURM environment (SLURM_NTASKS, SLURM_PROCID)
-    - PyTorch with NCCL backend
-    - transformers, liger-kernel, codecarbon, wandb
+1. Configure `specifications.yaml` with your training settings, including dataset paths, 
+    model architecture, and optimization parameters.
+
+2. Launch the training script with SLURM, specifying the number of nodes and GPUs.
+    See the `train_ddp.sh` script for an example SLURM job submission.
 """
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data.distributed import DistributedSampler
@@ -29,10 +22,28 @@ import contextlib
 import os
 import time
 
-from transformers import default_data_collator, AutoTokenizer, AutoConfig, AutoModelForCausalLM
+from transformers import (
+    default_data_collator, 
+    AutoTokenizer, 
+    AutoConfig, 
+    AutoModelForCausalLM
+)
 from liger_kernel.transformers import _apply_liger_kernel_to_instance
 from specifications import TrainingArguments
 from functools import partial
+
+from optimizers import (
+    normalize_optimizer_type, 
+    create_lr_scheduler, 
+    create_optimizer, 
+    get_optimizer_summary_lines
+)
+from utils import (
+    StructuredTrainingLogger,
+    setup_triton_cache, 
+    cleanup_log_file, 
+    checkpoint_already_validated
+)
 
 from codecarbon import EmissionsTracker
 import numpy as np
@@ -45,106 +56,19 @@ import yaml
 import math
 import sys
 
-def setup_triton_cache():
-    """
-    Setup Triton cache directory with proper permissions and cleanup.
-
-    -   This helps to avoid conflicts where different processes 
-        might try to access cache files that have been modified
-        or deleted.
-    """
-
-    # Use SLURM_JOB_ID to create a unique cache directory for each job.
-    slurm_job_id = os.environ.get('SLURM_JOB_ID', 'local')
-    cache_dir = os.environ.get('TRITON_CACHE_DIR', f'./.cache/triton_cache/{slurm_job_id}')
-
-    # Create rank-specific cache directory to avoid conflicts.
-    rank = dist.get_rank() if dist.is_initialized() else 0
-    rank_cache_dir = f"{cache_dir}/rank_{rank}"
-    
-    os.makedirs(rank_cache_dir, exist_ok=True)
-    os.environ['TRITON_CACHE_DIR'] = rank_cache_dir
-    
-    # Cleanup old cache files older than 1 hour.
-    try:
-        for root, _, files in os.walk(rank_cache_dir):
-            for file in files:
-                file_path = os.path.join(root, file)
-                try:
-                    if os.path.getmtime(file_path) < time.time() - 3600:
-                        os.remove(file_path)
-                except (OSError, IOError):
-                    pass
-    except Exception:
-        pass
-
-def cleanup_log_file(log_file):
-    """
-    Clean up the log file by removing incomplete entries after the last "Validation" line.
-    This ensures the log remains consistent when resuming training.
-    """
-    if not os.path.exists(log_file):
-        return
-    
-    try:
-        # Read all lines from the log file
-        with open(log_file, "r") as f:
-            lines = f.readlines()
-        
-        # Find the last occurrence of a line starting with "Validation"
-        last_validation_idx = -1
-        for i in range(len(lines) - 1, -1, -1):
-            if lines[i].startswith("Validation"):
-                last_validation_idx = i
-                break
-        
-        # If we found a validation line, keep everything up to and including it
-        if last_validation_idx != -1:
-            with open(log_file, "w") as f:
-                f.writelines(lines[:last_validation_idx + 1])
-    except Exception as e:
-        # If cleanup fails, just continue - we don't want to crash the training
-        print(f"Warning: Failed to cleanup log file: {e}")
-
-def checkpoint_already_validated(checkpoint_dir, stage_name, step, log_file):
-    """
-    Check if a checkpoint has already been validated by verifying:
-    1. The checkpoint directory exists
-    2. The log file contains a validation entry for this step
-    
-    Returns:
-        bool: True if checkpoint exists and has been validated, False otherwise
-    """
-    # Check if checkpoint directory exists
-    checkpoint_name = f"step_{step:05d}"
-    output_dir = os.path.join(checkpoint_dir, stage_name, checkpoint_name)
-    
-    if not os.path.exists(output_dir):
-        return False
-    
-    # Check if log file exists and contains validation for this step
-    if not os.path.exists(log_file):
-        return False
-    
-    try:
-        with open(log_file, "r") as f:
-            for line in f:
-                # Look for validation log entry for this specific step
-                if line.startswith("Validation") and f"step: {step:5d}" in line:
-                    return True
-    except Exception:
-        # If we can't read the log, assume not validated to be safe
-        return False
-    
-    return False
-
-def main(specs, slurm_job_id, hardware):
+def main(specs, slurm_job_id, hardware, optimizer_type_override=None):
 
     # Load the training arguments from the specifications.yaml file
     with open(specs, "r") as stream:
         kwargs = yaml.safe_load(stream)
+    if optimizer_type_override is not None:
+        kwargs["optimizer_type"] = optimizer_type_override
+    
+    # Create the `args` object from the loaded specifications.
     # Check the `specifications.py` script to see all available arguments.
     args = TrainingArguments(**kwargs)
+    args.optimizer_type = normalize_optimizer_type(args.optimizer_type)
+    kwargs["optimizer_type"] = args.optimizer_type
 
     # [Logging facility for Python](https://docs.python.org/3/library/logging.html#)
     logger = logging.getLogger(f"DDP-Trainer-{slurm_job_id}-{args.stage_name}")
@@ -155,7 +79,7 @@ def main(specs, slurm_job_id, hardware):
         handlers=[logging.StreamHandler(sys.stdout)],
     )
     
-    if "SLURM_NTASKS" and "SLURM_PROCID" in os.environ:
+    if "SLURM_NTASKS" in os.environ and "SLURM_PROCID" in os.environ:
 
         # SLURM_NTASKS is the total number of processes (aka, world size).
         world_size = int(os.environ["SLURM_NTASKS"])
@@ -204,18 +128,27 @@ def main(specs, slurm_job_id, hardware):
     # Update the checkpoint directory to include the SLURM job id.
     args.checkpoint_dir = os.path.join(args.checkpoint_dir, f"slurm_job_{slurm_job_id}")
     
+    log_file = None
+    file_logger = None
+
     if master_process: 
         os.makedirs(args.checkpoint_dir, exist_ok=True)
         # Create a log file to store the training logs.
-        log_file = os.path.join(args.checkpoint_dir, f"logs-{slurm_job_id}.txt")
+        log_file = os.path.join(args.checkpoint_dir, f"{slurm_job_id}.log")
         
         # Clean up the log file if resuming from checkpoint
         if args.resume_from_checkpoint:
             cleanup_log_file(log_file)
         
-        # Ensure log file exists (create if it doesn't)
-        with open(log_file, "a") as f: 
-            pass
+        file_logger = StructuredTrainingLogger(log_file)
+
+    def append_metadata(message):
+        if file_logger is not None:
+            file_logger.log_metadata(message)
+
+    def append_stats(payload):
+        if file_logger is not None:
+            file_logger.log_stats(payload)
 
     # [Common PyTorch Functions](https://docs.pytorch.org/docs/stable/torch.html)
     # Set the random state seed for reproducibility.
@@ -253,8 +186,7 @@ def main(specs, slurm_job_id, hardware):
     else:
         if master_process:
             logger.info(f"No tokenizer name specified, using the {args.reference_model} to load the tokenizer.")
-            with open(log_file, "a") as f:
-                f.write(f"No tokenizer name specified, using the {args.reference_model} to load the tokenizer.\n")
+            append_metadata(f"No tokenizer name specified, using the {args.reference_model} to load the tokenizer.")
 
         tokenizer = AutoTokenizer.from_pretrained(
             args.reference_model, 
@@ -268,8 +200,7 @@ def main(specs, slurm_job_id, hardware):
         
         if master_process:
             logger.info(f"Loaded chat template from {args.chat_template_path}. Chat template added to the tokenizer.")
-            with open(log_file, "a") as f:
-                f.write(f"Loaded chat template from {args.chat_template_path}. Chat template added to the tokenizer.\n")
+            append_metadata(f"Loaded chat template from {args.chat_template_path}. Chat template added to the tokenizer.")
 
     # We override the model's vocab size with the tokenizer's vocab size only if the tokenizer's 
     # vocab size is larger than the model's vocab size. It is okay for the model's vocab size 
@@ -305,8 +236,7 @@ def main(specs, slurm_job_id, hardware):
 
         if master_process:
             logger.info(f"Resumed model from checkpoint: {checkpoint_path}")
-            with open(log_file, "a") as f:
-                f.write(f"\nResumed model from checkpoint: {checkpoint_path}\n")
+            append_metadata(f"Resumed model from checkpoint: {checkpoint_path}")
     
     else:
 
@@ -315,8 +245,7 @@ def main(specs, slurm_job_id, hardware):
         if not args.continual_pretraining:
             if master_process:
                 logger.info(f"Initializing model from `AutoConfig`.")
-                with open(log_file, "a") as f:
-                    f.write(f"Initializing model from `AutoConfig`.\n")
+                append_metadata("Initializing model from `AutoConfig`.")
 
             # Define the model architecture.
             config_kwargs = {
@@ -364,8 +293,7 @@ def main(specs, slurm_job_id, hardware):
         else:
             if master_process:
                 logger.info(f"Initializing model from reference model: {args.reference_model} for continual pretraining/fine-tuning.")
-                with open(log_file, "a") as f:
-                    f.write(f"Initializing model from reference model: {args.reference_model} for continual pretraining/fine-tuning.\n")
+                append_metadata(f"Initializing model from reference model: {args.reference_model} for continual pretraining/fine-tuning.")
 
             # Check if we are performing RoPE extension/scaling.
             # What is RoPE scaling?
@@ -383,7 +311,7 @@ def main(specs, slurm_job_id, hardware):
                 args.max_position_embeddings = config.max_position_embeddings
 
                 # Check if we scale the base frequency (rope_theta).
-                if model.config.rope_theta == args.rope_theta:
+                if config.rope_theta == args.rope_theta:
                     if master_process:
                         logger.info(f"WARNING: RoPE theta should scale when performing RoPE scaling. Check your configurations and perhaps adjust the rope_theta to a larger value.")
                 
@@ -391,10 +319,9 @@ def main(specs, slurm_job_id, hardware):
                 config.rope_theta = args.rope_theta
 
                 if master_process:
-                    logger.info(f"Performing RoPE scaling to {model.config.max_position_embeddings} max position embeddings and {model.config.rope_theta} rope theta.")
+                    logger.info(f"Performing RoPE scaling to {config.max_position_embeddings} max position embeddings and {config.rope_theta} rope theta.")
                     logger.info(f"WARNING: `args.max_position_embeddings` has been reset to {args.max_position_embeddings}.")
-                    with open(log_file, "a") as f:
-                        f.write(f"Performing RoPE scaling to {model.config.max_position_embeddings} max position embeddings and {model.config.rope_theta} rope theta.\n")
+                    append_metadata(f"Performing RoPE scaling to {config.max_position_embeddings} max position embeddings and {config.rope_theta} rope theta.")
                         
 
             # [AutoModelForCausalLM](https://huggingface.co/docs/transformers/main/en/model_doc/auto#transformers.AutoModelForCausalLM)
@@ -425,8 +352,7 @@ def main(specs, slurm_job_id, hardware):
 
         if master_process:
             logger.info(f"Applied Liger kernels to the model.")
-            with open(log_file, "a") as f:
-                f.write(f"Applied Liger kernels to the model.\n")
+            append_metadata("Applied Liger kernels to the model.")
 
     # Change the model's `name_or_path`. If set to
     # None this will not show in the config (which is totally fine).
@@ -436,8 +362,7 @@ def main(specs, slurm_job_id, hardware):
     if master_process:
         params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         logger.info(f"Number of trainable parameters: {params:,}")
-        with open(log_file, "a") as f:
-            f.write(f"Number of trainable parameters: {params:,}\n")
+        append_metadata(f"Number of trainable parameters: {params:,}")
 
     # Set the gradient checkpointing for the model
     # What is Gradient Checkpointing? -> https://arxiv.org/abs/1604.06174
@@ -445,8 +370,7 @@ def main(specs, slurm_job_id, hardware):
 
         if master_process:
             logger.info(f"Gradient checkpointing enabled.")
-            with open(log_file, "a") as f:
-                f.write(f"Gradient checkpointing enabled.\n")
+            append_metadata("Gradient checkpointing enabled.")
 
         # Enable gradient checkpointing (https://huggingface.co/docs/transformers/main/en/model_doc/auto#transformers.AutoModelForCausalLM)
         model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False if torch.cuda.device_count() > 1 else True})
@@ -547,8 +471,7 @@ def main(specs, slurm_job_id, hardware):
         if args.shuffle_dataset:
             if master_process:
                 logger.info(f"Shuffling enabled. Shuffling {len(train_dataset_files)} dataset files.")
-                with open(log_file, "a") as f:
-                    f.write(f"Shuffling enabled. Shuffling {len(train_dataset_files)} dataset files.\n")
+                append_metadata(f"Shuffling enabled. Shuffling {len(train_dataset_files)} dataset files.")
             np.random.seed(args.seed)
             np.random.shuffle(train_dataset_files)
 
@@ -622,8 +545,7 @@ def main(specs, slurm_job_id, hardware):
 
     if master_process:
         logger.info(f"Collate function masking settings: mask_eos_token={args.mask_eos_token}, mask_pad_token={args.mask_pad_token}.")
-        with open(log_file, "a") as f:
-            f.write(f"Collate function masking settings: mask_eos_token={args.mask_eos_token}, mask_pad_token={args.mask_pad_token}.\n")
+        append_metadata(f"Collate function masking settings: mask_eos_token={args.mask_eos_token}, mask_pad_token={args.mask_pad_token}.")
     
     def collate_with_masking(
             examples, 
@@ -707,107 +629,22 @@ def main(specs, slurm_job_id, hardware):
         args.num_train_epochs = max_steps // num_update_steps_per_epoch if max_steps > num_update_steps_per_epoch else 1
         if master_process:
             logger.info(f"Overriding the number of steps to {max_steps} as per the `max_steps` argument (check the YAML file if you are not sure).")
-            with open(log_file, "a") as f:
-                f.write(f"Overriding the number of steps to {max_steps} as per the `max_steps` argument (check the YAML file if you are not sure).\n")
+            append_metadata(f"Overriding the number of steps to {max_steps} as per the `max_steps` argument (check the YAML file if you are not sure).")
 
-    # Cosine decay learning rate scheduler
-    if args.lr_decay_type.lower() == "cosine":
-
-        lr_decay_iters = max_steps * args.lr_decay_iters_coef
-
-        def lr_scheduler(it):
-
-            # 1) Linear warmup for `warmup_steps` steps
-            if it < args.warmup_steps:
-                # `it + 1` to avoid giving 0 learning rate at the first step
-                return (args.max_learning_rate * (it + 1) / args.warmup_steps, "warmup")
-            # 2) If it > `lr_decay_iters``, return min learning rate
-            if it > lr_decay_iters:
-                return (args.min_learning_rate, "stable")
-            # 3) In between, use cosine decay down to `min_learning_rate`
-            decay_ratio = (it - args.warmup_steps) / (lr_decay_iters - args.warmup_steps)
-            assert 0 <= decay_ratio <= 1
-            
-            coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))
-            return (args.min_learning_rate + coeff * (args.max_learning_rate - args.min_learning_rate), "cosine_decay")
-    
-    # Warmup, Stable, Decay (WSD) learning rate scheduler -> https://arxiv.org/abs/2405.18392
-    elif args.lr_decay_type.lower() == "wsd":
-
-        lr_decay_iters = max_steps * args.lr_decay_iters_coef
-        stable_iters = max_steps - lr_decay_iters
-        
-        def lr_scheduler(it):
-            # 1) Linear warmup for `warmup_steps` steps
-            if it < args.warmup_steps:
-                # `it + 1` to avoid giving 0 learning rate at the first step
-                return (args.max_learning_rate * (it + 1) / args.warmup_steps, "warmup")
-            # 2) If it > `stable_iters`, linear decay to `min_learning_rate`
-            if it > stable_iters and lr_decay_iters > 0:
-                decay_ratio = (it - stable_iters) / (max_steps - stable_iters)
-                assert 0 <= decay_ratio <= 1
-                # If `use_sqrt` is set, we use 1 - sqrt decay instead of linear decay.
-                if args.use_sqrt:
-                    decay_ratio = np.sqrt(decay_ratio)
-                coeff = 1.0 - decay_ratio
-                return (args.min_learning_rate + coeff * (args.max_learning_rate - args.min_learning_rate), "linear_decay" if not args.use_sqrt else "1-sqrt")
-            # 3) In between, use constant learning rate
-            return (args.max_learning_rate, "stable")
-                
-    else:
-        raise ValueError(f"Invalid learning rate decay type: '{args.lr_decay_type}'. Supported types are: `cosine` and `wsd`.")
+    lr_scheduler = create_lr_scheduler(args, max_steps, args.optimizer_type)
 
     if master_process:
         logger.info(f"Using learning rate decay type: {args.lr_decay_type}")
-        with open(log_file, "a") as f:
-            f.write(f"Using learning rate decay type: {args.lr_decay_type}\n")
+        append_metadata(f"Using learning rate decay type: {args.lr_decay_type}")
 
-    # For the optimizer, we will split weights in two groups: 
-    # - one with weight decay; 
-    # - and the other without weight decay (biases, layer norms, and embeddings).
-    #
-    # Following OLMo 2, we remove weight decay from embedding layers to improve training stability. 
-    # Source: https://arxiv.org/abs/2501.00656
-    no_decay = ["bias", "layer_norm.weight", "embed_tokens.weight"]
-    optimizer_grouped_parameters = [
-        {
-            "params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
-            "weight_decay": args.weight_decay,
-        },
-        {
-            "params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
-            "weight_decay": 0.0,
-        },
-    ]
-
-    # [AdamW](https://pytorch.org/docs/stable/generated/torch.optim.AdamW.html)
-    optimizer = torch.optim.AdamW(optimizer_grouped_parameters, 
-        lr=args.max_learning_rate,
-        eps=args.eps,
-        betas=(args.beta1, args.beta2),
-        fused=True if device_type=="cuda" else False
+    optimizer, optimizer_step, optimizer_label = create_optimizer(
+        model,
+        args,
+        device_type,
+        args.optimizer_type,
+        master_process,
+        logger,
     )
-
-    # Compile optimizer step.
-    if args.torch_compile:
-
-        if master_process:
-            logger.info("Compiling optimizer step with torch.compile.")
-        
-        @torch.compile(fullgraph=False)
-        def optimizer_step(lr):
-            """
-            This just helps to bundle the optimizer step with the learning rate.
-            """
-            for param_group in optimizer.param_groups:
-                param_group['lr'] = lr
-            optimizer.step()
-    
-    else:
-        def optimizer_step(lr):
-            for param_group in optimizer.param_groups:
-                param_group['lr'] = lr
-            optimizer.step()
 
     # Resume the optimizer from the checkpoint.
     if args.resume_from_checkpoint:
@@ -817,8 +654,7 @@ def main(specs, slurm_job_id, hardware):
         optimizer.load_state_dict(checkpoint['optimizer'])
         if master_process:
             logger.info(f"Resumed optimizer from checkpoint: {checkpoint_path}")
-            with open(log_file, "a") as f:
-                f.write(f"Resumed optimizer from checkpoint: {checkpoint_path}\n")
+            append_metadata(f"Resumed optimizer from checkpoint: {checkpoint_path}")
 
     if master_process:
 
@@ -861,69 +697,52 @@ def main(specs, slurm_job_id, hardware):
         logger.info(f"  Torch compile | {args.torch_compile}")
         logger.info(f"  Trainable parameters | {params:,}")
         logger.info("="*50)
-        logger.info("Optimizer Configuration (AdamW):")
-        logger.info(f"  Max learning rate | {args.max_learning_rate}")
-        logger.info(f"  Min learning rate | {args.min_learning_rate}")
-        logger.info(f"  LR scheduler type | {args.lr_decay_type.upper()}")
-        logger.info(f"  LR decay iterations coef | {args.lr_decay_iters_coef}")
-        logger.info(f"  Warmup steps | {args.warmup_steps}")
-        logger.info(f"  Weight decay | {args.weight_decay}")
-        logger.info(f"  Beta1 | {args.beta1}")
-        logger.info(f"  Beta2 | {args.beta2}")
-        logger.info(f"  Epsilon | {args.eps}")
-        logger.info(f"  Max grad norm | {args.max_grad_norm}")
+        optimizer_summary_lines = get_optimizer_summary_lines(args, args.optimizer_type)
+        logger.info(f"Optimizer Configuration ({optimizer_label}):")
+        for line in optimizer_summary_lines:
+            logger.info(line)
         logger.info("="*50)
 
         if args.resume_from_checkpoint is None:
-            # No need to log this again if we are resuming from a checkpoint.
-            with open(log_file, "a") as f:
-                f.write("="*50 + "\n")
-                f.write("***** Running training *****\n")
-                f.write(f"  Training stage | {args.stage_name}\n")
-                f.write(f"  SLURM Job ID | {slurm_job_id}\n")
-                f.write(f"  Hardware | {hardware.upper()}\n")
-                f.write(f"  World size (total GPUs) | {world_size}\n")
-                f.write(f"  Precision | {'bfloat16' if args.bf16 else 'float32'}\n")
-                f.write("="*50 + "\n")
-                f.write("Dataset Configuration:\n")
-                f.write(f"  Num train examples | {len(train_dataset):,}\n")
-                f.write(f"  Num validation examples | {len(val_dataset):,}\n")
-                f.write(f"  Length of train dataloader | {len(train_dataloader):,}\n")
-                f.write(f"  Max position embeddings (seq length) | {args.max_position_embeddings:,}\n")
-                f.write(f"  Shuffle dataset | {args.shuffle_dataset}\n")
-                f.write(f"  Mask EOS token | {args.mask_eos_token}\n")
-                f.write(f"  Mask PAD token | {args.mask_pad_token}\n")
-                f.write("="*50 + "\n")
-                f.write("Batch Configuration:\n")
-                f.write(f"  Num Epochs | {args.num_train_epochs}\n")
-                f.write(f"  Micro batch size per device | {args.micro_batch_size}\n")
-                f.write(f"  Gradient accumulation steps | {gradient_accumulation_steps}\n")
-                f.write(f"  Total batch size (samples) | {args.micro_batch_size * gradient_accumulation_steps * world_size}\n")
-                f.write(f"  Total batch size (tokens) | {args.total_batch_size:,}\n")
-                f.write(f"  Total optimization steps | {max_steps:,}\n")
-                f.write(f"  Steps per epoch | {num_update_steps_per_epoch:,}\n")
-                f.write(f"  Checkpointing every | {args.checkpointing_steps} steps\n")
-                f.write("="*50 + "\n")
-                f.write("Model Architecture:\n")
-                f.write(f"  Model type | {args.reference_model if args.reference_model else 'Custom'}\n")
-                f.write(f"  Attention implementation | {args.attn_implementation}\n")
-                f.write(f"  Gradient checkpointing | {args.gradient_checkpointing}\n")
-                f.write(f"  Liger kernel | {args.use_liger_kernel}\n")
-                f.write(f"  Torch compile | {args.torch_compile}\n")
-                f.write(f"  Trainable parameters | {params:,}\n")
-                f.write("="*50 + "\n")
-                f.write("Optimizer Configuration (AdamW):\n")
-                f.write(f"  Max learning rate | {args.max_learning_rate}\n")
-                f.write(f"  Min learning rate | {args.min_learning_rate}\n")
-                f.write(f"  LR scheduler type | {args.lr_decay_type.upper()}\n")
-                f.write(f"  LR decay iterations coef | {args.lr_decay_iters_coef}\n")
-                f.write(f"  Warmup steps | {args.warmup_steps}\n")
-                f.write(f"  Weight decay | {args.weight_decay}\n")
-                f.write(f"  Beta1 | {args.beta1}\n")
-                f.write(f"  Beta2 | {args.beta2}\n")
-                f.write(f"  Epsilon | {args.eps}\n")
-                f.write(f"  Max grad norm | {args.max_grad_norm}\n")
-                f.write("="*50 + "\n")
+            append_metadata("="*50)
+            append_metadata("***** Running training *****")
+            append_metadata(f"  Training stage | {args.stage_name}")
+            append_metadata(f"  SLURM Job ID | {slurm_job_id}")
+            append_metadata(f"  Hardware | {hardware.upper()}")
+            append_metadata(f"  World size (total GPUs) | {world_size}")
+            append_metadata(f"  Precision | {'bfloat16' if args.bf16 else 'float32'}")
+            append_metadata("="*50)
+            append_metadata("Dataset Configuration:")
+            append_metadata(f"  Num train examples | {len(train_dataset):,}")
+            append_metadata(f"  Num validation examples | {len(val_dataset):,}")
+            append_metadata(f"  Length of train dataloader | {len(train_dataloader):,}")
+            append_metadata(f"  Max position embeddings (seq length) | {args.max_position_embeddings:,}")
+            append_metadata(f"  Shuffle dataset | {args.shuffle_dataset}")
+            append_metadata(f"  Mask EOS token | {args.mask_eos_token}")
+            append_metadata(f"  Mask PAD token | {args.mask_pad_token}")
+            append_metadata("="*50)
+            append_metadata("Batch Configuration:")
+            append_metadata(f"  Num Epochs | {args.num_train_epochs}")
+            append_metadata(f"  Micro batch size per device | {args.micro_batch_size}")
+            append_metadata(f"  Gradient accumulation steps | {gradient_accumulation_steps}")
+            append_metadata(f"  Total batch size (samples) | {args.micro_batch_size * gradient_accumulation_steps * world_size}")
+            append_metadata(f"  Total batch size (tokens) | {args.total_batch_size:,}")
+            append_metadata(f"  Total optimization steps | {max_steps:,}")
+            append_metadata(f"  Steps per epoch | {num_update_steps_per_epoch:,}")
+            append_metadata(f"  Checkpointing every | {args.checkpointing_steps} steps")
+            append_metadata("="*50)
+            append_metadata("Model Architecture:")
+            append_metadata(f"  Model type | {args.reference_model if args.reference_model else 'Custom'}")
+            append_metadata(f"  Attention implementation | {args.attn_implementation}")
+            append_metadata(f"  Gradient checkpointing | {args.gradient_checkpointing}")
+            append_metadata(f"  Liger kernel | {args.use_liger_kernel}")
+            append_metadata(f"  Torch compile | {args.torch_compile}")
+            append_metadata(f"  Trainable parameters | {params:,}")
+            append_metadata("="*50)
+            append_metadata(f"Optimizer Configuration ({optimizer_label}):")
+            for line in optimizer_summary_lines:
+                append_metadata(line)
+            append_metadata("="*50)
 
     # If we are resuming from a checkpoint (inside the same stage), we need to get the current iteration count, 
     # which is the number of batches processed by the dataloader so far, the current epoch, and the completed steps 
@@ -947,8 +766,7 @@ def main(specs, slurm_job_id, hardware):
         if args.resume_from_checkpoint and args.begin_new_stage:
             if master_process:
                 logger.info(f"Starting new training stage | {args.stage_name}")
-                with open(log_file, "a") as f:
-                    f.write(f"Starting new training stage | {args.stage_name}\n")
+                append_metadata(f"Starting new training stage | {args.stage_name}")
     
     if not args.begin_new_stage:
         if master_process:
@@ -1028,8 +846,7 @@ def main(specs, slurm_job_id, hardware):
 
     if master_process:
         logger.info(f"Epoch {epoch} of {math.ceil(args.num_train_epochs)}")
-        with open(log_file, "a") as f:
-            f.write(f"Epoch {epoch} of {math.ceil(args.num_train_epochs)}\n")
+        append_metadata(f"Epoch {epoch} of {math.ceil(args.num_train_epochs)}")
 
     # Flag to indicate if the learning rate stage has changed (starts as False)
     # We use this to save a checkpoint if the learning rate stage changes.
@@ -1065,8 +882,7 @@ def main(specs, slurm_job_id, hardware):
                 iter_train_dataloader = iter(train_dataloader)
                 if master_process:
                     logger.info(f"Epoch {epoch} of {math.ceil(args.num_train_epochs)}")
-                    with open(log_file, "a") as f:
-                        f.write(f"Epoch {epoch} of {math.ceil(args.num_train_epochs)}\n")
+                    append_metadata(f"Epoch {epoch} of {math.ceil(args.num_train_epochs)}")
          
         # Evaluate the model when:
         # - We have completed `args.checkpointing_steps` steps (excluding step 0).
@@ -1082,7 +898,7 @@ def main(specs, slurm_job_id, hardware):
                 args.checkpoint_dir, 
                 args.stage_name, 
                 completed_steps, 
-                log_file if master_process else os.path.join(args.checkpoint_dir, f"logs-{slurm_job_id}.txt")
+                log_file if master_process else os.path.join(args.checkpoint_dir, f"{slurm_job_id}.log")
             )
             
             # Skip validation if checkpoint already exists and has been validated
@@ -1132,9 +948,16 @@ def main(specs, slurm_job_id, hardware):
 
                 if master_process:
                     logger.info(f"Validation | step: {completed_steps:5d} | loss: {val_loss_accum.item():.4f} | kWh: {tracker._total_energy.kWh:.2f} | val_time: {val_time:.2f}s")
-
-                    with open(log_file, "a") as f:
-                        f.write(f"Validation | step: {completed_steps:5d} | loss: {val_loss_accum.item():.4f} |  kWh: {tracker._total_energy.kWh:.2f} | val_time: {val_time:.2f}s\n")
+                    append_stats(
+                        {
+                            "status": "validation",
+                            "step": completed_steps,
+                            "loss": round(val_loss_accum.item(), 6),
+                            "kwh": round(tracker._total_energy.kWh, 6),
+                            "val_time_s": round(val_time, 6),
+                            "stage_name": args.stage_name,
+                        }
+                    )
 
                     if args.wandb_token is not None:
                         wandb.log({"val_loss": val_loss_accum.item()})
@@ -1197,8 +1020,7 @@ def main(specs, slurm_job_id, hardware):
                 batch = next(iter_train_dataloader)
                 if master_process:
                     logger.info(f"Epoch {epoch} of {math.ceil(args.num_train_epochs)}")
-                    with open(log_file, "a") as f:
-                        f.write(f"Epoch {epoch} of {math.ceil(args.num_train_epochs)}\n")
+                    append_metadata(f"Epoch {epoch} of {math.ceil(args.num_train_epochs)}")
                 # Reset iter_count since we're starting a new epoch
                 iter_count = 0
 
@@ -1239,10 +1061,10 @@ def main(specs, slurm_job_id, hardware):
             accumulated_loss = accumulated_loss / world_size
 
         # Clip gradients up to `args.max_grad_norm`.
-        norm = torch.nn.utils.clip_grad_norm_(model.module.parameters(), args.max_grad_norm)
+        norm = torch.nn.utils.clip_grad_norm_(raw_model.parameters(), args.max_grad_norm)
 
         # Determine the learning rate for the current step.
-        lr, lr_stage = lr_scheduler(completed_steps)
+        adam_lr, muon_lr, lr_stage = lr_scheduler(completed_steps)
 
         # And check if the learning rate stage has changed.
         if lr_stage != current_lr_stage:
@@ -1250,12 +1072,11 @@ def main(specs, slurm_job_id, hardware):
             current_lr_stage = lr_stage
             if master_process:
                 logger.info(f"Learning rate stage changed to: {current_lr_stage} at step {completed_steps} | {args.stage_name}.")
-                with open(log_file, "a") as f:
-                    f.write(f"Learning rate stage changed to: {current_lr_stage} at step {completed_steps} | {args.stage_name}.\n")
+                append_metadata(f"Learning rate stage changed to: {current_lr_stage} at step {completed_steps} | {args.stage_name}.")
         else:
             lr_stage_change = False
 
-        optimizer_step(lr)
+        optimizer_step(adam_lr, muon_lr, completed_steps)
         torch.cuda.synchronize() if device_type == "cuda" else None
         t1 = time.time()
 
@@ -1264,7 +1085,8 @@ def main(specs, slurm_job_id, hardware):
             # Calculate the MFU and other performance metrics.
             dt = t1 - t0
             tokens_processed = (args.micro_batch_size * gradient_accumulation_steps) * args.max_position_embeddings * world_size
-            tokens_per_sec = tokens_processed / dt
+            global_tokens_per_sec = tokens_processed / dt
+            tokens_per_sec_per_gpu = global_tokens_per_sec / world_size
             flops_per_token  = 6*C + 12*L*H*Q*T
             flops_per_fwdbwd = flops_per_token * T
             flops_per_iter = flops_per_fwdbwd * (args.micro_batch_size * gradient_accumulation_steps)
@@ -1277,22 +1099,44 @@ def main(specs, slurm_job_id, hardware):
             else:
                 used_vram = 0
 
-            logger.info(f"Training | step: {completed_steps:5d} | loss: {accumulated_loss.item():.6f} | adam-lr: {lr:.4e} | lr stage: '{current_lr_stage}' | norm: {norm:.4f} | dt: {dt*1000:.2f}ms | tok/sec: {tokens_per_sec:.2f} | VRAM: {used_vram:.2f} | MFU: {mfu:.2f}%")
+            lr_log = f"adam-lr: {adam_lr:.4e}"
+            if muon_lr is not None:
+                lr_log += f" | muon-lr: {muon_lr:.4e}"
 
-
-            with open(log_file, "a") as f:
-                f.write(f"Training | step: {completed_steps:5d} | loss: {accumulated_loss.item():.6f} | adam-lr: {lr:.4e} | lr stage: '{current_lr_stage}' | norm: {norm:.4f} | dt: {dt*1000:.2f}ms | tok/sec: {tokens_per_sec:.2f} | VRAM: {used_vram:.2f} | MFU: {mfu:.2f}%\n")
+            logger.info(f"Training | step: {completed_steps:5d} | loss: {accumulated_loss.item():.6f} | {lr_log} | lr stage: '{current_lr_stage}' | norm: {norm:.4f} | dt: {dt*1000:.2f}ms | global tok/sec: {global_tokens_per_sec:.2f} | tok/sec/gpu: {tokens_per_sec_per_gpu:.2f} | VRAM: {used_vram:.2f} | MFU: {mfu:.2f}%")
+            training_stats = {
+                "status": "training",
+                "step": completed_steps,
+                "loss": round(accumulated_loss.item(), 6),
+                "adam_lr": adam_lr,
+                "lr_stage": current_lr_stage,
+                "grad_norm": round(float(norm), 6),
+                "dt_ms": round(dt * 1000, 6),
+                "global_tokens_per_sec": round(global_tokens_per_sec, 6),
+                "tokens_per_sec_per_gpu": round(tokens_per_sec_per_gpu, 6),
+                "vram_gb": round(float(used_vram), 6),
+                "mfu": round(mfu, 6),
+                "stage_name": args.stage_name,
+            }
+            if muon_lr is not None:
+                training_stats["muon_lr"] = muon_lr
+            append_stats(training_stats)
 
             if args.wandb_token is not None:
 
-                wandb.log({
-                            "loss": accumulated_loss.item(),
-                            "lr": lr,
-                            "grad_norm": norm,
-                            "dt": dt,
-                            "tokens_per_sec": tokens_per_sec,
-                            "mfu": mfu,
-                            })
+                metrics = {
+                    "loss": accumulated_loss.item(),
+                    "step": completed_steps,
+                    "adam_lr": adam_lr,
+                    "grad_norm": norm,
+                    "dt_ms": dt * 1000,
+                    "global_tokens_per_sec": global_tokens_per_sec,
+                    "tokens_per_sec_per_gpu": tokens_per_sec_per_gpu,
+                    "mfu": mfu,
+                }
+                if muon_lr is not None:
+                    metrics["muon_lr"] = muon_lr
+                wandb.log(metrics)
     
     # Terminate the W&B tracker and the CodeCarbon tracker at the end of the training loop.
     if master_process:
@@ -1325,6 +1169,12 @@ if __name__ == "__main__":
         required=True,
         help="The hardware used for training.",
     )
+    parser.add_argument(
+        "--optimizer-type",
+        type=str,
+        default=None,
+        help="Optional override for the optimizer type (`adamw` or `muon_adam`).",
+    )
     args = parser.parse_args()
 
-    main(args.specs, args.slurm_job_id, args.hardware)
+    main(args.specs, args.slurm_job_id, args.hardware, optimizer_type_override=args.optimizer_type)

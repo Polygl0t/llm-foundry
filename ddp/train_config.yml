@@ -39,6 +39,7 @@ micro_batch_size: 16
 eval_micro_batch_size: 8
 num_train_epochs: 1
 warmup_steps: 2000
+optimizer_type: "adamw"
 max_learning_rate: 0.0007
 min_learning_rate: 0.00007
 muon_learning_rate: 0.02

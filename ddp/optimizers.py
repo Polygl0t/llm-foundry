@@ -1,12 +1,37 @@
 """
-Implementation of the Muon optimizer and its variants for distributed and single-device training.
-All credits to the original author: https://kellerjordan.github.io/posts/muon/
+Optimizer factories and learning-rate schedulers for the DDP trainer.
+
+Provides:
+    - Muon Stuff:
+        - get_muon_momentum:             compute the Muon momentum for a given step
+        - zeropower_via_newtonschulz5:   compute the Muon orthogonalization via NS iteration
+        - muon_update:                   compute the Muon update
+        - Muon:                          the Muon optimizer class for distributed training
+        - SingleDeviceMuon:              the Muon optimizer class for single-device training
+        - MuonWithAuxAdam:               hybrid optimizer for distributed training with Muon and Adam
+        - SingleDeviceMuonWithAuxAdam:   hybrid optimizer for single-device training with Muon and Adam
+
+    - Supporting functions for optimizer construction and learning-rate scheduling:
+        - normalize_optimizer_type:      validate / canonicalize an optimizer name
+        - create_lr_scheduler:           build a cosine or WSD learning-rate schedule
+        - create_optimizer:              build AdamW or MuonWithAuxAdam with its step fn
+        - get_optimizer_summary_lines:   formatted config lines for logging
 """
+import torch
+import math
+
+import numpy as np
+
 import torch
 import torch.distributed as dist
 
-# Momentum scheduler for Muon optimizer
 def get_muon_momentum(it):
+    """
+    Compute the Muon momentum for a given step. The momentum:
+        - starts at 0.85 and; 
+        - increases to 0.95 over the first 300 iterations.
+        - It follows a cosine schedule.
+    """
     frac = min(it / 300, 1)
     momentum = (1 - frac) * 0.85 + frac * 0.95
     return momentum
@@ -21,6 +46,8 @@ def zeropower_via_newtonschulz5(G, steps: int):
     on the interval. This iteration therefore does not produce UV^T but rather something like US'V^T
     where S' is diagonal with S_{ii}' ~ Uniform(0.5, 1.5), which turns out not to hurt model
     performance at all relative to UV^T, where USV^T = G is the SVD.
+
+    https://kellerjordan.github.io/posts/muon/
     """
     assert G.ndim >= 2 # batched Muon implementation by @scottjmaddox, and put into practice in the record by @YouJiacheng
     a, b, c = (3.4445, -4.7750,  2.0315)
@@ -294,3 +321,186 @@ class SingleDeviceMuonWithAuxAdam(torch.optim.Optimizer):
                     p.add_(update, alpha=-group["lr"])
 
         return loss
+    
+OPTIMIZER_ALIASES = {
+    "adam": "adamw",
+    "adamw": "adamw",
+    "muon": "muon_adam",
+    "muon_adam": "muon_adam",
+    "muon+adam": "muon_adam",
+    "hybrid": "muon_adam",
+}
+
+def normalize_optimizer_type(optimizer_type):
+    normalized = (optimizer_type or "adamw").strip().lower()
+    normalized = OPTIMIZER_ALIASES.get(normalized, normalized)
+    if normalized not in {"adamw", "muon_adam"}:
+        supported = ", ".join(sorted({"adamw", "muon_adam"}))
+        raise ValueError(f"Invalid optimizer type: '{optimizer_type}'. Supported types are: {supported}.")
+    return normalized
+
+def create_lr_scheduler(args, max_steps, optimizer_type):
+    def cosine_schedule(it, max_lr):
+        lr_decay_iters = max_steps * args.lr_decay_iters_coef
+        if args.warmup_steps > 0 and it < args.warmup_steps:
+            return max_lr * (it + 1) / args.warmup_steps, "warmup"
+        if it > lr_decay_iters:
+            return args.min_learning_rate, "stable"
+
+        decay_ratio = (it - args.warmup_steps) / (lr_decay_iters - args.warmup_steps)
+        assert 0 <= decay_ratio <= 1
+        coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))
+        return args.min_learning_rate + coeff * (max_lr - args.min_learning_rate), "cosine_decay"
+
+    def wsd_schedule(it, max_lr):
+        lr_decay_iters = max_steps * args.lr_decay_iters_coef
+        stable_iters = max_steps - lr_decay_iters
+        if args.warmup_steps > 0 and it < args.warmup_steps:
+            return max_lr * (it + 1) / args.warmup_steps, "warmup"
+        if it > stable_iters and lr_decay_iters > 0:
+            decay_ratio = (it - stable_iters) / (max_steps - stable_iters)
+            assert 0 <= decay_ratio <= 1
+            if args.use_sqrt:
+                decay_ratio = np.sqrt(decay_ratio)
+            coeff = 1.0 - decay_ratio
+            stage = "linear_decay" if not args.use_sqrt else "1-sqrt"
+            return args.min_learning_rate + coeff * (max_lr - args.min_learning_rate), stage
+        return max_lr, "stable"
+
+    if args.lr_decay_type.lower() == "cosine":
+        schedule_fn = cosine_schedule
+    elif args.lr_decay_type.lower() == "wsd":
+        schedule_fn = wsd_schedule
+    else:
+        raise ValueError(f"Invalid learning rate decay type: '{args.lr_decay_type}'. Supported types are: `cosine` and `wsd`.")
+
+    def lr_scheduler(it):
+        adam_lr, stage = schedule_fn(it, args.max_learning_rate)
+        muon_lr = None
+        if optimizer_type == "muon_adam":
+            muon_lr, _ = schedule_fn(it, args.muon_learning_rate)
+        return adam_lr, muon_lr, stage
+
+    return lr_scheduler
+
+def create_optimizer(model, args, device_type, optimizer_type, master_process, logger=None):
+    no_decay = ["bias", "layer_norm.weight", "embed_tokens.weight"]
+
+    if optimizer_type == "muon_adam":
+        hidden_matrix_params = [p for n, p in model.named_parameters() if p.ndim >= 2 and "embed_tokens.weight" not in n]
+        embed_params = [p for n, p in model.named_parameters() if "embed_tokens.weight" in n]
+        scalar_params_with_decay = [p for n, p in model.named_parameters() if p.ndim < 2 and not any(nd in n for nd in no_decay)]
+        scalar_params_no_decay = [p for n, p in model.named_parameters() if p.ndim < 2 and any(nd in n for nd in no_decay)]
+
+        optimizer_grouped_parameters = [
+            {
+                "params": embed_params,
+                "weight_decay": 0.0,
+                "lr": args.max_learning_rate,
+                "betas": (args.beta1, args.beta2),
+                "eps": args.eps,
+                "use_muon": False,
+            },
+            {
+                "params": scalar_params_no_decay,
+                "weight_decay": 0.0,
+                "lr": args.max_learning_rate,
+                "betas": (args.beta1, args.beta2),
+                "eps": args.eps,
+                "use_muon": False,
+            },
+            {
+                "params": scalar_params_with_decay,
+                "weight_decay": args.weight_decay,
+                "lr": args.max_learning_rate,
+                "betas": (args.beta1, args.beta2),
+                "eps": args.eps,
+                "use_muon": False,
+            },
+            {
+                "params": hidden_matrix_params,
+                "weight_decay": args.weight_decay,
+                "lr": args.muon_learning_rate,
+                "momentum": args.beta2,
+                "use_muon": True,
+            }
+        ]
+        optimizer = MuonWithAuxAdam(optimizer_grouped_parameters)
+        optimizer_label = "Adam + Muon"
+
+        if args.torch_compile:
+            if master_process and logger is not None:
+                logger.info("Compiling optimizer step with torch.compile.")
+
+            @torch.compile(fullgraph=False)
+            def optimizer_step(adam_lr, muon_lr, step):
+                for param_group in optimizer.param_groups:
+                    if param_group["use_muon"]:
+                        param_group["lr"] = muon_lr
+                        param_group["momentum"] = get_muon_momentum(step)
+                    else:
+                        param_group["lr"] = adam_lr
+                optimizer.step()
+        else:
+            def optimizer_step(adam_lr, muon_lr, step):
+                for param_group in optimizer.param_groups:
+                    if param_group["use_muon"]:
+                        param_group["lr"] = muon_lr
+                        param_group["momentum"] = get_muon_momentum(step)
+                    else:
+                        param_group["lr"] = adam_lr
+                optimizer.step()
+    else:
+        optimizer_grouped_parameters = [
+            {
+                "params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
+                "weight_decay": args.weight_decay,
+            },
+            {
+                "params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
+                "weight_decay": 0.0,
+            },
+        ]
+        optimizer = torch.optim.AdamW(
+            optimizer_grouped_parameters,
+            lr=args.max_learning_rate,
+            eps=args.eps,
+            betas=(args.beta1, args.beta2),
+            fused=True if device_type == "cuda" else False,
+        )
+        optimizer_label = "AdamW"
+
+        if args.torch_compile:
+            if master_process and logger is not None:
+                logger.info("Compiling optimizer step with torch.compile.")
+
+            @torch.compile(fullgraph=False)
+            def optimizer_step(adam_lr, _muon_lr, _step):
+                for param_group in optimizer.param_groups:
+                    param_group["lr"] = adam_lr
+                optimizer.step()
+        else:
+            def optimizer_step(adam_lr, _muon_lr, _step):
+                for param_group in optimizer.param_groups:
+                    param_group["lr"] = adam_lr
+                optimizer.step()
+
+    return optimizer, optimizer_step, optimizer_label
+
+def get_optimizer_summary_lines(args, optimizer_type):
+    summary_lines = [
+        f"  Optimizer type | {optimizer_type}",
+        f"  Max learning rate (Adam) | {args.max_learning_rate}",
+        f"  Min learning rate | {args.min_learning_rate}",
+        f"  LR scheduler type | {args.lr_decay_type.upper()}",
+        f"  LR decay iterations coef | {args.lr_decay_iters_coef}",
+        f"  Warmup steps | {args.warmup_steps}",
+        f"  Weight decay | {args.weight_decay}",
+        f"  Beta1 | {args.beta1}",
+        f"  Beta2 | {args.beta2}",
+        f"  Epsilon | {args.eps}",
+        f"  Max grad norm | {args.max_grad_norm}",
+    ]
+    if optimizer_type == "muon_adam":
+        summary_lines.insert(2, f"  Muon learning rate | {args.muon_learning_rate}")
+    return summary_lines

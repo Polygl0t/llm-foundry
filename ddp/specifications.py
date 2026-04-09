@@ -201,6 +201,13 @@ class TrainingArguments:
         default=1000,
         metadata={"help": "The number of warmup steps."},
     )
+    optimizer_type: Optional[str] = field(
+        default="adamw",
+        metadata={"help": (
+            "The optimizer configuration to use. "
+            "Options: `adamw` for standard AdamW, `muon_adam` for hybrid Muon + Adam."
+        )},
+    )
     max_learning_rate: Optional[float] = field(
         default=1e-3,
         metadata={"help": "The initial maximum learning rate."},
