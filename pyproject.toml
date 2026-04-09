@@ -22,6 +22,8 @@ data = [
     "spacy",
     "pyyaml",
 ]
+# NOTE: flash_attn requires --no-build-isolation and must be installed separately:
+#   pip3 install flash_attn==2.8.2 --no-build-isolation
 distributed = [
     "wheel==0.45.1",
     "packaging==25.0",
@@ -37,7 +39,6 @@ distributed = [
     "wandb==0.21.0",
     "pyyaml==6.0.2",
     "liger-kernel==0.6.1",
-    "flash_attn==2.8.2",
 ]
 synth = [
     "torch==2.8.0",
@@ -51,7 +52,6 @@ trl = [
     "wheel",
     "trl",
     "vllm==0.11.2",
-    "flash_attn==2.8.2",
     "codecarbon==3.0.6",
     "wandb==0.21.0",
     "liger-kernel==0.6.1",

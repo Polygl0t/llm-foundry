@@ -117,5 +117,6 @@ echo "Workspace ready."
 #   source /lustre/mlnvme/data/nklugeco_hpc-polyglot/.modules_amd.sh
 #   source /lustre/mlnvme/data/nklugeco_hpc-polyglot/.venv_distributed/bin/activate
 #   pip install -e /lustre/mlnvme/data/nklugeco_hpc-polyglot/llm-foundry/.[distributed]
+#   pip install flash_attn==2.8.2 --no-build-isolation --no-cache-dir
 #   EOF
 #############################################
