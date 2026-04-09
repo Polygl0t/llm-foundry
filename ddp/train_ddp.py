@@ -33,7 +33,6 @@ from specifications import TrainingArguments
 from functools import partial
 
 from optimizers import (
-    normalize_optimizer_type, 
     create_lr_scheduler, 
     create_optimizer, 
     get_optimizer_summary_lines
@@ -56,19 +55,15 @@ import yaml
 import math
 import sys
 
-def main(specs, slurm_job_id, hardware, optimizer_type_override=None):
+def main(specs, slurm_job_id, hardware):
 
     # Load the training arguments from the specifications.yaml file
     with open(specs, "r") as stream:
         kwargs = yaml.safe_load(stream)
-    if optimizer_type_override is not None:
-        kwargs["optimizer_type"] = optimizer_type_override
     
     # Create the `args` object from the loaded specifications.
     # Check the `specifications.py` script to see all available arguments.
     args = TrainingArguments(**kwargs)
-    args.optimizer_type = normalize_optimizer_type(args.optimizer_type)
-    kwargs["optimizer_type"] = args.optimizer_type
 
     # [Logging facility for Python](https://docs.python.org/3/library/logging.html#)
     logger = logging.getLogger(f"DDP-Trainer-{slurm_job_id}-{args.stage_name}")
@@ -128,9 +123,6 @@ def main(specs, slurm_job_id, hardware, optimizer_type_override=None):
     # Update the checkpoint directory to include the SLURM job id.
     args.checkpoint_dir = os.path.join(args.checkpoint_dir, f"slurm_job_{slurm_job_id}")
     
-    log_file = None
-    file_logger = None
-
     if master_process: 
         os.makedirs(args.checkpoint_dir, exist_ok=True)
         # Create a log file to store the training logs.
@@ -141,14 +133,6 @@ def main(specs, slurm_job_id, hardware, optimizer_type_override=None):
             cleanup_log_file(log_file)
         
         file_logger = StructuredTrainingLogger(log_file)
-
-    def append_metadata(message):
-        if file_logger is not None:
-            file_logger.log_metadata(message)
-
-    def append_stats(payload):
-        if file_logger is not None:
-            file_logger.log_stats(payload)
 
     # [Common PyTorch Functions](https://docs.pytorch.org/docs/stable/torch.html)
     # Set the random state seed for reproducibility.
@@ -186,7 +170,7 @@ def main(specs, slurm_job_id, hardware, optimizer_type_override=None):
     else:
         if master_process:
             logger.info(f"No tokenizer name specified, using the {args.reference_model} to load the tokenizer.")
-            append_metadata(f"No tokenizer name specified, using the {args.reference_model} to load the tokenizer.")
+            file_logger.log_metadata(f"No tokenizer name specified, using the {args.reference_model} to load the tokenizer.")
 
         tokenizer = AutoTokenizer.from_pretrained(
             args.reference_model, 
@@ -200,7 +184,7 @@ def main(specs, slurm_job_id, hardware, optimizer_type_override=None):
         
         if master_process:
             logger.info(f"Loaded chat template from {args.chat_template_path}. Chat template added to the tokenizer.")
-            append_metadata(f"Loaded chat template from {args.chat_template_path}. Chat template added to the tokenizer.")
+            file_logger.log_metadata(f"Loaded chat template from {args.chat_template_path}. Chat template added to the tokenizer.")
 
     # We override the model's vocab size with the tokenizer's vocab size only if the tokenizer's 
     # vocab size is larger than the model's vocab size. It is okay for the model's vocab size 
@@ -236,7 +220,7 @@ def main(specs, slurm_job_id, hardware, optimizer_type_override=None):
 
         if master_process:
             logger.info(f"Resumed model from checkpoint: {checkpoint_path}")
-            append_metadata(f"Resumed model from checkpoint: {checkpoint_path}")
+            file_logger.log_metadata(f"Resumed model from checkpoint: {checkpoint_path}")
     
     else:
 
@@ -245,7 +229,7 @@ def main(specs, slurm_job_id, hardware, optimizer_type_override=None):
         if not args.continual_pretraining:
             if master_process:
                 logger.info(f"Initializing model from `AutoConfig`.")
-                append_metadata("Initializing model from `AutoConfig`.")
+                file_logger.log_metadata("Initializing model from `AutoConfig`.")
 
             # Define the model architecture.
             config_kwargs = {
@@ -293,7 +277,7 @@ def main(specs, slurm_job_id, hardware, optimizer_type_override=None):
         else:
             if master_process:
                 logger.info(f"Initializing model from reference model: {args.reference_model} for continual pretraining/fine-tuning.")
-                append_metadata(f"Initializing model from reference model: {args.reference_model} for continual pretraining/fine-tuning.")
+                file_logger.log_metadata(f"Initializing model from reference model: {args.reference_model} for continual pretraining/fine-tuning.")
 
             # Check if we are performing RoPE extension/scaling.
             # What is RoPE scaling?
@@ -321,7 +305,7 @@ def main(specs, slurm_job_id, hardware, optimizer_type_override=None):
                 if master_process:
                     logger.info(f"Performing RoPE scaling to {config.max_position_embeddings} max position embeddings and {config.rope_theta} rope theta.")
                     logger.info(f"WARNING: `args.max_position_embeddings` has been reset to {args.max_position_embeddings}.")
-                    append_metadata(f"Performing RoPE scaling to {config.max_position_embeddings} max position embeddings and {config.rope_theta} rope theta.")
+                    file_logger.log_metadata(f"Performing RoPE scaling to {config.max_position_embeddings} max position embeddings and {config.rope_theta} rope theta.")
                         
 
             # [AutoModelForCausalLM](https://huggingface.co/docs/transformers/main/en/model_doc/auto#transformers.AutoModelForCausalLM)
@@ -352,7 +336,7 @@ def main(specs, slurm_job_id, hardware, optimizer_type_override=None):
 
         if master_process:
             logger.info(f"Applied Liger kernels to the model.")
-            append_metadata("Applied Liger kernels to the model.")
+            file_logger.log_metadata("Applied Liger kernels to the model.")
 
     # Change the model's `name_or_path`. If set to
     # None this will not show in the config (which is totally fine).
@@ -362,7 +346,7 @@ def main(specs, slurm_job_id, hardware, optimizer_type_override=None):
     if master_process:
         params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         logger.info(f"Number of trainable parameters: {params:,}")
-        append_metadata(f"Number of trainable parameters: {params:,}")
+        file_logger.log_metadata(f"Number of trainable parameters: {params:,}")
 
     # Set the gradient checkpointing for the model
     # What is Gradient Checkpointing? -> https://arxiv.org/abs/1604.06174
@@ -370,7 +354,7 @@ def main(specs, slurm_job_id, hardware, optimizer_type_override=None):
 
         if master_process:
             logger.info(f"Gradient checkpointing enabled.")
-            append_metadata("Gradient checkpointing enabled.")
+            file_logger.log_metadata("Gradient checkpointing enabled.")
 
         # Enable gradient checkpointing (https://huggingface.co/docs/transformers/main/en/model_doc/auto#transformers.AutoModelForCausalLM)
         model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False if torch.cuda.device_count() > 1 else True})
@@ -471,7 +455,7 @@ def main(specs, slurm_job_id, hardware, optimizer_type_override=None):
         if args.shuffle_dataset:
             if master_process:
                 logger.info(f"Shuffling enabled. Shuffling {len(train_dataset_files)} dataset files.")
-                append_metadata(f"Shuffling enabled. Shuffling {len(train_dataset_files)} dataset files.")
+                file_logger.log_metadata(f"Shuffling enabled. Shuffling {len(train_dataset_files)} dataset files.")
             np.random.seed(args.seed)
             np.random.shuffle(train_dataset_files)
 
@@ -545,7 +529,7 @@ def main(specs, slurm_job_id, hardware, optimizer_type_override=None):
 
     if master_process:
         logger.info(f"Collate function masking settings: mask_eos_token={args.mask_eos_token}, mask_pad_token={args.mask_pad_token}.")
-        append_metadata(f"Collate function masking settings: mask_eos_token={args.mask_eos_token}, mask_pad_token={args.mask_pad_token}.")
+        file_logger.log_metadata(f"Collate function masking settings: mask_eos_token={args.mask_eos_token}, mask_pad_token={args.mask_pad_token}.")
     
     def collate_with_masking(
             examples, 
@@ -629,13 +613,13 @@ def main(specs, slurm_job_id, hardware, optimizer_type_override=None):
         args.num_train_epochs = max_steps // num_update_steps_per_epoch if max_steps > num_update_steps_per_epoch else 1
         if master_process:
             logger.info(f"Overriding the number of steps to {max_steps} as per the `max_steps` argument (check the YAML file if you are not sure).")
-            append_metadata(f"Overriding the number of steps to {max_steps} as per the `max_steps` argument (check the YAML file if you are not sure).")
+            file_logger.log_metadata(f"Overriding the number of steps to {max_steps} as per the `max_steps` argument (check the YAML file if you are not sure).")
 
     lr_scheduler = create_lr_scheduler(args, max_steps, args.optimizer_type)
 
     if master_process:
         logger.info(f"Using learning rate decay type: {args.lr_decay_type}")
-        append_metadata(f"Using learning rate decay type: {args.lr_decay_type}")
+        file_logger.log_metadata(f"Using learning rate decay type: {args.lr_decay_type}")
 
     optimizer, optimizer_step, optimizer_label = create_optimizer(
         model,
@@ -654,7 +638,7 @@ def main(specs, slurm_job_id, hardware, optimizer_type_override=None):
         optimizer.load_state_dict(checkpoint['optimizer'])
         if master_process:
             logger.info(f"Resumed optimizer from checkpoint: {checkpoint_path}")
-            append_metadata(f"Resumed optimizer from checkpoint: {checkpoint_path}")
+            file_logger.log_metadata(f"Resumed optimizer from checkpoint: {checkpoint_path}")
 
     if master_process:
 
@@ -704,45 +688,45 @@ def main(specs, slurm_job_id, hardware, optimizer_type_override=None):
         logger.info("="*50)
 
         if args.resume_from_checkpoint is None:
-            append_metadata("="*50)
-            append_metadata("***** Running training *****")
-            append_metadata(f"  Training stage | {args.stage_name}")
-            append_metadata(f"  SLURM Job ID | {slurm_job_id}")
-            append_metadata(f"  Hardware | {hardware.upper()}")
-            append_metadata(f"  World size (total GPUs) | {world_size}")
-            append_metadata(f"  Precision | {'bfloat16' if args.bf16 else 'float32'}")
-            append_metadata("="*50)
-            append_metadata("Dataset Configuration:")
-            append_metadata(f"  Num train examples | {len(train_dataset):,}")
-            append_metadata(f"  Num validation examples | {len(val_dataset):,}")
-            append_metadata(f"  Length of train dataloader | {len(train_dataloader):,}")
-            append_metadata(f"  Max position embeddings (seq length) | {args.max_position_embeddings:,}")
-            append_metadata(f"  Shuffle dataset | {args.shuffle_dataset}")
-            append_metadata(f"  Mask EOS token | {args.mask_eos_token}")
-            append_metadata(f"  Mask PAD token | {args.mask_pad_token}")
-            append_metadata("="*50)
-            append_metadata("Batch Configuration:")
-            append_metadata(f"  Num Epochs | {args.num_train_epochs}")
-            append_metadata(f"  Micro batch size per device | {args.micro_batch_size}")
-            append_metadata(f"  Gradient accumulation steps | {gradient_accumulation_steps}")
-            append_metadata(f"  Total batch size (samples) | {args.micro_batch_size * gradient_accumulation_steps * world_size}")
-            append_metadata(f"  Total batch size (tokens) | {args.total_batch_size:,}")
-            append_metadata(f"  Total optimization steps | {max_steps:,}")
-            append_metadata(f"  Steps per epoch | {num_update_steps_per_epoch:,}")
-            append_metadata(f"  Checkpointing every | {args.checkpointing_steps} steps")
-            append_metadata("="*50)
-            append_metadata("Model Architecture:")
-            append_metadata(f"  Model type | {args.reference_model if args.reference_model else 'Custom'}")
-            append_metadata(f"  Attention implementation | {args.attn_implementation}")
-            append_metadata(f"  Gradient checkpointing | {args.gradient_checkpointing}")
-            append_metadata(f"  Liger kernel | {args.use_liger_kernel}")
-            append_metadata(f"  Torch compile | {args.torch_compile}")
-            append_metadata(f"  Trainable parameters | {params:,}")
-            append_metadata("="*50)
-            append_metadata(f"Optimizer Configuration ({optimizer_label}):")
+            file_logger.log_metadata("="*50)
+            file_logger.log_metadata("***** Running training *****")
+            file_logger.log_metadata(f"  Training stage | {args.stage_name}")
+            file_logger.log_metadata(f"  SLURM Job ID | {slurm_job_id}")
+            file_logger.log_metadata(f"  Hardware | {hardware.upper()}")
+            file_logger.log_metadata(f"  World size (total GPUs) | {world_size}")
+            file_logger.log_metadata(f"  Precision | {'bfloat16' if args.bf16 else 'float32'}")
+            file_logger.log_metadata("="*50)
+            file_logger.log_metadata("Dataset Configuration:")
+            file_logger.log_metadata(f"  Num train examples | {len(train_dataset):,}")
+            file_logger.log_metadata(f"  Num validation examples | {len(val_dataset):,}")
+            file_logger.log_metadata(f"  Length of train dataloader | {len(train_dataloader):,}")
+            file_logger.log_metadata(f"  Max position embeddings (seq length) | {args.max_position_embeddings:,}")
+            file_logger.log_metadata(f"  Shuffle dataset | {args.shuffle_dataset}")
+            file_logger.log_metadata(f"  Mask EOS token | {args.mask_eos_token}")
+            file_logger.log_metadata(f"  Mask PAD token | {args.mask_pad_token}")
+            file_logger.log_metadata("="*50)
+            file_logger.log_metadata("Batch Configuration:")
+            file_logger.log_metadata(f"  Num Epochs | {args.num_train_epochs}")
+            file_logger.log_metadata(f"  Micro batch size per device | {args.micro_batch_size}")
+            file_logger.log_metadata(f"  Gradient accumulation steps | {gradient_accumulation_steps}")
+            file_logger.log_metadata(f"  Total batch size (samples) | {args.micro_batch_size * gradient_accumulation_steps * world_size}")
+            file_logger.log_metadata(f"  Total batch size (tokens) | {args.total_batch_size:,}")
+            file_logger.log_metadata(f"  Total optimization steps | {max_steps:,}")
+            file_logger.log_metadata(f"  Steps per epoch | {num_update_steps_per_epoch:,}")
+            file_logger.log_metadata(f"  Checkpointing every | {args.checkpointing_steps} steps")
+            file_logger.log_metadata("="*50)
+            file_logger.log_metadata("Model Architecture:")
+            file_logger.log_metadata(f"  Model type | {args.reference_model if args.reference_model else 'Custom'}")
+            file_logger.log_metadata(f"  Attention implementation | {args.attn_implementation}")
+            file_logger.log_metadata(f"  Gradient checkpointing | {args.gradient_checkpointing}")
+            file_logger.log_metadata(f"  Liger kernel | {args.use_liger_kernel}")
+            file_logger.log_metadata(f"  Torch compile | {args.torch_compile}")
+            file_logger.log_metadata(f"  Trainable parameters | {params:,}")
+            file_logger.log_metadata("="*50)
+            file_logger.log_metadata(f"Optimizer Configuration ({optimizer_label}):")
             for line in optimizer_summary_lines:
-                append_metadata(line)
-            append_metadata("="*50)
+                file_logger.log_metadata(line)
+            file_logger.log_metadata("="*50)
 
     # If we are resuming from a checkpoint (inside the same stage), we need to get the current iteration count, 
     # which is the number of batches processed by the dataloader so far, the current epoch, and the completed steps 
@@ -766,7 +750,7 @@ def main(specs, slurm_job_id, hardware, optimizer_type_override=None):
         if args.resume_from_checkpoint and args.begin_new_stage:
             if master_process:
                 logger.info(f"Starting new training stage | {args.stage_name}")
-                append_metadata(f"Starting new training stage | {args.stage_name}")
+                file_logger.log_metadata(f"Starting new training stage | {args.stage_name}")
     
     if not args.begin_new_stage:
         if master_process:
@@ -846,7 +830,7 @@ def main(specs, slurm_job_id, hardware, optimizer_type_override=None):
 
     if master_process:
         logger.info(f"Epoch {epoch} of {math.ceil(args.num_train_epochs)}")
-        append_metadata(f"Epoch {epoch} of {math.ceil(args.num_train_epochs)}")
+        file_logger.log_metadata(f"Epoch {epoch} of {math.ceil(args.num_train_epochs)}")
 
     # Flag to indicate if the learning rate stage has changed (starts as False)
     # We use this to save a checkpoint if the learning rate stage changes.
@@ -854,7 +838,7 @@ def main(specs, slurm_job_id, hardware, optimizer_type_override=None):
     # Get the current learning rate stage
     current_lr_stage = lr_scheduler(resume_step)[-1]
 
-    # Start the training loop!!! 🚀🚀🚀
+    # Start the training loop.
     for completed_steps in range(1, max_steps + 1):
 
         # Skip the steps that have already been completed when resuming from a checkpoint.
@@ -882,7 +866,7 @@ def main(specs, slurm_job_id, hardware, optimizer_type_override=None):
                 iter_train_dataloader = iter(train_dataloader)
                 if master_process:
                     logger.info(f"Epoch {epoch} of {math.ceil(args.num_train_epochs)}")
-                    append_metadata(f"Epoch {epoch} of {math.ceil(args.num_train_epochs)}")
+                    file_logger.log_metadata(f"Epoch {epoch} of {math.ceil(args.num_train_epochs)}")
          
         # Evaluate the model when:
         # - We have completed `args.checkpointing_steps` steps (excluding step 0).
@@ -948,7 +932,7 @@ def main(specs, slurm_job_id, hardware, optimizer_type_override=None):
 
                 if master_process:
                     logger.info(f"Validation | step: {completed_steps:5d} | loss: {val_loss_accum.item():.4f} | kWh: {tracker._total_energy.kWh:.2f} | val_time: {val_time:.2f}s")
-                    append_stats(
+                    file_logger.log_stats(
                         {
                             "status": "validation",
                             "step": completed_steps,
@@ -1020,7 +1004,7 @@ def main(specs, slurm_job_id, hardware, optimizer_type_override=None):
                 batch = next(iter_train_dataloader)
                 if master_process:
                     logger.info(f"Epoch {epoch} of {math.ceil(args.num_train_epochs)}")
-                    append_metadata(f"Epoch {epoch} of {math.ceil(args.num_train_epochs)}")
+                    file_logger.log_metadata(f"Epoch {epoch} of {math.ceil(args.num_train_epochs)}")
                 # Reset iter_count since we're starting a new epoch
                 iter_count = 0
 
@@ -1072,7 +1056,7 @@ def main(specs, slurm_job_id, hardware, optimizer_type_override=None):
             current_lr_stage = lr_stage
             if master_process:
                 logger.info(f"Learning rate stage changed to: {current_lr_stage} at step {completed_steps} | {args.stage_name}.")
-                append_metadata(f"Learning rate stage changed to: {current_lr_stage} at step {completed_steps} | {args.stage_name}.")
+                file_logger.log_metadata(f"Learning rate stage changed to: {current_lr_stage} at step {completed_steps} | {args.stage_name}.")
         else:
             lr_stage_change = False
 
@@ -1120,7 +1104,7 @@ def main(specs, slurm_job_id, hardware, optimizer_type_override=None):
             }
             if muon_lr is not None:
                 training_stats["muon_lr"] = muon_lr
-            append_stats(training_stats)
+            file_logger.log_stats(training_stats)
 
             if args.wandb_token is not None:
 
@@ -1169,12 +1153,6 @@ if __name__ == "__main__":
         required=True,
         help="The hardware used for training.",
     )
-    parser.add_argument(
-        "--optimizer-type",
-        type=str,
-        default=None,
-        help="Optional override for the optimizer type (`adamw` or `muon_adam`).",
-    )
     args = parser.parse_args()
 
-    main(args.specs, args.slurm_job_id, args.hardware, optimizer_type_override=args.optimizer_type)
+    main(args.specs, args.slurm_job_id, args.hardware)

@@ -3,7 +3,7 @@ Training Configuration Specifications for Distributed Data Parallel (DDP)
 
 Dataclass-based training arguments for large-scale transformer model training.
 Supports distributed training, gradient accumulation, mixed precision, and various
-optimization strategies.s
+optimization strategies.
 """
 from typing import Optional, Union
 from dataclasses import dataclass, field

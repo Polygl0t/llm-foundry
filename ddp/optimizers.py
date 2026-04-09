@@ -12,7 +12,6 @@ Provides:
         - SingleDeviceMuonWithAuxAdam:   hybrid optimizer for single-device training with Muon and Adam
 
     - Supporting functions for optimizer construction and learning-rate scheduling:
-        - normalize_optimizer_type:      validate / canonicalize an optimizer name
         - create_lr_scheduler:           build a cosine or WSD learning-rate schedule
         - create_optimizer:              build AdamW or MuonWithAuxAdam with its step fn
         - get_optimizer_summary_lines:   formatted config lines for logging
@@ -321,23 +320,7 @@ class SingleDeviceMuonWithAuxAdam(torch.optim.Optimizer):
                     p.add_(update, alpha=-group["lr"])
 
         return loss
-    
-OPTIMIZER_ALIASES = {
-    "adam": "adamw",
-    "adamw": "adamw",
-    "muon": "muon_adam",
-    "muon_adam": "muon_adam",
-    "muon+adam": "muon_adam",
-    "hybrid": "muon_adam",
-}
 
-def normalize_optimizer_type(optimizer_type):
-    normalized = (optimizer_type or "adamw").strip().lower()
-    normalized = OPTIMIZER_ALIASES.get(normalized, normalized)
-    if normalized not in {"adamw", "muon_adam"}:
-        supported = ", ".join(sorted({"adamw", "muon_adam"}))
-        raise ValueError(f"Invalid optimizer type: '{optimizer_type}'. Supported types are: {supported}.")
-    return normalized
 
 def create_lr_scheduler(args, max_steps, optimizer_type):
     def cosine_schedule(it, max_lr):
