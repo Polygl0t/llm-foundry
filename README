@@ -26,6 +26,20 @@ This repository (the foundry) contains all the source code we use in our researc
 
 All of our code base is made to run on the Marvin cluster (University of Bonn).
 
+Installation
+------------
+
+You can use the `installation.sh` to help you create workspaces in Marvin. Marvin has a dual stack setup (Intel / AMD), so make sure to create your local environments with this in mind (see `installation.sh` for details).
+
+The `.modules_{amd|intel}.sh` file contains all the modules you need to load in order to run our code base in Marvins AMD or Intel stack (see `installation.sh` for details).
+
+You can also use the `pyproject.toml` to install certain specific/working builds of our code base. The `pyproject.toml` has currently some basic builds to work with:
+
+* `data`: For downloading and preprocessing datasets.
+* `distributed`: For training and evaluating language models with DDP and FSDP.
+* `synth`: For generating synthetic datasets with vLLM.
+* `trl`: For training and evaluating language models with TRL.
+
 Aknowlegments
 -------------
 
