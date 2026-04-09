@@ -1,14 +1,13 @@
 #!/bin/bash -l
 
 #############################################
-# This script sets up a workspace to work with the 
-# dual stack system of the Marvin HPC cluster.
-# More information about the dual stack system can be found here:
-# https://wiki.hpc.uni-bonn.de/en/dualstacks
-#############################################
-
-#############################################
 # Workspace Setup Script for HPC Usage
+#############################################
+# This script allocates a workspace on the Marvin HPC cluster,
+# clones the repository, and prepares the directory structure.
+#
+# Dual stack documentation:
+# https://wiki.hpc.uni-bonn.de/en/dualstacks
 #############################################
 
 # ----------- User Customization Section -----------
@@ -28,66 +27,95 @@ workdir="/lustre/$file_system/data/$username-$workspace_name"
 #############################################
 ws_allocate -F $file_system -G $work_group -m $email -r $remainder -d $num_days -n $workspace_name
 echo "Workspace allocated!"
-echo "Configuration Summary for the new workspace:"
 echo "Username: $username"
 echo "File System: $file_system"
 echo "Work Group: $work_group"
-echo "Email: $email"
-echo "Remainder: $remainder"
-echo "Number of Days: $num_days"
 echo "Workspace Name: $workspace_name"
 echo "Workspace Directory: $workdir"
 
 #############################################
-# Clone Polyglot and copy installation files
-# and modules
+# Clone Repository
 #############################################
-git clone --branch main https://github.com/Nkluge-correa/polyglot.git
-cd polyglot
-cp ./.modules* $workdir
-cp ./install_* $workdir
-echo "Installation files and module files copied to workspace."
+cd $workdir
+git clone --branch main https://github.com/Polygl0t/llm-foundry.git
+echo "Workspace ready."
 
 #############################################
-# Create Cache and Output Directories
+# Installing Dependencies
 #############################################
-mkdir -p $workdir/.cache
-mkdir -p $workdir/run_outputs
-echo "Cache and output directories created."
-
+# Dependencies are managed via pyproject.toml with optional groups:
+#
+#   data         - Data processing (datatrove, spacy, stanza, etc.)
+#   distributed  - Distributed training (torch, accelerate, flash_attn, etc.)
+#   synth        - Synthetic data generation (torch, vllm, etc.)
+#   trl          - Fine-tuning with TRL (trl, vllm, flash_attn, etc.)
+#
+# Marvin uses a dual software stack (AMD and Intel). Each config
+# needs the correct modules and must be installed on the matching
+# node type so that hardware-specific packages resolve correctly.
+#
+#   Config        Modules file         SLURM partition (recommended)
+#   ------        ------------         ---------------
+#   data          .modules_intel.sh    lm_short (Intel nodes)
+#   distributed   .modules_amd.sh     mlgpu_short (AMD/GPU nodes)
+#   synth         .modules_amd.sh     mlgpu_short (AMD/GPU nodes)
+#   trl           .modules_amd.sh     mlgpu_short (AMD/GPU nodes)
+#
+# --- Step 1: Create a virtual environment (on the login node) ---
+#
+#   source $workdir/.modules_amd.sh          # or .modules_intel.sh for "data"
+#   python3 -m venv $workdir/.venv_<config>
+#   source $workdir/.venv_<config>/bin/activate
+#   pip install --upgrade pip
+#   deactivate
+#   module purge
+#
+# --- Step 2: Install packages (as a SLURM job on the correct node) ---
+#
+#   sbatch --export=ALL <<'EOF'
+#   #!/bin/bash -l
+#   #SBATCH --account=<your-account>
+#   #SBATCH --partition=<partition>        # see table above
+#   #SBATCH --job-name=install-<config>
+#   #SBATCH --output=$workdir/run_outputs/install-<config>-%j.out
+#   #SBATCH --time=01:00:00
+#   #SBATCH --nodes=1
+#   #SBATCH --ntasks-per-node=1
+#   #SBATCH --threads-per-core=1
+#   #SBATCH --mem=500G
+#   #SBATCH --gres=gpu:a40:1               # We only need a GPU for the "distributed", "synth", and "trl" configs to resolve hardware-specific packages. Omit for "data".
+#   #SBATCH --oversubscribe
+#
+#   source $workdir/.modules_amd.sh        # or .modules_intel.sh
+#   source $workdir/.venv_<config>/bin/activate
+#   pip install -e /path/to/llm-foundry/.[<config>]
+#   EOF
+#
+# Example — installing the "distributed" config:
+#
+#   source $workdir/.modules_amd.sh
+#   python3 -m venv $workdir/.venv_distributed
+#   source $workdir/.venv_distributed/bin/activate
+#   pip install --upgrade pip
+#   deactivate
+#   module purge
+#
+#   sbatch --export=ALL <<'EOF'
+#   #!/bin/bash -l
+#   #SBATCH --account=ag_cst_gabriel
+#   #SBATCH --partition=mlgpu_short
+#   #SBATCH --job-name=install-distributed
+#   #SBATCH --output=/lustre/mlnvme/data/nklugeco_hpc-polyglot/run_outputs/install-distributed-%j.out
+#   #SBATCH --time=01:00:00
+#   #SBATCH --nodes=1
+#   #SBATCH --ntasks-per-node=1
+#   #SBATCH --threads-per-core=1
+#   #SBATCH --mem=500G
+#   #SBATCH --gres=gpu:a40:1
+#   #SBATCH --oversubscribe
+#
+#   source /lustre/mlnvme/data/nklugeco_hpc-polyglot/.modules_amd.sh
+#   source /lustre/mlnvme/data/nklugeco_hpc-polyglot/.venv_distributed/bin/activate
+#   pip install -e /lustre/mlnvme/data/nklugeco_hpc-polyglot/llm-foundry/.[distributed]
+#   EOF
 #############################################
-# Create Python Virtual Environments (AMD & Intel)
-#############################################
-
-# Marvin operates with a dual software stack: AMD and Intel.
-# Learn more about it here: https://wiki.hpc.uni-bonn.de/en/dualstacks
-# AMD environment
-source $workdir/.modules_amd.sh
-python3 -m venv $workdir/.venv_amd
-source $workdir/.venv_amd/bin/activate
-which python3
-deactivate
-module purge
-echo "Python virtual environment created for AMD Stack."
-
-# Intel environment
-source $workdir/.modules_intel.sh
-python3 -m venv $workdir/.venv_intel
-source $workdir/.venv_intel/bin/activate
-which python3
-deactivate
-module purge
-echo "Python virtual environment created for Intel Stack."
-
-#############################################
-# Submit Installation Jobs
-#############################################
-echo "Submitting installation jobs to the scheduler."
-export WORKDIR="$workdir"
-sbatch --export=ALL,WORKDIR="$workdir" $workdir/install_amd.sh
-sbatch --export=ALL,WORKDIR="$workdir" $workdir/install_intel.sh
-#############################################
-# End of Script
-#############################################
-echo "Installation jobs submitted."
-echo "Please monitor the output logs in $workdir/run_outputs for installation progress."
