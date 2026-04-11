@@ -14,6 +14,10 @@ Requirements:
 - numpy
 - pyyaml
 """
+# %%
+#######################################
+# 0. Setup for Testing
+#######################################
 import sys
 import os
 import json
@@ -147,6 +151,7 @@ print("=" * 60)
 import yaml
 import torch
 import numpy as np
+import logging
 from specifications import TrainingArguments
 
 
@@ -169,7 +174,7 @@ def test_training_args_override():
 
 
 def test_training_args_from_yaml():
-    """TrainingArguments can be populated from a YAML file (round-trip)."""
+    """TrainingArguments can be populated directly from a YAML file path."""
     cfg = {
         "micro_batch_size": 8,
         "total_batch_size": 1024,
@@ -181,14 +186,26 @@ def test_training_args_from_yaml():
         yaml.dump(cfg, f)
         tmp_path = f.name
     try:
-        with open(tmp_path) as fh:
-            loaded = yaml.safe_load(fh)
-        args = TrainingArguments(**loaded)
+        args = TrainingArguments.from_yaml(tmp_path)
         assert args.micro_batch_size == 8
         assert args.total_batch_size == 1024
         assert args.optimizer_type == "muon_adam"
     finally:
         os.unlink(tmp_path)
+
+
+def test_training_args_to_dict_includes_runtime_fields():
+    """TrainingArguments.to_dict serializes both YAML and runtime-populated fields."""
+    args = TrainingArguments(micro_batch_size=8, stage_name="S2")
+    args.max_position_embeddings = 4096
+    args.vocab_size = 32000
+
+    serialized = args.to_dict()
+
+    assert serialized["micro_batch_size"] == 8
+    assert serialized["stage_name"] == "S2"
+    assert serialized["max_position_embeddings"] == 4096
+    assert serialized["vocab_size"] == 32000
 
 
 def test_training_args_invalid_field():
@@ -205,6 +222,7 @@ for _fn in [
     test_training_args_defaults,
     test_training_args_override,
     test_training_args_from_yaml,
+    test_training_args_to_dict_includes_runtime_fields,
     test_training_args_invalid_field,
 ]:
     run_test(_fn.__name__, _fn)
@@ -940,7 +958,11 @@ print("=" * 60)
 
 from utils import (
     StructuredTrainingLogger,
+    DistributedEnvironment,
     compute_training_schedule,
+    load_checkpoint_state,
+    initialize_wandb,
+    create_emissions_tracker,
     cleanup_log_file,
     checkpoint_already_validated,
 )
@@ -1028,6 +1050,14 @@ def test_structured_logger_stats():
         shutil.rmtree(tmpdir)
 
 
+def test_structured_logger_create_python_logger():
+    """StructuredTrainingLogger can create a configured Python logger."""
+    logger = StructuredTrainingLogger.create_python_logger("test-ddp-logger")
+
+    assert logger.name == "test-ddp-logger"
+    assert logger.getEffectiveLevel() == logging.INFO
+
+
 def test_structured_logger_invalid_type():
     """Logging with an unsupported type raises ValueError."""
     tmpdir = tempfile.mkdtemp()
@@ -1095,17 +1125,159 @@ def test_checkpoint_already_validated_positive():
         shutil.rmtree(tmpdir)
 
 
+def test_distributed_environment_missing_slurm_vars():
+    """DistributedEnvironment raises ValueError when SLURM vars are missing."""
+    saved = {}
+    for key in ("SLURM_NTASKS", "SLURM_PROCID"):
+        if key in os.environ:
+            saved[key] = os.environ.pop(key)
+    try:
+        raised = False
+        try:
+            DistributedEnvironment(logging.getLogger("test"))
+        except ValueError:
+            raised = True
+        assert raised
+    finally:
+        os.environ.update(saved)
+
+
+def test_distributed_environment_seed_everything():
+    """seed_everything sets reproducible random state."""
+    DistributedEnvironment.seed_everything(42)
+    a = torch.randn(3)
+    DistributedEnvironment.seed_everything(42)
+    b = torch.randn(3)
+    assert torch.equal(a, b)
+
+
+def test_load_checkpoint_state_no_resume():
+    """Returns defaults (0, 0, 1) when not resuming from checkpoint."""
+    args = TrainingArguments(resume_from_checkpoint=None)
+    resume_step, iter_count, epoch = load_checkpoint_state(
+        args=args, checkpoint_path=None, optimizer=None,
+    )
+    assert resume_step == 0
+    assert iter_count == 0
+    assert epoch == 1
+
+
+def test_load_checkpoint_state_resume():
+    """Restores optimizer and returns checkpoint state when resuming."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        # Create a fake checkpoint
+        ckpt_data = {
+            'optimizer': {},
+            'resume_step': 50,
+            'iteration': 200,
+            'epoch': 2,
+            'config': {},
+        }
+        torch.save(ckpt_data, os.path.join(tmpdir, 'checkpoint.pt'))
+
+        # Minimal optimizer mock with load_state_dict
+        class FakeOptimizer:
+            def __init__(self):
+                self.loaded = False
+            def load_state_dict(self, state_dict):
+                self.loaded = True
+
+        fake_opt = FakeOptimizer()
+        args = TrainingArguments(resume_from_checkpoint="some/path")
+        args.begin_new_stage = False
+
+        resume_step, iter_count, epoch = load_checkpoint_state(
+            args=args, checkpoint_path=tmpdir, optimizer=fake_opt,
+        )
+        assert resume_step == 50
+        assert iter_count == 200
+        assert epoch == 2
+        assert fake_opt.loaded
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+def test_load_checkpoint_state_new_stage():
+    """Returns defaults (0, 0, 1) when beginning a new stage, but still loads optimizer."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        ckpt_data = {
+            'optimizer': {},
+            'resume_step': 50,
+            'iteration': 200,
+            'epoch': 2,
+            'config': {},
+        }
+        torch.save(ckpt_data, os.path.join(tmpdir, 'checkpoint.pt'))
+
+        class FakeOptimizer:
+            def __init__(self):
+                self.loaded = False
+            def load_state_dict(self, state_dict):
+                self.loaded = True
+
+        fake_opt = FakeOptimizer()
+        args = TrainingArguments(resume_from_checkpoint="some/path")
+        args.begin_new_stage = True
+
+        resume_step, iter_count, epoch = load_checkpoint_state(
+            args=args, checkpoint_path=tmpdir, optimizer=fake_opt,
+        )
+        assert resume_step == 0
+        assert iter_count == 0
+        assert epoch == 1
+        assert fake_opt.loaded
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+def test_initialize_wandb_import():
+    """initialize_wandb is callable and imports wandb internally."""
+    assert callable(initialize_wandb)
+
+
+def test_create_emissions_tracker_returns_tracker():
+    """create_emissions_tracker creates, starts, and returns an EmissionsTracker."""
+    try:
+        import codecarbon  # noqa: F401
+    except ImportError:
+        return  # codecarbon not installed, skip test
+    tmpdir = tempfile.mkdtemp()
+    try:
+        args = TrainingArguments(
+            wandb_project="test-project",
+            checkpoint_dir=tmpdir,
+        )
+        test_logger = logging.getLogger("tracker-test")
+        tracker = create_emissions_tracker(args, test_logger)
+        assert hasattr(tracker, '_total_energy')
+        assert hasattr(tracker, 'flush')
+        assert hasattr(tracker, 'stop')
+        tracker.stop()
+    finally:
+        shutil.rmtree(tmpdir)
+
+
 for _fn in [
     test_compute_training_schedule_basic,
     test_compute_training_schedule_max_steps_override,
     test_compute_training_schedule_misaligned_raises,
     test_structured_logger_metadata,
     test_structured_logger_stats,
+    test_structured_logger_create_python_logger,
     test_structured_logger_invalid_type,
     test_cleanup_log_file_truncates,
     test_cleanup_log_file_missing_file,
     test_checkpoint_already_validated_no_dir,
     test_checkpoint_already_validated_positive,
+    test_distributed_environment_missing_slurm_vars,
+    test_distributed_environment_seed_everything,
+    test_load_checkpoint_state_no_resume,
+    test_load_checkpoint_state_resume,
+    test_load_checkpoint_state_new_stage,
+    test_initialize_wandb_import,
+    test_create_emissions_tracker_returns_tracker,
 ]:
     run_test(_fn.__name__, _fn)
 
@@ -1326,6 +1498,142 @@ for _fn in [
 
 # %%
 #######################################
-# 10. Report
+# 10. Trainer
+#######################################
+print("\n" + "=" * 60)
+print("10. Trainer")
+print("=" * 60)
+
+from trainer import Trainer
+
+
+class _MockTracker:
+    """Minimal stand-in for codecarbon.EmissionsTracker used by the Trainer."""
+    class _Energy:
+        kWh = 0.0
+    _total_energy = _Energy()
+    def flush(self): pass
+    def stop(self): pass
+
+
+def test_trainer_cpu_two_steps():
+    """
+    Construct a Trainer on CPU with a tiny model and run 2 steps.
+    Verifies the loop completes without error and that model weights change.
+    """
+    import logging
+    tmpdir = tempfile.mkdtemp()
+    try:
+        config_dir = _create_tiny_model_config(tmpdir)
+        args = TrainingArguments(
+            path_to_model_config=config_dir,
+            tokenizer_name_or_path=_TINY_TOKENIZER_NAME,
+            attn_implementation="eager",
+            cache_dir=tmpdir,
+            torch_compile=False,
+            use_liger_kernel=False,
+            gradient_checkpointing=False,
+            mat_mul_precision="highest",
+            tf32=False,
+            bf16=False,
+            sanity_check=True,
+            sanity_check_num_samples=16,
+            micro_batch_size=2,
+            eval_micro_batch_size=2,
+            pin_memory=False,
+            num_workers_for_dataloader=0,
+            prefetch_factor=None,
+            shuffle_dataset=False,
+            optimizer_type="adamw",
+            max_learning_rate=1e-3,
+            weight_decay=0.01,
+            beta1=0.9,
+            beta2=0.95,
+            eps=1e-8,
+            max_grad_norm=1.0,
+            num_train_epochs=1,
+            total_batch_size=128,
+            checkpointing_steps=2,
+            stage_name="test",
+            checkpoint_dir=tmpdir,
+            wandb_token=None,
+            push_to_hub=False,
+            begin_new_stage=True,
+            mfu_type="dense_transformer",
+            lr_decay_type="cosine",
+        )
+
+        result = prepare_training_components(args=args, device="cpu", master_process=True)
+        model = result.model
+        args = result.args
+
+        optimizer, step_fn, _ = create_optimizer(model, args, device_type="cpu", master_process=True)
+
+        bundle = prepare_dataloaders(args=args, tokenizer=result.tokenizer, world_size=1, rank=0)
+
+        gradient_accumulation_steps, _, max_steps = compute_training_schedule(
+            args, len(bundle.train_dataloader), world_size=1,
+        )
+        max_steps = 2  # keep the test fast
+
+        lr_scheduler = create_lr_scheduler(args, max_steps)
+
+        log_file = os.path.join(tmpdir, "test.log")
+        file_logger = StructuredTrainingLogger(log_file)
+        logger = logging.getLogger("trainer-test")
+        logger.setLevel(logging.WARNING)  # suppress verbose training logs
+
+        mfu_context = create_mfu_context(args, "a100", num_parameters=result.trainable_params)
+
+        # Snapshot weights before training.
+        first_param = next(model.parameters())
+        before = first_param.data.clone()
+
+        trainer = Trainer(
+            args=args,
+            model=model,
+            raw_model=model,
+            tokenizer=result.tokenizer,
+            optimizer=optimizer,
+            optimizer_step=step_fn,
+            lr_scheduler=lr_scheduler,
+            train_dataloader=bundle.train_dataloader,
+            validation_dataloader=bundle.val_dataloader,
+            train_sampler=bundle.train_sampler,
+            gradient_accumulation_steps=gradient_accumulation_steps,
+            max_steps=max_steps,
+            resume_step=0,
+            iter_count=0,
+            epoch=1,
+            device="cpu",
+            device_type="cpu",
+            ddp=False,
+            world_size=1,
+            master_process=True,
+            precision=torch.float32,
+            logger=logger,
+            file_logger=file_logger,
+            log_file=log_file,
+            slurm_job_id="test-000",
+            tracker=_MockTracker(),
+            mfu_context=mfu_context,
+        )
+        trainer.train()
+
+        after = first_param.data
+        assert not torch.equal(before, after), "Weights should change after training"
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+for _fn in [
+    test_trainer_cpu_two_steps,
+]:
+    run_test(_fn.__name__, _fn)
+
+
+# %%
+#######################################
+# 11. Report
 #######################################
 report()

@@ -4,13 +4,41 @@ Training Configuration Specifications for Distributed Data Parallel (DDP)
 Dataclass-based training arguments for large-scale transformer model training.
 Supports distributed training, gradient accumulation, mixed precision, and various
 optimization strategies.
+
+Provides:
+    - `TrainingArguments` dataclass that encapsulates all training configuration options.
 """
-from typing import Optional, Union
-from dataclasses import dataclass, field
+from typing import Any, Optional, Union
+from dataclasses import dataclass, field, fields
+
+import yaml
 
 @dataclass
 class TrainingArguments:
     """Class to hold the training arguments."""
+
+    @staticmethod
+    def load_yaml(specs_path: str) -> dict[str, Any]:
+        """Load training arguments from a YAML file."""
+        with open(specs_path, "r", encoding="utf-8") as stream:
+            loaded_args = yaml.safe_load(stream)
+
+        if loaded_args is None:
+            return {}
+
+        if not isinstance(loaded_args, dict):
+            raise ValueError("Training specifications YAML must define a mapping of argument names to values.")
+
+        return loaded_args
+
+    @classmethod
+    def from_yaml(cls, specs_path: str) -> "TrainingArguments":
+        """Create TrainingArguments directly from a YAML specifications file."""
+        return cls(**cls.load_yaml(specs_path))
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the current TrainingArguments state, including runtime fields."""
+        return {dataclass_field.name: getattr(self, dataclass_field.name) for dataclass_field in fields(self)}
     
     # Directory settings
     checkpoint_dir: Optional[str] = field(

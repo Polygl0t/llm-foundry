@@ -3,6 +3,12 @@ MFU calculation helpers for the DDP trainer.
 
 The strategy registry makes it straightforward to add alternative formulas for
 other architectures (MoE, Mamba, Hybrid) without changing the training loop.
+
+Provides:
+    - `MFUContext` dataclass that encapsulates all necessary information about the model and hardware for MFU calculation.
+    - `TrainingPerformanceMetrics` dataclass that encapsulates the results of the MFU calculation and related performance metrics.
+    - `create_mfu_context()` function to create an `MFUContext` from training arguments and hardware information.
+    - `calculate_training_metrics()` function that computes the MFU and related performance metrics given the context and training step information.
 """
 from dataclasses import dataclass
 

@@ -5,14 +5,22 @@ Provides:
     - compute_training_schedule:    gradient accumulation steps and step counts
     - setup_triton_cache:           per-rank Triton cache with cleanup
     - StructuredTrainingLogger:     structured metadata/stats file writer
+    - DistributedEnvironment:       SLURM-aware DDP environment manager
+    - load_checkpoint_state:        load optimizer and training state from checkpoint
+    - initialize_wandb:             login and init W&B run
+    - create_emissions_tracker:     create and start a CodeCarbon EmissionsTracker
     - cleanup_log_file:             truncate log after last validation entry
     - checkpoint_already_validated: check if a step was already validated
 """
 import json
+import logging
 import math
 import os
+import sys
 import time
+import torch
 import torch.distributed as dist
+import numpy as np
 
 
 class StructuredTrainingLogger:
@@ -29,6 +37,20 @@ class StructuredTrainingLogger:
         self.current_section = None
         with open(self.log_file, "a"):
             pass
+
+    @classmethod
+    def create_python_logger(cls, name):
+        """Create a Python logger using the trainer's default console configuration."""
+        # [Logging facility for Python](https://docs.python.org/3/library/logging.html#)
+        logger = logging.getLogger(name)
+
+        logging.basicConfig(
+            format="%(name)s - %(message)s",
+            level=logging.INFO,
+            handlers=[logging.StreamHandler(sys.stdout)],
+        )
+
+        return logger
 
     def _switch_section(self, section):
         if self.current_section == section:
@@ -63,6 +85,100 @@ class StructuredTrainingLogger:
         self.log(message, "stats")
 
 
+class DistributedEnvironment:
+    """Manages the distributed training environment setup and cleanup."""
+
+    def __init__(self, logger):
+
+        if "SLURM_NTASKS" in os.environ and "SLURM_PROCID" in os.environ:
+
+            # SLURM_NTASKS is the total number of processes (aka, world size).
+            self.world_size = int(os.environ["SLURM_NTASKS"])
+
+            if self.world_size > 1:
+
+                # SLURM_PROCID is the rank of the current process in SLURM.
+                self.rank = int(os.environ['SLURM_PROCID'])
+
+                # [PyTorch Distributed Documentation](https://docs.pytorch.org/docs/stable/distributed.html)
+                dist.init_process_group(
+                    backend="nccl",
+                    world_size=self.world_size, 
+                    rank=self.rank,
+                    device_id=self.rank % torch.cuda.device_count()
+                )
+
+                # Set the device to the current rank.
+                self.device = f"cuda:{self.rank % torch.cuda.device_count()}"
+                torch.cuda.set_device(self.device)
+                # The first process is the master process.
+                self.master_process = self.rank == 0
+                self.ddp = True
+                if self.master_process:
+                    logger.info(f"Running DDP via '{dist.get_backend()}' backend. Logging process: {self.rank}. World size: {self.world_size}.")
+            
+            else:
+                # If the world size is 1, then we are not using distributed training.
+                self.rank = 0
+                self.device = "cuda:0"
+                torch.cuda.set_device(self.device)
+                self.master_process = True
+                self.ddp = False
+                logger.info("Running single process training.")
+
+        else:
+            raise ValueError("SLURM_NTASKS or SLURM_PROCID environment variable is not set. This script is intended to be run with SLURM.")
+
+        self.device_type = "cuda" if self.device.startswith("cuda") else "cpu"
+
+    @staticmethod
+    def seed_everything(seed):
+        """Set the random state seed for reproducibility."""
+        # [Common PyTorch Functions](https://docs.pytorch.org/docs/stable/torch.html)
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed(seed)
+            torch.backends.cudnn.deterministic = True
+            torch.backends.cudnn.benchmark = False
+
+    def cleanup(self):
+        """Clean up the distributed environment."""
+        if self.ddp:
+            dist.destroy_process_group()
+
+
+def load_checkpoint_state(args, checkpoint_path, optimizer, master_process=False, logger=None, file_logger=None):
+    """
+    Load checkpoint state and restore the optimizer if resuming from a checkpoint.
+
+    Returns a tuple of (resume_step, iter_count, epoch).
+    """
+    if args.resume_from_checkpoint:
+
+        checkpoint = os.path.join(checkpoint_path, 'checkpoint.pt')
+        checkpoint = torch.load(checkpoint, map_location=torch.device('cpu'), weights_only=False)
+
+        # The optimizer is updated in-place, so we don't need to return it.
+        optimizer.load_state_dict(checkpoint['optimizer'])
+        if master_process:
+            logger.info(f"Resumed optimizer from checkpoint: {checkpoint_path}")
+            file_logger.log_metadata(f"Resumed optimizer from checkpoint: {checkpoint_path}")
+
+        if not args.begin_new_stage:
+            resume_step = int(checkpoint['resume_step'])
+            iter_count = int(checkpoint['iteration'])
+            epoch = int(checkpoint['epoch'])
+            return resume_step, iter_count, epoch
+
+        else:
+            if master_process:
+                logger.info(f"Starting new training stage | {args.stage_name}")
+                file_logger.log_metadata(f"Starting new training stage | {args.stage_name}")
+
+    return 0, 0, 1
+
+
 def _parse_legacy_validation_step(line):
     """
     Parse legacy validation step from a log line.
@@ -78,6 +194,7 @@ def _parse_legacy_validation_step(line):
 
 
 def _iter_log_entries(log_file):
+    """Helper generator to iterate through log entries, yielding (index, section, line) tuples."""
     current_section = None
 
     with open(log_file, "r") as file_handle:
@@ -228,3 +345,57 @@ def checkpoint_already_validated(checkpoint_dir, stage_name, step, log_file):
         return False
     
     return False
+
+
+def initialize_wandb(args, slurm_job_id, max_steps):
+    """
+    Login to W&B and initialize a run.
+
+    Only call this on the master process and when ``args.wandb_token`` is not None.
+
+    References:
+        - [wandb.login](https://docs.wandb.ai/ref/python/sdk/functions/login)
+        - [wandb.init](https://docs.wandb.ai/ref/python/sdk/functions/init/)
+    """
+    import wandb
+    import time as _time
+
+    wandb.login(key=args.wandb_token)
+
+    wandb.init(
+        project=args.wandb_project if args.wandb_project is not None else "default",
+        notes=args.wandb_desc if args.wandb_desc is not None else "N/A",
+        name=f"""{args.wandb_id}-{args.stage_name}-{_time.strftime("%d-%m-%Y")}-bs-{args.total_batch_size}-epochs-{args.num_train_epochs}-steps-{max_steps}-lr-{args.max_learning_rate}-sch-{args.lr_decay_type}""",
+        config=args.to_dict(),
+        resume="allow",
+        id=f"{args.wandb_id}-{slurm_job_id}" if args.wandb_id is not None else f"{slurm_job_id}",
+    )
+
+
+def create_emissions_tracker(args, logger):
+    """
+    Create and start a CodeCarbon EmissionsTracker.
+
+    Only call this on the master process.
+
+    References:
+        - [EmissionsTracker](https://mlco2.github.io/codecarbon/usage.html#explicit-object)
+        - [Tracking on the main process only](https://github.com/mlco2/codecarbon/issues/544)
+    """
+    from codecarbon import EmissionsTracker
+
+    tracker = EmissionsTracker(
+        project_name=args.wandb_project if args.wandb_project is not None else "default",
+        log_level="critical",
+        output_dir=args.checkpoint_dir,
+        output_file="emissions.csv",
+        tracking_mode="machine",
+    )
+
+    logger.info(
+        f"Geo Location: ISO: {tracker._geo.country_iso_code} "
+        f"| Country: {tracker._geo.country_name} "
+        f"| Region : {tracker._geo.region}"
+    )
+    tracker.start()
+    return tracker

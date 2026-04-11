@@ -3,6 +3,10 @@ Tokenizer and model initialization utilities for the DDP trainer.
 
 This module owns the pre-DDP model setup path so the trainer can consume a
 single explicit result object.
+
+Provides:
+    - `ModelInitializationResult` dataclass that encapsulates the tokenizer, model, and related state.
+    - `prepare_training_components()` function that initializes the tokenizer and model.
 """
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -286,6 +290,8 @@ def prepare_training_components(args, device, master_process, logger=None, file_
         )
         model.config.use_cache = False
 
+    # [Torch Compile](https://docs.pytorch.org/docs/stable/generated/torch.compile.html)
+    # WARNING: Torch compile is not working good with liger kernel: https://github.com/linkedin/Liger-Kernel/issues/174
     if args.torch_compile and not args.use_liger_kernel:
         if master_process and logger is not None:
             logger.info("Compiling model with torch.compile.")
