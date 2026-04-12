@@ -56,6 +56,17 @@ trl = [
     "wandb==0.21.0",
     "liger-kernel==0.6.1",
 ]
+tests = [
+    "torch>=2.0",
+    "transformers>=4.40",
+    "datasets>=2.0",
+    "numpy",
+    "pyyaml",
+    "nltk",
+    "langdetect",
+    "immutabledict",
+    "packaging",
+]
 
 [tool.setuptools]
 packages = []

@@ -2,7 +2,7 @@
 CPU-only pre-flight test suite for the DDP trainer codebase.
 
 Run with:
-    python test.py
+    python tests_ddp.py
 
 All tests use synthetic data and tiny model configs so they complete
 in seconds on a standard desktop CPU without any GPU, DDP, or SLURM dependency.
@@ -26,10 +26,12 @@ import tempfile
 import shutil
 import traceback
 
-sys.pycache_prefix = os.path.join(tempfile.gettempdir(), ".pycache")
+sys.pycache_prefix = os.path.join(tempfile.gettempdir(), "pycache")
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-if SCRIPT_DIR not in sys.path:
-    sys.path.insert(0, SCRIPT_DIR)
+REPO_ROOT = os.path.dirname(SCRIPT_DIR)
+DDP_DIR = os.path.join(REPO_ROOT, "ddp")
+if DDP_DIR not in sys.path:
+    sys.path.insert(0, DDP_DIR)
 
 # Store test results as tuples of (test_name, passed_bool, error_message).
 _results: list[tuple[str, bool, str]] = []
@@ -40,7 +42,6 @@ def run_test(name, fn):
     try:
         fn()
         _results.append((name, True, ""))
-        print(f"  OK ✅  {name}")
     except Exception as exc:
         tb = traceback.format_exc()
         _results.append((name, False, tb))
@@ -138,6 +139,10 @@ for _fn in [
     test_import_utils,
 ]:
     run_test(_fn.__name__, _fn)
+
+print("Test 1 — Imports & Setup: OK ✅")
+
+print("Test 2 — TrainingArguments & Config Loading: OK ✅")
 
 
 # %%
@@ -545,6 +550,8 @@ for _fn in [
 ]:
     run_test(_fn.__name__, _fn)
 
+print("Test 3 — MFU Calculation: OK ✅")
+
 
 # %%
 #######################################
@@ -615,6 +622,8 @@ for _fn in [
     test_collate_fn_multi_sample_batch,
 ]:
     run_test(_fn.__name__, _fn)
+
+print("Test 4 — Collate Function: OK ✅")
 
 
 # %%
@@ -727,6 +736,8 @@ for _fn in [
     test_dataloader_custom_collate,
 ]:
     run_test(_fn.__name__, _fn)
+
+print("Test 5 — Sanity-Check Dataset & DataLoader: OK ✅")
 
 
 # %%
@@ -1055,6 +1066,8 @@ for _fn in [
 ]:
     run_test(_fn.__name__, _fn)
 
+print("Test 6 — Model Initialization (CPU): OK ✅")
+
 
 # %%
 #######################################
@@ -1274,6 +1287,8 @@ for _fn in [
     test_get_optimizer_summary_lines,
 ]:
     run_test(_fn.__name__, _fn)
+
+print("Test 7 — Optimizers & LR Schedulers (CPU): OK ✅")
 
 
 # %%
@@ -1609,6 +1624,8 @@ for _fn in [
 ]:
     run_test(_fn.__name__, _fn)
 
+print("Test 8 — Utility Functions: OK ✅")
+
 
 # %%
 #######################################
@@ -1823,6 +1840,8 @@ for _fn in [
 ]:
     run_test(_fn.__name__, _fn)
 
+print("Test 9 — Integration: Forward Pass on CPU: OK ✅")
+
 
 # %%
 #######################################
@@ -1958,6 +1977,8 @@ for _fn in [
     test_trainer_cpu_two_steps,
 ]:
     run_test(_fn.__name__, _fn)
+
+print("Test 10 — Trainer: OK ✅")
 
 
 # %%

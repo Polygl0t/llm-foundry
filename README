@@ -22,6 +22,7 @@ This repository (the foundry) contains all the source code we use in our researc
 * merge: Scripts for running different merging techniques via mergekit.
 * sft: Implementation of Supervised Fine-Tuning via TRL.
 * synthetic: Scripts for generating synthetic datasets with vLLM.
+* tests: Unit and integration tests for our code base.
 * tokenization: Scripts for training, evaluating, and using tokenizers.
 
 All of our code base is made to run on the Marvin cluster (University of Bonn).
@@ -39,6 +40,7 @@ You can also use the `pyproject.toml` to install certain specific/working builds
 * `distributed`: For training and evaluating language models with DDP and FSDP.
 * `synth`: For generating synthetic datasets with vLLM.
 * `trl`: For training and evaluating language models with TRL.
+* `tests`: For running our test suite.
 
 Aknowlegments
 -------------

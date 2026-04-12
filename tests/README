@@ -1,0 +1,37 @@
+████████╗███████╗███████╗████████╗███████╗
+╚══██╔══╝██╔════╝██╔════╝╚══██╔══╝██╔════╝
+   ██║   █████╗  ███████╗   ██║   ███████╗
+   ██║   ██╔══╝  ╚════██║   ██║   ╚════██║
+   ██║   ███████╗███████║   ██║   ███████║
+   ╚═╝   ╚══════╝╚══════╝   ╚═╝   ╚══════╝
+
+Test suites for llm-foundry
+
+Overview
+--------
+
+This folder contains unit and integration test scripts for the foundry code base.
+
+Available test scripts:
+
+* tests_ddp.py: CPU-only pre-flight suite for the DDP training stack (imports, configs, MFU, dataloaders, model setup, optimizers, utilities, integration, trainer).
+* tests_fsdp.py: CPU-only pre-flight suite for the FSDP training stack (imports, configs, MFU, dataloaders, model setup, optimizers, utilities, integration, trainer).
+* tests_gym.py: End-to-end verifier and sample-generation checks for the gym pipeline (instruction, long-context, haystack, math, email, and tool-call tasks).
+
+Both scripts are designed to run as standalone Python files and resolve module imports from their respective source folders.
+
+Running Tests
+-------------
+
+From the repository root:
+
+* `python tests/tests_ddp.py`
+* `python tests/tests_fsdp.py`
+* `python tests/tests_gym.py`
+
+
+Notes
+-----
+
+* All test scripts set `sys.pycache_prefix` to `tmp/pycache` in the Linux temp directory (via `tempfile.gettempdir()`).
+

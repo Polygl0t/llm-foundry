@@ -1,7 +1,33 @@
+
+"""
+Gym test suite for verifiers, templates, and generation pipeline.
+
+Run with:
+    python tests_gym.py
+
+Requirements:
+- transformers
+- nltk
+- langdetect
+- immutabledict
+- packaging
+- datasets
+"""
 # %%
 #######################################
 # 1. Imports & Setup
 #######################################
+import sys
+import os
+import tempfile
+
+sys.pycache_prefix = os.path.join(tempfile.gettempdir(), "pycache")
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.dirname(SCRIPT_DIR)
+GYM_DIR = os.path.join(REPO_ROOT, "gym")
+if GYM_DIR not in sys.path:
+    sys.path.insert(0, GYM_DIR)
+
 import json
 import random
 import string as _string
@@ -698,7 +724,7 @@ from generate_from_long_context_templates import (
 HAYSTACK_TEMPLATES = [
     t for t in LONG_CONTEXT_TEMPLATES if t["task_type"].startswith("needle_")
 ]
-_hs_docs = load_documents("./data")
+_hs_docs = load_documents(os.path.join(GYM_DIR, "data"))
 
 for idx, hs_template in enumerate(HAYSTACK_TEMPLATES):
     random.seed(42 + idx)
@@ -1207,8 +1233,8 @@ from generate_from_tool_call_templates import (
 )
 from pathlib import Path
 
-_data_dir = Path(__file__).resolve().parent / "data"
-all_tools, _examples = load_tool_call_data(_data_dir / "tools.json")
+_data_dir = os.path.join(GYM_DIR, "data")
+all_tools, _examples = load_tool_call_data(os.path.join(_data_dir, "tools.json"))
 assert len(all_tools) > 0, "No tools loaded"
 
 rng = random.Random(42)

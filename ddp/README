@@ -1,0 +1,55 @@
+██████╗ ██████╗ ██████╗ 
+██╔══██╗██╔══██╗██╔══██╗
+██║  ██║██║  ██║██████╔╝
+██║  ██║██║  ██║██╔═══╝ 
+██████╔╝██████╔╝██║     
+╚═════╝ ╚═════╝ ╚═╝     
+
+Distributed training pipelines for llm-foundry
+
+Overview
+--------
+
+This folder contains our Distributed Data Parallel (DDP) training stack for causal language models.
+
+* train_ddp.py: Main DDP training entrypoint.
+* train_ddp.sh: SLURM launcher template.
+* train_config.yml: Training configuration file (data, model, optimization, logging, checkpointing).
+* specifications.py: Dataclass schema and YAML loading for training arguments.
+* data_loading.py: Dataset loading, samplers, collate functions, and DataLoader preparation.
+* model_setup.py: Model/tokenizer initialization, runtime field setup, and optional distributed model config.
+* optimizers.py: Optimizer creation and LR scheduler logic (AdamW and Muon+Adam workflows).
+* trainer.py: Training and validation loop orchestration.
+* mfu.py: MFU and throughput metric utilities.
+* utils.py: Distributed environment setup, logging, checkpoint helpers, and runtime utilities.
+
+Running Training
+----------------
+
+From the repository root:
+
+* python ddp/train_ddp.py --specs ddp/train_config.yml --slurm-job-id local --hardware a100
+
+With SLURM:
+
+* sbatch ddp/train_ddp.sh
+
+Before submitting jobs, update account/partition/workdir values in train_ddp.sh and point SPECS_FILE to your config path.
+
+Configuration
+-------------
+
+The train_config.yml file controls:
+
+* Dataset and cache paths.
+* Model/tokenizer settings.
+* Batch sizes, max steps, and precision flags.
+* Optimizer and LR schedule settings.
+* Checkpointing and logging (including Weights & Biases metadata).
+
+Notes
+-----
+
+* The SLURM launcher sets distributed environment variables (MASTER_ADDR, MASTER_PORT, NCCL/Torch flags).
+* The launcher also configures cache directories and Triton cache paths per job.
+* This stack is tuned for Marvin-style (Uni Bonn Cluster) multi-GPU execution but can be run locally for smaller debugging runs.
