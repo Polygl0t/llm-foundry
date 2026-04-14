@@ -59,15 +59,17 @@ source "$workdir/.venv_synth/bin/activate"           # <-- Activate virtual envi
 export HF_TOKEN="<your-token-here>"                      # <-- Change to your Hugging Face token
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export HF_DATASETS_CACHE="$workdir/.cache/$SLURM_JOB_ID"
+export PYTHONPYCACHEPREFIX="$HF_DATASETS_CACHE/.pycache"
 export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE"
 export TRITON_CACHE_DIR="$HF_DATASETS_CACHE/triton_cache"
 export CLEAN_CACHE="0"                                   # Set to "1" to clean cache after job completion
 export DP=8                                              # <-- Data parallelism across GPUs
 export TP=1                                              # <-- Tensor parallelism (for bigger models)
+export PP=1                                              # <-- Pipeline parallelism
 export MODEL_NAME_OR_PATH="Qwen/Qwen3-14B"               # <-- Change to your model name or path
 export DATASET_PATH="$workdir/synth/data"                # <-- Change to your dataset path (directory with JSONL or Parquet files)
 export TEXT_COLUMN="prompt"                              # <-- Change to your dataset text column name
-export OUTPUT_DIR="$workdir/synth/no_think"              # <-- Change to your desired output directory
+export OUTPUT_DIR="$workdir/synth/output"                # <-- Change to your desired output directory
 export SYSTEM_PROMPT=$(cat "$workdir/synth/SYSTEM.md")   # <-- Read system prompt from file
 export PROMPT_TEMPLATE=$(cat "$workdir/synth/PROMPT.md") # <-- Read prompt template from file (must contain [[DOCUMENT]] placeholder)
 export MAX_TOKENS=10000                     # <-- Max output tokens per generation
@@ -77,6 +79,10 @@ export TOP_K=20
 export TOP_P=0.8
 export ROLLOUTS_PER_DOCUMENT=1
 export EXAMPLES_PER_CHUNK=17500              # <-- Documents per checkpoint chunk
+#export VLLM_LOGGING_LEVEL="DEBUG"           # Useful for diagnosing vLLM distributed startup
+#export VLLM_ENABLE_LOG_REQUESTS="1"         # Set to "1" for per-request traces (very verbose)
+#export NCCL_DEBUG="INFO"                    # Useful for diagnosing multi-GPU communication
+
 mkdir -p "$OUTPUT_DIR"
 
 if [[ -n "$HF_TOKEN" ]]; then
@@ -88,6 +94,7 @@ echo "# [${SLURM_JOB_ID}] Job started at: $(date)" > "$out"
 echo "# [${SLURM_JOB_ID}] Using $SLURM_NNODES node(s)" >> "$out"
 echo "# [${SLURM_JOB_ID}] Using $DP GPU(s) via data parallelism" >> "$out"
 echo "# [${SLURM_JOB_ID}] Using $TP GPU(s) via tensor parallelism" >> "$out"
+echo "# [${SLURM_JOB_ID}] Using $PP GPU(s) via pipeline parallelism" >> "$out"
 echo "# [${SLURM_JOB_ID}] Running on nodes: $(scontrol show hostnames "$SLURM_NODELIST" | tr '\n' ' ')" >> "$out"
 echo "# Working directory: $workdir" >> "$out"
 echo "# Python executable: $(which python3)" >> "$out"
@@ -112,6 +119,7 @@ eval python3 $workdir/synth/generate_datatrove.py \
     --model-max-context "$MODEL_MAX_CONTEXT" \
     --dp "$DP" \
     --tp "$TP" \
+    --pp "$PP" \
     --max-tokens "$MAX_TOKENS" \
     --temperature "$TEMPERATURE" \
     --top-k "$TOP_K" \

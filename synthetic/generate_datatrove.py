@@ -4,22 +4,9 @@ Single-node script for generating synthetic data using vLLM inference and datatr
 Input:  local JSONL or Parquet files.
 Output: local JSONL files.
 
-Supports resuming interrupted jobs via checkpoints — just re-run the same
-command and already-completed chunks will be skipped.
-
 Usage:
 
-    # View all options
-    python generate_datatrove.py --help
-
-    # Basic: generate from local JSONL data
-    python generate_datatrove.py \
-        --input-path /data/prompts \
-        --prompt-column text \
-        --model-name-or-path Qwen/Qwen3-0.6B \
-        --output-path /data/output
-
-    # With a prompt template (must contain [[DOCUMENT]])
+    # The prompt template (must contain [[DOCUMENT]])
     python generate_datatrove.py \
         --input-path /data/documents \
         --prompt-column text \
@@ -27,17 +14,18 @@ Usage:
         --model-name-or-path Qwen/Qwen3-0.6B \
         --output-path /data/summaries
 
-    # Resume an interrupted job (re-run the exact same command)
-    python generate_datatrove.py \
-        --input-path /data/prompts \
-        --prompt-column text \
-        --model-name-or-path Qwen/Qwen3-0.6B \
-        --output-path /data/output
+Notes:
+
+    - This script support resume capability via checkpoints. If the process is interrupted. 
+        Simply re-run the same command and it will skip already-completed chunks.
+    - There is a bug in datatrove 0.9.0's VLLM server wrapper that causes it to pass an incompatible 
+        flag to newer vLLM CLIs. See the patch in this script.
 """
 
 import argparse
 import asyncio
 import os
+import shlex
 import sys
 from pathlib import Path
 from typing import Any, Awaitable, Callable
@@ -64,7 +52,7 @@ from utils import (
 
 # We need to perform a monkey-patch to datatrove's VLLM server wrapper to ensure compatibility with newer vLLM CLI changes.
 # please track the following issue: https://github.com/huggingface/datatrove/issues/480
-def _patch_datatrove_vllm_server() -> None:
+def _patch_datatrove_vllm_server():
     """Patch datatrove's VLLM server wrapper for newer vLLM CLIs.
 
     Datatrove 0.9.0 still passes ``--disable-log-requests``, but newer vLLM
@@ -74,7 +62,10 @@ def _patch_datatrove_vllm_server() -> None:
     """
     from datatrove.pipeline.inference.servers.vllm_server import VLLMServer, logger
 
-    async def _start_vllm_task_compat(self) -> asyncio.subprocess.Process:
+    def _env_is_truthy(name: str):
+        return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+    async def _start_vllm_task_compat(self):
         cmd = [
             "vllm",
             "serve",
@@ -86,6 +77,9 @@ def _patch_datatrove_vllm_server() -> None:
             "--trust-remote-code",
             "--disable-uvicorn-access-log",
         ]
+
+        if _env_is_truthy("VLLM_ENABLE_LOG_REQUESTS"):
+            cmd.append("--enable-log-requests")
 
         model_kwargs = self.config.model_kwargs.copy() if self.config.model_kwargs else {}
         if self.config.tp > 1 and "tensor-parallel-size" not in model_kwargs:
@@ -104,10 +98,22 @@ def _patch_datatrove_vllm_server() -> None:
                 else:
                     cmd.append(f"--{key}={value}")
 
-        logger.debug(f"Starting VLLM server with command: {' '.join(cmd)}")
         env = os.environ.copy()
         env.setdefault("USE_TF", "0")
         env.setdefault("TRANSFORMERS_NO_TF", "1")
+
+        # Debug logging to verify parallelism settings and CUDA visibility.
+        world_size = self.config.tp * self.config.pp * self.config.dp
+        logger.info(
+            f"Launching vLLM server with tp={self.config.tp} pp={self.config.pp} dp={self.config.dp} (world_size={world_size})"
+        )
+        logger.info(
+            f"CUDA visibility: CUDA_VISIBLE_DEVICES={env.get('CUDA_VISIBLE_DEVICES', '<unset>')}, "
+            f"SLURM_GPUS_ON_NODE={env.get('SLURM_GPUS_ON_NODE', '<unset>')}, "
+            f"SLURM_JOB_GPUS={env.get('SLURM_JOB_GPUS', '<unset>')}"
+        )
+        logger.info(f"vLLM launch command: {shlex.join(cmd)}")
+
         return await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
@@ -118,7 +124,7 @@ def _patch_datatrove_vllm_server() -> None:
     VLLMServer._start_vllm_task = _start_vllm_task_compat
 
 
-def _detect_input_format(input_path: str) -> str:
+def _detect_input_format(input_path):
     """Auto-detect input format by inspecting file extensions in the directory."""
     p = Path(input_path)
     if not p.is_dir():
@@ -139,7 +145,7 @@ def _detect_input_format(input_path: str) -> str:
     )
 
 
-def _compute_reader_limit(max_examples: int, tasks: int) -> int:
+def _compute_reader_limit(max_examples, tasks):
     """Compute per-task reader limit so max_examples is respected globally.
 
     Each datatrove task applies ``limit`` independently. For multi-task runs
@@ -157,71 +163,11 @@ def _compute_reader_limit(max_examples: int, tasks: int) -> int:
             f"({reader_limit} docs per task)"
         )
     return reader_limit
-
-
-def parse_args() -> argparse.Namespace:
-    """Parse command-line arguments."""
-    parser = argparse.ArgumentParser(
-        description="Generate synthetic data using vLLM and Datatrove pipelines on a single node with local I/O",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    )
-
-    # Input and prompt configuration
-    parser.add_argument("--input-path", required=True, help="Directory containing JSONL or Parquet input files")
-    parser.add_argument("--input-format", default="auto", help="Input format: 'jsonl', 'parquet', or 'auto'")
-    parser.add_argument("--prompt-column", default="text", help="Column name containing the prompt text")
-    parser.add_argument("--prompt-template", default=None, help="Template with [[DOCUMENT]] placeholder")
-    parser.add_argument("--max-examples", type=int, default=-1, help="Max total examples to process (-1 = all)")
-
-    # Output configuration
-    parser.add_argument("--output-path", required=True, help="Local directory for output JSONL files")
-
-    # Model and inference configuration
-    parser.add_argument("--server-type", default="vllm", help="Inference server type")
-    parser.add_argument("--model-name-or-path", required=True, help="Model name or local path")
-    parser.add_argument("--model-revision", default="main", help="Model revision")
-    parser.add_argument("--model-max-context", type=int, default=32768, help="Maximum context length")
-    parser.add_argument("--system-prompt", default=None, help="Optional system prompt")
-    parser.add_argument("--trust-remote-code", action="store_true", help="Trust remote code in model repo")
-
-    # Parallelism settings (adjust based on available GPUs and model size)
-    parser.add_argument("--tp", type=int, default=1, help="Tensor parallelism")
-    parser.add_argument("--pp", type=int, default=1, help="Pipeline parallelism")
-    parser.add_argument("--dp", type=int, default=1, help="Data parallelism")
-
-    # vLLM-specific optimizations and settings
-    parser.add_argument("--max-concurrent-generations", type=int, default=500)
-    parser.add_argument("--max-concurrent-documents", type=int, default=500)
-    parser.add_argument("--max-num-seqs", type=int, default=256, help="Max sequences in batch (reduce if OOM)")
-    parser.add_argument("--max-num-batched-tokens", type=int, default=8192, help="Chunked-prefill batch size")
-    parser.add_argument("--gpu-memory-utilization", type=float, default=0.9, help="Fraction of GPU memory for KV cache")
-    parser.add_argument("--block-size", type=int, default=16, help="KV cache block size (16 or 32)")
-    parser.add_argument("--speculative-config", default=None, help="Speculative decoding config (JSON)")
-    parser.add_argument("--quantization", default=None, help="Quantization method (e.g. bitsandbytes)")
-    parser.add_argument("--kv-cache-dtype", default="auto", help="KV cache dtype: auto, fp8_e4m3, fp8_e5m2")
-    parser.add_argument("--optimization-level", type=int, default=3, help="0 = fast startup, 3 = best throughput")
-    parser.add_argument("--metric-interval", type=int, default=120, help="Metric reporting interval in seconds")
-
-    # Generation settings (overrides model defaults if set)
-    parser.add_argument("--temperature", type=float, default=None)
-    parser.add_argument("--top-k", type=int, default=None)
-    parser.add_argument("--top-p", type=float, default=None)
-    parser.add_argument("--max-tokens", type=int, default=8192, help="Max output tokens per generation")
-    parser.add_argument("--rollouts-per-document", type=int, default=1)
-    parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducible generation")
-
-    # Processing settings
-    parser.add_argument("--examples-per-chunk", type=int, default=500, help="Documents per checkpoint chunk")
-    parser.add_argument("--tasks", type=int, default=1, help="Number of parallel tasks")
-    parser.add_argument("--workers", type=int, default=1, help="Number of worker processes")
-
-    return parser.parse_args()
-
-
-def main(args: argparse.Namespace) -> None:
     
-    # We need to patch datatrove's VLLM server wrapper to ensure compatibility with newer vLLM CLI changes. 
-    # Please track the following issue for updates: https://github.com/huggingface/datatrove/issues/480
+
+def main(args):
+    
+    # Patch the datatrove VLLM server wrapper to ensure compatibility with newer vLLM CLIs.
     _patch_datatrove_vllm_server()
 
     # Extract arguments as local variables
@@ -314,7 +260,7 @@ def main(args: argparse.Namespace) -> None:
     async def simple_rollout(
         document: Document,
         generate: Callable[[dict[str, Any]], Awaitable[InferenceResult]],
-    ) -> InferenceResult:
+    ):
         """Send a single request per document and return the result."""
         messages = [] if system_prompt is None else [{"role": "system", "content": system_prompt}]
 
@@ -420,4 +366,63 @@ def main(args: argparse.Namespace) -> None:
 
 
 if __name__ == "__main__":
-    main(parse_args())
+
+    parser = argparse.ArgumentParser(
+        description="Generate synthetic data using vLLM and Datatrove pipelines on a single node with local I/O",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
+    # Input and prompt configuration
+    parser.add_argument("--input-path", required=True, help="Directory containing JSONL or Parquet input files")
+    parser.add_argument("--input-format", default="auto", help="Input format: 'jsonl', 'parquet', or 'auto'")
+    parser.add_argument("--prompt-column", default="text", help="Column name containing the prompt text")
+    parser.add_argument("--prompt-template", default=None, help="Template with [[DOCUMENT]] placeholder")
+    parser.add_argument("--max-examples", type=int, default=-1, help="Max total examples to process (-1 = all)")
+
+    # Output configuration
+    parser.add_argument("--output-path", required=True, help="Local directory for output JSONL files")
+
+    # Model and inference configuration
+    parser.add_argument("--server-type", default="vllm", help="Inference server type")
+    parser.add_argument("--model-name-or-path", required=True, help="Model name or local path")
+    parser.add_argument("--model-revision", default="main", help="Model revision")
+    parser.add_argument("--model-max-context", type=int, default=32768, help="Maximum context length")
+    parser.add_argument("--system-prompt", default=None, help="Optional system prompt")
+    parser.add_argument("--trust-remote-code", action="store_true", help="Trust remote code in model repo")
+
+    # Parallelism settings (adjust based on available GPUs and model size)
+    parser.add_argument("--tp", type=int, default=1, help="Tensor parallelism")
+    parser.add_argument("--pp", type=int, default=1, help="Pipeline parallelism")
+    parser.add_argument("--dp", type=int, default=1, help="Data parallelism")
+
+    # vLLM-specific optimizations and settings
+    parser.add_argument("--max-concurrent-generations", type=int, default=500)
+    parser.add_argument("--max-concurrent-documents", type=int, default=500)
+    parser.add_argument("--max-num-seqs", type=int, default=256, help="Max sequences in batch (reduce if OOM)")
+    parser.add_argument("--max-num-batched-tokens", type=int, default=8192, help="Chunked-prefill batch size")
+    parser.add_argument("--gpu-memory-utilization", type=float, default=0.9, help="Fraction of GPU memory for KV cache")
+    parser.add_argument("--block-size", type=int, default=16, help="KV cache block size (16 or 32)")
+    parser.add_argument("--speculative-config", default=None, help="Speculative decoding config (JSON)")
+    parser.add_argument("--quantization", default=None, help="Quantization method (e.g. bitsandbytes)")
+    parser.add_argument("--kv-cache-dtype", default="auto", help="KV cache dtype: auto, fp8_e4m3, fp8_e5m2")
+    parser.add_argument("--optimization-level", type=int, default=3, help="0 = fast startup, 3 = best throughput")
+    parser.add_argument("--metric-interval", type=int, default=120, help="Metric reporting interval in seconds")
+
+    # Generation settings (overrides model defaults if set)
+    parser.add_argument("--temperature", type=float, default=None)
+    parser.add_argument("--top-k", type=int, default=None)
+    parser.add_argument("--top-p", type=float, default=None)
+    parser.add_argument("--max-tokens", type=int, default=8192, help="Max output tokens per generation")
+    parser.add_argument("--rollouts-per-document", type=int, default=1)
+    parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducible generation")
+
+    # Processing settings
+    parser.add_argument("--examples-per-chunk", type=int, default=500, help="Documents per checkpoint chunk")
+    parser.add_argument("--tasks", type=int, default=1, help="Number of parallel tasks")
+    parser.add_argument("--workers", type=int, default=1, help="Number of worker processes")
+
+    args =  parser.parse_args()
+
+    print("Starting synthesis! 🚀")
+    main(args)
+    print("Synthesis completed successfully! 🎉")

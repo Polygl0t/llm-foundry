@@ -25,43 +25,56 @@ file_system="mlnvme"                             # <-- Change to your filesystem
 workspace_name="nanotronics"                     # <-- Change to your workspace/project name
 
 workdir="/lustre/$file_system/data/$username-$workspace_name"
-mkdir -p "$workdir/synth/synth_logs"
+mkdir -p "$workdir/synth/logs"
 cd "$workdir"
 ulimit -c 0
 
-out="$workdir/run_outputs/out-synthetic-cai.$SLURM_JOB_ID"
-err="$workdir/run_outputs/err-synthetic-cai.$SLURM_JOB_ID"
+out="$workdir/synth/logs/out-synthetic-cai.$SLURM_JOB_ID"
+err="$workdir/synth/logs/err-synthetic-cai.$SLURM_JOB_ID"
 
 #############################################
 # Environment Setup
 #############################################
 source $workdir/.modules_amd.sh
-source $workdir/.venv_amd/bin/activate
+# python3 -m venv $workdir/.venv_synth  
+source $workdir/.venv_synth/bin/activate
 
-export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
-export HF_DATASETS_CACHE="$workdir/.cache/$SLURM_JOB_ID"
-export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE"
-export TRITON_CACHE_DIR="$HF_DATASETS_CACHE/triton_cache"
-export CLEAN_CACHE="1"  # Set to "1" to clean cache after job completion
-export HF_TOKEN="<your-token-here>" # <-- Change to your HF token
+# pip3 install --upgrade pip
+# git clone --depth 1 --branch main https://github.com/Polygl0t/llm-foundry.git
+# pip3 install -e "$workdir/llm-foundry/.[synth]" --no-cache-dir
+
+export HF_TOKEN="<your-token-here>"                                 # <-- Change to your HF token
+export HF_DATASETS_CACHE="$workdir/.cache/$SLURM_JOB_ID"            # <-- Use a unique cache directory per job to avoid conflicts between concurrent jobs
+export PYTHONPYCACHEPREFIX="$HF_DATASETS_CACHE/.pycache"            # <-- Use the same cache directory for Python bytecode cache
+export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE"                   # <-- Use the same cache directory for Hugging Face Hub cache
+export TRITON_CACHE_DIR="$HF_DATASETS_CACHE/triton_cache"           # <-- Use the same cache directory for Triton cache
+export CLEAN_CACHE="1"                                              # <-- Set to "1" to clean cache after job completion
+export DATASET_PATH="$workdir/synth/prompts.jsonl"                  # <-- Change to your dataset path
 export PROMPT_PREFIX=""
 export PROMPT_SUFFIX=""
-export CONSTITUTION_FILE="$workdir/synth/REASONING_CONSTITUTION.md"
-export MODEL_NAME="Qwen/Qwen2.5-32B-Instruct" #  Qwen/Qwen2.5-32B-Instruct [Used for Harmless+Harmfull | chosen] / huihui-ai/Qwen2.5-32B-Instruct-abliterated [Used for Harmfull | rejected] / Qwen/Qwen2.5-7B-Instruct [Used for Harmless | rejected]
-export COLUMN_NAME="instruction"
-export COLUMN_NAME2="rejected_response"
-export OUTPUT_DIR="$workdir/portuguese/gigaverbo-v2-dpo"
+export CONSTITUTION_FILE="$workdir/synth/CONSTITUTION.md"
+export MODEL_NAME_OR_PATH="Qwen/Qwen2.5-32B-Instruct"
+export PROMPT_COLUMN="instruction"
+export METADATA_COLUMNS="rejected_response"                        # <-- Space-separated list of additional columns from the dataset to include in the prompt (e.g. "metadata1 metadata2"). Leave empty if not needed.
+export OUTPUT_DIR="$workdir/synth/cai_outputs"
+export OUTPUT_FILE="output.jsonl"
 export MAX_LENGTH=4096
-export MAX_CHUNK_SIZE=2048
+export MAX_CHUNK_SIZE=8192
 export TEMPERATURE=0.7
 export TOP_K=20
 export TOP_P=0.8
 export REPETITION_PENALTY=1.2
 export NUM_RETURN_SEQUENCES=1
-export ENABLE_CRITIQUE="0"  # Set to "1" to enable constitutional critique and revision loop
-export MAX_REVISIONS=1      # Number of critique/revision iterations
+export MAX_REVISIONS=1                                              # <-- Number of critique/revision iterations
+export ENABLE_CRITIQUE="0"                                          # <-- Set to "1" to enable constitutional critique and revision loop
+export ENABLE_THINKING="1"                                          # <-- Set to "0" to disable thinking mode
 
-hf auth login --token "$HF_TOKEN"
+mkdir -p "$OUTPUT_DIR"
+
+if [[ -n "$HF_TOKEN" ]]; then
+    # Login to Hugging Face (if needed)
+    hf auth login --token "$HF_TOKEN"
+fi
 
 echo "# [${SLURM_JOB_ID}] Job started at: $(date)" > "$out"
 echo "# [${SLURM_JOB_ID}] Using $SLURM_NNODES node(s)" >> "$out"
@@ -73,20 +86,28 @@ echo "# Python executable: $(which python3)" >> "$out"
 #############################################
 # Main Job Execution
 #############################################
+
 # Build critique flag
 CRITIQUE_FLAG=""
 if [ "$ENABLE_CRITIQUE" = "1" ]; then
     CRITIQUE_FLAG="--enable_critique --max_revisions $MAX_REVISIONS"
 fi
 
+# Build thinking flag
+THINKING_FLAG=""
+if [ "$ENABLE_THINKING" = "1" ]; then
+    THINKING_FLAG="--enable_thinking"
+fi
+
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 python3 "$workdir/generate_cai.py" \
-    --model_name "$MODEL_NAME" \
+    --model_name_or_path "$MODEL_NAME_OR_PATH" \
     --tensor_parallel_size 4 \
-    --dataset_path "$OUTPUT_DIR/harmless_prompts.jsonl" \
-    --column_name "$COLUMN_NAME" \
+    --dataset_path "$DATASET_PATH" \
+    --prompt_column "$PROMPT_COLUMN" \
+    --metadata_columns "$METADATA_COLUMNS" \
     --output_dir "$OUTPUT_DIR" \
-    --output_file "harmless_with_chosen.jsonl" \
+    --output_file "$OUTPUT_FILE" \
     --max_length $MAX_LENGTH \
     --max_chunk_size $MAX_CHUNK_SIZE \
     --temperature $TEMPERATURE \
@@ -98,7 +119,7 @@ python3 "$workdir/generate_cai.py" \
     --constitution_file "$CONSTITUTION_FILE" \
     --prompt_prefix "$PROMPT_PREFIX" \
     --prompt_suffix "$PROMPT_SUFFIX" \
-    $CRITIQUE_FLAG 1>>"$out" 2>>"$err"
+    $CRITIQUE_FLAG $THINKING_FLAG 1>>"$out" 2>>"$err"
 
 #############################################
 # End of Script
