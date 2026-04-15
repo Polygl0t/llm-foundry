@@ -1,11 +1,4 @@
-██████╗ ██████╗ ██████╗ 
-██╔══██╗██╔══██╗██╔══██╗
-██║  ██║██║  ██║██████╔╝
-██║  ██║██║  ██║██╔═══╝ 
-██████╔╝██████╔╝██║     
-╚═════╝ ╚═════╝ ╚═╝     
-
-Distributed training pipelines for llm-foundry
+Distributed Data Parallel (DDP) Training Stack for llm-foundry
 
 Overview
 --------

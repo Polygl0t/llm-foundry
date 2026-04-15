@@ -1,11 +1,4 @@
-███████╗███████╗██████╗ ██████╗ 
-██╔════╝██╔════╝██╔══██╗██╔══██╗
-█████╗  ███████╗██║  ██║██████╔╝
-██╔══╝  ╚════██║██║  ██║██╔═══╝ 
-██║     ███████║██████╔╝██║     
-╚═╝     ╚══════╝╚═════╝ ╚═╝     
-
-Fully sharded training pipelines for llm-foundry
+Fully Sharded Data Parallel (FSDP) Training Stack for llm-foundry
 
 Overview
 --------

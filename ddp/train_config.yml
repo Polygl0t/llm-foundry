@@ -22,6 +22,9 @@ tokenizer_name_or_path: "path/to/a/tokenizer"
 chat_template_path: null
 attn_implementation: "flash_attention_2"
 continual_pretraining: false
+mfu_type: "dense_transformer"
+enable_expert_parallelism: false
+use_kernels: false
 
 # Context extension overrides (only relevant for continual pretraining)
 new_max_position_embeddings: null
