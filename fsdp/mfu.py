@@ -90,17 +90,17 @@ def _mamba_layer_macs(ctx):
     n = ctx.mamba_d_state
     h = ctx.mamba_n_heads
 
-    # In-projection: d → (2e + 2gn + h) for x, z, B, C, dt   (Eq. 9: d·p)
+    # In-projection: d -> (2e + 2gn + h) for x, z, B, C, dt   (Eq. 9: d.p)
     in_proj = d * (2 * e + 2 * g * n + h)
     # Depthwise conv1d: kernel_size × channels                 (Eq. 9: 4c with c=e)
     conv = ctx.mamba_d_conv * e
-    # Out-projection: e → d                                    (Eq. 9: e·d)
+    # Out-projection: e -> d                                    (Eq. 9: e.d)
     out_proj = e * d
     # Intra-chunk SSD mixing                                   (Eq. 11)
     intra_chunk = 2 * ctx.mamba_chunk_size * e
     # Inter-chunk state passing                                (Eq. 11)
     inter_chunk = 2 * e * n
-    # MLP (SwiGLU: gate + up + down projections)               (Eq. 9: 3d·d_MLP)
+    # MLP (SwiGLU: gate + up + down projections)               (Eq. 9: 3d.d_MLP)
     mlp = 3 * d * ctx.intermediate_size
 
     return in_proj + conv + out_proj + intra_chunk + inter_chunk + mlp
@@ -113,7 +113,7 @@ def _attention_layer_macs(ctx):
     d = ctx.hidden_size
     s = ctx.sequence_length
     projections = 4 * d * d                     # Q, K, V, O projections
-    attention   = d * s                         # QK^T + attn·V  (causal avg)
+    attention   = d * s                         # QK^T + attn.V  (causal avg)
     mlp         = 3 * d * ctx.intermediate_size # SwiGLU MLP
     return projections + attention + mlp
 
@@ -132,11 +132,11 @@ def _linear_attention_layer_macs(ctx):
     h = ctx.linear_num_key_heads                               # head count
     L = ctx.linear_chunk_size
 
-    # Linear projections: Q, K (each d→k), V (d→v), 2 gating (d→h)   (Eq. 8)
+    # Linear projections: Q, K (each d->k), V (d->v), 2 gating (d->h)   (Eq. 8)
     projections = d * (2 * k + v + 2 * h)
     # Depthwise convs: kernel × (2k+v) channels                       (Eq. 8)
     conv = ctx.linear_conv_kernel_dim * (2 * k + v)
-    # Gate projection (d→v) + output projection (v→d)                 (Eq. 8)
+    # Gate projection (d->v) + output projection (v->d)                 (Eq. 8)
     gate_out = 2 * d * v
     # Intra-chunk overhead (Kernel, W/U, Attn)                         (Eq. 10)
     intra_chunk = L * (3 * k + 2 * v)
@@ -186,7 +186,7 @@ def _mamba_mfu(context, micro_batch_size, gradient_accumulation_steps, dt):
             _LAYER_MAC_FNS[lt](context) for lt in context.layer_types
         )
     else:
-        # No explicit layer_types → assume every layer is Mamba2.
+        # No explicit layer_types -> assume every layer is Mamba2.
         total_layer_macs = context.num_hidden_layers * _mamba_layer_macs(context)
 
     # FLOPs = 2 × MACs  (Eq. 6)

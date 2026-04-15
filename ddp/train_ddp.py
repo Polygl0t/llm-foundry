@@ -22,10 +22,6 @@ How to Use:
 
 2. Launch the training script with SLURM, specifying the number of nodes and GPUs.
     See the `train_ddp.sh` script for an example SLURM job submission.
-
-Tests:
-
-- The `tests.py` file includes unit tests for key components of this training pipeline.
 """
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch
