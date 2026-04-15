@@ -24,6 +24,7 @@ This repository (the foundry) contains all the source code we use in our researc
 * synthetic: Scripts for generating synthetic datasets with vLLM.
 * tests: Unit and integration tests for our code base.
 * tokenization: Scripts for training, evaluating, and using tokenizers.
+* utils: Some miscellaneous utilities for our code base.
 
 All of our code base is made to run on the Marvin cluster (University of Bonn).
 

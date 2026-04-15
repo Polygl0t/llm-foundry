@@ -1,0 +1,12 @@
+Miscellaneous utilities for llm-foundry
+
+Overview
+--------
+
+This folder contains miscellaneous utility scripts and helpers for working with models and training pipelines.
+
+Contents
+--------
+
+* inspect_model.py: Analyze model configurations and compute parameter counts (including MoE expert routing).
+
