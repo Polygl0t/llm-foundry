@@ -1534,20 +1534,43 @@ def test_checkpoint_already_validated_positive():
         shutil.rmtree(tmpdir)
 
 
-def test_distributed_environment_missing_slurm_vars():
-    """DistributedEnvironment raises ValueError when SLURM vars are missing."""
+def test_distributed_environment_local_fallback():
+    """DistributedEnvironment falls back to single-process mode when no SLURM/torchrun vars are set."""
     saved = {}
-    for key in ("SLURM_NTASKS", "SLURM_PROCID"):
+    for key in ("SLURM_NTASKS", "SLURM_PROCID", "WORLD_SIZE", "RANK", "LOCAL_RANK"):
         if key in os.environ:
             saved[key] = os.environ.pop(key)
     try:
-        raised = False
-        try:
-            DistributedEnvironment(logging.getLogger("test"))
-        except ValueError:
-            raised = True
-        assert raised
+        env = DistributedEnvironment(logging.getLogger("test"))
+        assert env.world_size == 1
+        assert env.rank == 0
+        assert env.local_rank == 0
+        assert env.master_process is True
+        assert env.ddp is False
+        assert env.device in ("cpu", "cuda:0")
     finally:
+        os.environ.update(saved)
+
+
+def test_distributed_environment_torchrun_vars():
+    """DistributedEnvironment picks up WORLD_SIZE/RANK/LOCAL_RANK when SLURM vars are absent."""
+    saved = {}
+    for key in ("SLURM_NTASKS", "SLURM_PROCID", "WORLD_SIZE", "RANK", "LOCAL_RANK"):
+        if key in os.environ:
+            saved[key] = os.environ.pop(key)
+    # Simulate a single-process torchrun launch (world_size=1).
+    os.environ["WORLD_SIZE"] = "1"
+    os.environ["RANK"] = "0"
+    os.environ["LOCAL_RANK"] = "0"
+    try:
+        env = DistributedEnvironment(logging.getLogger("test"))
+        assert env.world_size == 1
+        assert env.rank == 0
+        assert env.local_rank == 0
+        assert env.ddp is False
+    finally:
+        for key in ("WORLD_SIZE", "RANK", "LOCAL_RANK"):
+            os.environ.pop(key, None)
         os.environ.update(saved)
 
 
@@ -1680,7 +1703,8 @@ for _fn in [
     test_cleanup_log_file_missing_file,
     test_checkpoint_already_validated_no_dir,
     test_checkpoint_already_validated_positive,
-    test_distributed_environment_missing_slurm_vars,
+    test_distributed_environment_local_fallback,
+    test_distributed_environment_torchrun_vars,
     test_distributed_environment_seed_everything,
     test_load_checkpoint_state_no_resume,
     test_load_checkpoint_state_resume,

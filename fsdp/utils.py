@@ -86,48 +86,70 @@ class StructuredTrainingLogger:
 
 
 class DistributedEnvironment:
-    """Manages the distributed training environment setup and cleanup."""
+    """Manages the distributed training environment setup and cleanup.
+
+    Discovery order for world size and rank:
+        1. SLURM variables  (SLURM_NTASKS / SLURM_PROCID)
+        2. PyTorch launcher variables (WORLD_SIZE / RANK / LOCAL_RANK)
+        3. Local fallback: use available GPUs or CPU
+    """
 
     def __init__(self, logger):
 
         if "SLURM_NTASKS" in os.environ and "SLURM_PROCID" in os.environ:
-
-            # SLURM_NTASKS is the total number of processes (aka, world size).
+            # SLURM cluster
             self.world_size = int(os.environ["SLURM_NTASKS"])
+            self.rank = int(os.environ["SLURM_PROCID"])
+            self.local_rank = int(os.environ.get("SLURM_LOCALID", self.rank % max(torch.cuda.device_count(), 1)))
 
-            if self.world_size > 1:
+        elif "WORLD_SIZE" in os.environ and "RANK" in os.environ:
+            # torchrun / torch.distributed.launch
+            self.world_size = int(os.environ["WORLD_SIZE"])
+            self.rank = int(os.environ["RANK"])
+            self.local_rank = int(os.environ.get("LOCAL_RANK", 0))
 
-                # SLURM_PROCID is the rank of the current process in SLURM.
-                self.rank = int(os.environ['SLURM_PROCID'])
+        else:
+            # Local single-process fallback (single GPU or CPU)
+            self.world_size = 1
+            self.rank = 0
+            self.local_rank = 0
 
+        if self.world_size > 1:
+            # Multi-process distributed training.
+            if torch.cuda.is_available():
                 # [PyTorch Distributed Documentation](https://docs.pytorch.org/docs/stable/distributed.html)
                 dist.init_process_group(
                     backend="nccl",
-                    world_size=self.world_size, 
+                    world_size=self.world_size,
                     rank=self.rank,
-                    device_id=self.rank % torch.cuda.device_count()
+                    device_id=self.local_rank,
                 )
-
-                # Set the device to the current rank.
-                self.device = f"cuda:{self.rank % torch.cuda.device_count()}"
+                self.device = f"cuda:{self.local_rank}"
                 torch.cuda.set_device(self.device)
-                # The first process is the master process.
-                self.master_process = self.rank == 0
-                self.fsdp = True
-                if self.master_process:
-                    logger.info(f"Running FSDP via '{dist.get_backend()}' backend. Logging process: {self.rank}. World size: {self.world_size}.")
-            
             else:
-                # If the world size is 1, then we are not using distributed training.
-                self.rank = 0
-                self.device = "cuda:0"
-                torch.cuda.set_device(self.device)
-                self.master_process = True
-                self.fsdp = False
-                logger.info("Running single process training.")
+                dist.init_process_group(
+                    backend="gloo",
+                    world_size=self.world_size,
+                    rank=self.rank,
+                )
+                self.device = "cpu"
+
+            self.master_process = self.rank == 0
+            self.ddp = True
+            if self.master_process:
+                logger.info(f"Running DDP via '{dist.get_backend()}' backend. Logging process: {self.rank}. World size: {self.world_size}.")
 
         else:
-            raise ValueError("SLURM_NTASKS or SLURM_PROCID environment variable is not set. This script is intended to be run with SLURM.")
+            # Single-process training (1 GPU or CPU).
+            self.rank = 0
+            if torch.cuda.is_available():
+                self.device = "cuda:0"
+                torch.cuda.set_device(self.device)
+            else:
+                self.device = "cpu"
+            self.master_process = True
+            self.ddp = False
+            logger.info(f"Running single process training on {self.device}.")
 
         self.device_type = "cuda" if self.device.startswith("cuda") else "cpu"
 
@@ -144,7 +166,7 @@ class DistributedEnvironment:
 
     def cleanup(self):
         """Clean up the distributed environment."""
-        if self.fsdp:
+        if self.ddp:
             dist.destroy_process_group()
 
 
