@@ -7,8 +7,7 @@ This folder contains unit and integration test scripts for the foundry code base
 
 Available test scripts:
 
-* tests_ddp.py: CPU-only pre-flight suite for the DDP training stack (imports, configs, MFU, dataloaders, model setup, optimizers, utilities, integration, trainer).
-* tests_fsdp.py: CPU-only pre-flight suite for the FSDP training stack (imports, configs, MFU, dataloaders, model setup, optimizers, utilities, integration, trainer).
+* tests_distributed.py: CPU-only pre-flight suite for the DDP and FSDP training stack (imports, configs, MFU, dataloaders, model setup, optimizers, utilities, integration, trainer).
 * tests_gym.py: End-to-end verifier and sample-generation checks for the gym pipeline (instruction, long-context, haystack, math, email, and tool-call tasks).
 * tests_synthetic.py: End-to-end verifier for the synthetic data pipeline.
 
@@ -19,8 +18,7 @@ Running Tests
 
 From the repository root:
 
-* `python tests/tests_ddp.py`
-* `python tests/tests_fsdp.py`
+* `python tests/tests_distributed.py`
 * `python tests/tests_gym.py`
 * `python tests/tests_synthetic.py`
 

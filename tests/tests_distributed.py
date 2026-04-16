@@ -1,11 +1,11 @@
 """
-CPU-only pre-flight test suite for the FSDP trainer codebase.
+CPU-only pre-flight test suite for the unified distributed trainer codebase.
 
 Run with:
-    python tests_fsdp.py
+    python tests_distributed.py
 
 All tests use synthetic data and tiny model configs so they complete
-in seconds on a standard desktop CPU without any GPU, FSDP, or SLURM dependency.
+in seconds on a standard desktop CPU without any GPU, DDP, FSDP, or SLURM dependency.
 
 Requirements:
 - torch>=2.0
@@ -29,9 +29,9 @@ import traceback
 sys.pycache_prefix = os.path.join(tempfile.gettempdir(), "pycache")
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
-FSDP_DIR = os.path.join(REPO_ROOT, "fsdp")
-if FSDP_DIR not in sys.path:
-    sys.path.insert(0, FSDP_DIR)
+DISTRIBUTED_DIR = os.path.join(REPO_ROOT, "distributed")
+if DISTRIBUTED_DIR not in sys.path:
+    sys.path.insert(0, DISTRIBUTED_DIR)
 
 # Store test results as tuples of (test_name, passed_bool, error_message).
 _results: list[tuple[str, bool, str]] = []
@@ -201,23 +201,28 @@ def test_training_args_from_yaml():
         os.unlink(tmp_path)
 
 
-def test_training_args_to_dict():
-    """to_dict returns a dict with all fields including runtime additions."""
-    args = TrainingArguments(seed=7)
-    d = args.to_dict()
-    assert isinstance(d, dict)
-    assert d["seed"] == 7
-    assert "micro_batch_size" in d
+def test_training_args_to_dict_includes_runtime_fields():
+    """TrainingArguments.to_dict serializes both YAML and runtime-populated fields."""
+    args = TrainingArguments(micro_batch_size=8, stage_name="S2")
+    args.max_position_embeddings = 4096
+    args.vocab_size = 32000
+
+    serialized = args.to_dict()
+
+    assert serialized["micro_batch_size"] == 8
+    assert serialized["stage_name"] == "S2"
+    assert serialized["max_position_embeddings"] == 4096
+    assert serialized["vocab_size"] == 32000
 
 
 def test_training_args_invalid_field():
-    """Unknown field name raises TypeError."""
+    """Passing an unknown field should raise TypeError."""
     raised = False
     try:
         TrainingArguments(nonexistent_field=True)
     except TypeError:
         raised = True
-    assert raised
+    assert raised, "Expected TypeError for unknown field"
 
 
 def test_training_args_fsdp_defaults():
@@ -250,7 +255,7 @@ for _fn in [
     test_training_args_defaults,
     test_training_args_override,
     test_training_args_from_yaml,
-    test_training_args_to_dict,
+    test_training_args_to_dict_includes_runtime_fields,
     test_training_args_invalid_field,
     test_training_args_fsdp_defaults,
     test_training_args_fsdp_override,
@@ -661,7 +666,7 @@ print("\n" + "=" * 60)
 print("5. Sanity-Check Dataset & DataLoader")
 print("=" * 60)
 
-from data_loading import prepare_dataloaders, DataLoaderBundle, _load_sanity_check_datasets
+from data_loading import prepare_dataloaders, DataLoaderBundle, _load_sanity_check_datasets, RandomTokenDataset
 from transformers import AutoTokenizer
 
 
@@ -693,14 +698,62 @@ def _make_sanity_args(**overrides):
 
 
 def test_load_sanity_check_datasets():
-    """_load_sanity_check_datasets produces train/val with correct shapes."""
+    """_load_sanity_check_datasets returns lazy RandomTokenDatasets with correct sizes."""
     args = _make_sanity_args()
     train_ds, val_ds = _load_sanity_check_datasets(args)
+
+    # Correct types and lengths.
+    assert isinstance(train_ds, RandomTokenDataset)
+    assert isinstance(val_ds, RandomTokenDataset)
     assert len(train_ds) == 64
     assert len(val_ds) == max(1, int(64 * 0.1))
+
+    # Correct sample shape and keys.
     sample = train_ds[0]
     assert "input_ids" in sample
     assert sample["input_ids"].shape == (32,)
+    assert sample["input_ids"].dtype == torch.long
+
+    # All token ids within vocab range.
+    assert (sample["input_ids"] >= 0).all()
+    assert (sample["input_ids"] < args.vocab_size).all()
+
+    # Deterministic: same index always returns identical data.
+    assert torch.equal(train_ds[0]["input_ids"], train_ds[0]["input_ids"])
+    assert torch.equal(train_ds[7]["input_ids"], train_ds[7]["input_ids"])
+
+    # Different indices produce different sequences.
+    assert not torch.equal(train_ds[0]["input_ids"], train_ds[1]["input_ids"])
+
+    # Train and val seeds are disjoint (val seed = seed + num_samples).
+    assert not torch.equal(train_ds[0]["input_ids"], val_ds[0]["input_ids"])
+
+    # Learnable patterns: even-idx samples contain a copy-next run,
+    # odd-idx samples contain a repeating bigram.
+    even_ids = train_ds[0]["input_ids"]
+    diffs = (even_ids[1:] - even_ids[:-1]) % args.vocab_size
+    # There must be a contiguous run of at least `pattern_len - 1` ones.
+    pattern_len = max(2, int(32 * 0.3))  # matches default pattern_ratio
+    ones_run = 0
+    max_run = 0
+    for d in diffs:
+        if d.item() == 1:
+            ones_run += 1
+            max_run = max(max_run, ones_run)
+        else:
+            ones_run = 0
+    assert max_run >= pattern_len - 1, f"Expected copy-next run >= {pattern_len - 1}, got {max_run}"
+
+    odd_ids = train_ds[1]["input_ids"]
+    # Find any window of `pattern_len` elements that alternates between exactly two values.
+    found_bigram = False
+    for start in range(len(odd_ids) - pattern_len + 1):
+        window = odd_ids[start:start + pattern_len]
+        unique = torch.unique(window)
+        if len(unique) == 2 and all(window[j] == window[j - 2] for j in range(2, len(window))):
+            found_bigram = True
+            break
+    assert found_bigram, "Expected a repeating bigram pattern in odd-idx sample"
 
 
 def test_prepare_dataloaders_sanity():
@@ -821,7 +874,7 @@ def test_resolve_checkpoint_path_direct():
 def _create_tiny_model_config(tmpdir):
     """Write a minimal GPT-2-like config.json and return its path."""
     config = {
-        "architectures": ["GPT2LmHeadModel"],
+        "architectures": ["GPT2LMHeadModel"],
         "model_type": "gpt2",
         "n_embd": 64,
         "n_head": 2,
@@ -1461,9 +1514,9 @@ def test_structured_logger_stats():
 
 def test_structured_logger_create_python_logger():
     """StructuredTrainingLogger can create a configured Python logger."""
-    logger = StructuredTrainingLogger.create_python_logger("test-fsdp-logger")
+    logger = StructuredTrainingLogger.create_python_logger("test-distributed-logger")
 
-    assert logger.name == "test-fsdp-logger"
+    assert logger.name == "test-distributed-logger"
     assert logger.getEffectiveLevel() == logging.INFO
 
 
@@ -1935,17 +1988,17 @@ print("Test 9 — Integration: Forward Pass on CPU: OK ✅")
 
 # %%
 #######################################
-# 10. Trainer
+# 10. Trainers (DDPTrainer & FSDPTrainer)
 #######################################
 print("\n" + "=" * 60)
-print("10. Trainer")
+print("10. Trainers (DDPTrainer & FSDPTrainer)")
 print("=" * 60)
 
-from trainer import Trainer
+from trainer import DDPTrainer, FSDPTrainer
 
 
 class _MockTracker:
-    """Minimal stand-in for codecarbon.EmissionsTracker used by the Trainer."""
+    """Minimal stand-in for codecarbon.EmissionsTracker used by the trainers."""
     class _Energy:
         kWh = 0.0
     _total_energy = _Energy()
@@ -1953,9 +2006,9 @@ class _MockTracker:
     def stop(self): pass
 
 
-def test_trainer_cpu_two_steps():
+def test_ddp_trainer_cpu_two_steps():
     """
-    Construct a Trainer on CPU with a tiny model and run 2 steps.
+    Construct a DDPTrainer on CPU with a tiny model and run 2 steps.
     Verifies the loop completes without error and that model weights change.
     """
     import logging
@@ -2017,7 +2070,7 @@ def test_trainer_cpu_two_steps():
 
         log_file = os.path.join(tmpdir, "test.log")
         file_logger = StructuredTrainingLogger(log_file)
-        logger = logging.getLogger("trainer-test")
+        logger = logging.getLogger("trainer-test-ddp")
         logger.setLevel(logging.WARNING)  # suppress verbose training logs
 
         mfu_context = create_mfu_context(args, "a100", num_parameters=result.trainable_params)
@@ -2026,7 +2079,117 @@ def test_trainer_cpu_two_steps():
         first_param = next(model.parameters())
         before = first_param.data.clone()
 
-        trainer = Trainer(
+        trainer = DDPTrainer(
+            args=args,
+            model=model,
+            raw_model=model,
+            tokenizer=result.tokenizer,
+            optimizer=optimizer,
+            optimizer_step=step_fn,
+            lr_scheduler=lr_scheduler,
+            train_dataloader=bundle.train_dataloader,
+            validation_dataloader=bundle.val_dataloader,
+            train_sampler=bundle.train_sampler,
+            gradient_accumulation_steps=gradient_accumulation_steps,
+            max_steps=max_steps,
+            resume_step=0,
+            iter_count=0,
+            epoch=1,
+            device="cpu",
+            device_type="cpu",
+            ddp=False,
+            world_size=1,
+            master_process=True,
+            precision=torch.float32,
+            logger=logger,
+            file_logger=file_logger,
+            log_file=log_file,
+            slurm_job_id="test-000",
+            tracker=_MockTracker(),
+            mfu_context=mfu_context,
+        )
+        trainer.train()
+
+        after = first_param.data
+        assert not torch.equal(before, after), "Weights should change after training"
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+def test_fsdp_trainer_cpu_two_steps():
+    """
+    Construct a FSDPTrainer on CPU with a tiny model and run 2 steps.
+    Verifies the loop completes without error and that model weights change.
+    """
+    import logging
+    tmpdir = tempfile.mkdtemp()
+    try:
+        config_dir = _create_tiny_model_config(tmpdir)
+        args = TrainingArguments(
+            path_to_model_config=config_dir,
+            tokenizer_name_or_path=_TINY_TOKENIZER_NAME,
+            attn_implementation="eager",
+            cache_dir=tmpdir,
+            torch_compile=False,
+            use_liger_kernel=False,
+            gradient_checkpointing=False,
+            mat_mul_precision="highest",
+            tf32=False,
+            bf16=False,
+            sanity_check=True,
+            sanity_check_num_samples=16,
+            micro_batch_size=2,
+            eval_micro_batch_size=2,
+            pin_memory=False,
+            num_workers_for_dataloader=0,
+            prefetch_factor=None,
+            shuffle_dataset=False,
+            optimizer_type="adamw",
+            max_learning_rate=1e-3,
+            weight_decay=0.01,
+            beta1=0.9,
+            beta2=0.95,
+            eps=1e-8,
+            max_grad_norm=1.0,
+            num_train_epochs=1,
+            total_batch_size=128,
+            checkpointing_steps=2,
+            stage_name="test",
+            checkpoint_dir=tmpdir,
+            wandb_token=None,
+            push_to_hub=False,
+            begin_new_stage=True,
+            mfu_type="dense_transformer",
+            lr_decay_type="cosine",
+        )
+
+        result = prepare_training_components(args=args, device="cpu", master_process=True)
+        model = result.model
+        args = result.args
+
+        optimizer, step_fn, _ = create_optimizer(model, args, device_type="cpu", master_process=True)
+
+        bundle = prepare_dataloaders(args=args, tokenizer=result.tokenizer, world_size=1, rank=0)
+
+        gradient_accumulation_steps, _, max_steps = compute_training_schedule(
+            args, len(bundle.train_dataloader), world_size=1,
+        )
+        max_steps = 2  # keep the test fast
+
+        lr_scheduler = create_lr_scheduler(args, max_steps)
+
+        log_file = os.path.join(tmpdir, "test.log")
+        file_logger = StructuredTrainingLogger(log_file)
+        logger = logging.getLogger("trainer-test-fsdp")
+        logger.setLevel(logging.WARNING)  # suppress verbose training logs
+
+        mfu_context = create_mfu_context(args, "a100", num_parameters=result.trainable_params)
+
+        # Snapshot weights before training.
+        first_param = next(model.parameters())
+        before = first_param.data.clone()
+
+        trainer = FSDPTrainer(
             args=args,
             model=model,
             tokenizer=result.tokenizer,
@@ -2063,11 +2226,12 @@ def test_trainer_cpu_two_steps():
 
 
 for _fn in [
-    test_trainer_cpu_two_steps,
+    test_ddp_trainer_cpu_two_steps,
+    test_fsdp_trainer_cpu_two_steps,
 ]:
     run_test(_fn.__name__, _fn)
 
-print("Test 10 — Trainer: OK ✅")
+print("Test 10 — Trainers (DDPTrainer & FSDPTrainer): OK ✅")
 
 
 # %%

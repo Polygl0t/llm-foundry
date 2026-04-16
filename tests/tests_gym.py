@@ -724,7 +724,7 @@ from generate_from_long_context_templates import (
 HAYSTACK_TEMPLATES = [
     t for t in LONG_CONTEXT_TEMPLATES if t["task_type"].startswith("needle_")
 ]
-_hs_docs = load_documents(os.path.join(GYM_DIR, "data"))
+_hs_docs = load_documents(os.path.join(GYM_DIR, "assets"))
 
 for idx, hs_template in enumerate(HAYSTACK_TEMPLATES):
     random.seed(42 + idx)
@@ -1233,7 +1233,7 @@ from generate_from_tool_call_templates import (
 )
 from pathlib import Path
 
-_data_dir = os.path.join(GYM_DIR, "data")
+_data_dir = os.path.join(GYM_DIR, "assets")
 all_tools, _examples = load_tool_call_data(os.path.join(_data_dir, "tools.json"))
 assert len(all_tools) > 0, "No tools loaded"
 
