@@ -30,7 +30,7 @@ from tasks_metadata import (
     TOOL_CALL_TASK_IDS,
 )
 
-_DATA_DIR = Path(__file__).resolve().parent / "data"
+_DATA_DIR = Path(__file__).resolve().parent / "assets"
 
 
 # Prompt system preambles (Portuguese, varied styles)
@@ -724,8 +724,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--data_file",
         type=str,
-        default=None,
-        help="Path to tools.json (default: data/tools.json).",
+        default="./assets/tools.json",
+        help="Path to tools.json.",
     )
     parser.add_argument(
         "--verbose",

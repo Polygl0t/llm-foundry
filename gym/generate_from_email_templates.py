@@ -19,12 +19,12 @@ extraction can be verified exactly.
 
 Usage:
     python generate_from_email_templates.py \
-        --emails_file ./data/emails.jsonl \
+        --emails_file ./assets/emails.jsonl \
         --output_file email_tasks.jsonl \
         --num_samples 10000
 
     python generate_from_email_templates.py \
-        --emails_file ./data/emails.jsonl \
+        --emails_file ./assets/emails.jsonl \
         --output_file email_tasks.jsonl \
         --num_samples 10000 \
         --min_fields 3 --max_fields 7 \

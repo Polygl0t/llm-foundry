@@ -16,7 +16,7 @@ This folder contains generation, validation, and verification utilities for gym-
 * verifier.py: Verifier entry point and registry usage.
 * verifiers.py: Concrete verifier implementations.
 * utils.py: Shared helper functions used across gym scripts.
-* data/: Input assets for generation workflows (documents, email data, and tool definitions).
+* ./assets: Input assets for generation workflows (documents, email data, and tool definitions).
 
 Running Generators
 ------------------
@@ -30,7 +30,7 @@ Running Generators
 Data Assets
 -----------
 
-The data folder includes:
+The assets folder includes:
 
 * doc-0.txt ... doc-22.txt: Long-context source documents.
 * emails.jsonl: Email examples for structured extraction tasks.
@@ -39,7 +39,7 @@ The data folder includes:
 Notes
 -----
 
-* Long-context and haystack generation rely on local files under data/.
-* Tool-call generation expects data/tools.json to be available.
+* Long-context and haystack generation rely on local files under assets/.
+* Tool-call generation expects assets/tools.json to be available.
 * Verifier IDs and compatibility checks are centralized in tasks_metadata.py.
 

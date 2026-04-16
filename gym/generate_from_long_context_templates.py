@@ -43,7 +43,7 @@ Usage examples:
         --num_samples 2000 \
         --max_seq_length 4096 \
         --tokenizer Polygl0t/Tucano2-0.6B-Base \
-        --docs_dir data \
+        --docs_dir assets \
         --task_types needle_single_number needle_multi_number_same_key \
                      needle_multi_number_diff_keys needle_uuid
 
@@ -53,7 +53,7 @@ Usage examples:
         --num_samples 2000 \
         --max_seq_length 2048 4096 8192 \
         --tokenizer Polygl0t/Tucano2-0.6B-Base \
-        --docs_dir data \
+        --docs_dir assets \
         --task_types needle_single_number needle_multi_number_same_key \
                      needle_multi_number_diff_keys needle_uuid
 
@@ -64,7 +64,7 @@ Usage examples:
         --num_context_words 50 100 200 400 \
         --max_seq_length 1024 2048 4096 8192 \
         --tokenizer Polygl0t/Tucano2-0.6B-Base \
-        --docs_dir data
+        --docs_dir assets
 """
 
 import json
@@ -791,7 +791,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--docs_dir",
         type=str,
-        default="./data",
+        default="./assets",
         help="Directory containing .txt documents (required for haystack tasks).",
     )
     parser.add_argument(
