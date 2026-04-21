@@ -273,17 +273,20 @@ def main(args):
                 prompt_template.replace("[[DOCUMENT]]", document.text) if prompt_template else document.text
             )
 
-            # Truncate if content exceeds the context budget (~3 chars/token)
-            char_budget = (model_max_context - max_tokens) * 3
+            
+            # Reserve 512 tokens for system prompt, prompt template overhead,
+            # chat template special tokens, and tokenization estimation error.
+            OVERHEAD_TOKENS = 512
+            char_budget = (model_max_context - max_tokens - OVERHEAD_TOKENS) * 3
             if len(content) > char_budget:
-                original_len = len(content)
-                last_newline = content.rfind("\n", 0, char_budget)
-                content = content[:last_newline] if last_newline != -1 else content[:char_budget]
 
+                # Skip documents that would overflow the context window (~3 chars/token).
                 logger.info(
-                    f"Truncated content from {original_len} to {len(content)} chars "
-                    f"(budget: {char_budget} chars)"
+                    f"Skipping document: content length {len(content)} chars exceeds "
+                    f"budget of {char_budget} chars (context={model_max_context}, "
+                    f"max_tokens={max_tokens}, overhead={OVERHEAD_TOKENS})"
                 )
+                return None
 
             messages.append({"role": "user", "content": content})
 
@@ -345,6 +348,7 @@ def main(args):
             config=inference_config,
             records_per_chunk=examples_per_chunk,
             checkpoints_local_dir=checkpoints_dir,
+            skip_bad_requests=True,
             output_writer=JsonlWriter(
                 output_folder=str(output_dir),
                 output_filename="${rank}_${chunk_index}.jsonl",
