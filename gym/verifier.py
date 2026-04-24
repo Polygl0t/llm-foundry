@@ -126,7 +126,8 @@ VERIFICATION_REGISTRY = {
 
 
 class Verifier:
-    """Evaluates whether a model completion satisfies a set of constraints.
+    """
+    Evaluates whether a model completion satisfies a set of constraints.
 
     Args:
         verifier_id_list: List of verifier IDs to apply.
@@ -134,18 +135,30 @@ class Verifier:
             format produced by the generator (full template with None values
             for unused keys).
         completion: The model-generated response to evaluate.
+        enable_thinking: When True, prepend a `reasoning:thinking_format`
+            check to the results list.
+        strict: When True (default) each verifier uses its exact
+            `check_following` logic.  When False, verifiers that define
+            `check_following_soft` use that instead, allowing minor
+            formatting tolerances (e.g. ±1 sentence, ±10% word count,
+            single-newline paragraph separators).  Critical semantic errors
+            (wrong keywords, forbidden words, wrong language, …) are always
+            caught regardless of this flag.
     """
 
-    def __init__(self, verifier_id_list, kwargs, completion, enable_thinking=False):
+    def __init__(self, verifier_id_list, kwargs, completion,
+                 enable_thinking=False, strict=True):
         self.verifier_id_list = verifier_id_list
         self.kwargs = kwargs
         self.completion = completion
         self.enable_thinking = enable_thinking
+        self.strict = strict
 
     def verify(self):
-        """Run all verifiers and return a list of booleans.
+        """
+        Run all verifiers and return a list of booleans.
 
-        If *enable_thinking* is True, an extra ``reasoning:thinking_format``
+        If *enable_thinking* is True, an extra `reasoning:thinking_format`
         check is prepended to the results list.
         """
         results = []
@@ -179,5 +192,8 @@ class Verifier:
         filtered = {k: v for k, v in raw_kwargs.items() if v is not None}
         checker.build_description(**filtered)
 
-        return checker.check_following(self.completion)
+        if self.strict:
+            return checker.check_following(self.completion)
+        # Soft mode: prefer check_following_soft when the checker overrides it.
+        return checker.check_following_soft(self.completion)
 

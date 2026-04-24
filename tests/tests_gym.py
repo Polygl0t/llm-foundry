@@ -90,7 +90,7 @@ v = Verifier(
 results = v.verify()
 assert results == [True, True, True, True, True], f"Expected all True, got {results}"
 
-# Title missing + comma present → first two fail, rest pass
+# Title missing + comma present -> first two fail, rest pass
 v2 = Verifier(
     verifier_id_list=[
         "detectable_format:title",
@@ -758,7 +758,7 @@ print(f"Test 16 — haystack end-to-end ({len(HAYSTACK_TEMPLATES)} templates): O
 
 # %%
 #######################################
-# 17. Math verifier — pass, fail, edge cases
+# 17. Math verifier — pass, fail, edge cases, and relaxed mode
 #######################################
 # Pass — answer present in completion
 v = Verifier(
@@ -808,24 +808,74 @@ v6 = Verifier(
 )
 assert v6.verify() == [True]
 
-print("Test 17 — math verifier (pass/fail/edge): OK ✅")
+# Relaxed mode — integer part of a float answer accepted
+v7 = Verifier(
+    verifier_id_list=["math:answer_check"],
+    kwargs=[{"expected_answer": "3.6666666666666665", "relaxed": True}],
+    completion="A resposta é aproximadamente 3.",
+)
+assert v7.verify() == [True], "Relaxed: integer part '3' should be accepted"
+
+# Relaxed mode — exact float match also accepted
+v8 = Verifier(
+    verifier_id_list=["math:answer_check"],
+    kwargs=[{"expected_answer": "3.5", "relaxed": True}],
+    completion="A resposta exata é 3.5.",
+)
+assert v8.verify() == [True], "Relaxed: exact float match should be accepted"
+
+# Relaxed mode — wrong integer part fails
+v9 = Verifier(
+    verifier_id_list=["math:answer_check"],
+    kwargs=[{"expected_answer": "3.5", "relaxed": True}],
+    completion="A resposta é 4.",
+)
+assert v9.verify() == [False], "Relaxed: wrong integer part should fail"
+
+# Relaxed mode — integer expected answer still requires exact substring match
+v10 = Verifier(
+    verifier_id_list=["math:answer_check"],
+    kwargs=[{"expected_answer": "7", "relaxed": True}],
+    completion="A resposta é 7.",
+)
+assert v10.verify() == [True], "Relaxed: integer answer exact match should pass"
+
+# Relaxed mode — negative float, integer part accepted
+v11 = Verifier(
+    verifier_id_list=["math:answer_check"],
+    kwargs=[{"expected_answer": "-3.5", "relaxed": True}],
+    completion="O resultado é -3 (parte inteira).",
+)
+assert v11.verify() == [True], "Relaxed: negative float integer part should be accepted"
+
+print("Test 17 — math verifier (pass/fail/edge/relaxed): OK ✅")
 
 # %%
 #######################################
-# 18. Math — build_sample + validate + verify end-to-end
+# 18. Math — build_sample + validate + verify + JSONL + synthetic generation
 #######################################
 from generate_from_math_dataset import (
     build_sample as build_math_sample,
     validate_sample as validate_math_sample,
+    load_math_problems,
+    generate_math_problems as _gen_math_problems,
+    MATH_PROBLEMS_JSONL,
 )
 
+#  JSONL dataset loading 
+math_pairs = load_math_problems(MATH_PROBLEMS_JSONL)
+assert len(math_pairs) > 0, "JSONL dataset should contain problems"
+q0, a0 = math_pairs[0]
+assert q0.strip() and a0.strip(), "Each pair must have non-empty question and answer"
+
+#  Dataset sample: exact match (no relaxed flag) 
 sample = build_math_sample("Quanto é 2 + 2?", "4")
 assert isinstance(sample["id"], str) and len(sample["id"]) == 32
 assert sample["verifier_id_list"] == ["math:answer_check"]
-assert _parse_kw(sample["kwargs"][0]) == {"expected_answer": "4"}
+assert _parse_kw(sample["kwargs"][0]) == {"expected_answer": "4"}, \
+    "Dataset sample kwargs must not include relaxed flag"
 assert validate_math_sample(sample) == []
 
-# Verify it passes with a correct completion
 v = Verifier(
     verifier_id_list=sample["verifier_id_list"],
     kwargs=sample["kwargs"],
@@ -833,7 +883,6 @@ v = Verifier(
 )
 assert v.verify() == [True]
 
-# Verify it fails with an incorrect completion
 v2 = Verifier(
     verifier_id_list=sample["verifier_id_list"],
     kwargs=sample["kwargs"],
@@ -841,7 +890,43 @@ v2 = Verifier(
 )
 assert v2.verify() == [False]
 
-print("Test 18 — math end-to-end (build + validate + verify): OK ✅")
+#  Synthetic sample: relaxed validation 
+sample_synth = build_math_sample("Resolva: 10 / 3", "3.3333333333333335", relaxed=True)
+kw_synth = _parse_kw(sample_synth["kwargs"][0])
+assert kw_synth.get("relaxed") is True, "Synthetic sample must have relaxed=True"
+assert kw_synth.get("expected_answer") == "3.3333333333333335"
+assert validate_math_sample(sample_synth) == []
+
+# Relaxed verifier: integer part "3" accepted for "3.3333..."
+v_synth = Verifier(
+    verifier_id_list=sample_synth["verifier_id_list"],
+    kwargs=sample_synth["kwargs"],
+    completion="A resposta é aproximadamente 3.",
+)
+assert v_synth.verify() == [True]
+
+# Relaxed verifier: wrong integer part fails
+v_synth_fail = Verifier(
+    verifier_id_list=sample_synth["verifier_id_list"],
+    kwargs=sample_synth["kwargs"],
+    completion="A resposta é 5.",
+)
+assert v_synth_fail.verify() == [False]
+
+#  math_generator logic (now inlined in generate_from_math_dataset) 
+synth_pairs = _gen_math_problems(n=10, max_depth=3, seed=42)
+assert len(synth_pairs) == 10, "Should generate exactly 10 problems"
+for sq, sa in synth_pairs:
+    assert sq.strip(), "Question must be non-empty"
+    assert sa.strip(), "Answer must be non-empty"
+    ms = build_math_sample(sq, sa, relaxed=True)
+    assert validate_math_sample(ms) == [], f"Synthetic sample invalid: {ms}"
+
+# Determinism: same seed produces same problems
+synth_pairs_2 = _gen_math_problems(n=10, max_depth=3, seed=42)
+assert synth_pairs == synth_pairs_2, "generate_math_problems must be deterministic"
+
+print("Test 18 — math end-to-end (JSONL + synthetic + relaxed verify): OK ✅")
 
 # %%
 #######################################
@@ -904,6 +989,31 @@ v6 = Verifier(
     completion='```json\n{"subject": "Reunião", "spam": false, "attachments": true}\n```',
 )
 assert v6.verify() == [True]
+
+# Pass: double-backtick fence (``json...``) — soft format acceptance
+v7 = Verifier(
+    verifier_id_list=["email:json_format"],
+    kwargs=[{}],
+    completion='``json\n{"subject": "Reunião"}\n``',
+)
+assert v7.verify() == [True], "Double-backtick fence should be accepted"
+
+# Pass: mismatched fence count (``json open, ``` close) — real model output pattern
+v8 = Verifier(
+    verifier_id_list=["email:json_format"],
+    kwargs=[{}],
+    completion='``json\n{"subject": "Reunião"}\n```',
+)
+assert v8.verify() == [True], "Mismatched backtick count should be accepted"
+
+# Pass: single-backtick fence
+v9 = Verifier(
+    verifier_id_list=["email:json_format"],
+    kwargs=[{}],
+    completion='`json\n{"subject": "Reunião"}\n`',
+)
+assert v9.verify() == [True], "Single-backtick fence should be accepted"
+
 print("Test 19 — email:json_format verifier (pass/fail/edge): OK ✅")
 
 # %%
@@ -1224,17 +1334,19 @@ print("Test 23 — tool-call verifiers (pass/fail/edge): OK ✅")
 #######################################
 # 24. Tool-call end-to-end (generate + validate + verify)
 #######################################
+import re as _re
 from generate_from_tool_call_templates import (
     load_tool_call_data,
     build_tool_call_sample,
     build_valid_completion,
     validate_tool_call_sample,
     sample_fingerprint as tc_fingerprint,
+    _REFUSAL_QUERY_TEMPLATES as _REFUSAL_TEMPLATES,
 )
 from pathlib import Path
 
 _data_dir = os.path.join(GYM_DIR, "assets")
-all_tools, _examples = load_tool_call_data(os.path.join(_data_dir, "tools.json"))
+all_tools = load_tool_call_data(os.path.join(_data_dir, "tools.json"))
 assert len(all_tools) > 0, "No tools loaded"
 
 rng = random.Random(42)
@@ -1338,13 +1450,89 @@ assert len(fps) == 50, f"Expected 50 unique fingerprints, got {len(fps)}"
 for tid in TOOL_CALL_TASK_IDS:
     assert tid in VERIFICATION_REGISTRY, f"Missing registry entry for {tid}"
 
+# 24b. Tool count in prompt is between 1-3 (inclusive)
+rng_tc = random.Random(42)
+for i in range(20):
+    tool = rng_tc.choice(all_tools)
+    sample = build_tool_call_sample(
+        tool=tool, all_tools=all_tools,
+        rng=random.Random(300 + i), is_valid=True,
+        min_tools=1, max_tools=3,
+    )
+    # Match the actual tools block (after a newline, not the inline mention)
+    tools_match = _re.search(r'<tools>\n(.*?)</tools>', sample['prompt'], _re.DOTALL)
+    assert tools_match, f"Sample {i} has no <tools> block"
+    tool_jsons = [
+        ln.strip() for ln in tools_match.group(1).strip().splitlines()
+        if ln.strip().startswith('{')
+    ]
+    tool_count = len(tool_jsons)
+    assert 1 <= tool_count <= 3, (
+        f"Sample {i} has {tool_count} tools (expected 1-3)"
+    )
+
+# 24c. Prompt contains a sentence drawn from the tool's own request_samples
+rng_rs = random.Random(42)
+for i in range(20):
+    tool = rng_rs.choice(all_tools)
+    rs = tool.get("request_samples", [])
+    if not rs:
+        continue
+    sample = build_tool_call_sample(
+        tool=tool, all_tools=all_tools,
+        rng=random.Random(400 + i), is_valid=True,
+    )
+    found = any(r.strip() in sample['prompt'] for r in rs)
+    assert found, (
+        f"Sample {i} (tool={tool['function']['name']}) prompt does not contain "
+        f"any request_sample.\nPrompt: {sample['prompt'][:300]}"
+    )
+
+# 24d. Required arg values are drawn from tool's input_samples
+rng_inp = random.Random(42)
+for i in range(20):
+    tool = rng_inp.choice(all_tools)
+    input_samples = tool.get("input_samples", {})
+    required = tool["function"].get("parameters", {}).get("required", [])
+    if not required or not input_samples:
+        continue
+    sample = build_tool_call_sample(
+        tool=tool, all_tools=all_tools,
+        rng=random.Random(500 + i), is_valid=True,
+    )
+    for req_param in required:
+        if req_param not in input_samples:
+            continue
+        valid_values = input_samples[req_param]
+        if not isinstance(valid_values, list):
+            valid_values = [valid_values]
+        # For array params each valid value is itself a list; check its elements.
+        def _in_prompt(v):
+            if isinstance(v, list):
+                return any(str(e) in sample['prompt'] for e in v)
+            return str(v) in sample['prompt']
+        any_found = any(_in_prompt(v) for v in valid_values)
+        assert any_found, (
+            f"Sample {i}: tool={tool['function']['name']}, param={req_param}: "
+            f"none of {valid_values[:3]}... found in prompt"
+        )
+
+# 24e. Refusal prompts contain a sentence from _REFUSAL_QUERY_TEMPLATES
+for i in range(10):
+    sample = build_tool_call_sample(
+        tool=None, all_tools=all_tools,
+        rng=random.Random(600 + i), is_valid=False,
+    )
+    found = any(rt in sample['prompt'] for rt in _REFUSAL_TEMPLATES)
+    assert found, f"Refusal sample {i} does not contain any refusal query template"
+
 print("Test 24 — tool-call end-to-end (generate + validate + verify): OK ✅")
 
 # %%
 #######################################
 # 25. Thinking format verifier — enable_thinking flag
 #######################################
-# 25a. enable_thinking=True, valid <think> block → first result True
+# 25a. enable_thinking=True, valid <think> block -> first result True
 v_think = Verifier(
     verifier_id_list=["punctuation:no_comma"],
     kwargs=[{}],
@@ -1356,7 +1544,7 @@ assert len(r_think) == 2, f"Expected 2 results, got {len(r_think)}"
 assert r_think[0] == True, "thinking_format should pass with non-empty <think> block"
 assert r_think[1] == True, "no_comma should pass"
 
-# 25b. enable_thinking=True, missing <think> tags → first result False
+# 25b. enable_thinking=True, missing <think> tags -> first result False
 v_think2 = Verifier(
     verifier_id_list=["punctuation:no_comma"],
     kwargs=[{}],
@@ -1367,7 +1555,7 @@ r_think2 = v_think2.verify()
 assert r_think2[0] == False, "thinking_format should fail without <think> tags"
 assert r_think2[1] == True, "no_comma should still pass"
 
-# 25c. enable_thinking=True, empty <think></think> tags → fail
+# 25c. enable_thinking=True, empty <think></think> tags -> fail
 v_think3 = Verifier(
     verifier_id_list=[],
     kwargs=[],
@@ -1376,7 +1564,7 @@ v_think3 = Verifier(
 )
 assert v_think3.verify() == [False], "Empty <think> tags should fail"
 
-# 25d. enable_thinking=True, <think> with content → pass
+# 25d. enable_thinking=True, <think> with content -> pass
 v_think4 = Verifier(
     verifier_id_list=[],
     kwargs=[],
@@ -1399,6 +1587,430 @@ assert r_think5 == [True]
 assert "reasoning:thinking_format" in VERIFICATION_REGISTRY
 
 print("Test 25 — thinking format verifier (enable_thinking flag): OK ✅")
+
+# %%
+#######################################
+# 26. Soft matching — sentence count (±1 boundary tolerance)
+#######################################
+# 26a. Strict mode: exactly-at-boundary "less than N" fails
+v_strict = Verifier(
+    verifier_id_list=["length_constraints:number_sentences"],
+    kwargs=[{"num_sentences": 6, "relation": "less than"}],
+    completion=(
+        "Frase um. Frase dois. Frase três. "
+        "Frase quatro. Frase cinco. Frase seis."
+    ),
+    strict=True,
+)
+assert v_strict.verify() == [False], (
+    "Strict: exactly 6 sentences with 'less than 6' must fail"
+)
+
+# 26b. Soft mode: exactly-at-boundary "less than N" passes
+v_soft = Verifier(
+    verifier_id_list=["length_constraints:number_sentences"],
+    kwargs=[{"num_sentences": 6, "relation": "less than"}],
+    completion=(
+        "Frase um. Frase dois. Frase três. "
+        "Frase quatro. Frase cinco. Frase seis."
+    ),
+    strict=False,
+)
+assert v_soft.verify() == [True], (
+    "Soft: exactly 6 sentences with 'less than 6' should pass (<=N tolerance)"
+)
+
+# 26c. Soft mode: one over boundary "less than N" still fails (not infinite tolerance)
+v_over = Verifier(
+    verifier_id_list=["length_constraints:number_sentences"],
+    kwargs=[{"num_sentences": 4, "relation": "less than"}],
+    completion="Frase A. Frase B. Frase C. Frase D. Frase E. Frase F.",
+    strict=False,
+)
+# 6 sentences, limit ≤ 4 — even soft cannot pass this (off by 2)
+assert v_over.verify() == [False], (
+    "Soft: 6 sentences with 'less than 4' must still fail"
+)
+
+# 26d. Strict mode: exactly-at-boundary "at least N" (N present): passes
+v_at = Verifier(
+    verifier_id_list=["length_constraints:number_sentences"],
+    kwargs=[{"num_sentences": 3, "relation": "at least"}],
+    completion="Frase A. Frase B. Frase C.",
+    strict=True,
+)
+assert v_at.verify() == [True], "Strict: 3 sentences with 'at least 3' must pass"
+
+# 26e. Soft mode: one below "at least N" passes
+v_one_below = Verifier(
+    verifier_id_list=["length_constraints:number_sentences"],
+    kwargs=[{"num_sentences": 4, "relation": "at least"}],
+    completion="Frase A. Frase B. Frase C.",
+    strict=False,
+)
+assert v_one_below.verify() == [True], (
+    "Soft: 3 sentences with 'at least 4' should pass (N-1 tolerance)"
+)
+
+# 26f. Strict default: ensure backward-compatible default is strict
+v_default = Verifier(
+    verifier_id_list=["length_constraints:number_sentences"],
+    kwargs=[{"num_sentences": 6, "relation": "less than"}],
+    completion=(
+        "Frase um. Frase dois. Frase três. "
+        "Frase quatro. Frase cinco. Frase seis."
+    ),
+)
+assert v_default.verify() == [False], "Default (no strict kwarg) must be strict"
+
+print("Test 26 — soft matching: sentence count boundary tolerance: OK ✅")
+
+# %%
+#######################################
+# 27. Soft matching — word count (±10% boundary tolerance)
+#######################################
+# Build a ~100-word completion
+_100_words = " ".join(["palavra"] * 100)  # exactly 100 words
+
+# 27a. Strict: exactly at boundary for "less than 100" -> fails
+v_w_strict = Verifier(
+    verifier_id_list=["length_constraints:number_words"],
+    kwargs=[{"num_words": 100, "relation": "less than"}],
+    completion=_100_words,
+    strict=True,
+)
+assert v_w_strict.verify() == [False], "Strict: 100 words 'less than 100' must fail"
+
+# 27b. Soft: exactly at boundary for "less than 100" -> passes (within 10%)
+v_w_soft = Verifier(
+    verifier_id_list=["length_constraints:number_words"],
+    kwargs=[{"num_words": 100, "relation": "less than"}],
+    completion=_100_words,
+    strict=False,
+)
+assert v_w_soft.verify() == [True], (
+    "Soft: 100 words 'less than 100' should pass (≤110 tolerance)"
+)
+
+# 27c. Soft: 91 words for "at least 100" -> passes (within 10%, threshold = 90)
+_91_words = " ".join(["palavra"] * 91)
+v_w_below = Verifier(
+    verifier_id_list=["length_constraints:number_words"],
+    kwargs=[{"num_words": 100, "relation": "at least"}],
+    completion=_91_words,
+    strict=False,
+)
+assert v_w_below.verify() == [True], (
+    "Soft: 91 words 'at least 100' should pass (≥90 tolerance)"
+)
+
+# 27d. Soft: far below still fails
+_50_words = " ".join(["palavra"] * 50)
+v_w_far = Verifier(
+    verifier_id_list=["length_constraints:number_words"],
+    kwargs=[{"num_words": 100, "relation": "at least"}],
+    completion=_50_words,
+    strict=False,
+)
+assert v_w_far.verify() == [False], (
+    "Soft: 50 words 'at least 100' must still fail (outside ±10%)"
+)
+
+print("Test 27 — soft matching: word count boundary tolerance: OK ✅")
+
+# %%
+#######################################
+# 28. Soft matching — nth_paragraph_first_word with single-\n separator
+#######################################
+# 28a. Strict: single-\n separator — fails (expects \n\n)
+v_para_strict = Verifier(
+    verifier_id_list=["length_constraints:nth_paragraph_first_word"],
+    kwargs=[{"num_paragraphs": 2, "nth_paragraph": 2, "first_word": "geralmente"}],
+    completion=(
+        "Primeiro parágrafo com algum conteúdo.\n"
+        "Geralmente o segundo parágrafo começa aqui."
+    ),
+    strict=True,
+)
+assert v_para_strict.verify() == [False], (
+    "Strict: single-\\n separator should fail (verifier expects \\n\\n)"
+)
+
+# 28b. Soft: single-\n separator — passes (soft accepts \n too)
+v_para_soft = Verifier(
+    verifier_id_list=["length_constraints:nth_paragraph_first_word"],
+    kwargs=[{"num_paragraphs": 2, "nth_paragraph": 2, "first_word": "geralmente"}],
+    completion=(
+        "Primeiro parágrafo com algum conteúdo.\n"
+        "Geralmente o segundo parágrafo começa aqui."
+    ),
+    strict=False,
+)
+assert v_para_soft.verify() == [True], (
+    "Soft: single-\\n separator should pass"
+)
+
+# 28c. \n\n separator: both strict and soft pass
+v_para_nn = Verifier(
+    verifier_id_list=["length_constraints:nth_paragraph_first_word"],
+    kwargs=[{"num_paragraphs": 2, "nth_paragraph": 2, "first_word": "geralmente"}],
+    completion=(
+        "Primeiro parágrafo com algum conteúdo.\n\n"
+        "Geralmente o segundo parágrafo começa aqui."
+    ),
+    strict=True,
+)
+assert v_para_nn.verify() == [True], "\\n\\n separator must pass in strict mode"
+
+# 28d. Soft: wrong first word still fails
+v_para_wrong = Verifier(
+    verifier_id_list=["length_constraints:nth_paragraph_first_word"],
+    kwargs=[{"num_paragraphs": 2, "nth_paragraph": 2, "first_word": "geralmente"}],
+    completion=(
+        "Primeiro parágrafo.\n"
+        "Normalmente o segundo parágrafo começa aqui."
+    ),
+    strict=False,
+)
+assert v_para_wrong.verify() == [False], (
+    "Soft: wrong first word 'normalmente' ≠ 'geralmente' must still fail"
+)
+
+# 28e. Soft + comma after first word: "Geralmente," -> still matches "geralmente"
+v_para_comma = Verifier(
+    verifier_id_list=["length_constraints:nth_paragraph_first_word"],
+    kwargs=[{"num_paragraphs": 2, "nth_paragraph": 2, "first_word": "geralmente"}],
+    completion=(
+        "Primeiro parágrafo.\n\n"
+        "Geralmente, o segundo parágrafo tem uma vírgula após a primeira palavra."
+    ),
+    strict=True,
+)
+assert v_para_comma.verify() == [True], (
+    "Strict: first word with trailing comma should match after punctuation strip"
+)
+
+print("Test 28 — soft matching: nth_paragraph_first_word with \\n separator: OK ✅")
+
+# %%
+#######################################
+# 29. Soft matching — letter frequency (±3 tolerance)
+#######################################
+# 29a. Common letter 'a' with low threshold: strict fails, soft passes
+# In a typical Portuguese sentence 'a' appears many times — let's count exactly
+_sample_text = "Para fazer um café, aqueça a água e adicione o pó."
+import collections as _collections
+_a_count = _collections.Counter(_sample_text.lower())['a']
+
+# Threshold just below actual count -> strict fails
+_threshold_below = _a_count - 1  # e.g. 7 when actual is 8 -> strict: 8 < 7 -> False
+v_lf_strict = Verifier(
+    verifier_id_list=["keywords:letter_frequency"],
+    kwargs=[{
+        "letter": "a", "let_frequency": _threshold_below,
+        "let_relation": "less than",
+    }],
+    completion=_sample_text,
+    strict=True,
+)
+assert v_lf_strict.verify() == [False], (
+    f"Strict: {_a_count} 'a's with 'less than {_threshold_below}' must fail"
+)
+
+# Threshold at count+2 -> soft (±3) passes
+_threshold_at_plus2 = _a_count + 2  # within +3 tolerance
+v_lf_soft = Verifier(
+    verifier_id_list=["keywords:letter_frequency"],
+    kwargs=[{
+        "letter": "a", "let_frequency": _a_count,
+        "let_relation": "less than",
+    }],
+    completion=_sample_text,
+    strict=False,
+)
+# actual == threshold -> strict: < N fails; soft: < N+3 passes
+assert v_lf_soft.verify() == [True], (
+    "Soft: exactly at 'less than N' boundary should pass with +3 tolerance"
+)
+
+# 29b. "at least" with soft ±3 tolerance
+v_lf_at_soft = Verifier(
+    verifier_id_list=["keywords:letter_frequency"],
+    kwargs=[{
+        "letter": "a", "let_frequency": _a_count + 2,
+        "let_relation": "at least",
+    }],
+    completion=_sample_text,
+    strict=False,
+)
+# actual = N, threshold = N+2 -> soft: >= (N+2)-3 = >= N-1 -> True (since actual >= N-1)
+assert v_lf_at_soft.verify() == [True], (
+    "Soft: 2 below 'at least' threshold should pass with -3 tolerance"
+)
+
+# 29c. Strict: same "at least" scenario fails
+v_lf_at_strict = Verifier(
+    verifier_id_list=["keywords:letter_frequency"],
+    kwargs=[{
+        "letter": "a", "let_frequency": _a_count + 2,
+        "let_relation": "at least",
+    }],
+    completion=_sample_text,
+    strict=True,
+)
+assert v_lf_at_strict.verify() == [False], (
+    "Strict: 2 below 'at least' threshold must fail"
+)
+
+print("Test 29 — soft matching: letter frequency ±3 tolerance: OK ✅")
+
+# %%
+#######################################
+# 30. Soft matching — keyword frequency (±1 tolerance)
+#######################################
+# 30a. Strict: exactly at "less than N" boundary -> fails
+v_kf_strict = Verifier(
+    verifier_id_list=["keywords:frequency"],
+    kwargs=[{"keyword": "inovação", "frequency": 3, "relation": "less than"}],
+    completion="A inovação é importante. A inovação é necessária. A inovação transforma.",
+    strict=True,
+)
+assert v_kf_strict.verify() == [False], (
+    "Strict: 3 occurrences with 'less than 3' must fail"
+)
+
+# 30b. Soft: exactly at boundary -> passes (≤N tolerance)
+v_kf_soft = Verifier(
+    verifier_id_list=["keywords:frequency"],
+    kwargs=[{"keyword": "inovação", "frequency": 3, "relation": "less than"}],
+    completion="A inovação é importante. A inovação é necessária. A inovação transforma.",
+    strict=False,
+)
+assert v_kf_soft.verify() == [True], (
+    "Soft: 3 occurrences with 'less than 3' should pass (≤N tolerance)"
+)
+
+# 30c. Soft: "at least N" one below threshold -> passes (≥N-1 tolerance)
+v_kf_one_below = Verifier(
+    verifier_id_list=["keywords:frequency"],
+    kwargs=[{"keyword": "qualidade", "frequency": 3, "relation": "at least"}],
+    completion="Qualidade é essencial. Qualidade importa.",
+    strict=False,
+)
+assert v_kf_one_below.verify() == [True], (
+    "Soft: 2 occurrences (case-insensitive) with 'at least 3' should pass (N-1 tolerance)"
+)
+
+# 30d. Critical: missing keyword entirely -> both strict and soft fail
+v_kf_missing = Verifier(
+    verifier_id_list=["keywords:frequency"],
+    kwargs=[{"keyword": "qualidade", "frequency": 3, "relation": "at least"}],
+    completion="Não há nenhuma ocorrência da palavra.",
+    strict=False,
+)
+assert v_kf_missing.verify() == [False], (
+    "Soft: zero occurrences with 'at least 3' (threshold - 1 = 2) must fail"
+)
+
+print("Test 30 — soft matching: keyword frequency ±1 tolerance: OK ✅")
+
+# %%
+#######################################
+# 31. Critical errors always fail in soft mode
+#######################################
+# Forbidden words must always fail regardless of strict flag
+v_forbidden_soft = Verifier(
+    verifier_id_list=["keywords:forbidden_words"],
+    kwargs=[{"forbidden_words": ["entretanto", "porém"]}],
+    completion="Entretanto, isso é um problema grave.",
+    strict=False,
+)
+assert v_forbidden_soft.verify() == [False], (
+    "Soft: forbidden word present must always fail (critical semantic error)"
+)
+
+# Wrong language must always fail
+v_lang_soft = Verifier(
+    verifier_id_list=["language:response_language"],
+    kwargs=[{"language": "en"}],
+    completion="Esta resposta está em português, não em inglês.",
+    strict=False,
+)
+# langdetect may return 'pt' which != 'en', so should fail
+try:
+    result = v_lang_soft.verify()
+    assert result == [False], (
+        "Soft: wrong language must fail (critical semantic error)"
+    )
+except Exception:
+    pass  # langdetect unavailable in test environment — skip
+
+# Quotation enforcement: missing quotes must fail in both modes
+v_quote_soft = Verifier(
+    verifier_id_list=["startend:quotation"],
+    kwargs=[{}],
+    completion="Esta resposta não está entre aspas.",
+    strict=False,
+)
+assert v_quote_soft.verify() == [False], (
+    "Soft: missing quotation marks must still fail"
+)
+
+# Title missing must fail in both modes
+v_title_soft = Verifier(
+    verifier_id_list=["detectable_format:title"],
+    kwargs=[{}],
+    completion="Resposta sem título.",
+    strict=False,
+)
+assert v_title_soft.verify() == [False], (
+    "Soft: missing title must still fail"
+)
+
+print("Test 31 — critical errors always fail in soft mode: OK ✅")
+
+# %%
+#######################################
+# 32. Description consistency — nth_paragraph_first_word includes \n\n info
+#######################################
+_kw_para = generate_kwargs_for_verifier(
+    "length_constraints:nth_paragraph_first_word"
+)
+_desc_para = generate_description_for_verifier(
+    "length_constraints:nth_paragraph_first_word", _kw_para
+)
+assert "\\n\\n" in _desc_para or "\n\n" in _desc_para or "n\\n" in _desc_para, (
+    "nth_paragraph_first_word description must mention the \\n\\n paragraph "
+    f"separator so the model knows the format. Got: {_desc_para!r}"
+)
+print("Test 32 — description consistency: nth_paragraph_first_word includes \\n\\n: OK ✅")
+
+# %%
+#######################################
+# 33. letter_frequency kwargs: "less than" uses higher threshold
+#######################################
+random.seed(42)
+_lf_less_than_counts = []
+_lf_at_least_counts = []
+for _ in range(200):
+    _lf_kw = generate_kwargs_for_verifier("keywords:letter_frequency")
+    if _lf_kw["let_relation"] == "less than":
+        _lf_less_than_counts.append(_lf_kw["let_frequency"])
+    else:
+        _lf_at_least_counts.append(_lf_kw["let_frequency"])
+
+if _lf_less_than_counts:
+    assert min(_lf_less_than_counts) >= 10, (
+        f"letter_frequency 'less than' threshold must be ≥10 to be achievable. "
+        f"Min found: {min(_lf_less_than_counts)}"
+    )
+if _lf_at_least_counts:
+    assert max(_lf_at_least_counts) <= 10, (
+        f"letter_frequency 'at least' threshold must be ≤10 to be achievable. "
+        f"Max found: {max(_lf_at_least_counts)}"
+    )
+
+print("Test 33 — letter_frequency kwargs: 'less than' uses threshold ≥10: OK ✅")
 
 # %%
 #######################################

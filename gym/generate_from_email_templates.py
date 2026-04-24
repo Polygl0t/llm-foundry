@@ -58,13 +58,13 @@ _PROMPT_PREAMBLES = [
 ]
 
 _FORMAT_INSTRUCTION = (
-    "Formate sua resposta EXATAMENTE como um bloco JSON markdown, "
+    "Formate sua resposta como um bloco JSON markdown, "
     "sem nenhum texto antes ou depois:\n"
-    "``json\n"
+    "```json\n"
     "{\n"
     "  ...\n"
     "}\n"
-    "``\n"
+    "```\n"
     "O JSON deve conter SOMENTE as chaves solicitadas, sem campos adicionais."
 )
 

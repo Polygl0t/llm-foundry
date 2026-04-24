@@ -1,109 +1,171 @@
 """
 Math dataset generator for the gym.
 
-Downloads math QA datasets from HuggingFace, parses them into
-(question, answer) pairs, and outputs samples in the standardized
-gym format with the "math:answer_check" verifier.
+Loads verified math QA problems from assets/math-problems.jsonl and optionally
+generates additional synthetic problems using the built-in generator.
 
-Sources:
-  - Polygl0t/gsm8k-pt: GSM8K translated to Portuguese.
-  - Polygl0t/gigaverbo-v2-sft (math split): Math problems with
-    answers in the pattern "A resposta é: $answer$".
+Dataset-based problems use exact match validation.
+Synthetic problems use relaxed validation (exact match OR integer part of a float).
 
 Usage:
+    # Use all 12481 problems from the dataset (no synthetic): 
     python generate_from_math_dataset.py \
         --output_file math_tasks.jsonl \
-        --num_samples 20000
+        --num_samples 12481
 
+    # With synthetic problems:
     python generate_from_math_dataset.py \
         --output_file math_tasks.jsonl \
-        --num_samples 20000 \
-        --sources gsm8k math_sft \
-        --seed 42 \
-        --cache_dir ./.cache
+        --num_samples 12481 \
+        --num_synthetic 10000 \
+        --seed 42
 
-    # Only GSM8K:
+    # Only synthetic:
     python generate_from_math_dataset.py \
-        --output_file gsm8k_tasks.jsonl \
-        --sources gsm8k
+        --output_file math_tasks.jsonl \
+        --num_samples 0 \
+        --num_synthetic 500 \
+        --seed 42
 
-    # Only gigaverbo math SFT:
-    python generate_from_math_dataset.py \
-        --output_file math_sft_tasks.jsonl \
-        --sources math_sft
 """
 
 import json
 import random
+import operator
 import hashlib
 import argparse
 from pathlib import Path
-import datasets
 
+# The math-problems.jsonl file is expected to be in the same directory as this script, under 
+# an "assets" subdirectory.
+ASSETS_DIR = Path(__file__).parent / "assets"
+MATH_PROBLEMS_JSONL = ASSETS_DIR / "math-problems.jsonl"
 
+# The verifier ID for math answer checking (defined in gym/verifiers.py).
 VERIFIER_ID = "math:answer_check"
 
-# Dataset loading & parsing
-def load_gsm8k(cache_dir):
-    """Load and parse Polygl0t/gsm8k-pt. Returns list of (question, answer) tuples."""
-    ds = datasets.load_dataset(
-        "Polygl0t/gsm8k-pt", split="train", cache_dir=cache_dir,
-    )
-    pairs = []
-    for row in ds:
-        answer = row["answer"]
-        if "####" not in answer:
-            continue
-        answer = answer.split("####")[1].strip()
-        if _is_valid_number(answer):
-            pairs.append((row["question"], answer))
-    return pairs
+# Synthetic math problem generator
+_OPS = {
+    '+': operator.add,
+    '-': operator.sub,
+    '*': operator.mul,
+    '/': operator.truediv,
+}
+
+# A variety of preambles to make the synthetic problems more natural and diverse.
+_PREAMBLE = [
+    "Resolva a seguinte expressão matemática:",
+    "Como eu posso resolver esta expressão matemática?",
+    "Qual é o resultado desta expressão matemática?",
+    "Resolva o seguinte problema matemático:",
+    "Resolva isto:",
+    "Qual é a resposta para esta expressão?"
+]
+
+# To keep evaluation simple and fast, we limit to numbers up to 999 (3 digits).
+_MAX_DIGIT = 999  # up to 3-digit numbers
 
 
-def load_gigaverbo_math(cache_dir):
-    """Load and parse Polygl0t/gigaverbo-v2-sft math split. Returns list of (question, answer) tuples."""
-    ds = datasets.load_dataset(
-        "Polygl0t/gigaverbo-v2-sft", "math", split="train", cache_dir=cache_dir,
-    )
-    pairs = []
-    for row in ds:
-        messages = row["messages"]
-        user_message = None
-        assistant_message = None
-        for msg in messages:
-            if msg["role"] == "user" and user_message is None:
-                user_message = msg["content"]
-            elif msg["role"] == "assistant" and assistant_message is None:
-                assistant_message = msg["content"]
-        if assistant_message is None or "A resposta é:" not in assistant_message:
-            continue
-        answer = assistant_message.split("A resposta é:")[1].strip()
-        if answer.startswith("$") and answer.endswith("$"):
-            answer = answer[1:-1]
-        if user_message and _is_valid_number(answer):
-            pairs.append((user_message, answer))
-    return pairs
+def _generate_expression(depth, rng):
+    """Recursively generate a parenthesized math expression."""
+    if depth == 0:
+        return str(rng.randint(0, _MAX_DIGIT))
+
+    left = _generate_expression(depth - 1, rng)
+    right = _generate_expression(depth - 1, rng)
+    op = rng.choice(list(_OPS.keys()))
+
+    left_str = f"({left})" if " " in left else left
+    right_str = f"({right})" if " " in right else right
+
+    return f"{left_str} {op} {right_str}"
 
 
-def _is_valid_number(s):
-    """Check if a string represents a valid number."""
+def _evaluate_expression(expr):
     try:
-        float(s)
-        return True
-    except (ValueError, TypeError):
-        return False
+        return eval(expr)
+    except ZeroDivisionError:
+        return None
+
+
+def generate_math_problems(n, max_depth=3, seed=None):
+    """
+    Generate *n* synthetic math problems as (question, answer) pairs.
+
+    Uses up to 3-digit numbers (0-999) and expression trees up to *max_depth*.
+    Division-by-zero cases are silently skipped and regenerated.
+
+    Args:
+        n: Number of problems to generate.
+        max_depth: Maximum expression tree depth (default: 3).
+        seed: Random seed for reproducibility.
+
+    Returns:
+        List of (question, answer) tuples where answer is a string.
+    """
+    rng = random.Random(seed)
+    problems = []
+
+    while len(problems) < n:
+        depth = rng.randint(1, max_depth)
+        expr = _generate_expression(depth, rng)
+        answer = _evaluate_expression(expr)
+        if answer is None:
+            continue  # skip division by zero
+        preamble = rng.choice(_PREAMBLE)
+        question = f"{preamble}\n{expr}"
+        problems.append((question, str(answer)))
+
+    return problems
+
+
+# Dataset loading
+def load_math_problems(jsonl_path=None):
+    """
+    Load (question, answer) pairs from math-problems.jsonl.
+
+    Args:
+        jsonl_path: Path to the JSONL file. Defaults to MATH_PROBLEMS_JSONL.
+
+    Returns:
+        List of (question, answer) string tuples.
+    """
+    if jsonl_path is None:
+        jsonl_path = MATH_PROBLEMS_JSONL
+    pairs = []
+    with open(jsonl_path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            row = json.loads(line)
+            prompt = row.get("prompt", "").strip()
+            answer = str(row.get("expected_answer", "")).strip()
+            if prompt and answer:
+                pairs.append((prompt, answer))
+    return pairs
 
 
 # Sample construction
+def build_sample(question, answer, relaxed=False):
+    """
+    Build one gym sample from a math (question, answer) pair.
 
-def build_sample(question, answer):
-    """Build one gym sample from a math (question, answer) pair."""
+    Args:
+        question: The problem text.
+        answer: The expected answer string.
+        relaxed: If True, use relaxed validation (exact match OR integer part
+            of a float answer). Used for synthetic problems.
+    """
     sample_id = hashlib.md5(question.encode()).hexdigest()
+    kwargs = {"expected_answer": answer}
+    if relaxed:
+        kwargs["relaxed"] = True
     return {
         "id": sample_id,
         "prompt": question,
         "verifier_id_list": [VERIFIER_ID],
-        "kwargs": [json.dumps({"expected_answer": answer}, ensure_ascii=False)],
+        "kwargs": [json.dumps(kwargs, ensure_ascii=False)],
     }
 
 
@@ -124,62 +186,80 @@ def validate_sample(sample):
         issues.append("Missing expected_answer")
     return issues
 
-# Main
+
+# Main generation loop
 def main(args):
     output_path = Path(args.output_file)
     seed = args.seed
-    cache_dir = args.cache_dir
-
-    sources = args.sources
-    print(f"Loading datasets from HuggingFace (sources: {sources})...")
-
-    all_pairs = []
-    if "gsm8k" in sources:
-        gsm8k_pairs = load_gsm8k(cache_dir)
-        print(f"  gsm8k-pt: {len(gsm8k_pairs)} valid pairs")
-        all_pairs.extend(gsm8k_pairs)
-
-    if "math_sft" in sources:
-        gigaverbo_pairs = load_gigaverbo_math(cache_dir)
-        print(f"  gigaverbo-v2-sft/math: {len(gigaverbo_pairs)} valid pairs")
-        all_pairs.extend(gigaverbo_pairs)
-
-    print(f"  Total: {len(all_pairs)} pairs")
-
-    if not all_pairs:
-        raise RuntimeError("No valid math pairs found in the datasets.")
-
-    random.seed(seed)
-    random.shuffle(all_pairs)
-
-    if args.num_samples > len(all_pairs):
-        raise ValueError(
-            f"--num_samples ({args.num_samples}) exceeds the total number of "
-            f"available pairs ({len(all_pairs)}). Use at most {len(all_pairs)}."
-        )
-
-    selected = all_pairs[:args.num_samples]
+    num_samples = args.num_samples
+    num_synthetic = args.num_synthetic
 
     samples = []
     seen = set()
     total_issues = 0
 
-    for question, answer in selected:
-        sample = build_sample(question, answer)
-        sid = sample["id"]
-        if sid in seen:
-            continue
-        seen.add(sid)
-        issues = validate_sample(sample)
-        if issues:
-            total_issues += len(issues)
-            if args.verbose:
-                print(f"  ID {sid}: {issues}")
-            continue
-        samples.append(sample)
+    # Dataset-based problems
+    if num_samples > 0:
+        print(f"Loading dataset from {MATH_PROBLEMS_JSONL}...")
+        all_pairs = load_math_problems()
+        print(f"  Loaded: {len(all_pairs)} pairs")
+
+        if num_samples > len(all_pairs):
+            raise ValueError(
+                f"--num_samples ({num_samples}) exceeds the total number of "
+                f"available pairs ({len(all_pairs)}). Use at most {len(all_pairs)}."
+            )
+
+        rng = random.Random(seed)
+        rng.shuffle(all_pairs)
+        selected = all_pairs[:num_samples]
+
+        for question, answer in selected:
+            sample = build_sample(question, answer, relaxed=False)
+            sid = sample["id"]
+            if sid in seen:
+                continue
+            seen.add(sid)
+            issues = validate_sample(sample)
+            if issues:
+                total_issues += len(issues)
+                if args.verbose:
+                    print(f"  Dataset ID {sid}: {issues}")
+                continue
+            samples.append(sample)
+
+        print(f"  Dataset samples added: {len(samples)}")
+
+    # Synthetic problems
+    if num_synthetic > 0:
+        print(f"Generating {num_synthetic} synthetic problems...")
+        synth_seed = seed + 1 if seed is not None else None
+        synth_pairs = generate_math_problems(
+            n=num_synthetic,
+            max_depth=3,
+            seed=synth_seed,
+        )
+        before = len(samples)
+        for question, answer in synth_pairs:
+            sample = build_sample(question, answer, relaxed=True)
+            sid = sample["id"]
+            if sid in seen:
+                continue
+            seen.add(sid)
+            issues = validate_sample(sample)
+            if issues:
+                total_issues += len(issues)
+                if args.verbose:
+                    print(f"  Synthetic ID {sid}: {issues}")
+                continue
+            samples.append(sample)
+        print(f"  Synthetic samples added: {len(samples) - before}")
+
+    if not samples:
+        raise RuntimeError("No samples generated. Use --num_samples and/or --num_synthetic.")
 
     print(f"\nResults:")
-    print(f"  Generated samples:  {len(samples)}")
+    print(f"  Total samples:      {len(samples)}")
     print(f"  Validation issues:  {total_issues}")
 
     assert total_issues == 0, f"FAIL: {total_issues} validation issues found"
@@ -211,27 +291,21 @@ if __name__ == "__main__":
         "--num_samples",
         type=int,
         default=500,
-        help="Maximum number of samples to generate (default: 500).",
+        help="Number of dataset samples from math-problems.jsonl (default: 500). "
+            "Set to 0 to skip dataset. "
+            "Max number of samples in the dataset is: 12481."
+    )
+    parser.add_argument(
+        "--num_synthetic",
+        type=int,
+        default=0,
+        help="Number of synthetic problems to generate via math_generator (default: 0).",
     )
     parser.add_argument(
         "--seed",
         type=int,
         default=42,
         help="Random seed for reproducibility (default: 42).",
-    )
-    parser.add_argument(
-        "--sources",
-        nargs="+",
-        choices=["gsm8k", "math_sft"],
-        default=["gsm8k", "math_sft"],
-        help="Which dataset sources to use (default: both). "
-             "Options: gsm8k, math_sft.",
-    )
-    parser.add_argument(
-        "--cache_dir",
-        type=str,
-        default="./.cache",
-        help="HuggingFace datasets cache directory.",
     )
     parser.add_argument(
         "--verbose",

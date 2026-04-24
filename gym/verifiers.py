@@ -103,6 +103,18 @@ class TaskVerifier:
     def check_following(self, value):
         raise NotImplementedError("`check_following` not implemented.")
 
+    def check_following_soft(self, value):
+        """Soft version of check_following with minor-formatting tolerance.
+
+        Subclasses that benefit from soft matching should override this.
+        The default falls back to the strict ``check_following``.
+
+        Critical errors (wrong keywords, forbidden words, wrong language, …)
+        must **always** fail even in soft mode — only superficial count/format
+        differences should be relaxed here.
+        """
+        return self.check_following(value)
+
 
 class ResponseLanguageChecker(TaskVerifier):
     """Check the language of the entire response."""
@@ -229,6 +241,21 @@ class NumberOfSentences(TaskVerifier):
             return num_sentences < self._num_sentences_threshold
         elif self._comparison_relation == _COMPARISON_RELATION[1]:
             return num_sentences >= self._num_sentences_threshold
+
+    def check_following_soft(self, value):
+        """Soft check: allow ±1 sentence tolerance at the boundary.
+
+        A model that produces exactly the threshold number of sentences when
+        told "less than N" is a minor off-by-one, not a semantic error.
+        Similarly, one sentence short of "at least N" is tolerated.
+        """
+        num_sentences = utils.count_sentences(value)
+        if self._comparison_relation == _COMPARISON_RELATION[0]:
+            # strict: < N  → soft: ≤ N
+            return num_sentences <= self._num_sentences_threshold
+        elif self._comparison_relation == _COMPARISON_RELATION[1]:
+            # strict: >= N → soft: >= N-1
+            return num_sentences >= self._num_sentences_threshold - 1
 
 
 class PlaceholderChecker(TaskVerifier):
@@ -829,6 +856,17 @@ class KeywordFrequencyChecker(TaskVerifier):
         elif self._comparison_relation == _COMPARISON_RELATION[1]:
             return actual_occurrences >= self._frequency
 
+    def check_following_soft(self, value):
+        """Soft check: allow ±1 occurrence tolerance at the boundary."""
+        actual_occurrences = len(re.findall(self._keyword, value, flags=re.IGNORECASE))
+
+        if self._comparison_relation == _COMPARISON_RELATION[0]:
+            # strict: < N  → soft: ≤ N
+            return actual_occurrences <= self._frequency
+        elif self._comparison_relation == _COMPARISON_RELATION[1]:
+            # strict: >= N → soft: >= N-1
+            return actual_occurrences >= max(0, self._frequency - 1)
+
 
 class NumberOfWords(TaskVerifier):
     """Checks the number of words."""
@@ -887,6 +925,18 @@ class NumberOfWords(TaskVerifier):
             return num_words < self._num_words
         elif self._comparison_relation == _COMPARISON_RELATION[1]:
             return num_words >= self._num_words
+
+    def check_following_soft(self, value):
+        """Soft check: allow ±10% word-count tolerance at the boundary."""
+        num_words = utils.count_words(value)
+        tolerance = max(1, round(self._num_words * 0.10))
+
+        if self._comparison_relation == _COMPARISON_RELATION[0]:
+            # strict: < N  → soft: < N + tolerance
+            return num_words < self._num_words + tolerance
+        elif self._comparison_relation == _COMPARISON_RELATION[1]:
+            # strict: >= N → soft: >= N - tolerance
+            return num_words >= self._num_words - tolerance
 
 
 class JsonFormat(TaskVerifier):
@@ -1028,6 +1078,45 @@ class ParagraphFirstWordCheck(TaskVerifier):
             first_word += letter.lower()
 
         return num_paragraphs == self._num_paragraphs and first_word == self._first_word
+
+    def check_following_soft(self, value):
+        """Soft check: accept single ``\\n`` as an alternative paragraph separator.
+
+        The strict verifier only recognises ``\\n\\n``.  In soft mode we also
+        try splitting on a single newline so that responses where the model
+        used one blank line instead of two are still accepted.
+
+        Critical checks that remain strict even here:
+        - paragraph count must still match (exact)
+        - first word of the nth paragraph must still match (exact, after stripping
+          leading punctuation)
+        """
+        # Try strict split first — if it already passes, return True
+        if self.check_following(value):
+            return True
+
+        # Soft split: also try single-newline separator
+        paragraphs = [p for p in re.split(r"\n", value) if p.strip()]
+        num_paragraphs = len(paragraphs)
+
+        if num_paragraphs != self._num_paragraphs:
+            return False
+        if self._nth_paragraph > num_paragraphs:
+            return False
+
+        paragraph = paragraphs[self._nth_paragraph - 1].strip()
+        if not paragraph:
+            return False
+
+        punctuation = {".", ",", "?", "!", "'", '"'}
+        first_word = ""
+        word = paragraph.split()[0].strip().lstrip("'").lstrip('"')
+        for letter in word:
+            if letter in punctuation:
+                break
+            first_word += letter.lower()
+
+        return first_word == self._first_word
 
 class KeySentenceChecker(TaskVerifier):
     """Check the existence of certain key sentences."""
@@ -1411,6 +1500,19 @@ class LetterFrequencyChecker(TaskVerifier):
             return letters[self._letter] < self._frequency
         else:
             return letters[self._letter] >= self._frequency
+
+    def check_following_soft(self, value):
+        """Soft check: allow ±3 letter-count tolerance at the boundary."""
+        value = value.lower()
+        letters = collections.Counter(value)
+        count = letters[self._letter]
+
+        if self._comparison_relation == _COMPARISON_RELATION[0]:
+            # strict: < N  → soft: < N + 3
+            return count < self._frequency + 3
+        else:
+            # strict: >= N → soft: >= N - 3  (but never below 0)
+            return count >= max(0, self._frequency - 3)
 
 
 class CapitalLettersPortugueseChecker(TaskVerifier):
@@ -1824,37 +1926,62 @@ class NeedleUUIDChecker(TaskVerifier):
 
 
 class MathAnswerChecker(TaskVerifier):
-    """Checks that the response contains the expected numerical answer."""
+    """Checks that the response contains the expected numerical answer.
 
-    def build_description(self, *, expected_answer=None):
+    In standard mode (relaxed=False), the check is an exact substring match:
+    the expected answer string must appear verbatim in the response.
+
+    In relaxed mode (relaxed=True), also accepts the integer part of a float
+    answer.  For example, if the expected answer is "3.666..." the verifier
+    passes when the response contains "3.666..." OR "3".
+    """
+
+    def build_description(self, *, expected_answer=None, relaxed=False):
         self._expected_answer = str(expected_answer) if expected_answer is not None else ""
+        self._relaxed = bool(relaxed)
         self._description_pattern = (
             "Resolva o problema matemático e forneça a resposta correta."
         )
         return self._description_pattern
 
     def get_instruction_args(self):
-        return {"expected_answer": self._expected_answer}
+        return {"expected_answer": self._expected_answer, "relaxed": self._relaxed}
 
     def get_instruction_args_keys(self):
-        return ["expected_answer"]
+        return ["expected_answer", "relaxed"]
 
     def check_following(self, value):
         """Check if the response contains the expected answer."""
         if not self._expected_answer:
             return False
-        return self._expected_answer in value
+        if self._expected_answer in value:
+            return True
+        if self._relaxed:
+            try:
+                float_val = float(self._expected_answer)
+                int_part = str(int(float_val))
+                # Only use the integer-part fallback when the answer is not
+                # already an integer string (i.e., it has a meaningful decimal).
+                if int_part != self._expected_answer and int_part in value:
+                    return True
+            except (ValueError, OverflowError):
+                pass
+        return False
 
 
 def _extract_email_json(value):
     """Extract and parse a JSON object from a response string.
 
-    Accepts both ```json...``` (or ```) code blocks and raw JSON strings.
+    Accepts fenced code blocks with 1-3 backticks (with or without a
+    ``json``/``JSON``/``Json`` language tag) and raw JSON strings.
+    The opening and closing fence lengths need not match.
     Returns a dict on success, or None if parsing fails.
     """
     stripped = value.strip()
-    # Try to extract from a fenced code block first
-    m = re.search(r"```(?:json|JSON|Json)?\s*(.*?)\s*```", stripped, re.DOTALL)
+    # Try to extract from a fenced code block (1-3 backticks, optional lang tag).
+    # Capture everything between the fences and let json.loads validate structure.
+    # Using (.*?) instead of (\{.*?\}) avoids breaking on JSON values that contain }.
+    m = re.search(r"`{1,3}(?:json|JSON|Json)?\s*(.*?)\s*`{1,3}", stripped, re.DOTALL)
     if m:
         try:
             obj = json.loads(m.group(1))
@@ -1873,7 +2000,10 @@ def _extract_email_json(value):
 
 
 class EmailJsonFormatChecker(TaskVerifier):
-    """Checks that the response is a valid JSON object inside a ```json``` block."""
+    """Checks that the response is a valid JSON object inside a fenced code block.
+
+    Accepts 1-3 backticks with an optional json/JSON/Json language tag.
+    """
 
     def build_description(self):
         self._description_pattern = (
@@ -1890,10 +2020,11 @@ class EmailJsonFormatChecker(TaskVerifier):
         return []
 
     def check_following(self, value):
-        """Return True only if response has a ```json``` block with a valid JSON object."""
+        """Return True if the response contains a fenced JSON block (1-3 backticks)
+        with a parseable JSON object.  A bare JSON string without any fence fails."""
         stripped = value.strip()
-        # Require a fenced code block with json/JSON/Json specifier or plain ```
-        if not re.search(r"```(?:json|JSON|Json)?", stripped):
+        # Require at least one backtick fence (1-3 backticks, optional lang tag)
+        if not re.search(r"`{1,3}(?:json|JSON|Json)?", stripped):
             return False
         return _extract_email_json(value) is not None
 
