@@ -444,6 +444,12 @@ def prepare_training_components(args, device, master_process, logger=None, file_
             f"Number of active trainable parameters (MoE): {active_trainable_params:,}",
         )
 
+    # Disable KV cache during training — it's only needed for autoregressive generation.
+    # With use_cache=True the model outputs past_key_values (the full KV tensors for the
+    # sequence) on every forward pass, which wastes memory and can cause apparent VRAM
+    # spikes (especially when switching between train/eval mode at checkpoint steps).
+    model.config.use_cache = False
+
     if args.gradient_checkpointing:
         _log_message(master_process, logger, file_logger, "Gradient checkpointing enabled.")
         # IMPORTANT: For FSDP, always use `use_reentrant=False`. Reentrant checkpointing is incompatible
@@ -457,7 +463,6 @@ def prepare_training_components(args, device, master_process, logger=None, file_
                 "use_reentrant": False,
             }
         )
-        model.config.use_cache = False
 
     # [Torch Compile](https://docs.pytorch.org/docs/stable/generated/torch.compile.html)
     # WARNING: Torch compile is not working good with liger kernel: https://github.com/linkedin/Liger-Kernel/issues/174

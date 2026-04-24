@@ -26,13 +26,17 @@ from utils import checkpoint_already_validated
 from mfu import calculate_training_metrics
 
 
-# ──────────────────────────────────────────────────────────────────────
 # Shared helper functions used by both DDPTrainer and FSDPTrainer
-# ──────────────────────────────────────────────────────────────────────
-
 def _run_validation_forward(model, validation_dataloader, device, device_type, precision):
-    """Run the validation forward pass. Returns (val_loss_accum, val_time)."""
-    model.eval()
+    """
+    Run the validation forward pass. Returns (val_loss_accum, val_time).
+    
+    NOTE: We intentionally do NOT call model.eval() here. Liger kernel's
+    fused_linear_cross_entropy only activates when self.training=True. In eval
+    mode it falls back to materializing the full [batch, seq, vocab] logits
+    tensor, which causes OOM with large batch sizes. Modern causal LLMs have no
+    dropout or batchnorm, so train/eval mode produces identical outputs.
+    """
     with torch.no_grad():
         val_loss_accum = 0.0
         num_batches = 0
@@ -136,9 +140,9 @@ def _log_training_step(
     tokens_per_sec_per_gpu = performance_metrics.tokens_per_sec_per_gpu
     mfu = performance_metrics.mfu
 
-    # Get the current VRAM usage.
+    # Get the peak VRAM usage during this step (reset before each step's t0).
     if device.startswith("cuda"):
-        used_vram = torch.cuda.max_memory_allocated(device) // (1024 ** 3)
+        used_vram = torch.cuda.max_memory_allocated(device) / (1024 ** 3)
     else:
         used_vram = 0
 
@@ -375,8 +379,6 @@ class DDPTrainer:
                         dist.all_reduce(val_loss_accum, op=dist.ReduceOp.SUM)
                         val_loss_accum = val_loss_accum / world_size
 
-                    model.train()
-
                     if master_process:
                         _log_validation(
                             logger=logger, file_logger=file_logger,
@@ -412,6 +414,9 @@ class DDPTrainer:
                         dist.barrier()
             
             # We are timing the training loop to measure the MFU.
+            # Reset peak memory stats so max_memory_allocated captures only this step.
+            if device_type == "cuda":
+                torch.cuda.reset_peak_memory_stats(device)
             t0 = time.time()
 
             # Initiate a counter for the accumulated loss.
@@ -689,8 +694,6 @@ class FSDPTrainer:
                         dist.all_reduce(val_loss_accum, op=dist.ReduceOp.SUM)
                         val_loss_accum = val_loss_accum / world_size
 
-                    model.train()
-
                     # Retrieve full model and optimizer state dicts from all FSDP ranks.
                     # These calls must happen on ALL processes (they trigger all-gather internally).
                     model_state_dict = get_full_model_state_dict(model) if fsdp else None
@@ -732,6 +735,9 @@ class FSDPTrainer:
                         dist.barrier()
             
             # We are timing the training loop to measure the MFU.
+            # Reset peak memory stats so max_memory_allocated captures only this step.
+            if device_type == "cuda":
+                torch.cuda.reset_peak_memory_stats(device)
             t0 = time.time()
 
             # Initiate a counter for the accumulated loss.

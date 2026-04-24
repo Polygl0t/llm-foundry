@@ -1,11 +1,15 @@
 """
 Procedural generator for tool-calling tasks.
 
-Reads `tools.json` (tool definitions and examples)
-and produces new gym-format samples covering:
+Reads `tools.json` (tool definitions with per-tool input_samples and
+request_samples) and produces gym-format samples covering:
 
   1. Valid tool-call tasks: model should produce `<tool_call>...</tool_call>`
   2. Refusal tasks: model should explain why no tool applies
+
+Each valid prompt is self-contained: argument values are sampled directly
+from the tool's `input_samples` and embedded in the user request using the
+tool's own `request_samples` as templates.
 
 Usage:
     python generate_from_tool_call_templates.py \
@@ -95,6 +99,8 @@ _SYSTEM_PREAMBLES = [
     ),
 ]
 
+
+# Instruction for how the model should format tool calls in its response.
 _TOOL_CALL_INSTRUCTION = (
     "Para cada chamada de função, retorne um objeto json com o nome da "
     "função e os argumentos dentro das tags XML <tool_call></tool_call>:\n"
@@ -104,75 +110,13 @@ _TOOL_CALL_INSTRUCTION = (
 )
 
 
-# User query templates for VALID tasks (tool is applicable)
-#
-# Each template group targets a tool category.  `{slots}` are filled
-# from the tool's parameter descriptions at generation time.
-
-_VALID_QUERY_TEMPLATES = {
-    "calculate": [
-        "Oi, preciso calcular {description_hint}. Pode me ajudar?",
-        "Olá! Gostaria que você calculasse {description_hint} para mim.",
-        "Preciso de ajuda com um cálculo: {description_hint}.",
-        "Você poderia me ajudar a calcular {description_hint}?",
-        "Pode fazer o cálculo de {description_hint}?",
-    ],
-    "get": [
-        "Oi, você pode me dar informações sobre {description_hint}?",
-        "Gostaria de saber sobre {description_hint}.",
-        "Preciso de informações sobre {description_hint}. Pode me ajudar?",
-        "Me diga sobre {description_hint}, por favor.",
-        "Olá! Você poderia buscar {description_hint} para mim?",
-    ],
-    "search": [
-        "Preciso pesquisar {description_hint}. Pode me ajudar?",
-        "Gostaria de pesquisar {description_hint}.",
-        "Pode buscar informações sobre {description_hint}?",
-        "Me ajude a encontrar {description_hint}, por favor.",
-        "Olá! Quero buscar {description_hint}.",
-    ],
-    "analyze": [
-        "Preciso analisar {description_hint}. Pode me ajudar?",
-        "Gostaria de fazer uma análise de {description_hint}.",
-        "Você poderia analisar {description_hint} para mim?",
-        "Preciso de uma análise sobre {description_hint}.",
-        "Me ajude a analisar {description_hint}, por favor.",
-    ],
-    "create": [
-        "Preciso criar {description_hint}. Pode me ajudar?",
-        "Gostaria de gerar {description_hint}.",
-        "Você poderia criar {description_hint} para mim?",
-        "Me ajude a criar {description_hint}, por favor.",
-        "Oi, preciso que você crie {description_hint}.",
-    ],
-    "convert": [
-        "Preciso converter {description_hint}. Pode me ajudar?",
-        "Gostaria de fazer uma conversão de {description_hint}.",
-        "Você poderia converter {description_hint} para mim?",
-        "Me ajude a converter {description_hint}, por favor.",
-        "Oi, preciso de uma conversão: {description_hint}.",
-    ],
-    "generic": [
-        "Oi, {description_hint}. Pode me ajudar?",
-        "Olá! Preciso de ajuda com o seguinte: {description_hint}.",
-        "Gostaria de {description_hint}.",
-        "Você poderia me ajudar com {description_hint}?",
-        "Preciso de ajuda: {description_hint}.",
-        "Oi, estou precisando de {description_hint}. Pode me ajudar?",
-        "Olá, preciso que você faça {description_hint} para mim.",
-    ],
-}
-
-
 # User query templates for REFUSAL tasks (no tool applies)
-
 _REFUSAL_QUERY_TEMPLATES = [
     "Você pode pedir uma pizza para mim, por favor?",
     "Pode me recomendar um bom restaurante?",
     "Gostaria que você marcasse uma consulta médica para mim.",
     "Pode ligar para meu amigo e dar um recado?",
     "Preciso que você compre passagens aéreas para mim.",
-    "Pode escrever e enviar um e-mail para meu chefe?",
     "Gostaria que você fizesse uma reserva em um hotel.",
     "Pode me contar uma piada?",
     "Gostaria de ouvir uma música. Pode tocar algo?",
@@ -210,179 +154,183 @@ _REFUSAL_QUERY_TEMPLATES = [
 ]
 
 
-
 # Data loading
-def load_tool_call_data(path):
-    """Load the merged tool-call data file.
+def load_tools(path):
+    """
+    Load tool definitions from a JSON file.
 
-    Returns (tools, examples) where tools is a list of tool-schema dicts
-    and examples is a list of example dicts.
+    Accepts both a list at the top level and the `{"tools": [...]}` format.
+    Only tools with a valid function name are returned.
     """
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
-    tools = [t for t in data["tools"] if t.get("function", {}).get("name")]
-    examples = data.get("examples", [])
-    return tools, examples
-
-
-# Keep for backwards compat / tests
-def load_tools(path):
-    """Load tool definitions from a JSON file (legacy helper)."""
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
-    if isinstance(data, dict) and "tools" in data:
-        items = data["tools"]
-    else:
-        items = data
+    items = data["tools"] if isinstance(data, dict) and "tools" in data else data
     return [t for t in items if t.get("function", {}).get("name")]
 
 
-def _tools_by_name(tools):
-    """Build a name→tool dict for quick lookup."""
-    return {t["function"]["name"]: t for t in tools}
+def load_tool_call_data(path):
+    """
+    Load tools from a JSON file.
+
+    Accepts both a list at the top level and the `{"tools": [...]}` format.
+    Only tools with a valid function name are returned.
+    """
+    return load_tools(path)
 
 
 
-# Argument generation helpers
-_EXAMPLE_VALUES = {
-    "string": [
-        "exemplo", "teste", "São Paulo", "Rio de Janeiro",
-        "Nova York", "hoje", "amanhã", "importante", "urgente",
-        "relatório mensal", "João", "Maria", "2024-01-15",
-    ],
-    "number": [10, 25, 50, 100, 3.14, 9.99, 42, 0.5, 1000, 250],
-    "integer": [1, 2, 3, 5, 10, 15, 20, 25, 50, 100],
-    "boolean": [True, False],
-    "array": [
-        ["item1", "item2"],
-        ["a", "b", "c"],
-        ["primeiro", "segundo", "terceiro"],
-    ],
-}
+# Prompt formatting (turns tool definitions into the string format expected in the prompt)
+def _format_tools_block(tools):
+    """
+    Serialize tools for inclusion in a prompt.
+
+    Strips metadata-only fields (`input_samples`, `request_samples`) so
+    the model sees only the clean function schema.
+    """
+    _METADATA_KEYS = {"input_samples", "request_samples"}
+    result = "<tools>"
+    for tool in tools:
+        clean = {k: v for k, v in tool.items() if k not in _METADATA_KEYS}
+        result += "\n" + json.dumps(clean, ensure_ascii=False)
+    result += "\n</tools>"
+    return result
 
 
-def _generate_arg_value(param_schema, rng):
-    """Generate a plausible argument value based on the JSON schema type."""
-    ptype = param_schema.get("type", "string")
-
+# Argument sampling from input_samples
+def _fallback_arg_value(schema, rng):
+    """Return a plausible value for *schema* when no `input_samples` exist."""
+    ptype = schema.get("type", "string")
     if ptype == "string":
-        desc = param_schema.get("description", "").lower()
-        # Try to generate contextual values based on description
-        if any(w in desc for w in ["data", "date", "nascimento"]):
-            return f"{rng.randint(1980, 2005)}-{rng.randint(1,12):02d}-{rng.randint(1,28):02d}"
-        if any(w in desc for w in ["nome", "name", "título", "title"]):
-            names = ["João Silva", "Maria Santos", "O Poderoso Chefão",
-                     "Ana Costa", "Pedro Lima", "Interstellar"]
-            return rng.choice(names)
-        if any(w in desc for w in ["local", "cidade", "location", "destino", "origem"]):
-            places = ["São Paulo", "Rio de Janeiro", "Nova York",
-                      "Londres", "Tokyo", "Lisboa", "Paris"]
-            return rng.choice(places)
-        if any(w in desc for w in ["moeda", "currency"]):
-            currencies = ["USD", "BRL", "EUR", "GBP", "JPY"]
-            return rng.choice(currencies)
-        if any(w in desc for w in ["idioma", "language", "língua"]):
-            langs = ["Português", "Inglês", "Espanhol", "Francês"]
-            return rng.choice(langs)
-        return rng.choice(_EXAMPLE_VALUES["string"])
-    elif ptype in ("number", "integer"):
-        return rng.choice(_EXAMPLE_VALUES.get(ptype, [42]))
-    elif ptype == "boolean":
+        return rng.choice(["exemplo", "teste", "Porto Alegre", "valor"])
+    if ptype == "number":
+        return rng.choice([10.0, 25.5, 50.0, 100.0, 250.0])
+    if ptype == "integer":
+        return rng.choice([1, 5, 10, 42, 100])
+    if ptype == "boolean":
         return rng.choice([True, False])
-    elif ptype == "array":
-        return rng.choice(_EXAMPLE_VALUES["array"])
-    elif ptype == "object":
+    if ptype == "array":
+        return rng.choice([["item1", "item2"], ["a", "b", "c"]])
+    if ptype == "object":
         return {"chave": "valor"}
     return "valor_exemplo"
 
 
-def generate_tool_arguments(tool, rng):
-    """Generate argument values for all required + some optional params.
+def _sample_args_from_inputs(tool, rng):
+    """
+    Sample argument values for *tool* from its `input_samples`.
 
-    Returns dict of argument name → value.
+    All required parameters are always included.  Optional parameters are
+    included with 40 % probability.  When `input_samples` has no entry for a
+    parameter its schema type is used to produce a fallback value.
+
+    Returns a `{name: value}` dict.
     """
     params = tool["function"].get("parameters", {})
     properties = params.get("properties", {})
     required = set(params.get("required", []))
+    input_samples = tool.get("input_samples", {})
+
     args = {}
-    for name, schema in properties.items():
-        if name in required or rng.random() < 0.5:
-            args[name] = _generate_arg_value(schema, rng)
-    # Always include at least required params
+
     for name in required:
-        if name not in args:
-            schema = properties.get(name, {"type": "string"})
-            args[name] = _generate_arg_value(schema, rng)
+        if name in input_samples:
+            samples = input_samples[name]
+            args[name] = rng.choice(samples) if isinstance(samples, list) else samples
+        else:
+            args[name] = _fallback_arg_value(properties.get(name, {}), rng)
+
+    for name, schema in properties.items():
+        if name in args:
+            continue
+        if rng.random() < 0.4:
+            if name in input_samples:
+                samples = input_samples[name]
+                args[name] = (
+                    rng.choice(samples) if isinstance(samples, list) else samples
+                )
+            else:
+                args[name] = _fallback_arg_value(schema, rng)
+
     return args
 
 
 def get_tool_arg_types(tool):
-    """Extract expected JSON types for each parameter from the tool schema."""
+    """Return `{param_name: json_type}` for all parameters in *tool*."""
     params = tool["function"].get("parameters", {})
     properties = params.get("properties", {})
     return {name: schema.get("type", "string") for name, schema in properties.items()}
 
 
 
-# Prompt construction
-def _format_tools_block(tools):
-    """Serialize tools into the <tools>...</tools> XML block for the prompt."""
-    lines = []
-    for t in tools:
-        lines.append(json.dumps(t, ensure_ascii=False))
-    return "\n".join(lines)
+# User request construction
+def _build_user_request(tool, args, rng):
+    """
+    Construct a self-contained user request for *tool* with *args* embedded.
+
+    The request starts with a sentence drawn from the tool's own
+    `request_samples` and appends the argument values inline so the prompt
+    is fully self-contained (no clarification needed from the model).
+    """
+    request_samples = tool.get("request_samples", [])
+    properties = tool["function"].get("parameters", {}).get("properties", {})
+
+    if request_samples:
+        base = rng.choice(request_samples)
+    else:
+        desc = tool["function"].get("description", tool["function"]["name"])
+        base = f"Preciso de ajuda com: {desc.lower().rstrip('.')}."
+
+    if not args:
+        return base
+
+    phrases = []
+    for name, value in args.items():
+        schema = properties.get(name, {})
+        param_desc = schema.get("description", name).rstrip(".")
+        if isinstance(value, bool):
+            val_str = "sim" if value else "não"
+        elif isinstance(value, list):
+            val_str = ", ".join(str(v) for v in value)
+        else:
+            val_str = str(value)
+        phrases.append((param_desc, val_str))
+
+    if base.rstrip().endswith(":") and len(phrases) == 1:
+        # The base already introduces the single parameter; just use the value
+        # to avoid "O título do filme é: O título do filme: Interstellar."
+        inline = phrases[0][1]
+    else:
+        inline = "; ".join(f"{d}: {v}" for d, v in phrases)
+
+    return f"{base} {inline}."
 
 
-def _categorize_tool(tool_name):
-    """Return the best query-template category for a tool name."""
-    name_lower = tool_name.lower()
-    for cat in ("calculate", "get", "search", "analyze", "create", "convert"):
-        if cat in name_lower:
-            return cat
-    return "generic"
-
-
-def _build_description_hint(tool):
-    """Create a natural-language hint from the tool's description and params."""
-    desc = tool["function"].get("description", "")
-    if desc:
-        # Lower-case the first letter for natural embedding in a sentence
-        hint = desc[0].lower() + desc[1:] if len(desc) > 1 else desc.lower()
-        # Strip trailing period
-        hint = hint.rstrip(".")
-        return hint
-    return tool["function"]["name"].replace("_", " ")
-
-
-def build_valid_prompt(tool, rng, extra_tools=None):
-    """Build a full prompt for a valid tool-call task.
+# Full prompt assembly
+def build_valid_prompt(tool, user_query, rng, extra_tools=None):
+    """
+    Assemble a complete prompt for a valid tool-call task.
 
     Args:
         tool: The target tool that should be called.
-        rng: Random instance.
-        extra_tools: Optional list of additional distractor tools.
+        user_query: A self-contained user request string (with arg values
+            already embedded).
+        rng: `random.Random` instance.
+        extra_tools: Optional list of distractor tools to include alongside
+            the target in the tools block.
 
     Returns:
-        The complete prompt string.
+        `(prompt_string, prompt_tools_list)`
     """
     preamble = rng.choice(_SYSTEM_PREAMBLES)
 
-    # Build the tool set: target + optional distractors
-    prompt_tools = [tool]
-    if extra_tools:
-        prompt_tools.extend(extra_tools)
+    prompt_tools = [tool] + (extra_tools or [])
     rng.shuffle(prompt_tools)
 
     tools_block = _format_tools_block(prompt_tools)
-    category = _categorize_tool(tool["function"]["name"])
-    templates = _VALID_QUERY_TEMPLATES.get(category, _VALID_QUERY_TEMPLATES["generic"])
-    hint = _build_description_hint(tool)
-    user_query = rng.choice(templates).format(description_hint=hint)
-
     prompt = (
         f"{preamble}\n\n"
         f"Você recebe assinaturas de funções dentro de tags XML "
-        f"<tools></tools>:\n<tools>\n{tools_block}\n</tools>\n\n"
+        f"<tools></tools>:\n{tools_block}\n\n"
         f"{_TOOL_CALL_INSTRUCTION}\n\n"
         f"{user_query}"
     )
@@ -390,13 +338,14 @@ def build_valid_prompt(tool, rng, extra_tools=None):
 
 
 def build_refusal_prompt(distractor_tools, rng):
-    """Build a full prompt for a refusal task.
+    """
+    Assemble a complete prompt for a refusal task.
 
-    The user asks something that no provided tool can handle.
+    The user asks for something that none of the provided tools can handle.
 
     Args:
-        distractor_tools: Tools to include (none will match the query).
-        rng: Random instance.
+        distractor_tools: Tools to include (none will match the refusal query).
+        rng: `random.Random` instance.
 
     Returns:
         The complete prompt string.
@@ -408,7 +357,7 @@ def build_refusal_prompt(distractor_tools, rng):
     prompt = (
         f"{preamble}\n\n"
         f"Você recebe assinaturas de funções dentro de tags XML "
-        f"<tools></tools>:\n<tools>\n{tools_block}\n</tools>\n\n"
+        f"<tools></tools>:\n{tools_block}\n\n"
         f"{_TOOL_CALL_INSTRUCTION}\n\n"
         f"{user_query}"
     )
@@ -416,7 +365,7 @@ def build_refusal_prompt(distractor_tools, rng):
 
 
 def build_valid_completion(tool_name, args):
-    """Build the expected completion for a valid tool call."""
+    """Return the expected `<tool_call>…</tool_call>` completion string."""
     call_obj = {"name": tool_name, "arguments": args}
     return (
         "<tool_call>\n"
@@ -425,41 +374,49 @@ def build_valid_completion(tool_name, args):
     )
 
 
-
 # Sample construction
 def build_tool_call_sample(
-    tool, all_tools, rng,
-    min_tools=1, max_tools=3,
-    is_valid=True, min_refusal_words=5,
+    tool,
+    all_tools,
+    rng,
+    min_tools=1,
+    max_tools=3,
+    is_valid=True,
+    min_refusal_words=5,
 ):
-    """Build one complete tool-call gym sample.
+    """
+    Build one complete tool-call gym sample.
 
     Args:
-        tool: The target tool (used for valid tasks; ignored for refusal).
+        tool: Target tool for valid tasks; ignored for refusal tasks.
         all_tools: Full pool of available tools.
         rng: `random.Random` instance.
-        min_tools: Minimum tools to include in prompt.
-        max_tools: Maximum tools to include in prompt.
-        is_valid: If True, build a valid tool-call task; else a refusal task.
-        min_refusal_words: Minimum words expected in a refusal response.
+        min_tools: Minimum number of tools included in the prompt (1-3).
+        max_tools: Maximum number of tools included in the prompt (1-3).
+        is_valid: `True` → valid tool-call task; `False` → refusal task.
+        min_refusal_words: Minimum word count expected in a refusal response.
 
     Returns:
-        Dict with keys: id, prompt, verifier_id_list, kwargs.
+        `{"id": str, "prompt": str, "verifier_id_list": list, "kwargs": list}`
     """
     if is_valid:
-        # Select distractor tools
+        # Sample arguments from the tool's own input_samples
+        args = _sample_args_from_inputs(tool, rng)
+        user_query = _build_user_request(tool, args, rng)
+
+        # Select distractor tools to pad the tools block (1-3 total)
         num_extra = rng.randint(max(0, min_tools - 1), max(0, max_tools - 1))
-        other_tools = [t for t in all_tools if t["function"]["name"] != tool["function"]["name"]]
+        other_tools = [
+            t for t in all_tools
+            if t["function"]["name"] != tool["function"]["name"]
+        ]
         extra = rng.sample(other_tools, min(num_extra, len(other_tools)))
 
-        args = generate_tool_arguments(tool, rng)
-        prompt, _prompt_tools = build_valid_prompt(tool, rng, extra)
+        prompt, _ = build_valid_prompt(tool, user_query, rng, extra)
 
-        # Required arg keys from tool schema
         params = tool["function"].get("parameters", {})
         required_keys = list(params.get("required", []))
         arg_types = get_tool_arg_types(tool)
-        # Only check types for keys we actually generated
         checked_types = {k: arg_types[k] for k in args if k in arg_types}
 
         verifier_ids = [
@@ -476,7 +433,6 @@ def build_tool_call_sample(
         ]
 
     else:
-        # Refusal task
         num_distractors = rng.randint(min_tools, max_tools)
         distractors = rng.sample(all_tools, min(num_distractors, len(all_tools)))
         prompt = build_refusal_prompt(distractors, rng)
@@ -502,7 +458,7 @@ def build_tool_call_sample(
 
 # Validation
 def validate_tool_call_sample(sample):
-    """Return a list of validation issues (empty = valid)."""
+    """Return a list of validation issue strings (empty list = valid)."""
     issues = []
 
     n_ids = len(sample.get("verifier_id_list", []))
@@ -519,7 +475,6 @@ def validate_tool_call_sample(sample):
     if not sample.get("prompt", "").strip():
         issues.append("Empty prompt")
 
-    # Must contain only the canonical keys
     allowed_keys = {"id", "prompt", "verifier_id_list", "kwargs"}
     extra_keys = set(sample.keys()) - allowed_keys
     if extra_keys:
@@ -529,19 +484,16 @@ def validate_tool_call_sample(sample):
 
 
 def sample_fingerprint(sample):
-    """Hashable fingerprint for deduplication."""
+    """Return a hashable fingerprint for deduplication (the prompt string)."""
     return sample.get("prompt", "")
-
 
 
 # Main generation loop
 def main(args):
     output_path = Path(args.output_file)
-
     data_path = args.data_file or str(_DATA_DIR / "tools.json")
 
-    all_tools, examples = load_tool_call_data(data_path)
-
+    all_tools = load_tool_call_data(data_path)
     if not all_tools:
         print("Error: no tools loaded.")
         return
@@ -551,7 +503,7 @@ def main(args):
     num_valid = num_samples - num_refusals
 
     print(
-        f"Loaded {len(all_tools)} tools, {len(examples)} existing examples.\n"
+        f"Loaded {len(all_tools)} tools.\n"
         f"Generating {num_samples} samples "
         f"({num_valid} valid + {num_refusals} refusal, seed={args.seed})"
     )
@@ -561,13 +513,11 @@ def main(args):
     retries_used = 0
     max_retries = 20
 
-    # Generate valid samples
     for i in range(num_valid):
         sample = None
         for attempt in range(max_retries):
             rng = random.Random(args.seed + i * max_retries + attempt)
             tool = rng.choice(all_tools)
-
             candidate = build_tool_call_sample(
                 tool=tool,
                 all_tools=all_tools,
@@ -577,26 +527,22 @@ def main(args):
                 is_valid=True,
                 min_refusal_words=args.min_refusal_words,
             )
-
             sid = candidate["id"]
             if sid not in seen:
                 sample = candidate
                 seen.add(sid)
                 break
             retries_used += 1
-
         if sample is None:
             print(f"  Warning: could not produce unique valid sample #{i+1}")
             continue
         samples.append(sample)
 
-    # Generate refusal samples
+    offset = num_valid * max_retries
     for i in range(num_refusals):
         sample = None
-        offset = num_valid * max_retries
         for attempt in range(max_retries):
             rng = random.Random(args.seed + offset + i * max_retries + attempt)
-
             candidate = build_tool_call_sample(
                 tool=None,
                 all_tools=all_tools,
@@ -606,24 +552,20 @@ def main(args):
                 is_valid=False,
                 min_refusal_words=args.min_refusal_words,
             )
-
             sid = candidate["id"]
             if sid not in seen:
                 sample = candidate
                 seen.add(sid)
                 break
             retries_used += 1
-
         if sample is None:
             print(f"  Warning: could not produce unique refusal sample #{i+1}")
             continue
         samples.append(sample)
 
-    # Shuffle to interleave valid and refusal
     rng_shuffle = random.Random(args.seed)
     rng_shuffle.shuffle(samples)
 
-    # Validate all samples
     total_issues = 0
     for s in samples:
         issues = validate_tool_call_sample(s)
@@ -634,13 +576,10 @@ def main(args):
 
     n_valid = sum(
         1 for s in samples
-        if any(
-            json.loads(kw).get("expect_call") is True
-            for kw in s["kwargs"]
-        )
+        if any(json.loads(kw).get("expect_call") is True for kw in s["kwargs"])
     )
     n_refusal = len(samples) - n_valid
-    unique_ids = len({s['id'] for s in samples})
+    unique_ids = len({s["id"] for s in samples})
 
     print(f"\nResults:")
     print(f"  Generated samples:  {len(samples)}")
@@ -654,15 +593,11 @@ def main(args):
     if retries_used:
         print(f"  Uniqueness retries: {retries_used}")
 
-    # Hard assertions
     assert unique_ids == len(samples), (
         f"FAIL: {len(samples) - unique_ids} duplicate samples"
     )
-    assert total_issues == 0, (
-        f"FAIL: {total_issues} validation issues found"
-    )
+    assert total_issues == 0, f"FAIL: {total_issues} validation issues found"
 
-    # Write output
     use_jsonl = output_path.suffix.lower() == ".jsonl"
     with open(output_path, "w", encoding="utf-8") as f:
         if use_jsonl:
@@ -724,14 +659,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--data_file",
         type=str,
-        default="./assets/tools.json",
-        help="Path to tools.json.",
+        default=None,
+        help="Path to tools.json (default: assets/tools.json).",
     )
     parser.add_argument(
         "--verbose",
         action="store_true",
         help="Print detailed validation warnings.",
     )
-    args = parser.parse_args()
-
-    main(args)
+    main(parser.parse_args())

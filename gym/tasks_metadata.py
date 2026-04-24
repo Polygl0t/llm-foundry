@@ -306,8 +306,13 @@ def generate_kwargs_for_verifier(verifier_id, prompt_text=""):
 
     elif verifier_id == _KEYWORD + "letter_frequency":
         kw["letter"] = random.choice(LETTERS_PT)
-        kw["let_frequency"] = random.randint(3, 10)
         kw["let_relation"] = random.choice(COMPARISON_RELATIONS)
+        # For "less than" use a high threshold so the constraint is achievable;
+        # for "at least" use a low threshold so it isn't trivially impossible.
+        if kw["let_relation"] == "less than":
+            kw["let_frequency"] = random.randint(10, 30)
+        else:
+            kw["let_frequency"] = random.randint(3, 10)
 
     elif verifier_id == _LANGUAGE + "response_language":
         kw["language"] = random.choice(list(LANGUAGE_CODES.keys()))
@@ -430,6 +435,8 @@ def generate_description_for_verifier(verifier_id, kwargs):
         word = kwargs.get("first_word") or "primeiramente"
         return (
             f"Deve haver {n_para} parágrafos."
+            " Parágrafos e apenas parágrafos são separados entre si por duas"
+            " quebras de linha como se fosse '\\n\\n' em python."
             f" O parágrafo {nth} deve começar com a palavra {word}."
         )
 

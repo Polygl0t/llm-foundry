@@ -217,6 +217,7 @@ def main(specs, slurm_job_id, hardware):
         args=args,
         checkpoint_path=checkpoint_path,
         optimizer=optimizer,
+        device=device,
         master_process=master_process,
         logger=logger,
         file_logger=file_logger if master_process else None,

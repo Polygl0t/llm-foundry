@@ -10,4 +10,5 @@ Contents
 
 * inspect_model.py: Analyze model configurations and compute parameter counts (including MoE expert routing).
 * pdf2markdown.sh: Convert PDF documents to Markdown format using Marker.
+* parse_run.py: Parse and summarize training run logs for the distributed training scripts.
 

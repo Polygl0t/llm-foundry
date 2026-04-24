@@ -84,7 +84,8 @@ def main(specs, slurm_job_id, hardware):
     # The SLURM job ID is used to create a unique checkpoint directory for this training run, 
     # which allows us to avoid conflicts between different runs.
     if args.resume_from_checkpoint:
-        slurm_job_id = args.resume_from_checkpoint.split("/")[0]
+        rel = os.path.relpath(args.resume_from_checkpoint, args.checkpoint_dir)
+        slurm_job_id = rel.split(os.sep)[0]
     
     args.checkpoint_dir = os.path.join(args.checkpoint_dir, f"{slurm_job_id}")
     log_file = os.path.join(args.checkpoint_dir, f"{slurm_job_id}.log")
@@ -226,6 +227,7 @@ def main(specs, slurm_job_id, hardware):
         args=args,
         checkpoint_path=checkpoint_path,
         optimizer=optimizer,
+        device=device,
         master_process=master_process,
         logger=logger,
         file_logger=file_logger if master_process else None,
