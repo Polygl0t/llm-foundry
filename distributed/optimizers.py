@@ -328,7 +328,7 @@ def create_lr_scheduler(args, max_steps):
     """
     def cosine_schedule(it, max_lr):
         """Cosine learning rate schedule with warmup."""
-        lr_decay_iters = max_steps * args.lr_decay_iters_coef
+        lr_decay_iters = max_steps
         if args.warmup_steps > 0 and it < args.warmup_steps:
             return max_lr * (it + 1) / args.warmup_steps, "warmup"
         if it > lr_decay_iters:

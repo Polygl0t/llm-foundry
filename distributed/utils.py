@@ -170,7 +170,7 @@ class DistributedEnvironment:
             dist.destroy_process_group()
 
 
-def load_checkpoint_state(args, checkpoint_path, optimizer, master_process=False, logger=None, file_logger=None):
+def load_checkpoint_state(args, checkpoint_path, optimizer, device='cpu', master_process=False, logger=None, file_logger=None):
     """
     Load checkpoint state and restore the optimizer if resuming from a checkpoint.
 
@@ -179,7 +179,7 @@ def load_checkpoint_state(args, checkpoint_path, optimizer, master_process=False
     if args.resume_from_checkpoint:
 
         checkpoint = os.path.join(checkpoint_path, 'checkpoint.pt')
-        checkpoint = torch.load(checkpoint, map_location=torch.device('cpu'), weights_only=False)
+        checkpoint = torch.load(checkpoint, map_location=torch.device(device), weights_only=False)
 
         # The optimizer is updated in-place, so we don't need to return it.
         optimizer.load_state_dict(checkpoint['optimizer'])
