@@ -1,16 +1,16 @@
-██████╗  ██████╗ ██╗  ██╗   ██╗ ██████╗  ██████╗ ████████╗
-██╔══██╗██╔═══██╗██║  ╚██╗ ██╔╝██╔════╝ ██╔═████╗╚══██╔══╝
-██████╔╝██║   ██║██║   ╚████╔╝ ██║  ███╗██║██╔██║   ██║   
-██╔═══╝ ██║   ██║██║    ╚██╔╝  ██║   ██║████╔╝██║   ██║   
-██║     ╚██████╔╝███████╗██║   ╚██████╔╝╚██████╔╝   ██║   
-╚═╝      ╚═════╝ ╚══════╝╚═╝    ╚═════╝  ╚═════╝    ╚═╝   
+██╗     ██╗     ███╗   ███╗    ███████╗ ██████╗ ██╗   ██╗███╗   ██╗██████╗ ██████╗ ██╗   ██╗
+██║     ██║     ████╗ ████║    ██╔════╝██╔═══██╗██║   ██║████╗  ██║██╔══██╗██╔══██╗╚██╗ ██╔╝
+██║     ██║     ██╔████╔██║    █████╗  ██║   ██║██║   ██║██╔██╗ ██║██║  ██║██████╔╝ ╚████╔╝ 
+██║     ██║     ██║╚██╔╝██║    ██╔══╝  ██║   ██║██║   ██║██║╚██╗██║██║  ██║██╔══██╗  ╚██╔╝  
+███████╗███████╗██║ ╚═╝ ██║    ██║     ╚██████╔╝╚██████╔╝██║ ╚████║██████╔╝██║  ██║   ██║   
+╚══════╝╚══════╝╚═╝     ╚═╝    ╚═╝      ╚═════╝  ╚═════╝ ╚═╝  ╚═══╝╚═════╝ ╚═╝  ╚═╝   ╚═╝   
 
-Developing foundation models for low-resource languages
+LLM Foundry
 
 Overview
 --------
 
-This repository (the foundry) contains all the source code we use in our research and development pipeline.
+This repository contains all source code used for the development of the models, datasets, and all other accompanying artifacts tied to the Polyglot project at the University of Bonn. The code base is organized into the following main folders:
 
 * data: Scripts for downloading and preprocessing datasets (e.g., HF Hub, Common Craul).
 * distributed: Scripts for training and evaluating language models with DDP and FSDP.
@@ -42,7 +42,7 @@ You can also use the `pyproject.toml` to install certain specific/working builds
 * `trl`: For training and evaluating language models with TRL.
 * `tests`: For running our test suite.
 
-Aknowlegments
+Acknowledgments
 -------------
 
 Polyglot is a project funded by the Federal Ministry of Education and Research (BMBF) and the Ministry of Culture and Science of the State of North Rhine-Westphalia (MWK) as part of TRA Sustainable Futures (University of Bonn) and the Excellence Strategy of the federal and state governments.
