@@ -134,17 +134,18 @@ def test_import_utils():
     )
 
 
-for _fn in [
-    test_import_specifications,
-    test_import_mfu,
-    test_import_data_loading,
-    test_import_model_setup,
-    test_import_optimizers,
-    test_import_utils,
-]:
-    run_test(_fn.__name__, _fn)
+if __name__ == "__main__":
+    for _fn in [
+        test_import_specifications,
+        test_import_mfu,
+        test_import_data_loading,
+        test_import_model_setup,
+        test_import_optimizers,
+        test_import_utils,
+    ]:
+        run_test(_fn.__name__, _fn)
 
-print("Test 1 — Imports & Setup: OK ✅")
+    print("Test 1 — Imports & Setup: OK ✅")
 
 
 # %%
@@ -251,18 +252,19 @@ def test_training_args_fsdp_override():
     assert args.explicit_prefetching is True
 
 
-for _fn in [
-    test_training_args_defaults,
-    test_training_args_override,
-    test_training_args_from_yaml,
-    test_training_args_to_dict_includes_runtime_fields,
-    test_training_args_invalid_field,
-    test_training_args_fsdp_defaults,
-    test_training_args_fsdp_override,
-]:
-    run_test(_fn.__name__, _fn)
+if __name__ == "__main__":
+    for _fn in [
+        test_training_args_defaults,
+        test_training_args_override,
+        test_training_args_from_yaml,
+        test_training_args_to_dict_includes_runtime_fields,
+        test_training_args_invalid_field,
+        test_training_args_fsdp_defaults,
+        test_training_args_fsdp_override,
+    ]:
+        run_test(_fn.__name__, _fn)
 
-print("Test 2 — TrainingArguments & Config Loading: OK ✅")
+    print("Test 2 — TrainingArguments & Config Loading: OK ✅")
 
 
 # %%
@@ -563,26 +565,27 @@ def test_create_mfu_context_mamba_fields():
     assert ctx.linear_num_key_heads == 0
 
 
-for _fn in [
-    test_peak_flops_registry,
-    test_mfu_registry_dense,
-    test_mfu_registry_hybrid,
-    test_create_mfu_context,
-    test_create_mfu_context_unsupported_hardware,
-    test_calculate_training_metrics,
-    test_calculate_training_metrics_zero_dt,
-    test_calculate_training_metrics_invalid_type,
-    test_mamba_layer_macs_formula,
-    test_attention_layer_macs_formula,
-    test_linear_attention_layer_macs_formula,
-    test_mamba_mfu_pure,
-    test_mamba_mfu_hybrid_layer_types,
-    test_mamba_mfu_linear_attention_hybrid,
-    test_create_mfu_context_mamba_fields,
-]:
-    run_test(_fn.__name__, _fn)
+if __name__ == "__main__":
+    for _fn in [
+        test_peak_flops_registry,
+        test_mfu_registry_dense,
+        test_mfu_registry_hybrid,
+        test_create_mfu_context,
+        test_create_mfu_context_unsupported_hardware,
+        test_calculate_training_metrics,
+        test_calculate_training_metrics_zero_dt,
+        test_calculate_training_metrics_invalid_type,
+        test_mamba_layer_macs_formula,
+        test_attention_layer_macs_formula,
+        test_linear_attention_layer_macs_formula,
+        test_mamba_mfu_pure,
+        test_mamba_mfu_hybrid_layer_types,
+        test_mamba_mfu_linear_attention_hybrid,
+        test_create_mfu_context_mamba_fields,
+    ]:
+        run_test(_fn.__name__, _fn)
 
-print("Test 3 — MFU Calculation: OK ✅")
+    print("Test 3 — MFU Calculation: OK ✅")
 
 
 # %%
@@ -647,15 +650,16 @@ def test_collate_fn_multi_sample_batch():
     assert batch["labels"][1, 0].item() == 4
 
 
-for _fn in [
-    test_collate_fn_no_mask,
-    test_collate_fn_with_mask,
-    test_collate_fn_preserves_existing_labels,
-    test_collate_fn_multi_sample_batch,
-]:
-    run_test(_fn.__name__, _fn)
+if __name__ == "__main__":
+    for _fn in [
+        test_collate_fn_no_mask,
+        test_collate_fn_with_mask,
+        test_collate_fn_preserves_existing_labels,
+        test_collate_fn_multi_sample_batch,
+    ]:
+        run_test(_fn.__name__, _fn)
 
-print("Test 4 — Collate Function: OK ✅")
+    print("Test 4 — Collate Function: OK ✅")
 
 
 # %%
@@ -808,16 +812,17 @@ def test_dataloader_custom_collate():
     assert custom_called[0], "Custom collate function was not used"
 
 
-for _fn in [
-    test_load_sanity_check_datasets,
-    test_prepare_dataloaders_sanity,
-    test_dataloader_iteration,
-    test_dataloader_val_iteration,
-    test_dataloader_custom_collate,
-]:
-    run_test(_fn.__name__, _fn)
+if __name__ == "__main__":
+    for _fn in [
+        test_load_sanity_check_datasets,
+        test_prepare_dataloaders_sanity,
+        test_dataloader_iteration,
+        test_dataloader_val_iteration,
+        test_dataloader_custom_collate,
+    ]:
+        run_test(_fn.__name__, _fn)
 
-print("Test 5 — Sanity-Check Dataset & DataLoader: OK ✅")
+    print("Test 5 — Sanity-Check Dataset & DataLoader: OK ✅")
 
 
 # %%
@@ -1159,33 +1164,34 @@ def test_get_decoder_layer_class_caches():
     assert cls1 is cls2
 
 
-for _fn in [
-    test_resolve_checkpoint_path_none,
-    test_resolve_checkpoint_path_with_steps,
-    test_resolve_checkpoint_path_direct,
-    test_build_model_from_config,
-    test_build_model_no_config_raises,
-    test_prepare_training_components_cpu,
-    test_prepare_training_components_bf16,
-    test_create_tokenizer_no_source_raises,
-    test_active_params_dense_model,
-    test_active_params_qwen_moe,
-    test_active_params_granite_moe,
-    test_active_params_single_expert_is_dense,
-    test_try_create_distributed_config_disabled,
-    test_try_create_distributed_config_enabled,
-    test_enable_expert_parallelism_spec_default,
-    test_check_kernels_available_disabled,
-    test_check_kernels_available_enabled,
-    test_use_kernels_spec_default,
-    test_get_decoder_layer_class_llama,
-    test_get_decoder_layer_class_qwen2,
-    test_get_decoder_layer_class_unsupported,
-    test_get_decoder_layer_class_caches,
-]:
-    run_test(_fn.__name__, _fn)
+if __name__ == "__main__":
+    for _fn in [
+        test_resolve_checkpoint_path_none,
+        test_resolve_checkpoint_path_with_steps,
+        test_resolve_checkpoint_path_direct,
+        test_build_model_from_config,
+        test_build_model_no_config_raises,
+        test_prepare_training_components_cpu,
+        test_prepare_training_components_bf16,
+        test_create_tokenizer_no_source_raises,
+        test_active_params_dense_model,
+        test_active_params_qwen_moe,
+        test_active_params_granite_moe,
+        test_active_params_single_expert_is_dense,
+        test_try_create_distributed_config_disabled,
+        test_try_create_distributed_config_enabled,
+        test_enable_expert_parallelism_spec_default,
+        test_check_kernels_available_disabled,
+        test_check_kernels_available_enabled,
+        test_use_kernels_spec_default,
+        test_get_decoder_layer_class_llama,
+        test_get_decoder_layer_class_qwen2,
+        test_get_decoder_layer_class_unsupported,
+        test_get_decoder_layer_class_caches,
+    ]:
+        run_test(_fn.__name__, _fn)
 
-print("Test 6 — Model Initialization (CPU): OK ✅")
+    print("Test 6 — Model Initialization (CPU): OK ✅")
 
 
 # %%
@@ -1392,22 +1398,23 @@ def test_get_optimizer_summary_lines():
     assert len(lines2) > len(lines)
 
 
-for _fn in [
-    test_muon_momentum_boundaries,
-    test_zeropower_newtonschulz,
-    test_adam_update,
-    test_single_device_muon,
-    test_single_device_muon_with_aux_adam,
-    test_cosine_lr_scheduler,
-    test_wsd_lr_scheduler,
-    test_lr_scheduler_muon_adam,
-    test_lr_scheduler_invalid_type,
-    test_create_optimizer_adamw_cpu,
-    test_get_optimizer_summary_lines,
-]:
-    run_test(_fn.__name__, _fn)
+if __name__ == "__main__":
+    for _fn in [
+        test_muon_momentum_boundaries,
+        test_zeropower_newtonschulz,
+        test_adam_update,
+        test_single_device_muon,
+        test_single_device_muon_with_aux_adam,
+        test_cosine_lr_scheduler,
+        test_wsd_lr_scheduler,
+        test_lr_scheduler_muon_adam,
+        test_lr_scheduler_invalid_type,
+        test_create_optimizer_adamw_cpu,
+        test_get_optimizer_summary_lines,
+    ]:
+        run_test(_fn.__name__, _fn)
 
-print("Test 7 — Optimizers & LR Schedulers (CPU): OK ✅")
+    print("Test 7 — Optimizers & LR Schedulers (CPU): OK ✅")
 
 
 # %%
@@ -1744,30 +1751,31 @@ def test_create_emissions_tracker_returns_tracker():
         shutil.rmtree(tmpdir)
 
 
-for _fn in [
-    test_compute_training_schedule_basic,
-    test_compute_training_schedule_max_steps_override,
-    test_compute_training_schedule_misaligned_raises,
-    test_structured_logger_metadata,
-    test_structured_logger_stats,
-    test_structured_logger_create_python_logger,
-    test_structured_logger_invalid_type,
-    test_cleanup_log_file_truncates,
-    test_cleanup_log_file_missing_file,
-    test_checkpoint_already_validated_no_dir,
-    test_checkpoint_already_validated_positive,
-    test_distributed_environment_local_fallback,
-    test_distributed_environment_torchrun_vars,
-    test_distributed_environment_seed_everything,
-    test_load_checkpoint_state_no_resume,
-    test_load_checkpoint_state_resume,
-    test_load_checkpoint_state_new_stage,
-    test_initialize_wandb_import,
-    test_create_emissions_tracker_returns_tracker,
-]:
-    run_test(_fn.__name__, _fn)
+if __name__ == "__main__":
+    for _fn in [
+        test_compute_training_schedule_basic,
+        test_compute_training_schedule_max_steps_override,
+        test_compute_training_schedule_misaligned_raises,
+        test_structured_logger_metadata,
+        test_structured_logger_stats,
+        test_structured_logger_create_python_logger,
+        test_structured_logger_invalid_type,
+        test_cleanup_log_file_truncates,
+        test_cleanup_log_file_missing_file,
+        test_checkpoint_already_validated_no_dir,
+        test_checkpoint_already_validated_positive,
+        test_distributed_environment_local_fallback,
+        test_distributed_environment_torchrun_vars,
+        test_distributed_environment_seed_everything,
+        test_load_checkpoint_state_no_resume,
+        test_load_checkpoint_state_resume,
+        test_load_checkpoint_state_new_stage,
+        test_initialize_wandb_import,
+        test_create_emissions_tracker_returns_tracker,
+    ]:
+        run_test(_fn.__name__, _fn)
 
-print("Test 8 — Utility Functions: OK ✅")
+    print("Test 8 — Utility Functions: OK ✅")
 
 
 # %%
@@ -1975,15 +1983,16 @@ def test_end_to_end_mfu_with_model():
         shutil.rmtree(tmpdir)
 
 
-for _fn in [
-    test_end_to_end_forward_pass,
-    test_end_to_end_backward_pass,
-    test_end_to_end_optimizer_step,
-    test_end_to_end_mfu_with_model,
-]:
-    run_test(_fn.__name__, _fn)
+if __name__ == "__main__":
+    for _fn in [
+        test_end_to_end_forward_pass,
+        test_end_to_end_backward_pass,
+        test_end_to_end_optimizer_step,
+        test_end_to_end_mfu_with_model,
+    ]:
+        run_test(_fn.__name__, _fn)
 
-print("Test 9 — Integration: Forward Pass on CPU: OK ✅")
+    print("Test 9 — Integration: Forward Pass on CPU: OK ✅")
 
 
 # %%
@@ -2225,17 +2234,19 @@ def test_fsdp_trainer_cpu_two_steps():
         shutil.rmtree(tmpdir)
 
 
-for _fn in [
-    test_ddp_trainer_cpu_two_steps,
-    test_fsdp_trainer_cpu_two_steps,
-]:
-    run_test(_fn.__name__, _fn)
+if __name__ == "__main__":
+    for _fn in [
+        test_ddp_trainer_cpu_two_steps,
+        test_fsdp_trainer_cpu_two_steps,
+    ]:
+        run_test(_fn.__name__, _fn)
 
-print("Test 10 — Trainers (DDPTrainer & FSDPTrainer): OK ✅")
+    print("Test 10 — Trainers (DDPTrainer & FSDPTrainer): OK ✅")
 
 
 # %%
 #######################################
 # 11. Report
 #######################################
-report()
+if __name__ == "__main__":
+    report()

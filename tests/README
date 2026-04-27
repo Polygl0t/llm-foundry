@@ -11,16 +11,22 @@ Available test scripts:
 * tests_gym.py: End-to-end verifier and sample-generation checks for the gym pipeline (instruction, long-context, haystack, math, email, and tool-call tasks).
 * tests_synthetic.py: End-to-end verifier for the synthetic data pipeline.
 
-Both scripts are designed to run as standalone Python files and resolve module imports from their respective source folders.
+All scripts are designed to run as standalone Python programs. Module imports
+are resolved from their respective source folders via sys.path setup at module
+level.
 
 Running Tests
 -------------
 
-From the repository root:
+From the repository root, run all three scripts in sequence:
 
-* `python tests/tests_distributed.py`
-* `python tests/tests_gym.py`
-* `python tests/tests_synthetic.py`
+    python tests/
+
+Or run a single script directly:
+
+    python tests/tests_distributed.py
+    python tests/tests_gym.py
+    python tests/tests_synthetic.py
 
 
 Notes
