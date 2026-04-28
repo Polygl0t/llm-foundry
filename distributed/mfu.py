@@ -35,6 +35,9 @@ class MFUContext:
     vocab_size: int = 0
     intermediate_size: int = 0
     layer_types: Tuple[str, ...] = ()
+    # Number of K/V heads for grouped-query attention. When 0 or equal to
+    # `num_attention_heads`, attention behaves as multi-head attention (MHA).
+    num_key_value_heads: int = 0
     
     # Mamba2 parameters
     mamba_d_state: int = 0
@@ -51,6 +54,13 @@ class MFUContext:
     linear_value_head_dim: int = 0
     linear_conv_kernel_dim: int = 4
     linear_chunk_size: int = 256
+
+    # MoE parameters (used by hybrid / mamba paths when num_experts_per_tok > 0).
+    # The dense_transformer / moe paths instead derive active FLOPs from
+    # `num_parameters`, which the trainer is expected to set to the active count.
+    num_experts_per_tok: int = 0
+    moe_intermediate_size: int = 0      # per-routed-expert MLP intermediate size
+    shared_intermediate_size: int = 0   # always-active shared expert intermediate size
 
 
 @dataclass(frozen=True)
@@ -74,6 +84,28 @@ def _dense_transformer_mfu(context, micro_batch_size, gradient_accumulation_step
     flops_per_iter = flops_per_fwdbwd * (micro_batch_size * gradient_accumulation_steps)
     flops_achieved = flops_per_iter / dt
     return (flops_achieved / context.peak_flops) * 100
+
+def _active_mlp_macs(ctx):
+    """
+    Per-token MACs for the active part of the MLP block in a single layer.
+
+    Handles three configurations:
+      * Dense SwiGLU MLP (default): 3 * d * intermediate_size.
+      * Top-k routed MoE (e.g. Qwen-MoE): only the `num_experts_per_tok`
+        routed experts contribute, each with `moe_intermediate_size`.
+      * Routed MoE + shared expert(s) (e.g. GraniteMoeHybrid, DeepSeek-V2/V3):
+        adds a constant `shared_intermediate_size` term on top of the routed
+        contribution.
+    """
+    d = ctx.hidden_size
+    if ctx.num_experts_per_tok > 0 and ctx.moe_intermediate_size > 0:
+        # SwiGLU per expert: gate + up + down projections.
+        routed = 3 * d * ctx.moe_intermediate_size * ctx.num_experts_per_tok
+        # Shared expert(s) are dense and always active.
+        shared = 3 * d * ctx.shared_intermediate_size
+        return routed + shared
+    return 3 * d * ctx.intermediate_size
+
 
 def _mamba_layer_macs(ctx):
     """
@@ -100,8 +132,8 @@ def _mamba_layer_macs(ctx):
     intra_chunk = 2 * ctx.mamba_chunk_size * e
     # Inter-chunk state passing                                (Eq. 11)
     inter_chunk = 2 * e * n
-    # MLP (SwiGLU: gate + up + down projections)               (Eq. 9: 3d.d_MLP)
-    mlp = 3 * d * ctx.intermediate_size
+    # MLP (SwiGLU). MoE-aware: only active experts contribute.   (Eq. 9: 3d.d_MLP)
+    mlp = _active_mlp_macs(ctx)
 
     return in_proj + conv + out_proj + intra_chunk + inter_chunk + mlp
 
@@ -109,12 +141,21 @@ def _mamba_layer_macs(ctx):
 def _attention_layer_macs(ctx):
     """
     MACs per token for a full (causal) attention layer.
+
+    Supports grouped-query attention (GQA): when `num_key_value_heads` is set
+    and smaller than `num_attention_heads`, the K and V projection costs are
+    scaled down by `num_key_value_heads / num_attention_heads`.
     """
     d = ctx.hidden_size
     s = ctx.sequence_length
-    projections = 4 * d * d                     # Q, K, V, O projections
-    attention   = d * s                         # QK^T + attn.V  (causal avg)
-    mlp         = 3 * d * ctx.intermediate_size # SwiGLU MLP
+    h = ctx.num_attention_heads
+    kv_h = ctx.num_key_value_heads if ctx.num_key_value_heads > 0 else h
+    q_dim = h * ctx.head_dim       # query projection output dim
+    kv_dim = kv_h * ctx.head_dim   # key / value projection output dim (shared across grouped heads)
+    # Q + O projections are full d->d; K and V are d->kv_dim each.
+    projections = 2 * d * q_dim + 2 * d * kv_dim
+    attention   = d * s            # QK^T + attn.V  (causal avg, dominated by query dim)
+    mlp         = _active_mlp_macs(ctx)
     return projections + attention + mlp
 
 
@@ -142,8 +183,8 @@ def _linear_attention_layer_macs(ctx):
     intra_chunk = L * (3 * k + 2 * v)
     # Inter-chunk state passing: 3 mat-muls of size k_h x v_h per head (Eq. 10)
     inter_chunk = 3 * k * v // h if h > 0 else 0
-    # MLP                                                              (Eq. 8)
-    mlp = 3 * d * ctx.intermediate_size
+    # MLP, MoE-aware.                                                 (Eq. 8)
+    mlp = _active_mlp_macs(ctx)
 
     return projections + conv + gate_out + intra_chunk + inter_chunk + mlp
 
@@ -202,6 +243,16 @@ MFU_REGISTRY = {
     "dense_transformer": _dense_transformer_mfu,
     "mamba": _mamba_mfu,
     "hybrid": _mamba_mfu,
+    # Pure MoE transformers reuse the dense-transformer formula; the trainer
+    # passes the *active* parameter count (params actually used per token)
+    # as `num_parameters`. See _compute_active_trainable_params in model_setup.py.
+    "moe": _dense_transformer_mfu,
+    # MoE-hybrid (e.g. GraniteMoeHybrid: mamba + attention layers, with a
+    # routed-MoE MLP on every layer, optionally plus a shared expert).
+    # Reuses the structural mamba/hybrid formula; the per-layer MLP term is
+    # MoE-aware via `num_experts_per_tok`, `moe_intermediate_size`, and
+    # `shared_intermediate_size` on the MFUContext.
+    "moe_hybrid": _mamba_mfu,
 }
 
 
@@ -225,6 +276,7 @@ def create_mfu_context(args, hardware, num_parameters):
         vocab_size=getattr(args, 'vocab_size', 0),
         intermediate_size=getattr(args, 'intermediate_size', 0),
         layer_types=layer_types,
+        num_key_value_heads=getattr(args, 'num_key_value_heads', 0) or 0,
         # Mamba2
         mamba_d_state=getattr(args, 'mamba_d_state', 0),
         mamba_chunk_size=getattr(args, 'mamba_chunk_size', 256),
@@ -238,6 +290,10 @@ def create_mfu_context(args, hardware, num_parameters):
         linear_key_head_dim=getattr(args, 'linear_key_head_dim', 0),
         linear_value_head_dim=getattr(args, 'linear_value_head_dim', 0),
         linear_conv_kernel_dim=getattr(args, 'linear_conv_kernel_dim', 4),
+        # MoE
+        num_experts_per_tok=getattr(args, 'num_experts_per_tok', 0) or 0,
+        moe_intermediate_size=getattr(args, 'moe_intermediate_size', 0) or 0,
+        shared_intermediate_size=getattr(args, 'shared_intermediate_size', 0) or 0,
     )
 
 

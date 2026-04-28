@@ -202,8 +202,13 @@ class TrainingArguments:
         default="dense_transformer",
         metadata={"help": (
             "The MFU calculation strategy to use. "
-            "Options currently include: `dense_transformer`, `mamba`, and `hybrid` (a combination of the previous two). "
-            "This is intended to be extended for other architectures such as MoE or Mamba."
+            "Options currently include: `dense_transformer`, `moe`, `mamba`, `hybrid` "
+            "(mamba + attention), and `moe_hybrid` (mamba + attention + routed-MoE MLPs, "
+            "optionally with shared experts, e.g., GraniteMoeHybrid). "
+            "For `moe`, the trainer uses the active parameter count (parameters actually "
+            "used per token) instead of the total parameter count when computing MFU. "
+            "For `moe_hybrid`, the per-layer MLP FLOPs are computed structurally from "
+            "`num_experts_per_tok`, `moe_intermediate_size`, and `shared_intermediate_size`."
         )},
     )
 
@@ -298,7 +303,7 @@ class TrainingArguments:
         default=False,
         metadata={"help": (
             "Whether to use the Liger kernels for training."
-            "The promise is to increase multi-GPU training throughput by 20% and reduce memory usage by 60%"
+            "The promise is to increase multi-GPU training throughput by 20% and reduce memory usage by 60%."
             "WARNING: Not all models are compatible with this set of kernels."
             "Check the documentation for more information."
             "https://github.com/linkedin/Liger-Kernel/blob/main/src/liger_kernel/transformers/monkey_patch.py#L1853"

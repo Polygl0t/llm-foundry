@@ -112,7 +112,7 @@ def inspect_model(
         print(f"\n[2] Tokenizer: Not specified (use --base_model to load)")
     
     # Update config with precision info
-    config.torch_dtype = precision
+    config.dtype = precision
     config.vocab_size = max(config.vocab_size, len(tokenizer) if tokenizer else config.vocab_size)
     
     # Initialize model

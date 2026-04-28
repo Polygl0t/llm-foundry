@@ -161,7 +161,7 @@ def main(args):
         "label2id": {args.id_label: 0},
         "trust_remote_code": True,
         "use_cache": True if not args.gradient_checkpointing else False,
-        "torch_dtype": torch.bfloat16 if args.bf16 else torch.float32,
+        "dtype": torch.bfloat16 if args.bf16 else torch.float32,
         "device_map":{'':state.process_index},
     }
     

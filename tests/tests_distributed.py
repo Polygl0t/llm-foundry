@@ -300,6 +300,30 @@ def test_mfu_registry_dense():
     assert "dense_transformer" in MFU_REGISTRY
 
 
+def test_mfu_registry_moe():
+    """'moe' strategy is registered and reuses the dense-transformer formula."""
+    assert "moe" in MFU_REGISTRY
+    assert MFU_REGISTRY["moe"] is MFU_REGISTRY["dense_transformer"]
+
+
+def test_calculate_training_metrics_moe_uses_active_params():
+    """MoE MFU should match the dense formula when given the same num_parameters
+    (which the trainer is expected to populate with the active param count)."""
+    common = dict(
+        peak_flops=300e12,
+        num_parameters=10_000_000,
+        num_hidden_layers=12,
+        num_attention_heads=12,
+        head_dim=64,
+        sequence_length=512,
+    )
+    moe_ctx = MFUContext(mfu_type="moe", **common)
+    dense_ctx = MFUContext(mfu_type="dense_transformer", **common)
+    moe_metrics = calculate_training_metrics(moe_ctx, 4, 2, 1, dt=1.0)
+    dense_metrics = calculate_training_metrics(dense_ctx, 4, 2, 1, dt=1.0)
+    assert moe_metrics.mfu == dense_metrics.mfu
+
+
 def test_create_mfu_context():
     """create_mfu_context builds a correct MFUContext from mock args."""
     args = TrainingArguments()
@@ -441,11 +465,27 @@ def test_mamba_layer_macs_formula():
 
 
 def test_attention_layer_macs_formula():
-    """Verify _attention_layer_macs."""
+    """Verify _attention_layer_macs (defaults to MHA when num_key_value_heads is 0)."""
     ctx = _make_mamba_context()
-    d, s = 1536, 1024
-    expected = 4 * d * d + d * s + 3 * d * 512
+    d, s, h, head_dim = 1536, 1024, 12, 128
+    q_dim = h * head_dim
+    # MHA fallback: kv_dim == q_dim, so projections == 2*d*q + 2*d*q == 4*d*q.
+    expected = 2 * d * q_dim + 2 * d * q_dim + d * s + 3 * d * 512
     assert _attention_layer_macs(ctx) == expected
+
+
+def test_attention_layer_macs_gqa():
+    """GQA: K/V projection cost scales with num_key_value_heads."""
+    # 12 query heads, 4 KV heads (Granite-MoE-Hybrid style).
+    ctx = _make_mamba_context(num_attention_heads=12, num_key_value_heads=4)
+    d, s, head_dim = 1536, 1024, 128
+    q_dim = 12 * head_dim
+    kv_dim = 4 * head_dim
+    expected = 2 * d * q_dim + 2 * d * kv_dim + d * s + 3 * d * 512
+    assert _attention_layer_macs(ctx) == expected
+    # GQA must be strictly cheaper than MHA at equal query-head count.
+    mha_ctx = _make_mamba_context(num_attention_heads=12, num_key_value_heads=12)
+    assert _attention_layer_macs(ctx) < _attention_layer_macs(mha_ctx)
 
 
 def test_linear_attention_layer_macs_formula():
@@ -565,10 +605,95 @@ def test_create_mfu_context_mamba_fields():
     assert ctx.linear_num_key_heads == 0
 
 
+def test_mfu_registry_moe_hybrid():
+    """'moe_hybrid' is registered and reuses the mamba/hybrid strategy."""
+    assert "moe_hybrid" in MFU_REGISTRY
+    assert MFU_REGISTRY["moe_hybrid"] is MFU_REGISTRY["hybrid"]
+
+
+def test_active_mlp_macs_dense_vs_moe():
+    """
+    The MLP MAC term should reflect *active* compute when MoE fields are set,
+    and fall back to the dense intermediate_size otherwise.
+    """
+    # Dense fallback: num_experts_per_tok = 0.
+    dense_ctx = _make_mamba_context()
+    d_dense = 1536
+    # _attention_layer_macs MLP term = 3 * d * intermediate_size
+    expected_dense_mlp = 3 * d_dense * 512
+    expected_dense_total = 4 * d_dense * d_dense + d_dense * 1024 + expected_dense_mlp
+    assert _attention_layer_macs(dense_ctx) == expected_dense_total
+
+    # GraniteMoeHybrid-style: routed-MoE + shared expert.
+    moe_ctx = _make_mamba_context(
+        num_experts_per_tok=6,
+        moe_intermediate_size=512,
+        shared_intermediate_size=1024,
+    )
+    expected_moe_mlp = 3 * d_dense * 512 * 6 + 3 * d_dense * 1024
+    expected_moe_total = 4 * d_dense * d_dense + d_dense * 1024 + expected_moe_mlp
+    assert _attention_layer_macs(moe_ctx) == expected_moe_total
+    # Sanity: MoE-active MLP > dense baseline here (top-6 of 64 experts + shared).
+    assert _attention_layer_macs(moe_ctx) > _attention_layer_macs(dense_ctx)
+
+
+def test_moe_hybrid_mfu_granite_like():
+    """End-to-end MFU calculation for a GraniteMoeHybrid-shaped config."""
+    layer_types = tuple(
+        "attention" if i in (5, 15, 25, 35) else "mamba"
+        for i in range(40)
+    )
+    ctx = _make_mamba_context(
+        mfu_type="moe_hybrid",
+        num_hidden_layers=40,
+        layer_types=layer_types,
+        num_experts_per_tok=6,
+        moe_intermediate_size=512,
+        shared_intermediate_size=1024,
+    )
+    metrics = calculate_training_metrics(
+        ctx, micro_batch_size=2, gradient_accumulation_steps=1, world_size=1, dt=1.0,
+    )
+    assert metrics.mfu > 0
+
+    # Same architecture without MoE flags must report a strictly smaller MFU,
+    # because the per-layer MLP term collapses to a single dense MLP.
+    ctx_no_moe = _make_mamba_context(
+        mfu_type="moe_hybrid",
+        num_hidden_layers=40,
+        layer_types=layer_types,
+    )
+    metrics_no_moe = calculate_training_metrics(
+        ctx_no_moe, micro_batch_size=2, gradient_accumulation_steps=1, world_size=1, dt=1.0,
+    )
+    assert metrics.mfu > metrics_no_moe.mfu
+
+
+def test_create_mfu_context_moe_fields():
+    """create_mfu_context extracts MoE fields from args."""
+    args = TrainingArguments()
+    args.mfu_type = "moe_hybrid"
+    args.num_hidden_layers = 40
+    args.num_attention_heads = 12
+    args.head_dim = 128
+    args.max_position_embeddings = 1024
+    args.num_experts_per_tok = 6
+    args.moe_intermediate_size = 512
+    args.shared_intermediate_size = 1024
+
+    ctx = create_mfu_context(args, "a100", num_parameters=0)
+
+    assert ctx.num_experts_per_tok == 6
+    assert ctx.moe_intermediate_size == 512
+    assert ctx.shared_intermediate_size == 1024
+
+
 if __name__ == "__main__":
     for _fn in [
         test_peak_flops_registry,
         test_mfu_registry_dense,
+        test_mfu_registry_moe,
+        test_calculate_training_metrics_moe_uses_active_params,
         test_mfu_registry_hybrid,
         test_create_mfu_context,
         test_create_mfu_context_unsupported_hardware,
@@ -577,11 +702,16 @@ if __name__ == "__main__":
         test_calculate_training_metrics_invalid_type,
         test_mamba_layer_macs_formula,
         test_attention_layer_macs_formula,
+        test_attention_layer_macs_gqa,
         test_linear_attention_layer_macs_formula,
         test_mamba_mfu_pure,
         test_mamba_mfu_hybrid_layer_types,
         test_mamba_mfu_linear_attention_hybrid,
         test_create_mfu_context_mamba_fields,
+        test_mfu_registry_moe_hybrid,
+        test_active_mlp_macs_dense_vs_moe,
+        test_moe_hybrid_mfu_granite_like,
+        test_create_mfu_context_moe_fields,
     ]:
         run_test(_fn.__name__, _fn)
 

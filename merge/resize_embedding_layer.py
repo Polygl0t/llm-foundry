@@ -33,7 +33,7 @@ def load_model_and_tokenizer(model_path: str, dtype: str = "bfloat16") -> Tuple[
 		
 		print(f"Loading model from {model_path} (dtype={dtype}) ...")
 		torch_dtype = getattr(torch, dtype)
-		model = AutoModelForCausalLM.from_pretrained(model_path, torch_dtype=torch_dtype)
+		model = AutoModelForCausalLM.from_pretrained(model_path, dtype=torch_dtype)
 		
 		return tokenizer, model
 	except Exception as e:

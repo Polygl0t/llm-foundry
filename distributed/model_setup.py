@@ -135,7 +135,7 @@ def _build_model_from_config(args, tokenizer, precision, distributed_config=None
         "eos_token_id": tokenizer.eos_token_id,
         "pad_token_id": tokenizer.pad_token_id,
         "unk_token_id": tokenizer.unk_token_id,
-        "torch_dtype": precision,
+        "dtype": precision,
     }
 
     config = AutoConfig.from_pretrained(
@@ -164,7 +164,7 @@ def _load_model(args, tokenizer, precision, master_process, logger=None, file_lo
     if checkpoint_path is not None:
         model = AutoModelForCausalLM.from_pretrained(
             checkpoint_path,
-            torch_dtype=precision,
+            dtype=precision,
             attn_implementation=args.attn_implementation,
             cache_dir=args.cache_dir,
             **({"distributed_config": distributed_config} if distributed_config is not None else {}),
@@ -226,7 +226,7 @@ def _load_model(args, tokenizer, precision, master_process, logger=None, file_lo
 
     model = AutoModelForCausalLM.from_pretrained(
         args.base_model,
-        torch_dtype=precision,
+        dtype=precision,
         attn_implementation=args.attn_implementation,
         cache_dir=args.cache_dir,
         config=config,
@@ -397,11 +397,50 @@ def prepare_training_components(args, device, master_process, logger=None, file_
         model.config, 'head_dim',
         model.config.hidden_size // model.config.num_attention_heads,
     )
+    # GQA: fall back to num_attention_heads (MHA) when not specified.
+    args.num_key_value_heads = getattr(
+        model.config, 'num_key_value_heads', model.config.num_attention_heads,
+    )
+
+    # Architecture fields used by the structural (mamba/hybrid/moe_hybrid) MFU path.
+    # These are no-ops for the dense_transformer path.
+    args.hidden_size = getattr(model.config, 'hidden_size', 0)
+    args.intermediate_size = getattr(model.config, 'intermediate_size', 0)
+    args.layer_types = tuple(getattr(model.config, 'layer_types', ()) or ())
+    # Mamba2 hyperparameters (only present on mamba/hybrid configs).
+    args.mamba_d_state = getattr(model.config, 'mamba_d_state', 0)
+    args.mamba_chunk_size = getattr(model.config, 'mamba_chunk_size', 256)
+    args.mamba_d_conv = getattr(model.config, 'mamba_d_conv', 4)
+    args.mamba_n_heads = getattr(model.config, 'mamba_n_heads', 0)
+    args.mamba_d_head = getattr(model.config, 'mamba_d_head', 0)
+    args.mamba_n_groups = getattr(model.config, 'mamba_n_groups', 1)
+
+    # MoE fields. The *_intermediate_size selection mirrors the convention used
+    # in _compute_active_trainable_params: prefer `moe_intermediate_size` (Qwen)
+    # and fall back to `intermediate_size` (Granite-MoE-Hybrid, where it is
+    # already the per-expert size).
+    _num_experts = (
+        getattr(model.config, 'num_experts', None)
+        or getattr(model.config, 'num_local_experts', None)
+        or 0
+    )
+    if _num_experts and _num_experts > 1:
+        args.num_experts_per_tok = getattr(model.config, 'num_experts_per_tok', 0) or 0
+        args.moe_intermediate_size = (
+            getattr(model.config, 'moe_intermediate_size', None)
+            or getattr(model.config, 'intermediate_size', 0)
+            or 0
+        )
+        args.shared_intermediate_size = getattr(model.config, 'shared_intermediate_size', 0) or 0
+    else:
+        args.num_experts_per_tok = 0
+        args.moe_intermediate_size = 0
+        args.shared_intermediate_size = 0
 
     tokenizer.model_max_length = model.config.max_position_embeddings
 
     # Warn if training a hybrid/mamba model without the optimized CUDA kernels.
-    if args.mfu_type in ("mamba", "hybrid"):
+    if args.mfu_type in ("mamba", "hybrid", "moe_hybrid"):
         _mamba_kernels_available = True
         try:
             from mamba_ssm import Mamba

@@ -23,7 +23,7 @@ data = [
     "pyyaml",
 ]
 # NOTE: flash_attn requires --no-build-isolation and must be installed separately:
-#   pip3 install flash_attn==2.8.2 --no-build-isolation
+#   pip3 install flash_attn==2.8.3 --no-build-isolation
 distributed = [
     "wheel==0.45.1",
     "packaging==25.0",
@@ -31,14 +31,14 @@ distributed = [
     "torchaudio==2.8.0",
     "torchvision==0.23.0",
     "numpy==2.3.2",
-    "transformers==4.53.2",
+    "transformers==5.6.2",
     "datasets==4.0.0",
     "sentencepiece==0.2.0",
     "accelerate==1.9.0",
     "codecarbon==3.0.6",
     "wandb==0.21.0",
     "pyyaml==6.0.2",
-    "liger-kernel==0.6.1",
+    "liger-kernel==0.7.0",
 ]
 synth = [
     "torch==2.8.0",
@@ -55,7 +55,7 @@ trl = [
     "vllm==0.11.2",
     "codecarbon==3.0.6",
     "wandb==0.21.0",
-    "liger-kernel==0.6.1",
+    "liger-kernel==0.7.0",
 ]
 tests = [
     "torch>=2.0",
