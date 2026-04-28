@@ -44,8 +44,8 @@ You can also use the `pyproject.toml` to install certain specific/working builds
 
 Other links
 ------------
-If you're interested in contributing:(CONTRIBUTING.md)
-
+If you're interested in contributing:[Contributing](CONTRIBUTING.md)
+If you're interested in installing: [Installation](installation.sh)
 
 
 Acknowledgments
