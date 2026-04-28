@@ -42,6 +42,12 @@ You can also use the `pyproject.toml` to install certain specific/working builds
 * `trl`: For training and evaluating language models with TRL.
 * `tests`: For running our test suite.
 
+Other links
+------------
+If you're interested in contributing:(CONTRIBUTING.md)
+
+
+
 Acknowledgments
 -------------
 
