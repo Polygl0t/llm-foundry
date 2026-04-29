@@ -10,7 +10,10 @@ LLM Foundry
 Overview
 --------
 
-This repository contains all source code used for the development of the models, datasets, and all other accompanying artifacts tied to the Polyglot project at the University of Bonn. The code base is organized into the following main folders:
+This repository contains all source code used for the development of the models, datasets, and all other accompanying artifacts tied to the Polygl0t project at the University of Bonn.
+
+
+The code base is organized into the following main folders:
 
 * Data: Scripts for downloading and preprocessing datasets (e.g., HF Hub, Common Craul).
 * Distributed: Scripts for training and evaluating language models with DDP and FSDP.
@@ -42,10 +45,19 @@ You can also use the `pyproject.toml` to install certain specific/working builds
 * `trl`: For training and evaluating language models with TRL.
 * `tests`: For running our test suite.
 
-Other links
+For more information on installation:[Installation](installation.sh)
+
+
+Contribution
 ------------
-If you're interested in contributing: [Contributing](CONTRIBUTING.md)  
-If you're interested in installing: [Installation](installation.sh)
+Thank you for your interest in contributing to LLM Foundry! Click below to learn more about how to contribute.
+
+To learn more about contribution: [Contributing](CONTRIBUTING.md)  
+
+
+License
+------------
+Code is licensed under Apache License, Version 2.0 
 
 
 Acknowledgments
