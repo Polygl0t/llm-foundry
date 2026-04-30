@@ -47,6 +47,63 @@ Use [`utils/marvin_create_workspace.sh`](utils/marvin_create_workspace.sh) to al
 
 ```bash
 bash utils/marvin_create_workspace.sh
+```
+
+The script also contains commented step-by-step instructions for creating the per-config virtual environments (`.venv_data,` `.venv_distributed`, `.venv_synth`, `.venv_trl`) and submitting the pip install jobs to the right partition.
+
+### Module Stack Selection
+Marvin has a dual software stack (AMD and Intel). The single `.modules.sh` file at the repository root loads the right one for you. It auto-detects the stack from the SLURM environment, so most of the time you just source it and forget about it:
+
+```bash
+# Inside a SLURM job: auto-detected from #SBATCH directives
+#   - GPU job (--gres=gpu:...)             -> AMD
+#   - partition name contains "gpu"        -> AMD
+#   - any other partition                  -> Intel
+source "$workdir/.modules.sh"
+```
+
+On a login node, there is no SLURM context, so you must force the stack explicitly when creating venvs or running ad-hoc commands:
+
+```bash
+LLM_FOUNDRY_STACK=amd   source "$workdir/.modules.sh"   # GPU/training stack
+LLM_FOUNDRY_STACK=intel source "$workdir/.modules.sh"   # CPU/data stack
+```
+
+Sourcing prints whose stack was selected, why, and the resulting module list, so your job logs always show the resolved environment.
+
+### Installing Dependencies
+Use the [`pyproject.toml`](https://github.com/Polygl0t/llm-foundry/blob/main/pyproject.toml) to install a specific set of dependencies. The available extras are:
+
+* `data` — For downloading and preprocessing datasets.  
+* `distributed` — For training language models with our DDP and FSDP implementations.  
+* `synth` — For generating synthetic samples with vLLM.  
+* `trl` — For post-training and alignment with TRL.  
+* `tests` — For running our test suite.  
+
+For example:
+
+```bash
+pip install -e "./llm-foundry/.[distributed]"  # for DDP/FSDP training
+pip install -e "./llm-foundry/.[trl]"          # for SFT/DPO
+pip install -e "./llm-foundry/.[tests]"        # for running the test suite
+```
+
+## Running the Tests
+Install the test dependencies first:
+
+```bash
+pip install -e "./llm-foundry/.[tests]"
+```
+Run all test scripts in sequence:
+```bash
+python tests/
+```
+Or run a specific script ([`tests/tests_distributed.py`](https://github.com/Polygl0t/llm-foundry/compare/tests/tests_distributed.py?expand=1), [`tests/tests_gym.py`](https://github.com/Polygl0t/llm-foundry/compare/tests/tests_gym.py?expand=1), [`tests/tests_synthetic.py`](https://github.com/Polygl0t/llm-foundry/compare/tests/tests_synthetic.py?expand=1)):
+```bash
+python tests/tests_distributed.py
+python tests/tests_gym.py
+python tests/tests_synthetic.py
+```
 
 
 ## Contributing
@@ -62,3 +119,4 @@ This project is licensed under the Apache License 2.0. See [`LICENSE`](LICENSE) 
 Polyglot is a project funded by the Federal Ministry of Education and Research (BMBF) and the Ministry of Culture and Science of the State of North Rhine-Westphalia (MWK) as part of TRA Sustainable Futures (University of Bonn) and the Excellence Strategy of the federal and state governments.
 
 We also gratefully acknowledge access to the Marvin cluster, hosted by the University of Bonn, along with support from its High Performance Computing & Analytics Lab.
+
