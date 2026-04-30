@@ -1,3 +1,4 @@
+
 # LLM Foundry
 
 LLM Foundry is the source repository for the development of models, datasets, and accompanying artifacts of the **Polyglot** project at the University of Bonn. It bundles training, evaluation, post-training, data processing, and tokenization pipelines into a single, cluster-ready code base.
@@ -61,5 +62,3 @@ This project is licensed under the Apache License 2.0. See [`LICENSE`](LICENSE) 
 Polyglot is a project funded by the Federal Ministry of Education and Research (BMBF) and the Ministry of Culture and Science of the State of North Rhine-Westphalia (MWK) as part of TRA Sustainable Futures (University of Bonn) and the Excellence Strategy of the federal and state governments.
 
 We also gratefully acknowledge access to the Marvin cluster, hosted by the University of Bonn, along with support from its High Performance Computing & Analytics Lab.
-
-
