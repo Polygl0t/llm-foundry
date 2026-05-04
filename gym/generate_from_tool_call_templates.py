@@ -155,17 +155,87 @@ _REFUSAL_QUERY_TEMPLATES = [
 
 
 # Data loading
+def _tool_signature(tool):
+    """Return `(required_keys, property_keys)` as sorted tuples."""
+    params = tool.get("function", {}).get("parameters", {}) or {}
+    required = tuple(sorted(params.get("required", []) or []))
+    props = tuple(sorted((params.get("properties", {}) or {}).keys()))
+    return required, props
+
+
+def _name_stem(name):
+    """Normalize a tool name for near-duplicate detection."""
+    n = (name or "").lower()
+    if len(n) > 3 and n.endswith("s") and not n.endswith("ss"):
+        n = n[:-1]
+    return n
+
+
+def _validate_tools(tools, source):
+    """Reject tool sets with ambiguous tools.
+
+    Raises `ValueError` if any tool collides with another by name, by
+    parameter signature, or by name stem. The verifier hard-codes a single
+    expected tool name per sample, so any such collision would mark valid
+    model choices as wrong. Fix the source `tools.json`.
+    """
+    by_name = {}
+    by_signature = {}
+    by_stem = {}
+    issues = []
+
+    for tool in tools:
+        name = tool.get("function", {}).get("name")
+        if not name:
+            continue
+
+        if name in by_name:
+            issues.append(f"Duplicate tool name: {name!r}")
+        else:
+            by_name[name] = tool
+
+        sig = _tool_signature(tool)
+        if sig in by_signature and by_signature[sig] != name:
+            issues.append(
+                f"Tools {by_signature[sig]!r} and {name!r} share the same "
+                f"parameter signature {sig}; the verifier cannot tell them "
+                f"apart."
+            )
+        else:
+            by_signature.setdefault(sig, name)
+
+        stem = _name_stem(name)
+        if stem in by_stem and by_stem[stem] != name:
+            issues.append(
+                f"Tools {by_stem[stem]!r} and {name!r} have near-duplicate "
+                f"names (shared stem {stem!r})."
+            )
+        else:
+            by_stem.setdefault(stem, name)
+
+    if issues:
+        bullet = "\n  - ".join(issues)
+        raise ValueError(
+            f"Ambiguous tools detected in {source}:\n  - {bullet}\n"
+            f"Please remove or rename the offending entries in the source "
+            f"tools.json."
+        )
+
+
 def load_tools(path):
     """
     Load tool definitions from a JSON file.
 
     Accepts both a list at the top level and the `{"tools": [...]}` format.
-    Only tools with a valid function name are returned.
+    Only tools with a valid function name are returned. Raises
+    :class:`ValueError` if the file contains ambiguous tools.
     """
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
     items = data["tools"] if isinstance(data, dict) and "tools" in data else data
-    return [t for t in items if t.get("function", {}).get("name")]
+    tools = [t for t in items if t.get("function", {}).get("name")]
+    _validate_tools(tools, source=str(path))
+    return tools
 
 
 def load_tool_call_data(path):
@@ -281,6 +351,13 @@ def _build_user_request(tool, args, rng):
         base = f"Preciso de ajuda com: {desc.lower().rstrip('.')}."
 
     if not args:
+        # No arguments to inject. Many `request_samples` end with a trailing
+        # colon (e.g. "... Aqui estão os critérios:") expecting an inline
+        # value list to follow. Without that follow-up the request reads as
+        # truncated, so replace the trailing colon with a period.
+        stripped = base.rstrip()
+        if stripped.endswith(":"):
+            return stripped[:-1].rstrip() + "."
         return base
 
     phrases = []
@@ -404,11 +481,13 @@ def build_tool_call_sample(
         args = _sample_args_from_inputs(tool, rng)
         user_query = _build_user_request(tool, args, rng)
 
-        # Select distractor tools to pad the tools block (1-3 total)
+        # Pad the tools block with distractors. The tool set was validated
+        # at load time to contain no ambiguous siblings, so a simple
+        # name-based exclusion is sufficient here.
         num_extra = rng.randint(max(0, min_tools - 1), max(0, max_tools - 1))
+        target_name = tool["function"]["name"]
         other_tools = [
-            t for t in all_tools
-            if t["function"]["name"] != tool["function"]["name"]
+            t for t in all_tools if t["function"]["name"] != target_name
         ]
         extra = rng.sample(other_tools, min(num_extra, len(other_tools)))
 

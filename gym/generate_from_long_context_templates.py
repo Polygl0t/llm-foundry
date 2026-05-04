@@ -194,32 +194,50 @@ def insert_needles_distributed(haystack, needles, rng):
     """Insert needle strings at random positions throughout the haystack text.
 
     Splits the haystack into sentence-like chunks and inserts needles between them.
+    Returns `(text, inserted_needles)` where `inserted_needles` is the list of
+    needles that were actually placed in the text (in original order). All needles
+    are guaranteed to be inserted: if there are more needles than gap positions,
+    overflow needles are appended at the end of the text.
     """
     sentences = _split_into_sentences(haystack)
     if len(sentences) < 2:
-        return " ".join(needles) + " " + haystack
+        return " ".join(needles) + " " + haystack, list(needles)
 
     n = len(needles)
     if n >= len(sentences):
-        positions = list(range(min(n, len(sentences))))
+        # Place one needle in each available gap; remaining needles will be
+        # appended at the end so all needles are present in the final text.
+        primary = needles[: len(sentences)]
+        overflow = needles[len(sentences) :]
+        positions = list(range(len(primary)))
     else:
+        primary = list(needles)
+        overflow = []
         step = len(sentences) / (n + 1)
         positions = [int(step * (i + 1)) for i in range(n)]
         positions = [
             max(1, min(p + rng.randint(-1, 1), len(sentences) - 1))
             for p in positions
         ]
-    positions.sort(reverse=True)
 
-    for needle, pos in zip(needles, positions):
+    # Sort descending so insertions don't shift earlier positions.
+    pairs = sorted(zip(primary, positions), key=lambda x: x[1], reverse=True)
+    for needle, pos in pairs:
         sentences.insert(pos, needle)
 
-    return " ".join(sentences)
+    text = " ".join(sentences)
+    if overflow:
+        text = text + " " + " ".join(overflow)
+    return text, list(needles)
 
 
 def insert_needles_at_start(haystack, needles):
-    """Insert all needle strings at the beginning of the haystack."""
-    return " ".join(needles) + " " + haystack
+    """Insert all needle strings at the beginning of the haystack.
+
+    Returns `(text, inserted_needles)` for parity with
+    :func:`insert_needles_distributed`.
+    """
+    return " ".join(needles) + " " + haystack, list(needles)
 
 
 #  Prompt assembly
@@ -274,7 +292,7 @@ def _build_needle_single_number(template, documents, num_chars, rng):
     needle = needle_fmt.format(key=key, value=value)
 
     haystack = get_document_chunk(documents, num_chars, rng)
-    text = insert_needles_distributed(haystack, [needle], rng)
+    text, _ = insert_needles_distributed(haystack, [needle], rng)
 
     preamble = rng.choice(template["preambles"])
     question = rng.choice(template["questions"]).format(key=key)
@@ -294,19 +312,27 @@ def _build_needle_multi_number_same_key(template, documents, num_chars, rng):
 
     needle_fmt = rng.choice(template["needle_formats"])
     needles = [needle_fmt.format(key=key, value=v) for v in values]
+    # Map needle -> value so we can rebuild expected_values from what
+    # actually got inserted.
+    needle_to_value = dict(zip(needles, values))
 
     haystack = get_document_chunk(documents, num_chars, rng)
 
     if rng.random() < 0.5:
-        text = insert_needles_at_start(haystack, needles)
+        text, inserted = insert_needles_at_start(haystack, needles)
     else:
-        text = insert_needles_distributed(haystack, needles, rng)
+        text, inserted = insert_needles_distributed(haystack, needles, rng)
+
+    inserted_values = [needle_to_value[n] for n in inserted if n in needle_to_value]
 
     preamble = rng.choice(template["preambles"])
     question = rng.choice(template["questions"]).format(key=key)
     prompt = f"{preamble}\n{text}\nPergunta: {question}"
 
-    verifier_kwargs = {"key": key, "expected_values": {key: [str(v) for v in values]}}
+    verifier_kwargs = {
+        "key": key,
+        "expected_values": {key: [str(v) for v in inserted_values]},
+    }
     return prompt, verifier_kwargs
 
 
@@ -319,17 +345,23 @@ def _build_needle_multi_number_diff_keys(template, documents, num_chars, rng):
     kv_pairs = {k: str(make_random_number(rng)) for k in keys}
 
     needle_fmt = rng.choice(template["needle_formats"])
-    needles = [needle_fmt.format(key=k, value=v) for k, v in kv_pairs.items()]
+    key_order = list(kv_pairs.keys())
+    needles = [needle_fmt.format(key=k, value=kv_pairs[k]) for k in key_order]
+    needle_to_key = dict(zip(needles, key_order))
 
     haystack = get_document_chunk(documents, num_chars, rng)
-    text = insert_needles_distributed(haystack, needles, rng)
+    text, inserted = insert_needles_distributed(haystack, needles, rng)
 
-    keys_str = ", ".join(keys)
+    inserted_keys = [needle_to_key[n] for n in inserted if n in needle_to_key]
+
+    keys_str = ", ".join(inserted_keys)
     preamble = rng.choice(template["preambles"])
     question = rng.choice(template["questions"]).format(keys_str=keys_str)
     prompt = f"{preamble}\n{text}\nPergunta: {question}"
 
-    verifier_kwargs = {"expected_values": {k: [v] for k, v in kv_pairs.items()}}
+    verifier_kwargs = {
+        "expected_values": {k: [kv_pairs[k]] for k in inserted_keys},
+    }
     return prompt, verifier_kwargs
 
 
@@ -345,15 +377,23 @@ def _build_needle_uuid(template, documents, num_chars, rng):
         pairs[k] = v
 
     needle_fmt = rng.choice(template["needle_formats"])
-    needles = [needle_fmt.format(key=k, value=v) for k, v in pairs.items()]
+    key_order = list(pairs.keys())
+    needles = [needle_fmt.format(key=k, value=pairs[k]) for k in key_order]
+    needle_to_key = dict(zip(needles, key_order))
 
     if rng.random() < 0.5 and documents:
         haystack = get_document_chunk(documents, num_chars, rng)
-        text = insert_needles_distributed(haystack, needles, rng)
+        text, inserted = insert_needles_distributed(haystack, needles, rng)
     else:
         text = " ".join(needles)
+        inserted = list(needles)
 
-    query_key = rng.choice(list(pairs.keys()))
+    inserted_keys = [needle_to_key[n] for n in inserted if n in needle_to_key]
+    if not inserted_keys:
+        # Fallback: should be unreachable, but never query a key not in text.
+        inserted_keys = key_order
+
+    query_key = rng.choice(inserted_keys)
     expected_value = pairs[query_key]
 
     preamble = rng.choice(template["preambles"])
@@ -515,6 +555,23 @@ def _build_word_list(template, task_type, num_words):
             random.shuffle(word_list)
             freq = Counter(word_list)
             uncommon = [w for w in uncommon if freq[w] > 0]
+
+    # For common_words: avoid ties at the top_k boundary. If the count of the
+    # word at rank top_k equals the count of the word at rank top_k+1, the
+    # answer is ambiguous (multiple equally-valid sets of "top_k most common"
+    # words exist). Boost the chosen top_k words by one occurrence each to
+    # break the tie deterministically.
+    if task_type == "common_words":
+        ranked = sorted(freq.items(), key=lambda x: (-x[1], x[0]))
+        if len(ranked) > top_k:
+            kth_count = ranked[top_k - 1][1]
+            next_count = ranked[top_k][1]
+            if kth_count == next_count:
+                top_words = [w for w, _ in ranked[:top_k]]
+                word_list.extend(top_words)
+                random.shuffle(word_list)
+                freq = Counter(word_list)
+                common = [w for w in common if freq[w] > 0]
 
     context = format_numbered_list(word_list)
 

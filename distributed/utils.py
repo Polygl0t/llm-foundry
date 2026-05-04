@@ -114,6 +114,14 @@ class DistributedEnvironment:
             self.rank = 0
             self.local_rank = 0
 
+        # Export torchrun-style env vars unconditionally. Some transformers code paths
+        # (e.g. `initialize_tensor_parallelism`, triggered when `distributed_config` is
+        # passed to `from_pretrained`) read `LOCAL_RANK` / `RANK` / `WORLD_SIZE` directly
+        # from the environment and do not fall back to SLURM_* equivalents.
+        os.environ["LOCAL_RANK"] = str(self.local_rank)
+        os.environ["RANK"] = str(self.rank)
+        os.environ["WORLD_SIZE"] = str(self.world_size)
+
         if self.world_size > 1:
             # Multi-process distributed training.
             if torch.cuda.is_available():

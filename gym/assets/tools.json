@@ -66,7 +66,7 @@
           "NZD"
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Por favor, preciso que você faça uma conversão de valores entre as seguintes moedas:",
         "Preciso de ajuda para converter um valor de uma moeda para outra. Você pode me ajudar com isso? Aqui estão os detalhes da conversão que preciso:",
         "Estou tentando converter um valor de uma moeda para outra e gostaria de sua ajuda. Aqui estão as informações necessárias para a conversão:",
@@ -100,7 +100,7 @@
           "Pulp Fiction"
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de obter detalhes sobre um filme específico. Você pode me ajudar com isso? O título do filme é:",
         "Estou interessado em saber mais sobre um filme e gostaria de sua ajuda para obter os detalhes. O título do filme é:",
         "Preciso de informações detalhadas sobre um filme específico. Você pode me ajudar com isso? O título do filme é:",
@@ -146,7 +146,7 @@
           28
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de calcular a diferença de idade entre duas pessoas. Você pode me ajudar com isso? Aqui estão as idades das duas pessoas:",
         "Estou interessado em saber a diferença de idade entre duas pessoas e gostaria de sua ajuda para calculá-la. Aqui estão as idades das duas pessoas:",
         "Preciso calcular a diferença de idade entre duas pessoas. Você pode me ajudar com isso? Aqui estão as idades das duas pessoas:",
@@ -177,10 +177,22 @@
         }
       },
       "input_samples": {
-        "width": [5, 10, 15, 20, 25],
-        "height": [2, 4, 6, 8, 10]
+        "width": [
+          5,
+          10,
+          15,
+          20,
+          25
+        ],
+        "height": [
+          2,
+          4,
+          6,
+          8,
+          10
+        ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de calcular a área de um retângulo. Você pode me ajudar com isso? Aqui estão as dimensões do retângulo:",
         "Estou interessado em saber a área de um retângulo e gostaria de sua ajuda para calculá-la. Aqui estão as dimensões do retângulo:",
         "Preciso calcular a área de um retângulo. Você pode me ajudar com isso? Aqui estão as dimensões do retângulo:",
@@ -233,7 +245,7 @@
           "Olá! Este é um lembrete para a reunião de amanhã às 10h. Por favor, confirme sua presença."
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de enviar um email para alguém. Você pode me ajudar com isso? Aqui estão os detalhes do email que quero enviar:",
         "Estou interessado em enviar um email e gostaria de sua ajuda para isso. Aqui estão os detalhes do email que quero enviar:",
         "Preciso enviar um email para alguém. Você pode me ajudar com isso? Aqui estão os detalhes do email que quero enviar:",
@@ -290,66 +302,11 @@
           2500
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de calcular minha pegada de carbono com base em vários fatores. Você pode me ajudar com isso? Aqui estão os detalhes que preciso para o cálculo:",
         "Oi! Estou interessado em saber minha pegada de carbono e gostaria de sua ajuda para calculá-la. Aqui estão os detalhes que preciso para o cálculo:",
         "Preciso calcular minha pegada de carbono. Você pode me ajudar com isso? Aqui estão os detalhes que preciso para o cálculo:",
         "Oi! Estou procurando calcular minha pegada de carbono e gostaria de sua ajuda para isso. Aqui estão os detalhes que preciso para o cálculo:"
-      ]
-    },
-    {
-      "type": "function",
-      "function": {
-        "name": "search_movies",
-        "description": "Pesquise filmes com base em critérios especificados.",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "genre": {
-              "type": "string",
-              "description": "O gênero do filme."
-            },
-            "year": {
-              "type": "integer",
-              "description": "O ano de lançamento do filme."
-            },
-            "actor": {
-              "type": "string",
-              "description": "O nome do ator no filme."
-            }
-          },
-          "required": []
-        }
-      },
-      "input_samples": {
-        "genre": [
-          "terror",
-          "comédia",
-          "ação",
-          "drama",
-          "ficção científica"
-        ],
-        "year": [
-          1990,
-          2000,
-          2010,
-          2020,
-          2021,
-          2026
-        ],
-        "actor": [
-          "João Silva",
-          "Maria Santos",
-          "Carlos Oliveira",
-          "Ana Costa",
-          "Pedro Almeida"
-        ]
-      },
-      "request_samples":[
-        "Gostaria de pesquisar filmes com base em critérios específicos. Você pode me ajudar com isso? Aqui estão os detalhes que preciso para a pesquisa:",
-        "Estou interessado em encontrar filmes e gostaria de sua ajuda para pesquisá-los. Aqui estão os critérios que preciso para a pesquisa:",
-        "Preciso pesquisar filmes com base em certos critérios. Você pode me ajudar com isso? Aqui estão os detalhes que preciso para a pesquisa:",
-        "Estou procurando pesquisar filmes e gostaria de sua ajuda para isso. Aqui estão os critérios que preciso para a pesquisa:"
       ]
     },
     {
@@ -390,7 +347,7 @@
           500
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de gerar um número aleatório dentro de um intervalo específico. Você pode me ajudar com isso? Aqui estão os detalhes do intervalo:",
         "Estou interessado em obter um número aleatório e gostaria de sua ajuda para gerá-lo. Aqui estão os detalhes do intervalo que preciso:",
         "Preciso gerar um número aleatório dentro de um intervalo definido. Você pode me ajudar com isso? Aqui estão os detalhes do intervalo:",
@@ -424,7 +381,7 @@
           "negócios"
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de obter as manchetes das últimas notícias em uma categoria específica. Você pode me ajudar com isso? Aqui estão os detalhes da categoria:",
         "Estou interessado em saber as últimas notícias e gostaria de sua ajuda para obtê-las. Aqui estão os detalhes da categoria que preciso:",
         "Preciso obter as manchetes das últimas notícias em uma categoria definida. Você pode me ajudar com isso? Aqui estão os detalhes da categoria:",
@@ -458,7 +415,7 @@
           "Vidas Secas"
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de procurar um livro baseado no título. Você pode me ajudar com isso? O título do livro é:",
         "Estou interessado em encontrar um livro e gostaria de sua ajuda para procurá-lo. O título do livro é:",
         "Preciso procurar um livro com base no título. Você pode me ajudar com isso? O título do livro é:",
@@ -538,7 +495,7 @@
           "Hey Jude"
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de obter a letra de uma música específica. Você pode me ajudar com isso? O título da música é:",
         "Estou interessado em saber a letra de uma música e gostaria de sua ajuda para obtê-la. O título da música é:",
         "Preciso obter a letra de uma música específica. Você pode me ajudar com isso? O título da música é:",
@@ -584,7 +541,7 @@
           25.0
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de calcular o preço com desconto para um item. Você pode me ajudar com isso? Aqui estão os detalhes do item:",
         "Estou interessado em saber o preço com desconto para um item e gostaria de sua ajuda para calculá-lo. Aqui estão os detalhes do item:",
         "Preciso calcular o preço com desconto para um item. Você pode me ajudar com isso? Aqui estão os detalhes do item:",
@@ -642,46 +599,11 @@
           2500
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de encontrar restaurantes próximos. Você pode me ajudar com isso? Aqui estão os detalhes da localização:",
         "Estou interessado em encontrar restaurantes próximos e gostaria de sua ajuda para isso. Aqui estão os detalhes da localização:",
         "Preciso encontrar restaurantes próximos. Você pode me ajudar com isso? Aqui estão os detalhes da localização:",
         "Estou procurando encontrar restaurantes próximos e gostaria de sua ajuda para isso. Aqui estão os detalhes da localização:"
-      ]
-
-    },
-    {
-      "type": "function",
-      "function": {
-        "name": "search_books",
-        "description": "Pesquise livros com base em palavras -chave.",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "keywords": {
-              "type": "array",
-              "description": "As palavras -chave para procurar"
-            }
-          },
-          "required": [
-            "keywords"
-          ]
-        }
-      },
-      "input_samples": {
-        "keywords": [
-          ["aventura", "fantasia" ],
-          [ "romance", "drama" ],
-          [ "ficção científica", "tecnologia" ],
-          [ "história", "biografia" ],
-          [ "mistério", "suspense" ]
-        ]
-      },
-      "request_samples":[
-        "Gostaria de pesquisar livros com base em palavras -chave. Você pode me ajudar com isso? Aqui estão as palavras -chave:",
-        "Estou interessado em pesquisar livros com base em palavras -chave e gostaria de sua ajuda para isso. Aqui estão as palavras -chave:",
-        "Preciso pesquisar livros com base em palavras -chave. Você pode me ajudar com isso? Aqui estão as palavras -chave:",
-        "Estou procurando pesquisar livros com base em palavras -chave e gostaria de sua ajuda para isso. Aqui estão as palavras -chave:"
       ]
     },
     {
@@ -711,7 +633,7 @@
           "1960-12-25"
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de calcular a idade com base na data de nascimento. Você pode me ajudar com isso? Aqui está a data de nascimento:",
         "Estou interessado em calcular a idade com base na data de nascimento e gostaria de sua ajuda para isso. Aqui está a data de nascimento:",
         "Preciso calcular a idade com base na data de nascimento. Você pode me ajudar com isso? Aqui está a data de nascimento:",
@@ -746,7 +668,7 @@
           "tecnologia"
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de pesquisar um tópico específico na Wikipedia. Você pode me ajudar com isso? O tópico é:",
         "Estou interessado em saber mais sobre um tópico específico e gostaria de sua ajuda para pesquisá-lo na Wikipedia. O tópico é:",
         "Preciso pesquisar um tópico específico na Wikipedia. Você pode me ajudar com isso? O tópico é:",
@@ -773,54 +695,34 @@
       },
       "input_samples": {
         "keywords": [
-          [ "sushi", "japonês" ],
-          [ "pizza", "italiana" ],
-          [ "tacos", "mexicana" ],
-          [ "curry", "indiana" ],
-          [ "hambúrguer", "americano" ]
-      ]
+          [
+            "sushi",
+            "japonês"
+          ],
+          [
+            "pizza",
+            "italiana"
+          ],
+          [
+            "tacos",
+            "mexicana"
+          ],
+          [
+            "curry",
+            "indiana"
+          ],
+          [
+            "hambúrguer",
+            "americano"
+          ]
+        ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de pesquisar imagens com base em palavras -chave. Você pode me ajudar com isso? Aqui estão as palavras -chave:",
         "Estou interessado em pesquisar imagens com base em palavras -chave e gostaria de sua ajuda para isso. Aqui estão as palavras -chave:",
         "Preciso pesquisar imagens com base em palavras -chave. Você pode me ajudar com isso? Aqui estão as palavras -chave:",
         "Estou procurando pesquisar imagens com base em palavras -chave e gostaria de sua ajuda para isso. Aqui estão as palavras -chave:"
       ]
-    },
-    {
-      "type": "function",
-      "function": {
-        "name": "get_movie_info",
-        "description": "Obtenha informações sobre um filme.",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "title": {
-              "type": "string",
-              "description": "O título do filme."
-            }
-          },
-          "required": [
-            "title"
-          ]
-        }
-      },
-      "input_samples": {
-        "title": [
-          "Inception",
-          "The Matrix",
-          "Interstellar",
-          "The Godfather",
-          "Pulp Fiction"
-        ]
-      },
-      "request_samples":[
-        "Gostaria de obter informações sobre um filme. Você pode me ajudar com isso? O título do filme é:",
-        "Estou interessado em saber mais sobre um filme e gostaria de sua ajuda para isso. O título do filme é:",
-        "Preciso obter informações sobre um filme. Você pode me ajudar com isso? O título do filme é:",
-        "Estou procurando obter informações sobre um filme e gostaria de sua ajuda para isso. O título do filme é:"
-      ]
-
     },
     {
       "type": "function",
@@ -861,46 +763,11 @@
           25.0
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de calcular a gorjeta para uma fatura. Você pode me ajudar com isso? O valor da fatura é:",
         "Estou interessado em calcular a gorjeta para uma fatura e gostaria de sua ajuda para isso. O valor da fatura é:",
         "Preciso calcular a gorjeta para uma fatura. Você pode me ajudar com isso? O valor da fatura é:",
         "Estou procurando calcular a gorjeta para uma fatura e gostaria de sua ajuda para isso. O valor da fatura é:"
-      ]
-
-    },
-    {
-      "type": "function",
-      "function": {
-        "name": "search_movie",
-        "description": "Procure um filme usando seu título.",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "movie_title": {
-              "type": "string",
-              "description": "O título do filme."
-            }
-          },
-          "required": [
-            "movie_title"
-          ]
-        }
-      },
-      "input_samples": {
-        "movie_title": [
-          "Inception",
-          "The Matrix",
-          "Interstellar",
-          "The Godfather",
-          "Pulp Fiction"
-        ]
-      },
-      "request_samples":[
-        "Gostaria de obter a definição de uma palavra. Você pode me ajudar com isso? A palavra é:",
-        "Estou interessado em saber o significado de uma palavra e gostaria de sua ajuda para isso. A palavra é:",
-        "Preciso obter a definição de uma palavra. Você pode me ajudar com isso? A palavra é:",
-        "Estou procurando obter a definição de uma palavra e gostaria de sua ajuda para isso. A palavra é:"
       ]
     },
     {
@@ -930,13 +797,12 @@
           "resiliência"
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de obter a definição de uma palavra. Você pode me ajudar com isso? A palavra é:",
         "Estou interessado em saber o significado de uma palavra e gostaria de sua ajuda para isso. A palavra é:",
         "Preciso obter a definição de uma palavra. Você pode me ajudar com isso? A palavra é:",
         "Estou procurando obter a definição de uma palavra e gostaria de sua ajuda para isso. A palavra é:"
       ]
-
     },
     {
       "type": "function",
@@ -962,11 +828,31 @@
       },
       "input_samples": {
         "ingredients": [
-          ["frango", "arroz", "feijão"],
-          ["massa", "tomate", "queijo"],
-          ["peixe", "batata", "limão"],
-          ["tofu", "legumes", "gengibre"],
-          ["carne moída", "batata doce", "alho"]
+          [
+            "frango",
+            "arroz",
+            "feijão"
+          ],
+          [
+            "massa",
+            "tomate",
+            "queijo"
+          ],
+          [
+            "peixe",
+            "batata",
+            "limão"
+          ],
+          [
+            "tofu",
+            "legumes",
+            "gengibre"
+          ],
+          [
+            "carne moída",
+            "batata doce",
+            "alho"
+          ]
         ],
         "diet": [
           "sem glúten",
@@ -974,7 +860,7 @@
           "paleo"
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de obter uma receita com base em ingredientes. Você pode me ajudar com isso? Os ingredientes são:",
         "Estou interessado em encontrar uma receita com base em ingredientes e gostaria de sua ajuda para isso. Os ingredientes são:",
         "Preciso encontrar uma receita com base em ingredientes. Você pode me ajudar com isso? Os ingredientes são:",
@@ -1008,7 +894,7 @@
           "TSLA"
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de obter o preço atual de uma ação. Você pode me ajudar com isso? O símbolo da ação é:",
         "Estou interessado em saber o preço atual de uma ação e gostaria de sua ajuda para isso. O símbolo da ação é:",
         "Preciso obter o preço atual de uma ação. Você pode me ajudar com isso? O símbolo da ação é:",
@@ -1042,7 +928,7 @@
           "Não gostei do atendimento ao cliente."
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de analisar o sentimento de um texto. Você pode me ajudar com isso? O texto é:",
         "Estou interessado em saber o sentimento de um texto e gostaria de sua ajuda para isso. O texto é:",
         "Preciso analisar o sentimento de um texto. Você pode me ajudar com isso? O texto é:",
@@ -1076,7 +962,7 @@
           "Hey Jude"
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de tocar uma música específica. Você pode me ajudar com isso? O nome da música é:",
         "Estou interessado em ouvir uma música e gostaria de sua ajuda para tocá-la. O nome da música é:",
         "Preciso tocar uma música específica. Você pode me ajudar com isso? O nome da música é:",
@@ -1110,7 +996,7 @@
           "classical"
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de procurar músicas com base em um gênero específico. Você pode me ajudar com isso? O gênero é:",
         "Estou interessado em encontrar músicas com base em um gênero e gostaria de sua ajuda para isso. O gênero é:",
         "Preciso procurar músicas com base em um gênero específico. Você pode me ajudar com isso? O gênero é:",
@@ -1152,10 +1038,18 @@
           "Qual é o seu nome?",
           "Eu gostaria de um café, por favor."
         ],
-        "source_language": ["PT"],
-        "target_language": ["EN", "ES", "FR", "DE", "IT"]
+        "source_language": [
+          "PT"
+        ],
+        "target_language": [
+          "EN",
+          "ES",
+          "FR",
+          "DE",
+          "IT"
+        ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de traduzir um texto de um idioma para outro. Você pode me ajudar com isso? Aqui estão os detalhes do texto:",
         "Estou interessado em traduzir um texto e gostaria de sua ajuda para isso. Aqui estão os detalhes do texto:",
         "Preciso traduzir um texto de um idioma para outro. Você pode me ajudar com isso? Aqui estão os detalhes do texto:",
@@ -1201,7 +1095,7 @@
           "Manaus"
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de calcular a distância entre dois locais. Você pode me ajudar com isso? Aqui estão os detalhes dos locais:",
         "Estou interessado em saber a distância entre dois locais e gostaria de sua ajuda para isso. Aqui estão os detalhes dos locais:",
         "Preciso calcular a distância entre dois locais. Você pode me ajudar com isso? Aqui estão os detalhes dos locais:",
@@ -1237,14 +1131,39 @@
           "retângulo"
         ],
         "dimensions": [
-          [5, 5, 5, 5],
-          [5, 10, 5, 10],
-          [10, 20, 10, 20],
-          [15, 30, 15, 30],
-          [20, 40, 20, 40]
+          [
+            5,
+            5,
+            5,
+            5
+          ],
+          [
+            5,
+            10,
+            5,
+            10
+          ],
+          [
+            10,
+            20,
+            10,
+            20
+          ],
+          [
+            15,
+            30,
+            15,
+            30
+          ],
+          [
+            20,
+            40,
+            20,
+            40
+          ]
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de calcular a área de uma forma. Você pode me ajudar com isso? Aqui estão os detalhes da forma:",
         "Estou interessado em saber a área de uma forma e gostaria de sua ajuda para isso. Aqui estão os detalhes da forma:",
         "Preciso calcular a área de uma forma. Você pode me ajudar com isso? Aqui estão os detalhes da forma:",
@@ -1278,7 +1197,7 @@
           "Livros para Ler"
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de criar uma nova lista de TODO. Você pode me ajudar com isso? O nome da lista é:",
         "Estou interessado em criar uma nova lista de TODO e gostaria de sua ajuda para isso. O nome da lista é:",
         "Preciso criar uma nova lista de TODO. Você pode me ajudar com isso? O nome da lista é:",
@@ -1324,7 +1243,7 @@
           "2024-05-01"
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de obter o status de um voo. Você pode me ajudar com isso? Aqui estão os detalhes do voo:",
         "Estou interessado em saber o status de um voo e gostaria de sua ajuda para isso. Aqui estão os detalhes do voo:",
         "Preciso obter o status de um voo. Você pode me ajudar com isso? Aqui estão os detalhes do voo:",
@@ -1366,7 +1285,7 @@
           "Lembre-se de ligar para o cliente às 15h."
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de criar uma nova nota. Você pode me ajudar com isso? Aqui estão os detalhes da nota:",
         "Estou interessado em criar uma nova nota e gostaria de sua ajuda para isso. Aqui estão os detalhes da nota:",
         "Preciso criar uma nova nota. Você pode me ajudar com isso? Aqui estão os detalhes da nota:",
@@ -1411,7 +1330,7 @@
           "2024-05-01"
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de criar um novo item de TODO. Você pode me ajudar com isso? Aqui estão os detalhes da tarefa:",
         "Estou interessado em criar um novo item de TODO e gostaria de sua ajuda para isso. Aqui estão os detalhes da tarefa:",
         "Preciso criar um novo item de TODO. Você pode me ajudar com isso? Aqui estão os detalhes da tarefa:",
@@ -1453,7 +1372,7 @@
           false
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de gerar uma senha aleatória. Você pode me ajudar com isso? Aqui estão os detalhes da senha:",
         "Estou interessado em gerar uma senha aleatória e gostaria de sua ajuda para isso. Aqui estão os detalhes da senha:",
         "Preciso gerar uma senha aleatória. Você pode me ajudar com isso? Aqui estão os detalhes da senha:",
@@ -1487,7 +1406,7 @@
           "https://www.linkedin.com"
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de verificar a disponibilidade de um site. Você pode me ajudar com isso? Aqui estão os detalhes do site:",
         "Estou interessado em verificar a disponibilidade de um site e gostaria de sua ajuda para isso. Aqui estão os detalhes do site:",
         "Preciso verificar a disponibilidade de um site. Você pode me ajudar com isso? Aqui estão os detalhes do site:",
@@ -1543,7 +1462,7 @@
           "Baixa"
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de criar um novo item de TODO. Você pode me ajudar com isso? Aqui estão os detalhes da tarefa:",
         "Estou interessado em criar um novo item de TODO e gostaria de sua ajuda para isso. Aqui estão os detalhes da tarefa:",
         "Preciso criar um novo item de TODO. Você pode me ajudar com isso? Aqui estão os detalhes da tarefa:",
@@ -1589,7 +1508,7 @@
           25.0
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de calcular o valor da ponta para uma conta. Você pode me ajudar com isso? Aqui estão os detalhes da conta:",
         "Estou interessado em calcular o valor da ponta para uma conta e gostaria de sua ajuda para isso. Aqui estão os detalhes da conta:",
         "Preciso calcular o valor da ponta para uma conta. Você pode me ajudar com isso? Aqui estão os detalhes da conta:",
@@ -1635,7 +1554,7 @@
           190
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de calcular o IMC para uma pessoa. Você pode me ajudar com isso? Aqui estão os detalhes da pessoa:",
         "Estou interessado em calcular o IMC para uma pessoa e gostaria de sua ajuda para isso. Aqui estão os detalhes da pessoa:",
         "Preciso calcular o IMC para uma pessoa. Você pode me ajudar com isso? Aqui estão os detalhes da pessoa:",
@@ -1667,11 +1586,41 @@
       },
       "input_samples": {
         "participants": [
-          ["João", "Maria", "Carlos", "Ana", "Pedro"],
-          ["Alice", "Bob", "Charlie", "David", "Eve"],
-          ["Michael", "Sarah", "Jessica", "Daniel", "Emily"],
-          ["James", "Linda", "Robert", "Karen", "William"],
-          ["David", "Susan", "Joseph", "Lisa", "Thomas"]
+          [
+            "João",
+            "Maria",
+            "Carlos",
+            "Ana",
+            "Pedro"
+          ],
+          [
+            "Alice",
+            "Bob",
+            "Charlie",
+            "David",
+            "Eve"
+          ],
+          [
+            "Michael",
+            "Sarah",
+            "Jessica",
+            "Daniel",
+            "Emily"
+          ],
+          [
+            "James",
+            "Linda",
+            "Robert",
+            "Karen",
+            "William"
+          ],
+          [
+            "David",
+            "Susan",
+            "Joseph",
+            "Lisa",
+            "Thomas"
+          ]
         ],
         "time": [
           "2024-01-01T10:00:00",
@@ -1681,45 +1630,11 @@
           "2024-05-01T11:00:00"
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de agendar uma reunião. Você pode me ajudar com isso? Aqui estão os detalhes da reunião:",
         "Estou interessado em agendar uma reunião e gostaria de sua ajuda para isso. Aqui estão os detalhes da reunião:",
         "Preciso agendar uma reunião. Você pode me ajudar com isso? Aqui estão os detalhes da reunião:",
         "Estou procurando agendar uma reunião e gostaria de sua ajuda para isso. Aqui estão os detalhes da reunião:"
-      ]
-    },
-    {
-      "type": "function",
-      "function": {
-        "name": "search_recipe",
-        "description": "Procure uma receita por ingredientes.",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "ingredients": {
-              "type": "array",
-              "description": "Os ingredientes para procurar."
-            }
-          },
-          "required": [
-            "ingredients"
-          ]
-        }
-      },
-      "input_samples": {
-        "ingredients": [
-          ["tomato", "cheese", "basil"],
-          ["chicken", "rice", "broccoli"],
-          ["beef", "potato", "carrot"],
-          ["pasta", "tomato sauce", "parmesan"],
-          ["salmon", "lemon", "dill"]
-        ]
-      },
-      "request_samples":[
-        "Gostaria de procurar uma receita. Você pode me ajudar com isso? Aqui estão os ingredientes:",
-        "Estou interessado em procurar uma receita e gostaria de sua ajuda para isso. Aqui estão os ingredientes:",
-        "Preciso procurar uma receita. Você pode me ajudar com isso? Aqui estão os ingredientes:",
-        "Estou procurando uma receita e gostaria de sua ajuda para isso. Aqui estão os ingredientes:"
       ]
     },
     {
@@ -1772,45 +1687,11 @@
           25.0
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de calcular o preço com desconto de um produto. Você pode me ajudar com isso? Aqui estão os detalhes do produto:",
         "Estou interessado em calcular o preço com desconto de um produto e gostaria de sua ajuda para isso. Aqui estão os detalhes do produto:",
         "Preciso calcular o preço com desconto de um produto. Você pode me ajudar com isso? Aqui estão os detalhes do produto:",
         "Estou procurando calcular o preço com desconto de um produto e gostaria de sua ajuda para isso. Aqui estão os detalhes do produto:"
-      ]
-    },
-    {
-      "type": "function",
-      "function": {
-        "name": "search_dictionary",
-        "description": "Procure o significado de uma palavra no dicionário.",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "word": {
-              "type": "string",
-              "description": "A palavra a serem pesquisada no dicionário."
-            }
-          },
-          "required": [
-            "word"
-          ]
-        }
-      },
-      "input_samples": {
-        "word": [
-          "serendipidade",
-          "epifania",
-          "melancolia",
-          "resiliência",
-          "onomatopeia"
-        ]
-      },
-      "request_samples":[
-        "Gostaria de procurar o significado de uma palavra no dicionário. Você pode me ajudar com isso? Aqui está a palavra:",
-        "Estou interessado em procurar o significado de uma palavra no dicionário e gostaria de sua ajuda para isso. Aqui está a palavra:",
-        "Preciso procurar o significado de uma palavra no dicionário. Você pode me ajudar com isso? Aqui está a palavra:",
-        "Estou procurando o significado de uma palavra no dicionário e gostaria de sua ajuda para isso. Aqui está a palavra:"
       ]
     },
     {
@@ -1852,7 +1733,7 @@
           5.0
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de calcular a média de uma lista de números. Você pode me ajudar com isso? Aqui estão os números:",
         "Estou interessado em calcular a média de uma lista de números e gostaria de sua ajuda para isso. Aqui estão os números:",
         "Preciso calcular a média de uma lista de números. Você pode me ajudar com isso? Aqui estão os números:",
@@ -1882,63 +1763,49 @@
       },
       "input_samples": {
         "numbers": [
-          [1, 2, 3, 4, 5],
-          [10, 20, 30, 40, 50],
-          [100, 200, 300, 400, 500],
-          [5.5, 6.5, 7.5, 8.5, 9.5],
-          [0.1, 0.2, 0.3, 0.4, 0.5]
+          [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          [
+            10,
+            20,
+            30,
+            40,
+            50
+          ],
+          [
+            100,
+            200,
+            300,
+            400,
+            500
+          ],
+          [
+            5.5,
+            6.5,
+            7.5,
+            8.5,
+            9.5
+          ],
+          [
+            0.1,
+            0.2,
+            0.3,
+            0.4,
+            0.5
+          ]
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de calcular a média de uma lista de números. Você pode me ajudar com isso? Aqui estão os números:",
         "Estou interessado em calcular a média de uma lista de números e gostaria de sua ajuda para isso. Aqui estão os números:",
         "Preciso calcular a média de uma lista de números. Você pode me ajudar com isso? Aqui estão os números:",
         "Estou procurando calcular a média de uma lista de números e gostaria de sua ajuda para isso. Aqui estão os números:"
       ]
-    },
-    {
-      "type": "function",
-      "function": {
-        "name": "get_news_headlines",
-        "description": "Obtenha as manchetes das últimas notícias.",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "category": {
-              "type": "string",
-              "description": "A categoria de notícias desejada."
-            },
-            "country": {
-              "type": "string",
-              "description": "O país para manchetes de notícias."
-            }
-          },
-          "required": []
-        }
-      },
-      "input_samples": {
-        "category": [
-          "política",
-          "esportes",
-          "tecnologia",
-          "entretenimento",
-          "saúde"
-        ],
-        "country": [
-          "EUA",
-          "Brasil",
-          "Alemanha",
-          "Índia",
-          "Japão"
-        ]
-      },
-      "request_samples":[
-        "Gostaria de obter as manchetes das últimas notícias. Você pode me ajudar com isso? Aqui estão os detalhes:",
-        "Estou interessado em obter as manchetes das últimas notícias e gostaria de sua ajuda para isso. Aqui estão os detalhes:",
-        "Preciso obter as manchetes das últimas notícias. Você pode me ajudar com isso? Aqui estão os detalhes:",
-        "Estou procurando obter as manchetes das últimas notícias e gostaria de sua ajuda para isso. Aqui estão os detalhes:"
-      ]
-
     },
     {
       "type": "function",
@@ -1979,7 +1846,7 @@
           30.0
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de calcular o valor do imposto com base na renda e taxa de imposto. Você pode me ajudar com isso? Aqui estão os detalhes:",
         "Estou interessado em calcular o valor do imposto com base na renda e taxa de imposto e gostaria de sua ajuda para isso. Aqui estão os detalhes:",
         "Preciso calcular o valor do imposto com base na renda e taxa de imposto. Você pode me ajudar com isso? Aqui estão os detalhes:",
@@ -2024,7 +1891,7 @@
           "IT"
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de obter a tradução de um texto em um idioma específico. Você pode me ajudar com isso? Aqui estão os detalhes:",
         "Estou interessado em obter a tradução de um texto em um idioma específico e gostaria de sua ajuda para isso. Aqui estão os detalhes:",
         "Preciso obter a tradução de um texto em um idioma específico. Você pode me ajudar com isso? Aqui estão os detalhes:",
@@ -2055,23 +1922,22 @@
         }
       },
       "input_samples": {
-        "revenue": 
-        [
-          1, 
-          2, 
-          3, 
-          4, 
+        "revenue": [
+          1,
+          2,
+          3,
+          4,
           5
         ],
         "cost": [
-          1, 
-          2, 
-          3, 
-          4, 
+          1,
+          2,
+          3,
+          4,
           5
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de calcular a margem de lucro com base na receita e custo. Você pode me ajudar com isso? Aqui estão os detalhes:",
         "Estou interessado em calcular a margem de lucro com base na receita e custo e gostaria de sua ajuda para isso. Aqui estão os detalhes:",
         "Preciso calcular a margem de lucro com base na receita e custo. Você pode me ajudar com isso? Aqui estão os detalhes:",
@@ -2127,90 +1993,11 @@
           "Gerente de Loja"
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de procurar empregos com base na localização, indústria ou título. Você pode me ajudar com isso? Aqui estão os detalhes:",
         "Estou interessado em procurar empregos com base na localização, indústria ou título e gostaria de sua ajuda para isso. Aqui estão os detalhes:",
         "Preciso procurar empregos com base na localização, indústria ou título. Você pode me ajudar com isso? Aqui estão os detalhes:",
         "Estou procurando procurar empregos com base na localização, indústria ou título e gostaria de sua ajuda para isso. Aqui estão os detalhes:"
-      ]
-    },
-    {
-      "type": "function",
-      "function": {
-        "name": "search_image",
-        "description": "Pesquise imagens relacionadas a uma palavra -chave específica.",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "keyword": {
-              "type": "string",
-              "description": "A palavra -chave a procurar."
-            },
-            "color": {
-              "type": "string",
-              "description": "O filtro de cores para as imagens."
-            }
-          },
-          "required": [
-            "keyword"
-          ]
-        }
-      },
-      "input_samples": {
-        "keyword": [
-          "gato",
-          "cachorro",
-          "pássaro",
-          "flor",
-          "paisagem"
-        ],
-        "color": [
-          "vermelho",
-          "azul",
-          "verde",
-          "amarelo",
-          "preto e branco"
-        ]
-      },
-      "request_samples":[
-        "Gostaria de pesquisar imagens relacionadas a uma palavra -chave específica. Você pode me ajudar com isso? Aqui estão os detalhes:",
-        "Estou interessado em pesquisar imagens relacionadas a uma palavra -chave específica e gostaria de sua ajuda para isso. Aqui estão os detalhes:",
-        "Preciso pesquisar imagens relacionadas a uma palavra -chave específica. Você pode me ajudar com isso? Aqui estão os detalhes:",
-        "Estou procurando pesquisar imagens relacionadas a uma palavra -chave específica e gostaria de sua ajuda para isso. Aqui estão os detalhes:"
-      ]
-    },
-    {
-      "type": "function",
-      "function": {
-        "name": "get_random_fact",
-        "description": "Obtenha um fato aleatório de uma categoria específica.",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "category": {
-              "type": "string",
-              "description": "A categoria do fato."
-            }
-          },
-          "required": [
-            "category"
-          ]
-        }
-      },
-      "input_samples": {
-        "category": [
-          "viagens",
-          "história",
-          "ciência",
-          "esportes",
-          "entretenimento"
-        ]
-      },
-      "request_samples":[
-        "Gostaria de obter um fato aleatório de uma categoria específica. Você pode me ajudar com isso? Aqui estão os detalhes:",
-        "Estou interessado em obter um fato aleatório de uma categoria específica e gostaria de sua ajuda para isso. Aqui estão os detalhes:",
-        "Preciso obter um fato aleatório de uma categoria específica. Você pode me ajudar com isso? Aqui estão os detalhes:",
-        "Estou procurando obter um fato aleatório de uma categoria específica e gostaria de sua ajuda para isso. Aqui estão os detalhes:"
       ]
     },
     {
@@ -2240,7 +2027,7 @@
           25.0
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de calcular a raiz quadrada de um número. Você pode me ajudar com isso? Aqui estão os detalhes:",
         "Estou interessado em calcular a raiz quadrada de um número e gostaria de sua ajuda para isso. Aqui estão os detalhes:",
         "Preciso calcular a raiz quadrada de um número. Você pode me ajudar com isso? Aqui estão os detalhes:",
@@ -2274,54 +2061,11 @@
           "nietzsche@example.com"
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de verificar a disponibilidade de um endereço de e -mail. Você pode me ajudar com isso? Aqui estão os detalhes:",
         "Estou interessado em verificar a disponibilidade de um endereço de e -mail e gostaria de sua ajuda para isso. Aqui estão os detalhes:",
         "Preciso verificar a disponibilidade de um endereço de e -mail. Você pode me ajudar com isso? Aqui estão os detalhes:",
         "Estou procurando verificar a disponibilidade de um endereço de e -mail e gostaria de sua ajuda para isso. Aqui estão os detalhes:"
-      ]
-    },
-    {
-      "type": "function",
-      "function": {
-        "name": "make_note",
-        "description": "Fazer uma anotação.",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "title": {
-              "type": "string",
-              "description": "O título da nota."
-            },
-            "content": {
-              "type": "string",
-              "description": "O conteúdo da nota."
-            }
-          },
-          "required": [
-            "title",
-            "content"
-          ]
-        }
-      },
-      "input_samples": {
-        "title": [
-          "Idéias para o projeto",
-          "Lista de Ideias para o projeto",
-          "Idéias para o projeto de aplicativo",
-          "MINHAS IDÉIAS PARA O PROJETO"
-        ],
-        "content": [
-          "- Criar um aplicativo de gerenciamento de tarefas\n- Desenvolver um site de comércio eletrônico\n- Construir uma plataforma de aprendizado online\n- Criar um aplicativo de fitness\n- Desenvolver um sistema de recomendação de filmes",
-          "- Contatar clientes potenciais\n- Agendar reuniões com parceiros\n- Desenvolver uma estratégia de marketing\n- Criar um plano de negócios\n- Analisar a concorrência",
-          "- Escrever um artigo sobre tendências de tecnologia\n- Criar um vídeo tutorial sobre programação\n- Desenvolver um curso online sobre ciência de dados\n- Escrever um livro sobre inteligência artificial\n- Criar um podcast sobre inovação tecnológica"
-        ]
-      },
-      "request_samples":[
-        "Gostaria de fazer uma anotação. Você pode me ajudar com isso? Aqui estão os detalhes da nota:",
-        "Estou interessado em fazer uma anotação e gostaria de sua ajuda para isso. Aqui estão os detalhes da nota:",
-        "Preciso fazer uma anotação. Você pode me ajudar com isso? Aqui estão os detalhes da nota:",
-        "Estou procurando fazer uma anotação e gostaria de sua ajuda para isso. Aqui estão os detalhes da nota:"
       ]
     },
     {
@@ -2371,7 +2115,7 @@
           "Kelvin"
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de converter a temperatura de uma unidade para outra. Você pode me ajudar com isso? Aqui estão os detalhes:",
         "Estou interessado em converter a temperatura de uma unidade para outra e gostaria de sua ajuda para isso. Aqui estão os detalhes:",
         "Preciso converter a temperatura de uma unidade para outra. Você pode me ajudar com isso? Aqui estão os detalhes:",
@@ -2403,11 +2147,26 @@
       },
       "input_samples": {
         "keywords": [
-          ["tecnologia", "inovação"],
-          ["política", "eleições"],
-          ["esportes", "futebol"],
-          ["entretenimento", "filmes"],
-          ["saúde", "medicina"]
+          [
+            "tecnologia",
+            "inovação"
+          ],
+          [
+            "política",
+            "eleições"
+          ],
+          [
+            "esportes",
+            "futebol"
+          ],
+          [
+            "entretenimento",
+            "filmes"
+          ],
+          [
+            "saúde",
+            "medicina"
+          ]
         ],
         "max_results": [
           5,
@@ -2417,7 +2176,7 @@
           25
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de pesquisar artigos de notícias com base em palavras -chave. Você pode me ajudar com isso? Aqui estão os detalhes:",
         "Estou interessado em pesquisar artigos de notícias com base em palavras -chave e gostaria de sua ajuda para isso. Aqui estão os detalhes:",
         "Preciso pesquisar artigos de notícias com base em palavras -chave. Você pode me ajudar com isso? Aqui estão os detalhes:",
@@ -2454,10 +2213,10 @@
       },
       "input_samples": {
         "value": [
-          1.0, 
-          100.0, 
-          1000.0, 
-          10000.0, 
+          1.0,
+          100.0,
+          1000.0,
+          10000.0,
           100000.0
         ],
         "from_unit": [
@@ -2469,7 +2228,7 @@
           "Milhas"
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de converter unidades de um sistema para outro. Você pode me ajudar com isso? Aqui estão os detalhes:",
         "Estou interessado em converter unidades de um sistema para outro e gostaria de sua ajuda para isso. Aqui estão os detalhes:",
         "Preciso converter unidades de um sistema para outro. Você pode me ajudar com isso? Aqui estão os detalhes:",
@@ -2515,7 +2274,7 @@
           "2024-05-01"
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de calcular a idade em segundos com base na data de nascimento. Você pode me ajudar com isso? Aqui estão os detalhes:",
         "Estou interessado em calcular a idade em segundos com base na data de nascimento e gostaria de sua ajuda para isso. Aqui estão os detalhes:",
         "Preciso calcular a idade em segundos com base na data de nascimento. Você pode me ajudar com isso? Aqui estão os detalhes:",
@@ -2547,11 +2306,21 @@
       },
       "input_samples": {
         "posts": [
-          ["Olá! Adoro este produto!"],
-          ["Este serviço é terrível. Nunca mais vou usar."],
-          ["Estou me sentindo neutro sobre isso."],
-          ["Este é o melhor dia da minha vida!"],
-          ["Estou tão frustrado com isso."]
+          [
+            "Olá! Adoro este produto!"
+          ],
+          [
+            "Este serviço é terrível. Nunca mais vou usar."
+          ],
+          [
+            "Estou me sentindo neutro sobre isso."
+          ],
+          [
+            "Este é o melhor dia da minha vida!"
+          ],
+          [
+            "Estou tão frustrado com isso."
+          ]
         ],
         "platform": [
           "Twitter",
@@ -2561,7 +2330,7 @@
           "Reddit"
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de analisar o sentimento de postagens de mídia social. Você pode me ajudar com isso? Aqui estão os detalhes:",
         "Estou interessado em analisar o sentimento de postagens de mídia social e gostaria de sua ajuda para isso. Aqui estão os detalhes:",
         "Preciso analisar o sentimento de postagens de mídia social. Você pode me ajudar com isso? Aqui estão os detalhes:",
@@ -2619,7 +2388,7 @@
           "2024-05-01T12:00:00"
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de criar um novo evento no calendário. Você pode me ajudar com isso? Aqui estão os detalhes do evento:",
         "Estou interessado em criar um novo evento no calendário e gostaria de sua ajuda para isso. Aqui estão os detalhes do evento:",
         "Preciso criar um novo evento no calendário. Você pode me ajudar com isso? Aqui estão os detalhes do evento:",
@@ -2660,7 +2429,7 @@
           "PT"
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de verificar a ortografia de uma palavra ou frase. Você pode me ajudar com isso? Aqui estão os detalhes:",
         "Estou interessado em verificar a ortografia de uma palavra ou frase e gostaria de sua ajuda para isso. Aqui estão os detalhes:",
         "Preciso verificar a ortografia de uma palavra ou frase. Você pode me ajudar com isso? Aqui estão os detalhes:",
@@ -2704,11 +2473,31 @@
           "Pedro Almeida"
         ],
         "items": [
-          ["Celular", "Carregador", "Fone de Ouvido"],
-          ["Notebook", "Mouse", "Teclado"],
-          ["Câmera", "Lente", "Tripé"],
-          ["TV", "Soundbar", "Blu-ray Player"],
-          ["Geladeira", "Fogão", "Micro-ondas"]
+          [
+            "Celular",
+            "Carregador",
+            "Fone de Ouvido"
+          ],
+          [
+            "Notebook",
+            "Mouse",
+            "Teclado"
+          ],
+          [
+            "Câmera",
+            "Lente",
+            "Tripé"
+          ],
+          [
+            "TV",
+            "Soundbar",
+            "Blu-ray Player"
+          ],
+          [
+            "Geladeira",
+            "Fogão",
+            "Micro-ondas"
+          ]
         ],
         "total_amount": [
           1500.0,
@@ -2718,7 +2507,7 @@
           5500.0
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de gerar uma fatura com detalhes especificados. Você pode me ajudar com isso? Aqui estão os detalhes da fatura:",
         "Estou interessado em gerar uma fatura com detalhes especificados e gostaria de sua ajuda para isso. Aqui estão os detalhes da fatura:",
         "Preciso gerar uma fatura com detalhes especificados. Você pode me ajudar com isso? Aqui estão os detalhes da fatura:",
@@ -2776,7 +2565,7 @@
           5
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de calcular os juros de um investimento. Você pode me ajudar com isso? Aqui estão os detalhes do investimento:",
         "Estou interessado em calcular os juros de um investimento e gostaria de sua ajuda para isso. Aqui estão os detalhes do investimento:",
         "Preciso calcular os juros de um investimento. Você pode me ajudar com isso? Aqui estão os detalhes do investimento:",
@@ -2834,89 +2623,11 @@
           30
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de calcular o pagamento mensal da hipoteca. Você pode me ajudar com isso? Aqui estão os detalhes do empréstimo:",
         "Estou interessado em calcular o pagamento mensal da hipoteca e gostaria de sua ajuda para isso. Aqui estão os detalhes do empréstimo:",
         "Preciso calcular o pagamento mensal da hipoteca. Você pode me ajudar com isso? Aqui estão os detalhes do empréstimo:",
         "Estou procurando calcular o pagamento mensal da hipoteca e gostaria de sua ajuda para isso. Aqui estão os detalhes do empréstimo:"
-      ]
-    },
-    {
-      "type": "function",
-      "function": {
-        "name": "search_product",
-        "description": "Procure um produto com base em palavras -chave.",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "keywords": {
-              "type": "string",
-              "description": "As palavras -chave para procurar"
-            }
-          },
-          "required": [
-            "keywords"
-          ]
-        }
-      },
-      "input_samples": {
-        "keywords": [
-          "utenslílios de cozinha",
-          "eletrônicos",
-          "roupas",
-          "brinquedos",
-          "móveis"
-        ]
-      },
-      "request_samples":[
-        "Gostaria de procurar um produto com base em palavras-chave. Você pode me ajudar com isso? Aqui estão as palavras-chave:",
-        "Estou interessado em procurar um produto com base em palavras-chave e gostaria de sua ajuda para isso. Aqui estão as palavras-chave:",
-        "Preciso procurar um produto com base em palavras-chave. Você pode me ajudar com isso? Aqui estão as palavras-chave:",
-        "Estou procurando um produto com base em palavras-chave e gostaria de sua ajuda para isso. Aqui estão as palavras-chave:"
-      ]
-
-    },
-    {
-      "type": "function",
-      "function": {
-        "name": "generate_random_quote",
-        "description": "Gerar uma cotação aleatória de uma coleção.",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "category": {
-              "type": "string",
-              "description": "A categoria de citações."
-            },
-            "author": {
-              "type": "string",
-              "description": "O autor da citação."
-            }
-          },
-          "required": []
-        }
-      },
-      "input_samples": {
-        "category": [
-          "motivação",
-          "amor",
-          "vida",
-          "humor",
-          "sabedoria"
-        ],
-        "author": [
-          "Albert Einstein",
-          "Maya Angelou",
-          "Oscar Wilde",
-          "Mark Twain",
-          "Confúcio"
-        ]
-      },
-      "request_samples":[
-        "Gostaria de gerar uma cotação aleatória de uma coleção. Você pode me ajudar com isso? Aqui estão os detalhes:",
-        "Estou interessado em gerar uma cotação aleatória de uma coleção e gostaria de sua ajuda para isso. Aqui estão os detalhes:",
-        "Preciso gerar uma cotação aleatória de uma coleção. Você pode me ajudar com isso? Aqui estão os detalhes:",
-        "Estou procurando gerar uma cotação aleatória de uma coleção e gostaria de sua ajuda para isso. Aqui estão os detalhes:"
       ]
     },
     {
@@ -2970,7 +2681,7 @@
           5
         ]
       },
-      "request_samples":[
+      "request_samples": [
         "Gostaria de calcular o valor futuro de um investimento. Você pode me ajudar com isso? Aqui estão os detalhes do investimento:",
         "Estou interessado em calcular o valor futuro de um investimento e gostaria de sua ajuda para isso. Aqui estão os detalhes do investimento:",
         "Preciso calcular o valor futuro de um investimento. Você pode me ajudar com isso? Aqui estão os detalhes do investimento:",

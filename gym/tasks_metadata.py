@@ -61,6 +61,7 @@ _RAW_CONFLICTS = {
         _STARTEND + "end_checker",
         _CHANGE_CASES + "portuguese_capital",
         _CHANGE_CASES + "portuguese_lowercase",
+        _LENGTH + "nth_paragraph_first_word",
     },
     _LENGTH + "number_sentences": {_LENGTH + "number_sentences"},
     _LENGTH + "number_paragraphs": {
@@ -75,7 +76,10 @@ _RAW_CONFLICTS = {
         _LENGTH + "number_paragraphs",
     },
     _CONTENT + "number_placeholders": {_CONTENT + "number_placeholders"},
-    _CONTENT + "postscript": {_CONTENT + "postscript"},
+    _CONTENT + "postscript": {
+        _CONTENT + "postscript",
+        _STARTEND + "end_checker",
+    },
     _FORMAT + "number_bullet_lists": {_FORMAT + "number_bullet_lists"},
     _FORMAT + "constrained_response": set(ALL_VERIFIER_IDS),
     _FORMAT + "number_highlighted_sections": {
@@ -85,6 +89,8 @@ _RAW_CONFLICTS = {
         _FORMAT + "multiple_sections",
         _LANGUAGE + "response_language",
         _FORMAT + "number_highlighted_sections",
+        _CHANGE_CASES + "portuguese_lowercase",
+        _CHANGE_CASES + "portuguese_capital",
     },
     _FORMAT + "json_format": set(ALL_VERIFIER_IDS)
     - {_KEYWORD + "forbidden_words", _KEYWORD + "existence"},
@@ -101,9 +107,11 @@ _RAW_CONFLICTS = {
     - {
         _KEYWORD + "existence",
         _FORMAT + "title",
-        _PUNCTUATION + "no_comma",
     },
-    _STARTEND + "end_checker": {_STARTEND + "end_checker"},
+    _STARTEND + "end_checker": {
+        _STARTEND + "end_checker",
+        _CONTENT + "postscript",
+    },
     _CHANGE_CASES + "capital_word_frequency": {
         _CHANGE_CASES + "capital_word_frequency",
         _CHANGE_CASES + "portuguese_lowercase",

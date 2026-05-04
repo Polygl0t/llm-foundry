@@ -1761,8 +1761,38 @@ class CountWordChecker(TaskVerifier):
         return ["target_word", "expected_count"]
 
     def check_following(self, value):
-        """Check if the response contains the correct count number."""
-        return str(self._expected_count) in value
+        """Check if the response contains the correct count number.
+
+        Accepts the digit form (with word-boundary match to avoid spurious
+        substring hits like "36" matching "3") or the Portuguese number-word
+        form for small counts (0-12).
+        """
+        n = self._expected_count
+        # Word-boundary digit match.
+        if re.search(rf"(?<!\d){re.escape(str(n))}(?!\d)", value):
+            return True
+        # Portuguese number words for small counts.
+        pt_number_words = {
+            0: ["zero", "nenhuma", "nenhum"],
+            1: ["uma", "um", "uma vez"],
+            2: ["duas", "dois", "duas vezes"],
+            3: ["três", "tres"],
+            4: ["quatro"],
+            5: ["cinco"],
+            6: ["seis"],
+            7: ["sete"],
+            8: ["oito"],
+            9: ["nove"],
+            10: ["dez"],
+            11: ["onze"],
+            12: ["doze"],
+        }
+        words = pt_number_words.get(n, [])
+        value_lower = value.lower()
+        for w in words:
+            if re.search(rf"\b{re.escape(w)}\b", value_lower):
+                return True
+        return False
 
 
 class WordAtPositionChecker(TaskVerifier):
@@ -1951,18 +1981,34 @@ class MathAnswerChecker(TaskVerifier):
         return ["expected_answer", "relaxed"]
 
     def check_following(self, value):
-        """Check if the response contains the expected answer."""
+        """Check if the response contains the expected answer.
+
+        Both the expected answer and the response are normalized to remove
+        common thousand separators (commas, underscores, narrow/regular
+        spaces between digits) before matching, so model answers like
+        "380,438" are accepted when the expected answer is "380438".
+        """
         if not self._expected_answer:
             return False
-        if self._expected_answer in value:
+
+        def _strip_thousand_seps(s):
+            # Remove commas, underscores, and (regular/narrow/thin) spaces
+            # that sit strictly between digits, so that "3,150,427.05" and
+            # "3 150 427.05" both normalize to "3150427.05".
+            return re.sub(r"(?<=\d)[,_\u00a0\u202f ](?=\d)", "", s)
+
+        norm_value = _strip_thousand_seps(value)
+        norm_expected = _strip_thousand_seps(self._expected_answer)
+
+        if norm_expected in norm_value or self._expected_answer in value:
             return True
         if self._relaxed:
             try:
-                float_val = float(self._expected_answer)
+                float_val = float(norm_expected)
                 int_part = str(int(float_val))
                 # Only use the integer-part fallback when the answer is not
                 # already an integer string (i.e., it has a meaningful decimal).
-                if int_part != self._expected_answer and int_part in value:
+                if int_part != norm_expected and int_part in norm_value:
                     return True
             except (ValueError, OverflowError):
                 pass
