@@ -116,12 +116,19 @@ def _create_tokenizer(args, master_process, logger=None, file_logger=None):
     return tokenizer
 
 
-def _build_model_from_config(args, tokenizer, precision, distributed_config=None, use_kernels=False):
+def _build_model_from_config(args, tokenizer, precision, master_process, distributed_config=None, use_kernels=False):
     """
     Build and return a model with random weights from a Hugging Face config file.
 
     The config file (pointed to by `args.path_to_model_config`) defines all
     architecture parameters. Only runtime kwargs (token IDs, dtype) are injected here.
+
+    To gain access to `from_pretrained`-only features (`use_kernels`,
+    `distributed_config`/expert parallelism, `tp_plan`, `kernel_config`, ...), the
+    randomly initialized model is materialized once on the master rank, written to a
+    bootstrap checkpoint directory (prefixed with `.` so the resume logic in
+    `_resolve_checkpoint_path`, which filters by `startswith("step_")`, ignores it),
+    then reloaded on every rank via `from_pretrained`.
     """
     if args.path_to_model_config is None:
         raise ValueError(
@@ -147,9 +154,32 @@ def _build_model_from_config(args, tokenizer, precision, distributed_config=None
     # Ensure vocab_size is at least as large as the tokenizer
     config.vocab_size = max(config.vocab_size, len(tokenizer))
 
-    return AutoModelForCausalLM.from_config(
-        config,
+    # Bootstrap checkpoint path. Leading `.` keeps it invisible to the resume logic
+    # in `_resolve_checkpoint_path` (which filters dirs by `startswith("step_")`).
+    bootstrap_dir = os.path.join(args.checkpoint_dir, args.stage_name, ".step_00000")
+
+    # Step 1 (master only): build the random model with `from_config` and persist it.
+    if master_process:
+        os.makedirs(bootstrap_dir, exist_ok=True)
+        random_model = AutoModelForCausalLM.from_config(
+            config,
+            attn_implementation=args.attn_implementation,
+        )
+        random_model.save_pretrained(bootstrap_dir)
+        # Free memory before all ranks reload via `from_pretrained`.
+        del random_model
+
+    # Step 2: synchronize so every rank sees the bootstrap checkpoint on disk.
+    if torch.distributed.is_available() and torch.distributed.is_initialized():
+        torch.distributed.barrier()
+
+    # Step 3 (all ranks): reload through `from_pretrained` so kernels and
+    # distributed_config are applied via the supported code path.
+    return AutoModelForCausalLM.from_pretrained(
+        bootstrap_dir,
+        dtype=precision,
         attn_implementation=args.attn_implementation,
+        cache_dir=args.cache_dir,
         **({"distributed_config": distributed_config} if distributed_config is not None else {}),
         **({"use_kernels": True} if use_kernels else {}),
     )
@@ -180,7 +210,10 @@ def _load_model(args, tokenizer, precision, master_process, logger=None, file_lo
 
     if not args.continual_pretraining:
         _log_message(master_process, logger, file_logger, "Initializing model from `AutoConfig`.")
-        return _build_model_from_config(args, tokenizer, precision, distributed_config=distributed_config, use_kernels=use_kernels), None
+        return _build_model_from_config(
+            args, tokenizer, precision, master_process,
+            distributed_config=distributed_config, use_kernels=use_kernels,
+        ), None
 
     _log_message(
         master_process,
@@ -299,10 +332,13 @@ def _check_kernels_available(use_kernels, master_process, logger=None, file_logg
         )
         return False
 
-    # Verify that the installed transformers version actually accepts use_kernels.
-    import inspect
-    sig = inspect.signature(AutoModelForCausalLM.from_pretrained)
-    if "use_kernels" not in sig.parameters:
+    # Verify that the installed transformers version actually supports use_kernels.
+    # Probe for `transformers.KernelConfig` to make sure the kwarg is recognized, 
+    # since older versions of transformers may ignore the `use_kernels` 
+    # argument without error.
+    try:
+        from transformers import KernelConfig  # noqa: F401
+    except (ImportError, ModuleNotFoundError):
         _log_message(
             master_process, logger, file_logger,
             "WARNING: use_kernels is True but the installed transformers version does not support "
