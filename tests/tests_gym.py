@@ -850,6 +850,46 @@ def test_17_math_verifier_pass_fail_edge_cases_and_relaxed_mode():
     )
     assert v11.verify() == [True], "Relaxed: negative float integer part should be accepted"
 
+    # Locale/thousands formatting — Portuguese periods should be accepted
+    v12 = Verifier(
+        verifier_id_list=["math:answer_check"],
+        kwargs=[{"expected_answer": "167673195", "relaxed": True}],
+        completion="**Resposta final:** **167.673.195**",
+    )
+    assert v12.verify() == [True], "Portuguese thousands periods should be accepted"
+
+    # LaTeX thousands separator should be accepted
+    v13 = Verifier(
+        verifier_id_list=["math:answer_check"],
+        kwargs=[{"expected_answer": "-598794", "relaxed": True}],
+        completion=r"\boxed{-598\,794}",
+    )
+    assert v13.verify() == [True], "LaTeX thousands separator should be accepted"
+
+    # Relaxed mode — Portuguese decimal comma and rounding should be accepted
+    v14 = Verifier(
+        verifier_id_list=["math:answer_check"],
+        kwargs=[{"expected_answer": "93075.58695652174", "relaxed": True}],
+        completion="**93.075,587**",
+    )
+    assert v14.verify() == [True], "Relaxed: rounded Portuguese decimal should pass"
+
+    # Relaxed mode — exact mixed-number form should be accepted
+    v15 = Verifier(
+        verifier_id_list=["math:answer_check"],
+        kwargs=[{"expected_answer": "93075.58695652174", "relaxed": True}],
+        completion="Resultado exato: **93.075 27/46**.",
+    )
+    assert v15.verify() == [True], "Relaxed: mixed-number answer should pass"
+
+    # Relaxed mode — wrong rounded answer still fails
+    v16 = Verifier(
+        verifier_id_list=["math:answer_check"],
+        kwargs=[{"expected_answer": "-32953591605.40909", "relaxed": True}],
+        completion=r"\boxed{-32,953,590,452.84}",
+    )
+    assert v16.verify() == [False], "Relaxed: wrong rounded answer should fail"
+
     print("Test 17 — math verifier (pass/fail/edge/relaxed): OK ✅")
 
 

@@ -6,7 +6,7 @@
 # Learn more about SLURM options at:
 # - https://slurm.schedmd.com/sbatch.html
 #############################################
-#SBATCH --account=ag_cst_gabriel           # <-- Change to your SLURM account
+#SBATCH --account=ag_bit_flek              # <-- Change to your SLURM account
 #SBATCH --partition=lm_long                # <-- Change to your partition
 #SBATCH --job-name=cc-2025-30
 #SBATCH --nodes=1
@@ -19,8 +19,8 @@
 #############################################
 # Working Directory Setup
 #############################################
-username="nklugeco_hpc"                    # <-- Change to the corresponding username that created the workspace
-file_system="scratch"                       # <-- Change to your filesystem
+username="nklugeco_hpc"                          # <-- Change to the corresponding username that created the workspace
+file_system="scratch"                            # <-- Change to your filesystem
 workspace_name="polyglot_datasets"               # <-- Change to your workspace/project name
 
 workdir="/lustre/$file_system/data/$username-$workspace_name"
@@ -35,16 +35,23 @@ err="$workdir/run_outputs/process-common-crawl-err.$SLURM_JOB_ID"
 # Environment Setup
 #############################################
 source $workdir/.modules.sh
-#python3 -m venv $workdir/.venv_intel
+# python3 -m venv $workdir/.venv_intel
 source $workdir/.venv_intel/bin/activate
 
-#pip3 install --upgrade pip --no-cache-dir
-#pip3 install datatrove[io,processing] --no-cache-dir
-#pip3 install lxml[html_clean] --no-cache-dir
-#pip3 install stanza --no-cache-dir
-#pip3 install spacy --no-cache-dir
-#pip3 install pyyaml==6.0.2 --no-cache-dir
-#pip3 install indic-nlp-library --no-cache-dir
+# pip3 install --upgrade pip
+# git clone --depth 1 --branch main https://github.com/Polygl0t/llm-foundry.git
+# pip3 install -e "$workdir/llm-foundry/.[data]" --no-cache-dir
+
+# Or install the required packages individually ...
+# pip3 install --upgrade pip --no-cache-dir
+# pip3 install datatrove[io,processing] --no-cache-dir
+# pip3 install lxml[html_clean] --no-cache-dir
+# pip3 install stanza --no-cache-dir
+# pip3 install spacy --no-cache-dir
+# pip3 install pyyaml==6.0.2 --no-cache-dir
+
+# To work with Indic languages, you will need to install the indic-nlp-library and its dependencies. 
+# pip3 install indic-nlp-library --no-cache-dir
 
 echo "# [${SLURM_JOB_ID}] Job started at: $(date)" > "$out"
 echo "# [${SLURM_JOB_ID}] Using $SLURM_NNODES nodes" >> "$out"
@@ -90,19 +97,21 @@ count_available_warc_paths() {
 #############################################
 # CommonCrawl Processing Variables
 #############################################
-export DUMP="CC-MAIN-2025-30"  # <-- Change to your desired CommonCrawl dump
-export CONFIG_FOLDER="$workdir/.configs"
-export WARC_FILES_FOLDER="$workdir/common_crawl/$DUMP/warc_files"
-export LOGS_FOLDER="$workdir/common_crawl/$DUMP/logs"
-export WARC_EXTRACTION_OUTPUT="$workdir/common_crawl/$DUMP/extracted_data"
-export QUALITY_FILTER_OUTPUT="$workdir/common_crawl/$DUMP/quality_filter"
-export FINAL_OUTPUT_FOLDER="$workdir/common_crawl/$DUMP/language_data"
-export OUTPUT_FILE="CC_MAIN_2025_30.jsonl"
-export TOKENIZERS_PARALLELISM="false"  # Disable parallelism to avoid issues with tokenizers
-export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
-export HF_DATASETS_CACHE="$workdir/.cache/$SLURM_JOB_ID"
-export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE"
-export WARCS_PER_CICLE=1000
+export DUMP="CC-MAIN-2025-30"                                               # <-- Change to your desired CommonCrawl dump
+export CONFIG_FOLDER="$workdir/llm-foundry/data/.configs"                   # <-- Change to your configuration folder if needed
+export WARC_FILES_FOLDER="$workdir/common_crawl/$DUMP/warc_files"           # <-- Change to your desired WARC files folder if needed
+export LOGS_FOLDER="$workdir/common_crawl/$DUMP/logs"                       # <-- Change to your desired logs folder if needed
+export WARC_EXTRACTION_OUTPUT="$workdir/common_crawl/$DUMP/extracted_data"  # <-- Change to your desired WARC extraction output folder if needed
+export QUALITY_FILTER_OUTPUT="$workdir/common_crawl/$DUMP/quality_filter"   # <-- Change to your desired quality filter output folder if needed
+export FINAL_OUTPUT_FOLDER="$workdir/common_crawl/$DUMP/language_data"      # <-- Change to your desired final output folder if needed
+export OUTPUT_FILE="$DUMP.jsonl"                                            # <-- Final output file name
+export TOKENIZERS_PARALLELISM="false"                                       # <-- Disable parallelism to avoid issues with tokenizers
+export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK                                 # <-- Set OMP_NUM_THREADS to match the number of CPUs allocated per task
+export HF_DATASETS_CACHE="$workdir/.cache/$SLURM_JOB_ID"                    # <-- Set Hugging Face datasets cache to a job-specific directory to avoid conflicts between iterations and ensure proper cleanup
+export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE"                           # <-- Set Hugging Face Hub cache to the same job-specific directory
+export WARCS_PER_CICLE=1000                                                 # <-- Set the number of WARCs to process per cycle
+export TOKENIZER_NAME_OR_PATH="Qwen/Qwen3-0.6B-Base"                        # <-- Good out-of-the-box tokenizer for many languages
+export LANGUAGES="bn pt hi"                                                 # <-- Set the languages to filter (e.g., Bengali, Portuguese, Hindi)
 
 #############################################
 # Main Processing Loop
@@ -151,7 +160,7 @@ while true; do
     # Pre-processing & Post-processing
     #############################################
     echo "# [${SLURM_JOB_ID}] Iteration $iteration: Starting Processing of warcs" >> "$out"
-    python3 -u "$workdir/process_cc_dump.py" \
+    python3 -u "$workdir/llm-foundry/data/cc/process_cc_dump_with_quality_filters.py" \
         --config_folder "$CONFIG_FOLDER" \
         --warc_files_folder "$WARC_FILES_FOLDER" \
         --logs_folder "$LOGS_FOLDER" \
@@ -161,7 +170,8 @@ while true; do
         --output_file "$OUTPUT_FILE" \
         --dump "$DUMP" \
         --expand_metadata \
-        --languages bn pt hi \
+        --languages $LANGUAGES \
+        --tokenizer_name_or_path "$TOKENIZER_NAME_OR_PATH" \
         --tasks $SLURM_CPUS_PER_TASK \
         --workers $SLURM_CPUS_PER_TASK 1>>"$out" 2>>"$err" &
     wait
@@ -184,7 +194,7 @@ while true; do
                     continue
                 fi
                 
-                python3 -u "$workdir/process_cc_dump_split_jsonl.py" \
+                python3 -u "$workdir/llm-foundry/data/cc/splitter.py" \
                     --directory "$lang_dir" \
                     --max_tokens_per_chunk 100000000 \
                     --size_threshold_gb 1.0 1>>"$out" 2>>"$err"

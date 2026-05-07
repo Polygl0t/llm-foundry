@@ -79,8 +79,13 @@ _RAW_CONFLICTS = {
     _CONTENT + "postscript": {
         _CONTENT + "postscript",
         _STARTEND + "end_checker",
+        _LENGTH + "nth_paragraph_first_word",
+        _CHANGE_CASES + "portuguese_lowercase",
     },
-    _FORMAT + "number_bullet_lists": {_FORMAT + "number_bullet_lists"},
+    _FORMAT + "number_bullet_lists": {
+        _FORMAT + "number_bullet_lists",
+        _FORMAT + "number_highlighted_sections",
+    },
     _FORMAT + "constrained_response": set(ALL_VERIFIER_IDS),
     _FORMAT + "number_highlighted_sections": {
         _FORMAT + "number_highlighted_sections"
@@ -94,7 +99,10 @@ _RAW_CONFLICTS = {
     },
     _FORMAT + "json_format": set(ALL_VERIFIER_IDS)
     - {_KEYWORD + "forbidden_words", _KEYWORD + "existence"},
-    _FORMAT + "title": {_FORMAT + "title"},
+    _FORMAT + "title": {
+        _FORMAT + "title",
+        _LENGTH + "nth_paragraph_first_word",
+    },
     _COMBINATION + "two_responses": set(ALL_VERIFIER_IDS)
     - {
         _KEYWORD + "forbidden_words",

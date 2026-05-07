@@ -31,11 +31,11 @@
 # Configuration
 #############################################
 # Use first argument as CC_DUMP, or default to CC-MAIN-2025-30
-CC_DUMP=${1:-"CC-MAIN-2025-30"}           # <-- Change default dump if desired
+CC_DUMP=${1:-"CC-MAIN-2025-30"}            # <-- Change default dump if desired
 echo "Using CC_DUMP: $CC_DUMP"
 
 # Set up directory structure for this dump
-WARC_DIR="./common_crawl/$CC_DUMP"        # <-- All files for this dump go here
+WARC_DIR="./common_crawl/$CC_DUMP"         # <-- All files for this dump go here
 mkdir -p "$WARC_DIR"                       # <-- Create directory if it doesn't exist
 #############################################
 # Step 1: Download WARC Paths Index (Compressed)

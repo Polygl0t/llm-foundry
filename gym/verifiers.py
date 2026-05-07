@@ -5,6 +5,7 @@ import logging
 import random
 import re
 import string
+from decimal import Decimal, InvalidOperation
 import langdetect
 import utils
 
@@ -346,8 +347,8 @@ class BulletListChecker(TaskVerifier):
           True if the actual number of bullet lists in the response meets the
           requirement.
         """
-        bullet_lists = re.findall(r"^\s*\*[^\*].*$", value, flags=re.MULTILINE)
-        bullet_lists_2 = re.findall(r"^\s*-.*$", value, flags=re.MULTILINE)
+        bullet_lists = re.findall(r"^\s*\*\s+\S.*$", value, flags=re.MULTILINE)
+        bullet_lists_2 = re.findall(r"^\s*-\s+\S.*$", value, flags=re.MULTILINE)
         num_bullet_lists = len(bullet_lists) + len(bullet_lists_2)
         return num_bullet_lists == self._num_bullets
 
@@ -1984,18 +1985,96 @@ class MathAnswerChecker(TaskVerifier):
         """Check if the response contains the expected answer.
 
         Both the expected answer and the response are normalized to remove
-        common thousand separators (commas, underscores, narrow/regular
-        spaces between digits) before matching, so model answers like
-        "380,438" are accepted when the expected answer is "380438".
+        common thousand separators (commas, periods, underscores, LaTeX thin
+        spaces, and narrow/regular spaces between digits) before matching, so
+        model answers like "380,438", "380.438", or "380\\,438" are accepted
+        when the expected answer is "380438".
         """
         if not self._expected_answer:
             return False
 
         def _strip_thousand_seps(s):
-            # Remove commas, underscores, and (regular/narrow/thin) spaces
-            # that sit strictly between digits, so that "3,150,427.05" and
-            # "3 150 427.05" both normalize to "3150427.05".
-            return re.sub(r"(?<=\d)[,_\u00a0\u202f ](?=\d)", "", s)
+            # Remove LaTeX thousands separators before handling punctuation.
+            s = re.sub(r"(?<=\d)\\,(?=\d)", "", s)
+            # Remove underscores and (regular/narrow/thin) spaces between digits.
+            s = re.sub(r"(?<=\d)[_\u00a0\u202f ](?=\d)", "", s)
+            # Remove commas and periods only when they are used as thousands
+            # separators: one to three leading digits followed by groups of
+            # exactly three digits, e.g. 12.880, 167.673.195, 380,438.
+            grouped_number = re.compile(
+                r"(?<!\d)([+-]?\d{1,3})([,.]\d{3})+(?![\d,.])"
+            )
+
+            def _ungroup(match):
+                return match.group(0).replace(",", "").replace(".", "")
+
+            return grouped_number.sub(_ungroup, s)
+
+        def _decimal_candidates(s):
+            """Extract numeric candidates, including PT decimals and mixed fractions."""
+            s = re.sub(r"(?<=\d)\\,(?=\d)", "", s)
+            s = re.sub(r"(?<=\d)[_\u00a0\u202f](?=\d)", "", s)
+            candidates = []
+
+            def _parse_number(raw):
+                raw = raw.strip().replace(" ", "")
+                if not raw:
+                    return None
+                if "," in raw and "." in raw:
+                    if raw.rfind(",") > raw.rfind("."):
+                        raw = raw.replace(".", "").replace(",", ".")
+                    else:
+                        raw = raw.replace(",", "")
+                elif "," in raw:
+                    if re.fullmatch(r"[+-]?\d{1,3}(,\d{3})+", raw):
+                        raw = raw.replace(",", "")
+                    else:
+                        raw = raw.replace(",", ".")
+                elif re.fullmatch(r"[+-]?\d{1,3}(\.\d{3})+", raw):
+                    raw = raw.replace(".", "")
+                try:
+                    return Decimal(raw)
+                except InvalidOperation:
+                    return None
+
+            number = r"[+-]?\d[\d.,_\u00a0\u202f ]*"
+            mixed_fraction_re = re.compile(
+                rf"(?<!\d)({number})\s+(\d+)\s*/\s*(\d+)(?!\d)"
+            )
+            consumed = []
+            for match in mixed_fraction_re.finditer(s):
+                whole = _parse_number(match.group(1))
+                numerator = Decimal(match.group(2))
+                denominator = Decimal(match.group(3))
+                if whole is not None and denominator != 0:
+                    sign = Decimal(-1) if whole < 0 else Decimal(1)
+                    candidates.append(whole + sign * numerator / denominator)
+                    consumed.append(match.span())
+
+            def _inside_consumed(start, end):
+                return any(start >= cstart and end <= cend for cstart, cend in consumed)
+
+            plain_number_re = re.compile(r"(?<!\d)[+-]?\d[\d.,_\u00a0\u202f ]*(?!\d)")
+            for match in plain_number_re.finditer(s):
+                if _inside_consumed(*match.span()):
+                    continue
+                number_value = _parse_number(match.group(0))
+                if number_value is not None:
+                    candidates.append(number_value)
+            return candidates
+
+        def _decimal_places(s):
+            match = re.search(r"[.,](\d+)$", s.strip())
+            return len(match.group(1)) if match else 0
+
+        def _matches_with_rounding(candidate, expected):
+            if candidate == expected:
+                return True
+            places = max(0, min(_decimal_places(str(candidate)), _decimal_places(str(expected))))
+            if places == 0:
+                return False
+            tolerance = Decimal(1).scaleb(-places) / 2
+            return abs(candidate - expected) <= tolerance
 
         norm_value = _strip_thousand_seps(value)
         norm_expected = _strip_thousand_seps(self._expected_answer)
@@ -2011,6 +2090,13 @@ class MathAnswerChecker(TaskVerifier):
                 if int_part != norm_expected and int_part in norm_value:
                     return True
             except (ValueError, OverflowError):
+                pass
+            try:
+                expected_decimal = Decimal(norm_expected.replace(",", "."))
+                for candidate in _decimal_candidates(value):
+                    if _matches_with_rounding(candidate, expected_decimal):
+                        return True
+            except InvalidOperation:
                 pass
         return False
 

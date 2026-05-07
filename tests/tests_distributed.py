@@ -1036,8 +1036,10 @@ def test_build_model_from_config():
             path_to_model_config=config_dir,
             attn_implementation="eager",
             cache_dir=tmpdir,
+            checkpoint_dir=tmpdir,
+            stage_name="test",
         )
-        model = _build_model_from_config(args, _tokenizer, torch.float32)
+        model = _build_model_from_config(args, _tokenizer, torch.float32, master_process=True)
         assert model is not None
         total_params = sum(p.numel() for p in model.parameters())
         assert total_params > 0
@@ -1050,7 +1052,7 @@ def test_build_model_no_config_raises():
     args = TrainingArguments(path_to_model_config=None)
     raised = False
     try:
-        _build_model_from_config(args, _tokenizer, torch.float32)
+        _build_model_from_config(args, _tokenizer, torch.float32, master_process=True)
     except ValueError:
         raised = True
     assert raised

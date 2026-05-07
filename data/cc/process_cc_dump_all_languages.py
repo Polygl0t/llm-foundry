@@ -1,8 +1,8 @@
 """
-CommonCrawl Language Extraction Pipeline (Lightweight)
+CommonCrawl Language Extraction Pipeline
 
 Streamlined single-stage pipeline for language identification and text extraction from
-CommonCrawl WARC archives. Focuses on speed and language separation without quality filtering.
+CommonCrawl WARC archives.
 
 Pipeline stages:
 1. WARC Reading: Parse CommonCrawl WARC.gz files
@@ -29,12 +29,10 @@ Usage:
         --language_filter_backend glotlid \
         --language_threshold 0.7
     
-    # Incremental run (appends to existing)
-    python process_cc_dump_all_languages.py \
-        --warc_files_folder /data/cc/CC-MAIN-2025-31/ \
-        --output_folder all_languages/ \
-        --dump CC-MAIN-2025-31 \
-        --expand_metadata
+Notes:
+- Ensure WARC files are downloaded and accessible in the specified folder.
+- Adjust language filter backend and threshold based on desired precision/recall.
+- This script can be re-submitted if the job fails or if you want to process additional WARC files.
 """
 import argparse
 import shutil
@@ -42,6 +40,8 @@ import os
 import json
 import uuid
 import glob
+
+from utils import get_logger, write_metadata, initialize_or_load_metadata
 
 from datatrove.executor import LocalPipelineExecutor
 from datatrove.pipeline.extractors import Trafilatura
@@ -54,77 +54,9 @@ from datatrove.pipeline.readers import WarcReader
 from datatrove.pipeline.writers.jsonl import JsonlWriter
 from datatrove.pipeline.tokens import TokensCounter
 
+from langcodes import GLOTLID_LANGUAGE_CODES, FT176_LANGUAGE_CODES
 
-def read_metadata(metadata_file):
-    """Read metadata from file in YAML-like format."""
-    if not os.path.exists(metadata_file):
-        return None
-    
-    metadata = {}
-    with open(metadata_file, 'r', encoding='utf-8') as f:
-        for line in f:
-            line = line.strip()
-            if line and ':' in line:
-                key, value = line.split(':', 1)
-                key = key.strip()
-                value = value.strip()
-                # Convert numeric values
-                try:
-                    if '.' in value:
-                        metadata[key] = float(value)
-                    else:
-                        metadata[key] = int(value)
-                except ValueError:
-                    metadata[key] = value
-    return metadata
-
-
-def write_metadata(metadata_file, metadata):
-    """Write metadata to file in YAML-like format."""
-    with open(metadata_file, 'w', encoding='utf-8') as f:
-        for key, value in metadata.items():
-            f.write(f"{key}: {value}\n")
-
-
-def initialize_or_load_metadata(lang_output_path):
-    """Initialize metadata by scanning existing files or load from .metadata file."""
-    metadata_file = os.path.join(lang_output_path, '.metadata')
-    
-    # Try to load existing metadata
-    metadata = read_metadata(metadata_file)
-    if metadata is not None:
-        return metadata
-    
-    # No metadata file exists, load all jsonl files in the language folder
-    all_jsonl_files = glob.glob(os.path.join(lang_output_path, '*.jsonl'))
-    
-    if not all_jsonl_files:
-        return {'lines': 0, 'tokens': 0}
-    
-    # Scan existing consolidated file to build metadata
-    total_lines = 0
-    total_tokens = 0
-
-    for jsonl_file in all_jsonl_files:
-        with open(jsonl_file, 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    data = json.loads(line)
-                    total_lines += 1
-                    total_tokens += data.get('token_count', 0)
-                except json.JSONDecodeError:
-                    continue
-    
-    metadata = {
-        'lines': total_lines,
-        'tokens': total_tokens
-    }
-    
-    write_metadata(metadata_file, metadata)
-    return metadata
+logger = get_logger("CC-Processing-Pipeline")
 
 
 def main(args):
@@ -144,6 +76,12 @@ def main(args):
     ERROR_CACHE_FOLDER = os.path.join(OUTPUT_FOLDER, ".error_cache")
     os.makedirs(ERROR_CACHE_FOLDER, exist_ok=True)
 
+    # Assert that the language code is valid
+    if args.languages:
+        assert all(lang in GLOTLID_LANGUAGE_CODES for lang in args.languages) \
+            or all(lang in FT176_LANGUAGE_CODES for lang in args.languages), \
+            "Invalid language code provided. Check the supported languages for the chosen backend."
+
     # Language filtering and extraction pipeline
     pipeline = LocalPipelineExecutor(
         pipeline=[
@@ -156,7 +94,7 @@ def main(args):
                 data_folder=WARC_FILES_FOLDER,
                 glob_pattern="*.warc.gz",
                 default_metadata={"source": DUMP},
-                #limit=1_000_000,  # Uncomment to limit the number of WARC files processed (useful for debugging)
+                limit=args.limit,
             ),
 
             # [URLFilter](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/filters/url_filter.py)
@@ -201,12 +139,9 @@ def main(args):
     # Run the pipeline
     pipeline.run()
     
-    # ==============================================================================
     # POST-PROCESSING: Consolidate extracted data into a final output folder/files
-    # ==============================================================================
-    
     if not os.path.exists(TEMP_OUTPUT_FOLDER):
-        print("[ERROR] No temporary output folder found.")
+        logger.error("No temporary output folder found.")
         return
     
     language_stats = {}
@@ -256,14 +191,14 @@ def main(args):
                     # Cache problematic files for debugging
                     cache_path = os.path.join(ERROR_CACHE_FOLDER, f"{lang}_{uuid.uuid4().hex[:8]}_{jsonl_file}")
                     shutil.copy2(temp_file_path, cache_path)
-                    print(f"[WARNING] Could not process {jsonl_file}: {e}. Cached for inspection.")
+                    logger.warning("Could not process %s: %s. Cached for inspection.", jsonl_file, e)
         
         if new_lines == 0:
-            print(f"[WARNING] No valid data found for {lang}")
+            logger.warning("No valid data found for %s", lang)
             continue
         
         if invalid_lines > 0:
-            print(f"[WARNING] {lang}: Skipped {invalid_lines:,} invalid lines")
+            logger.warning("%s: Skipped %d invalid lines", lang, invalid_lines)
         
         # Update metadata
         updated_metadata = {
@@ -283,19 +218,15 @@ def main(args):
             'total_tokens': updated_metadata['tokens']
         }
     
-    # ==============================================================================
-    # SUMMARY
-    # ==============================================================================
-    
-    print("\n" + "="*80)
-    print("PROCESSING SUMMARY")
-    print("="*80)
-    
+    # SUMMARY    
+    logger.info("=" * 80)
+    logger.info("PROCESSING SUMMARY")
+    logger.info("=" * 80)
+
     if not language_stats:
-        print("\n[WARNING] No languages were successfully processed.")
-        print("="*80)
+        logger.warning("No languages were successfully processed.")
         return
-    
+
     # Calculate totals for current iteration
     new_total_lines = sum(stats['new_lines'] for stats in language_stats.values())
     new_total_tokens = sum(stats['new_tokens'] for stats in language_stats.values())
@@ -303,35 +234,53 @@ def main(args):
     # Get previous cumulative totals
     previous_cumulative_lines = sum(stats['old_lines'] for stats in language_stats.values())
     previous_cumulative_tokens = sum(stats['old_tokens'] for stats in language_stats.values())
-    
+
     # Calculate cumulative totals
     cumulative_total_lines = sum(stats['total_lines'] for stats in language_stats.values())
     cumulative_total_tokens = sum(stats['total_tokens'] for stats in language_stats.values())
-    
-    print(f"\nProcessed {len(language_stats)} language(s) in this iteration\n")
-    
+
+    logger.info("Processed %d language(s) in this iteration", len(language_stats))
+
     # Detailed stats table with old, new, and total counts
-    print("DETAILED STATISTICS:")
-    print(f"{'Language':<15} {'Old Lines':<15} {'New Lines':<15} {'Total Lines':<15} {'Old Tokens':<18} {'New Tokens':<18} {'Total Tokens':<18}")
-    print("=" * 129)
-    
+    header = f"{'Language':<15} {'Old Lines':<15} {'New Lines':<15} {'Total Lines':<15} {'Old Tokens':<18} {'New Tokens':<18} {'Total Tokens':<18}"
+    separator = "=" * 129
+    logger.info("DETAILED STATISTICS:")
+    logger.info(header)
+    logger.info(separator)
+
     for lang in sorted(language_stats.keys()):
         stats = language_stats[lang]
-        print(f"{lang:<15} {stats['old_lines']:<15,} {stats['new_lines']:<15,} {stats['total_lines']:<15,} {stats['old_tokens']:<18,} {stats['new_tokens']:<18,} {stats['total_tokens']:<18,}")
-    
-    print("=" * 129)
-    print(f"{'TOTAL':<15} {previous_cumulative_lines:<15,} {new_total_lines:<15,} {cumulative_total_lines:<15,} {previous_cumulative_tokens:<18,} {new_total_tokens:<18,} {cumulative_total_tokens:<18,}")
-    print("=" * 129)
-    
-    print(f"\n📊 Summary:")
-    print(f"   • Added this iteration: {new_total_lines:,} lines | {new_total_tokens:,} tokens")
-    print(f"   • Grand Total: {cumulative_total_lines:,} lines | {cumulative_total_tokens:,} tokens")
-    print("="*80)
+        logger.info(
+            "%s %s %s %s %s %s %s",
+            f"{lang:<15}",
+            f"{stats['old_lines']:<15,}",
+            f"{stats['new_lines']:<15,}",
+            f"{stats['total_lines']:<15,}",
+            f"{stats['old_tokens']:<18,}",
+            f"{stats['new_tokens']:<18,}",
+            f"{stats['total_tokens']:<18,}",
+        )
+
+    logger.info(separator)
+    logger.info(
+        "%s %s %s %s %s %s %s",
+        f"{'TOTAL':<15}",
+        f"{previous_cumulative_lines:<15,}",
+        f"{new_total_lines:<15,}",
+        f"{cumulative_total_lines:<15,}",
+        f"{previous_cumulative_tokens:<18,}",
+        f"{new_total_tokens:<18,}",
+        f"{cumulative_total_tokens:<18,}",
+    )
+    logger.info(separator)
+    logger.info("Added this iteration: %d lines | %d tokens", new_total_lines, new_total_tokens)
+    logger.info("Grand Total: %d lines | %d tokens", cumulative_total_lines, cumulative_total_tokens)
+    logger.info("=" * 80)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Process CommonCrawl dump and separate by language"
+        description="Process CommonCrawl WARC files to extract text and filter by language, with support for multiple language filter backends (FT176 and GlotLID)."  
     )
 
     parser.add_argument(
@@ -339,6 +288,9 @@ if __name__ == "__main__":
         type=str,
         required=True,
         help="Folder containing WARC files",
+    )
+    parser.add_argument(
+            "--limit", type=int, default=-1, help="Limit the number of WARC files to process (useful for debugging)"
     )
     parser.add_argument(
         "--temp_output_folder",
@@ -369,7 +321,13 @@ if __name__ == "__main__":
         nargs="+",
         type=str,
         default=None,
-        help="List of languages to filter (e.g., --languages bn pt hi). If not specified, all languages are kept.",
+        help=(
+            "List of languages to filter (e.g., --languages bn pt hi). If not specified, all languages are kept. "
+            "Available languages depend on the language filter backend. For FT176, supported languages are: \n"
+            + ", ".join(FT176_LANGUAGE_CODES)
+            + ". For GlotLID, supported languages are: \n"
+            + ", ".join(GLOTLID_LANGUAGE_CODES)
+        )
     )
     parser.add_argument(
         "--language_filter_backend",

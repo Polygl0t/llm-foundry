@@ -149,6 +149,41 @@ def sample_fingerprint(sample):
     """Hashable fingerprint for uniqueness checking."""
     return (sample["prompt"], tuple(sorted(sample["verifier_id_list"])))
 
+def _sample_kwargs_by_id(sample):
+    """Return verifier kwargs keyed by verifier ID."""
+    by_id = {}
+    for iid, kw in zip(sample.get("verifier_id_list", []), sample.get("kwargs", [])):
+        if isinstance(kw, str):
+            kw = json.loads(kw)
+        by_id[iid] = kw
+    return by_id
+
+def _semantic_instruction_issues(sample):
+    """Return kwargs-dependent instruction issues missed by ID conflicts."""
+    issues = []
+    kwargs_by_id = _sample_kwargs_by_id(sample)
+
+    existence_kw = kwargs_by_id.get("keywords:existence")
+    frequency_kw = kwargs_by_id.get("keywords:frequency")
+    if existence_kw and frequency_kw:
+        required_keywords = set(existence_kw.get("keywords") or [])
+        frequency_keyword = frequency_kw.get("keyword")
+        frequency = frequency_kw.get("frequency")
+        relation = frequency_kw.get("relation")
+
+        if (
+            frequency_keyword in required_keywords
+            and relation == "less than"
+            and frequency is not None
+            and float(frequency) <= 1
+        ):
+            issues.append(
+                "Conflicting keyword requirements: keyword must exist and "
+                "appear less than once"
+            )
+
+    return issues
+
 def validate_sample(sample):
     """Return a list of issues (empty means valid)."""
     issues = []
@@ -166,6 +201,8 @@ def validate_sample(sample):
 
     if not is_combination_valid(sample.get("verifier_id_list", [])):
         issues.append("Instruction combination has conflicts")
+
+    issues.extend(_semantic_instruction_issues(sample))
 
     if not sample.get("prompt", "").strip():
         issues.append("Empty prompt")
@@ -209,6 +246,13 @@ def main(args):
                 min_modifiers=args.min_modifiers,
                 max_modifiers=args.max_modifiers,
             )
+
+            issues = validate_sample(candidate)
+            if issues:
+                retries_used += 1
+                if args.verbose:
+                    print(f"  Rejected candidate #{i+1}: {issues}")
+                continue
 
             sid = candidate["id"]
             if sid not in seen:

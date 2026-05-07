@@ -1719,25 +1719,25 @@
       },
       "input_samples": {
         "fuel_consumption": [
-          1.0,
-          2.0,
-          3.0,
-          4.0,
-          5.0
+          4.8,
+          6.5,
+          8.2,
+          10.0,
+          12.5
         ],
         "distance": [
-          1.0,
-          2.0,
-          3.0,
-          4.0,
-          5.0
+          12.0,
+          45.0,
+          120.0,
+          350.0,
+          800.0
         ]
       },
       "request_samples": [
-        "Gostaria de calcular a média de uma lista de números. Você pode me ajudar com isso? Aqui estão os números:",
-        "Estou interessado em calcular a média de uma lista de números e gostaria de sua ajuda para isso. Aqui estão os números:",
-        "Preciso calcular a média de uma lista de números. Você pode me ajudar com isso? Aqui estão os números:",
-        "Estou procurando calcular a média de uma lista de números e gostaria de sua ajuda para isso. Aqui estão os números:"
+        "Gostaria de calcular as emissões de carbono de um carro. Você pode me ajudar com isso? Aqui estão os dados do veículo:",
+        "Estou interessado em calcular as emissões de carbono de um carro com base no consumo de combustível e na distância percorrida. Aqui estão os dados:",
+        "Preciso calcular as emissões de carbono de um carro. Você pode me ajudar com isso? Aqui estão o consumo de combustível e a distância percorrida:",
+        "Estou procurando calcular as emissões de carbono de um carro e gostaria de sua ajuda para isso. Aqui estão os detalhes da viagem:"
       ]
     },
     {

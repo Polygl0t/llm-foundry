@@ -1,0 +1,39 @@
+# Distributed Training
+
+Production-ready distributed training scripts for large language models using PyTorch's DDP (Distributed Data Parallel) and FSDP (Fully Sharded Data Parallel) strategies.
+
+## Overview
+
+This folder contains distributed training scripts for large language models using PyTorch's DDP (Distributed Data Parallel) and FSDP (Fully Sharded Data Parallel) strategies. Both are optimized for multi-GPU, multi-node SLURM clusters and support standard AdamW or hybrid Muon + Adam optimizers. The scripts also support working with several types of different architectures (dense transformers, mixture of experts, hybrid models) and can be easily extended to new ones.
+
+## Available Training Scripts
+
+- **train_ddp.py** — Distributed Data Parallel (DDP) training script for transformer-based causal language models. Handles multi-GPU synchronization with gradient accumulation and checkpointing.
+- **train_fsdp.py** — Fully Sharded Data Parallel (FSDP) training script for larger models requiring parameter and optimizer state sharding across nodes.
+
+## Core Modules
+
+- **trainer.py** — Contains DDPTrainer and FSDPTrainer classes that encapsulate the training and validation loops, checkpointing, and per-step logging.
+- **model_setup.py** — Pre-DDP/FSDP model and tokenizer initialization, including architecture setup and optional context extension for continual pretraining.
+- **data_loading.py** — Dataset loading and DataLoader creation with support for multiple data formats (JSONL, Parquet).
+- **optimizers.py** — Optimizer and learning rate scheduler creation for both AdamW and Muon + Adam configurations.
+- **mfu.py** — Model FLOPs Utilization (MFU) calculation utilities for performance monitoring and benchmarking.
+- **specifications.py** — Dataclass definitions and type hints for all training arguments.
+- **utils.py** — Logging, checkpointing, distributed environment setup, and miscellaneous utilities.
+
+## Running Training
+
+1. Configure `specifications.yaml` with your training settings:
+   - Dataset paths (`train_dataset_dir`, `val_dataset_dir`, `checkpoint_dir`)
+   - Model configuration (`path_to_model_config`, `base_model`, `tokenizer_name_or_path`)
+   - Training parameters (`learning_rate`, `batch_size`, `num_train_steps`, etc.)
+   - Optimization settings (optimizer choice, warmup, scheduler type)
+
+2. Launch training with SLURM using the provided shell scripts:
+   - DDP training: `python distributed/train_ddp.py --specs path/to/specifications.yaml --slurm-job-id $SLURM_JOB_ID --hardware "a100"`
+   - FSDP training: `python distributed/train_fsdp.py --specs path/to/specifications.yaml --slurm-job-id $SLURM_JOB_ID --hardware "a100"`
+
+   Or use the shell scripts for SLURM job submission:
+   - See `train_ddp.sh` for DDP SLURM configuration
+   - See `train_fsdp.sh` for FSDP SLURM configuration
+

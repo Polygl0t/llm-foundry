@@ -6,7 +6,7 @@
 # Learn more about SLURM options at:
 # - https://slurm.schedmd.com/sbatch.html
 #############################################
-#SBATCH --account=ag_cst_gabriel           # <-- Change to your SLURM account
+#SBATCH --account=ag_bit_flek              # <-- Change to your SLURM account
 #SBATCH --partition=lm_long                # <-- Change to your partition
 #SBATCH --job-name=cc-lang-filter
 #SBATCH --nodes=1
@@ -35,15 +35,20 @@ err="$workdir/run_outputs/process-cc-all-languages-err.$SLURM_JOB_ID"
 # Environment Setup
 #############################################
 source $workdir/.modules.sh
-#python3 -m venv $workdir/.venv_intel
+# python3 -m venv $workdir/.venv_intel
 source $workdir/.venv_intel/bin/activate
 
-#pip3 install --upgrade pip --no-cache-dir
-#pip3 install datatrove[io,processing] --no-cache-dir
-#pip3 install lxml[html_clean] --no-cache-dir
-#pip3 install stanza --no-cache-dir
-#pip3 install spacy --no-cache-dir
-#pip3 install pyyaml==6.0.2 --no-cache-dir
+# pip3 install --upgrade pip
+# git clone --depth 1 --branch main https://github.com/Polygl0t/llm-foundry.git
+# pip3 install -e "$workdir/llm-foundry/.[data]" --no-cache-dir
+
+# Or install the required packages individually ...
+# pip3 install --upgrade pip --no-cache-dir
+# pip3 install datatrove[io,processing] --no-cache-dir
+# pip3 install lxml[html_clean] --no-cache-dir
+# pip3 install stanza --no-cache-dir
+# pip3 install spacy --no-cache-dir
+# pip3 install pyyaml==6.0.2 --no-cache-dir
 
 echo "# [${SLURM_JOB_ID}] Job started at: $(date)" > "$out"
 echo "# [${SLURM_JOB_ID}] Using $SLURM_NNODES nodes" >> "$out"
@@ -87,21 +92,21 @@ count_available_warc_paths() {
 }
 
 #############################################
-# CommonCrawl Processing Variables
+# CommonCrawl Paths & Configuration
 #############################################
-export DUMP="CC-MAIN-2025-51"  # <-- Change to your desired CommonCrawl dump
-export WARC_FILES_FOLDER="$workdir/common_crawl/$DUMP/warc_files"
-export LOGS_FOLDER="$workdir/common_crawl/$DUMP/logs"
-export TEMP_OUTPUT_FOLDER="$workdir/common_crawl/$DUMP/language_filter_output"
-export OUTPUT_FOLDER="$workdir/common_crawl/$DUMP/all_languages"
-export LANGUAGE_FILTER_BACKEND="ft176"  # ft176 AND glotlid
-export LANGUAGE_THRESHOLD=0.65 # Language detection confidence threshold
-export TOKENIZER_NAME_OR_PATH="Qwen/Qwen3-0.6B-Base"  # Good out-of-the-box tokenizer for many languages
-export TOKENIZERS_PARALLELISM="false"  # Disable parallelism to avoid issues with tokenizers
-export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
-export HF_DATASETS_CACHE="$workdir/.cache/$SLURM_JOB_ID"
-export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE"
-export WARCS_PER_CICLE=1000
+export DUMP="CC-MAIN-2025-51"                                                   # <-- Change to your desired CommonCrawl dump
+export WARC_FILES_FOLDER="$workdir/common_crawl/$DUMP/warc_files"               # <-- Folder to store downloaded WARC files for this dump
+export LOGS_FOLDER="$workdir/common_crawl/$DUMP/logs"                           # <-- Folder to store logs for this dump
+export TEMP_OUTPUT_FOLDER="$workdir/common_crawl/$DUMP/language_filter_output"  # <-- Temporary folder for language filtering output before final processing
+export OUTPUT_FOLDER="$workdir/common_crawl/$DUMP/all_languages"                # <-- Final output folder for processed data separated by language  
+export LANGUAGE_FILTER_BACKEND="ft176"                                          # <-- LID backend: ft176 AND glotlid
+export LANGUAGE_THRESHOLD=0.65                                                  # <-- Language detection confidence threshold
+export TOKENIZER_NAME_OR_PATH="Qwen/Qwen3-0.6B-Base"                            # <-- Good out-of-the-box tokenizer for many languages
+export TOKENIZERS_PARALLELISM="false"                                           # <-- Disable parallelism to avoid issues with tokenizers
+export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK                                     # <-- Set OMP threads to match allocated CPUs                   
+export HF_DATASETS_CACHE="$workdir/.cache/$SLURM_JOB_ID"                        # <-- Unique cache folder for this job to avoid conflicts with other jobs
+export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE"                               # <-- Use the same cache folder for Hugging Face Hub to avoid conflicts
+export WARCS_PER_CICLE=1000                                                     # <-- Number of WARC files to process per iteration. Adjust based on available resources and expected processing time per WARC.
 
 echo "# [${SLURM_JOB_ID}] Job started at: $(date)" > "$out"
 
@@ -151,7 +156,7 @@ while true; do
     # Language Filtering Processing
     #############################################
     echo "# [${SLURM_JOB_ID}] Iteration $iteration: Starting language filtering of warcs" >> "$out"
-    python3 -u "$workdir/process_cc_dump_all_languages.py" \
+    python3 -u "$workdir/llm-foundry/data/cc/process_cc_dump_all_languages.py" \
         --warc_files_folder "$WARC_FILES_FOLDER" \
         --temp_output_folder "$TEMP_OUTPUT_FOLDER" \
         --output_folder "$OUTPUT_FOLDER" \
@@ -183,7 +188,7 @@ while true; do
                     continue
                 fi
                 
-                python3 -u "$workdir/process_cc_dump_split_jsonl.py" \
+                python3 -u "$workdir/llm-foundry/data/cc/splitter.py" \
                     --directory "$lang_dir" \
                     --max_tokens_per_chunk 100000000 \
                     --size_threshold_gb 1.0 1>>"$out" 2>>"$err"

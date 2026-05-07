@@ -72,13 +72,13 @@ done
 # Configuration
 #############################################
 # Set Common Crawl dump (use argument or default)
-CC_DUMP=${CC_DUMP_ARG:-"CC-MAIN-2025-30"}  # <-- Change default dump if desired
+CC_DUMP=${CC_DUMP_ARG:-"CC-MAIN-2025-30"}                 # <-- Change default dump if desired
 
 # Define directory structure
-DOWNLOAD_DIR="./common_crawl/$CC_DUMP/warc_files"     # <-- Where WARC files are saved
-WARC_PATHS_FILE="./common_crawl/$CC_DUMP/warc.paths"  # <-- Index file with WARC paths
+DOWNLOAD_DIR="./common_crawl/$CC_DUMP/warc_files"         # <-- Where WARC files are saved
+WARC_PATHS_FILE="./common_crawl/$CC_DUMP/warc.paths"      # <-- Index file with WARC paths
 TEMP_PATHS_FILE="./common_crawl/$CC_DUMP/warc.paths.tmp"  # <-- Temporary file for updates
-BASE_URL="https://data.commoncrawl.org"    # <-- Common Crawl base URL
+BASE_URL="https://data.commoncrawl.org"                   # <-- Common Crawl base URL
 
 #############################################
 # Initial Setup and Validation

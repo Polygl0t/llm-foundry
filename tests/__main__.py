@@ -1,17 +1,13 @@
 """Run all test scripts in the tests/ folder."""
 import os
+import glob
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 TESTS_DIR = Path(__file__).parent
-
-SCRIPTS = [
-    "tests_distributed.py",
-    "tests_gym.py",
-    "tests_synthetic.py",
-]
+SCRIPTS = glob.glob(str(TESTS_DIR / "tests_*.py"))
 
 # Redirect all .pyc compilation to a temp directory
 env = os.environ.copy()

@@ -1,5 +1,5 @@
 """
-JSONL File Splitter by Token Count
+JSONL File Splitter!🔪
 
 Splits large JSONL files into manageable chunks based on token count thresholds.
 Designed for post-processing CommonCrawl extractions or other large datasets.
@@ -124,7 +124,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Split large JSONL files into smaller chunks based on token count"
+        description="Split large JSONL files into smaller chunks 🔪🔪🔪"
     )
     
     parser.add_argument(

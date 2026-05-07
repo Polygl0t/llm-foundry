@@ -1,4 +1,3 @@
-
 # LLM Foundry
 
 LLM Foundry is the source repository for the development of models, datasets, and accompanying artifacts of the **Polyglot** project at the University of Bonn. It bundles training, evaluation, post-training, data processing, and tokenization pipelines into a single, cluster-ready code base.
@@ -52,6 +51,7 @@ bash utils/marvin_create_workspace.sh
 The script also contains commented step-by-step instructions for creating the per-config virtual environments (`.venv_data,` `.venv_distributed`, `.venv_synth`, `.venv_trl`) and submitting the pip install jobs to the right partition.
 
 ### Module Stack Selection
+
 Marvin has a dual software stack (AMD and Intel). The single `.modules.sh` file at the repository root loads the right one for you. It auto-detects the stack from the SLURM environment, so most of the time you just source it and forget about it:
 
 ```bash
@@ -72,6 +72,7 @@ LLM_FOUNDRY_STACK=intel source "$workdir/.modules.sh"   # CPU/data stack
 Sourcing prints whose stack was selected, why, and the resulting module list, so your job logs always show the resolved environment.
 
 ### Installing Dependencies
+
 Use the [`pyproject.toml`](https://github.com/Polygl0t/llm-foundry/blob/main/pyproject.toml) to install a specific set of dependencies. The available extras are:
 
 * `data` — For downloading and preprocessing datasets.  
@@ -89,22 +90,24 @@ pip install -e "./llm-foundry/.[tests]"        # for running the test suite
 ```
 
 ## Running the Tests
+
 Install the test dependencies first:
 
 ```bash
 pip install -e "./llm-foundry/.[tests]"
 ```
+
 Run all test scripts in sequence:
+
 ```bash
 python tests/
 ```
-Or run a specific script ([`tests/tests_distributed.py`](https://github.com/Polygl0t/llm-foundry/compare/tests/tests_distributed.py?expand=1), [`tests/tests_gym.py`](https://github.com/Polygl0t/llm-foundry/compare/tests/tests_gym.py?expand=1), [`tests/tests_synthetic.py`](https://github.com/Polygl0t/llm-foundry/compare/tests/tests_synthetic.py?expand=1)):
+
+Or run a specific script (e.g., the distributed training tests):
+
 ```bash
 python tests/tests_distributed.py
-python tests/tests_gym.py
-python tests/tests_synthetic.py
 ```
-
 
 ## Contributing
 

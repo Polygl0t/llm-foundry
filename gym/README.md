@@ -1,0 +1,47 @@
+# Gym Pipelines
+
+Generation, validation, and verification utilities for gym-based (Reinforcement Learning-style) training and evaluation pipelines.
+
+## Overview
+
+This folder contains generation, validation, and verification utilities for gym-based (Reinforcement Learning-style) training and evaluation pipelines in llm-foundry.
+
+## Contents
+
+- **generate_from_instruction_templates.py** — Builds samples from instruction templates.
+- **generate_from_long_context_templates.py** — Builds long-context and haystack-style samples from local text documents.
+- **generate_from_math_dataset.py** — Builds math-answer-check samples.
+- **generate_from_email_templates.py** — Builds structured email extraction samples.
+- **generate_from_tool_call_templates.py** — Builds tool-call samples.
+- **instruction_templates.py** — Instruction-task templates.
+- **long_context_templates.py** — Long-context and haystack task templates.
+- **tasks_metadata.py** — Verifier IDs, compatibility rules, kwargs templates, and helper utilities.
+- **verifier.py** — Verifier entry point and registry usage.
+- **verifiers.py** — Concrete verifier implementations.
+- **utils.py** — Shared helper functions used across gym scripts.
+- **assets/** — Input assets for generation workflows (documents, email data, and tool definitions).
+
+## Running Generators
+
+```bash
+python gym/generate_from_instruction_templates.py
+python gym/generate_from_long_context_templates.py
+python gym/generate_from_math_dataset.py
+python gym/generate_from_email_templates.py
+python gym/generate_from_tool_call_templates.py
+```
+
+## Data Assets
+
+The `assets` folder includes:
+
+- **doc-0.txt ... doc-22.txt** — Long-context source documents.
+- **emails.jsonl** — Email examples for structured extraction tasks.
+- **tools.json** — Tool definitions and examples for tool-call tasks.
+
+## Notes
+
+- Long-context and haystack generation rely on local files under `assets/`.
+- Tool-call generation expects `assets/tools.json` to be available.
+- Verifier IDs and compatibility checks are centralized in `tasks_metadata.py`.
+
