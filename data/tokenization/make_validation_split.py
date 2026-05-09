@@ -10,7 +10,7 @@ Output:
 - Updated source files with remaining training samples
 - .metadata file containing validation split statistics
 
-Example usage:
+Usage:
     python make_validation_split.py \
         --input_dir data/train_chunks \
         --output_dir data/validation \
@@ -18,6 +18,9 @@ Example usage:
         --output_file validation_split \
         --n_samples 20000 \
         --n_files 10
+
+TODO: We need to check if we can re-use some of the utility functions from utils.py to make
+this script more concise and maintainable.
 """
 import os
 import datasets
@@ -162,6 +165,8 @@ def main(input_dir, output_dir, input_type, output_file, n_samples, n_files=None
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Create a validation split by removing samples from files in a folder.")
+    # TODO: We should allow for the user to give a list of folders to sample from instead of just one folder. 
+    # This would allow us to create validation splits from multiple sources if needed.
     parser.add_argument("--input_dir", type=str, required=True, help="Directory containing input files to sample from.")
     parser.add_argument("--output_dir", type=str, default="./", help="Directory to save the validation split and metadata.")
     parser.add_argument("--input_type", type=str, default="parquet", choices=["parquet", "json"], help="Input file type.")

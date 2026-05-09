@@ -6,9 +6,9 @@
 # Learn more about SLURM options at:
 # - https://slurm.schedmd.com/sbatch.html
 #############################################
-#SBATCH --account=ag_cst_gabriel           # <-- Change to your SLURM account
+#SBATCH --account=ag_bit_flek              # <-- Change to your SLURM account
 #SBATCH --partition=mlgpu_long             # <-- Change to your partition
-#SBATCH --job-name=run-classifier
+#SBATCH --job-name=run-annotator
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=8
 #SBATCH --threads-per-core=1
@@ -22,7 +22,7 @@
 #############################################
 username="nklugeco_hpc"                         # <-- Change to the corresponding username that created the workspace
 file_system="mlnvme"                            # <-- Change to your filesystem
-workspace_name="nanotronics"                    # <-- Change to your workspace/project name
+workspace_name="polyglot"                       # <-- Change to your workspace/project name
 
 workdir="/lustre/$file_system/data/$username-$workspace_name"
 mkdir -p "$workdir/run_filter"
@@ -38,22 +38,30 @@ done
 # Environment Setup
 #############################################
 source "$workdir/.modules.sh"
+# python3 -m venv "$workdir/.venv_amd"
 source "$workdir/.venv_amd/bin/activate"
 
-export HF_TOKEN="<your-token-here>" # <-- Change to your HF token
+# pip3 install --upgrade pip
+# git clone --depth 1 --branch main https://github.com/Polygl0t/llm-foundry.git
+# pip3 install -e "$workdir/llm-foundry/.[data]" --no-cache-dir
+
+# ==== For this script, you will also need PyTorch for GPU support ====
+# pip3 install torch --no-cache-dir
+
+export HF_TOKEN="<your-token-here>"
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export MODEL_NAME="Polygl0t/portuguese-bertimbau-toxicity-classifier"
 export HF_DATASETS_CACHE="$workdir/.cache/$SLURM_JOB_ID"
 export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE"
-export CLEAN_CACHE="1"  # Set to "1" to clean cache after job completion
-export DATASET_PATH="/lustre/scratch/data/nklugeco_hpc-polyglot_datasets/portuguese/gigaverbo-v2-sft"
-export OUTPUT_FOLDER="/lustre/scratch/data/nklugeco_hpc-polyglot_datasets/portuguese/gigaverbo-v2-sft-processed"
+export DATASET_PATH="/path/to/dataset"
+export OUTPUT_FOLDER="/path/to/output"
 export BATCH_SIZE=32
 export NUM_PROC=16
 export FLOAT_SCORE="instruct_score"
 export INT_SCORE="instruct_int_score"
 export TEXT_COLUMN="messages"
-export MAX_LENGTH=6032
+export MAX_LENGTH=512
+export CLEAN_CACHE="1"  # <-- Set to "1" to clean cache after job completion
 
 for i in $(seq 0 $((SLURM_NTASKS_PER_NODE - 1))); do
     eval "out_var=\"\$out$i\""
@@ -73,11 +81,11 @@ done
 export CUDA_VISIBLE_DEVICES=0
 export UCX_NET_DEVICES=mlx5_0:1
 srun -n 1 -N 1 --gpus=1 --exclusive \
-python3 $workdir/run_classifier.py \
+python3 $workdir/llm-foundry/data/filters/run_annotator.py \
     --model_name "$MODEL_NAME" \
     --apply_chat_template \
     --text_column "$TEXT_COLUMN" \
-    --dataset_path "$DATASET_PATH/gigaverbo-v2-aes-enem.jsonl" \
+    --dataset_path "$DATASET_PATH/train-00000-of-00007.jsonl" \
     --cache_dir "$HF_DATASETS_CACHE" \
     --token $HF_TOKEN \
     --batch_size $BATCH_SIZE \
@@ -90,11 +98,11 @@ python3 $workdir/run_classifier.py \
 export CUDA_VISIBLE_DEVICES=1
 export UCX_NET_DEVICES=mlx5_1:1
 srun -n 1 -N 1 --gpus=1 --exclusive \
-python3 $workdir/run_classifier.py \
+python3 $workdir/llm-foundry/data/filters/run_annotator.py \
     --model_name "$MODEL_NAME" \
     --apply_chat_template \
     --text_column "$TEXT_COLUMN" \
-    --dataset_path "$DATASET_PATH/gigaverbo-v2-auggsm8k.jsonl" \
+    --dataset_path "$DATASET_PATH/train-00001-of-00007.jsonl" \
     --cache_dir "$HF_DATASETS_CACHE" \
     --token $HF_TOKEN \
     --batch_size $BATCH_SIZE \
@@ -107,11 +115,11 @@ python3 $workdir/run_classifier.py \
 export CUDA_VISIBLE_DEVICES=2
 export UCX_NET_DEVICES=mlx5_2:1
 srun -n 1 -N 1 --gpus=1 --exclusive \
-python3 $workdir/run_classifier.py \
+python3 $workdir/llm-foundry/data/filters/run_annotator.py \
     --model_name "$MODEL_NAME" \
     --apply_chat_template \
     --text_column "$TEXT_COLUMN" \
-    --dataset_path "$DATASET_PATH/gigaverbo-v2-code-parrot.jsonl" \
+    --dataset_path "$DATASET_PATH/train-00002-of-00007.jsonl" \
     --cache_dir "$HF_DATASETS_CACHE" \
     --token $HF_TOKEN \
     --batch_size $BATCH_SIZE \
@@ -124,11 +132,11 @@ python3 $workdir/run_classifier.py \
 export CUDA_VISIBLE_DEVICES=3
 export UCX_NET_DEVICES=mlx5_3:1
 srun -n 1 -N 1 --gpus=1 --exclusive \
-python3 $workdir/run_classifier.py \
+python3 $workdir/llm-foundry/data/filters/run_annotator.py \
     --model_name "$MODEL_NAME" \
     --apply_chat_template \
     --text_column "$TEXT_COLUMN" \
-    --dataset_path "$DATASET_PATH/gigaverbo-v2-extract-personas.jsonl" \
+    --dataset_path "$DATASET_PATH/train-00003-of-00007.jsonl" \
     --cache_dir "$HF_DATASETS_CACHE" \
     --token $HF_TOKEN \
     --batch_size $BATCH_SIZE \
@@ -141,11 +149,11 @@ python3 $workdir/run_classifier.py \
 export CUDA_VISIBLE_DEVICES=4
 export UCX_NET_DEVICES=mlx5_4:1
 srun -n 1 -N 1 --gpus=1 --exclusive \
-python3 $workdir/run_classifier.py \
+python3 $workdir/llm-foundry/data/filters/run_annotator.py \
     --model_name "$MODEL_NAME" \
     --apply_chat_template \
     --text_column "$TEXT_COLUMN" \
-    --dataset_path "$DATASET_PATH/gigaverbo-v2-extract-summaries.jsonl" \
+    --dataset_path "$DATASET_PATH/train-00004-of-00007.jsonl" \
     --cache_dir "$HF_DATASETS_CACHE" \
     --token $HF_TOKEN \
     --batch_size $BATCH_SIZE \
@@ -158,11 +166,11 @@ python3 $workdir/run_classifier.py \
 export CUDA_VISIBLE_DEVICES=5
 export UCX_NET_DEVICES=mlx5_5:1
 srun -n 1 -N 1 --gpus=1 --exclusive \
-python3 $workdir/run_classifier.py \
+python3 $workdir/llm-foundry/data/filters/run_annotator.py \
     --model_name "$MODEL_NAME" \
     --apply_chat_template \
     --text_column "$TEXT_COLUMN" \
-    --dataset_path "$DATASET_PATH/gigaverbo-v2-healthcare.jsonl" \
+    --dataset_path "$DATASET_PATH/train-00005-of-00007.jsonl" \
     --cache_dir "$HF_DATASETS_CACHE" \
     --token $HF_TOKEN \
     --batch_size $BATCH_SIZE \
@@ -175,11 +183,11 @@ python3 $workdir/run_classifier.py \
 export CUDA_VISIBLE_DEVICES=6
 export UCX_NET_DEVICES=mlx5_6:1
 srun -n 1 -N 1 --gpus=1 --exclusive \
-python3 $workdir/run_classifier.py \
+python3 $workdir/llm-foundry/data/filters/run_annotator.py \
     --model_name "$MODEL_NAME" \
     --apply_chat_template \
     --text_column "$TEXT_COLUMN" \
-    --dataset_path "$DATASET_PATH/gigaverbo-v2-generate-personas.jsonl" \
+    --dataset_path "$DATASET_PATH/train-00006-of-00007.jsonl" \
     --cache_dir "$HF_DATASETS_CACHE" \
     --token $HF_TOKEN \
     --batch_size $BATCH_SIZE \
@@ -192,11 +200,11 @@ python3 $workdir/run_classifier.py \
 export CUDA_VISIBLE_DEVICES=7
 export UCX_NET_DEVICES=mlx5_7:1
 srun -n 1 -N 1 --gpus=1 --exclusive \
-python3 $workdir/run_classifier.py \
+python3 $workdir/llm-foundry/data/filters/run_annotator.py \
     --model_name "$MODEL_NAME" \
     --apply_chat_template \
     --text_column "$TEXT_COLUMN" \
-    --dataset_path "$DATASET_PATH/gigaverbo-v2-gsm8k.jsonl" \
+    --dataset_path "$DATASET_PATH/train-00007-of-00007.jsonl" \
     --cache_dir "$HF_DATASETS_CACHE" \
     --token $HF_TOKEN \
     --batch_size $BATCH_SIZE \

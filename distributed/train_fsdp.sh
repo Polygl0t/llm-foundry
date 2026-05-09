@@ -39,8 +39,12 @@ err="$workdir/run_outputs/err.$SLURM_JOB_ID"
 #############################################
 
 source $workdir/.modules.sh
-# python3 -m venv $workdir/.venv_fsdp
-source $workdir/.venv_fsdp/bin/activate
+# python3 -m venv $workdir/.venv_distributed
+source $workdir/.venv_distributed/bin/activate
+
+# pip3 install --upgrade pip
+# git clone --depth 1 --branch main https://github.com/Polygl0t/llm-foundry.git
+# pip3 install -e "$workdir/llm-foundry/.[distributed]" --no-cache-dir
 
 # ===== ALL HAIL FLASH-ATTN! =====
 # Using the pre-built flash-attn wheel for CUDA 12.6 and PyTorch 2.8 with CXX11 ABI set to TRUE, which is compatible with our environment. 

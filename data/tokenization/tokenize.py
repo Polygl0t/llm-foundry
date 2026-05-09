@@ -64,6 +64,14 @@ def load_tokenizer(args):
     if args.return_assistant_masks and not args.apply_chat_template:
         raise ValueError("--return_assistant_masks requires --apply_chat_template.")
 
+    if args.apply_chat_template and (args.add_bos_token or args.add_eos_token):
+        raise ValueError(
+            "--add_bos_token / --add_eos_token must not be combined with "
+            "--apply_chat_template. The chat template is responsible for all "
+            "special tokens; adding extra BOS/EOS would corrupt the formatting "
+            "and could mask assistant-ending EOS tokens out of the loss."
+        )
+
     return tokenizer
 
 
@@ -87,19 +95,17 @@ def create_tokenize_function(tokenizer, args):
                 add_generation_prompt=False,
             )
             input_ids = ids["input_ids"]
+            assistant_masks = ids.get("assistant_masks") if want_assistant_masks else None
 
-            # Optionally prepend BOS if the template did not already add it.
-            if args.add_bos_token and bos_id is not None:
-                input_ids = [
-                    ([bos_id] + seq) if (not seq or seq[0] != bos_id) else seq
-                    for seq in input_ids
-                ]
-            # Optionally append EOS if the template did not already add it.
-            if args.add_eos_token and eos_id is not None:
-                input_ids = [
-                    (seq + [eos_id]) if (not seq or seq[-1] != eos_id) else seq
-                    for seq in input_ids
-                ]
+            # The chat template is solely responsible for BOS/EOS placement.
+            # We never inject extra special tokens here — doing so would risk
+            # masking the assistant's terminal EOS out of the loss and could
+            # break the template's expected formatting.
+
+            if assistant_masks is not None:
+                for seq, mask in zip(input_ids, assistant_masks):
+                    if len(seq) != len(mask):
+                        raise ValueError("assistant_masks must have the same length as input_ids.")
 
         else:
             # Standard tokenization (no chat template).
@@ -125,13 +131,13 @@ def create_tokenize_function(tokenizer, args):
             result["attention_mask"] = [[1] * len(seq) for seq in input_ids]
 
         if want_assistant_masks:
-            result["assistant_masks"] = ids["assistant_masks"]
+            result["assistant_masks"] = assistant_masks
 
         if args.return_labels:
             if want_assistant_masks:
                 result["labels"] = [
                     [t if m == 1 else -100 for t, m in zip(seq, mask)]
-                    for seq, mask in zip(input_ids, ids["assistant_masks"])
+                    for seq, mask in zip(input_ids, assistant_masks)
                 ]
             else:
                 # No assistant mask available — treat every token as a label.
@@ -298,11 +304,11 @@ if __name__ == "__main__":
     sp = parser.add_argument_group("Special Tokens")
     sp.add_argument(
         "--add_bos_token", action="store_true",
-        help="Prepend the BOS token to each sequence.",
+        help="Prepend the BOS token to each sequence. Incompatible with --apply_chat_template.",
     )
     sp.add_argument(
         "--add_eos_token", action="store_true",
-        help="Append the EOS token to each sequence.",
+        help="Append the EOS token to each sequence. Incompatible with --apply_chat_template.",
     )
 
     # Output fields

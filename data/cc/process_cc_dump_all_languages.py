@@ -280,7 +280,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Process CommonCrawl WARC files to extract text and filter by language, with support for multiple language filter backends (FT176 and GlotLID)."  
+        description="CommonCrawl Language Extraction Pipeline",
     )
 
     parser.add_argument(

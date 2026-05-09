@@ -39,8 +39,8 @@ err="$workdir/run_outputs/err.$SLURM_JOB_ID"
 #############################################
 
 source $workdir/.modules.sh
-# python3 -m venv $workdir/.venv_ddp
-source $workdir/.venv_ddp/bin/activate
+# python3 -m venv $workdir/.venv_distributed
+source $workdir/.venv_distributed/bin/activate
 
 # pip3 install --upgrade pip
 # git clone --depth 1 --branch main https://github.com/Polygl0t/llm-foundry.git

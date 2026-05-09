@@ -119,7 +119,6 @@ def save_dataset(dataset, output_dir, output_type, tokens_per_chunk, token_count
     """
     sample_count = len(dataset)
     if sample_count == 0:
-        print("[WARNING] No samples to save. Skipping.")
         return 0
 
     n_chunks = max(1, (token_count + tokens_per_chunk - 1) // tokens_per_chunk)
@@ -136,7 +135,6 @@ def save_dataset(dataset, output_dir, output_type, tokens_per_chunk, token_count
         else:
             chunk.to_json(filename)
 
-    print(f"[INFO] Saved {sample_count:,} samples in {n_chunks} chunk(s) to '{output_dir}'.")
     return n_chunks
 
 

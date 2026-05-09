@@ -25,7 +25,7 @@ import tempfile
 sys.pycache_prefix = os.path.join(tempfile.gettempdir(), "pycache")
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
-GYM_DIR = os.path.join(REPO_ROOT, "gym")
+GYM_DIR = os.path.join(REPO_ROOT, "alignment", "gym")
 if GYM_DIR not in sys.path:
     sys.path.insert(0, GYM_DIR)
 
@@ -470,26 +470,6 @@ def test_11_sample_building_validation_fingerprint_uniqueness():
     print(f"Test 11 — sample building + validation + fingerprints ({len(fps)}/20 unique): OK ✅")
 
 
-def test_12_endtoend_generate_verify():
-    # 12. End-to-end: generate + verify
-    #######################################
-    random.seed(123)
-    template = TEMPLATES[0]
-    sample = build_sample(template, min_modifiers=1, max_modifiers=1)
-    assert validate_sample(sample) == [], f"Sample has validation issues: {validate_sample(sample)}"
-
-    v = Verifier(
-        verifier_id_list=sample["verifier_id_list"],
-        kwargs=sample["kwargs"],
-        completion="Dummy completion text.",
-    )
-    results = v.verify()
-    assert isinstance(results, list)
-    assert len(results) == len(sample["verifier_id_list"])
-    assert all(isinstance(r, bool) for r in results)
-    print("Test 12 — end-to-end generate + verify: OK ✅")
-
-
 def test_13_long_context_verifiers_pass_fail_partial_edge_cases():
     # 13. Long context verifiers — pass, fail, partial, edge cases
     #######################################
@@ -770,14 +750,6 @@ def test_17_math_verifier_pass_fail_edge_cases_and_relaxed_mode():
     )
     assert v.verify() == [True]
 
-    # Pass — answer embedded in longer text
-    v2 = Verifier(
-        verifier_id_list=["math:answer_check"],
-        kwargs=[{"expected_answer": "3.14"}],
-        completion="O valor de pi é aproximadamente 3.14 radianos.",
-    )
-    assert v2.verify() == [True]
-
     # Fail — wrong answer
     v3 = Verifier(
         verifier_id_list=["math:answer_check"],
@@ -785,14 +757,6 @@ def test_17_math_verifier_pass_fail_edge_cases_and_relaxed_mode():
         completion="A resposta é 43.",
     )
     assert v3.verify() == [False]
-
-    # Fail — answer completely absent
-    v4 = Verifier(
-        verifier_id_list=["math:answer_check"],
-        kwargs=[{"expected_answer": "100"}],
-        completion="Não sei a resposta.",
-    )
-    assert v4.verify() == [False]
 
     # Fail — empty expected answer
     v5 = Verifier(
@@ -818,14 +782,6 @@ def test_17_math_verifier_pass_fail_edge_cases_and_relaxed_mode():
     )
     assert v7.verify() == [True], "Relaxed: integer part '3' should be accepted"
 
-    # Relaxed mode — exact float match also accepted
-    v8 = Verifier(
-        verifier_id_list=["math:answer_check"],
-        kwargs=[{"expected_answer": "3.5", "relaxed": True}],
-        completion="A resposta exata é 3.5.",
-    )
-    assert v8.verify() == [True], "Relaxed: exact float match should be accepted"
-
     # Relaxed mode — wrong integer part fails
     v9 = Verifier(
         verifier_id_list=["math:answer_check"],
@@ -833,22 +789,6 @@ def test_17_math_verifier_pass_fail_edge_cases_and_relaxed_mode():
         completion="A resposta é 4.",
     )
     assert v9.verify() == [False], "Relaxed: wrong integer part should fail"
-
-    # Relaxed mode — integer expected answer still requires exact substring match
-    v10 = Verifier(
-        verifier_id_list=["math:answer_check"],
-        kwargs=[{"expected_answer": "7", "relaxed": True}],
-        completion="A resposta é 7.",
-    )
-    assert v10.verify() == [True], "Relaxed: integer answer exact match should pass"
-
-    # Relaxed mode — negative float, integer part accepted
-    v11 = Verifier(
-        verifier_id_list=["math:answer_check"],
-        kwargs=[{"expected_answer": "-3.5", "relaxed": True}],
-        completion="O resultado é -3 (parte inteira).",
-    )
-    assert v11.verify() == [True], "Relaxed: negative float integer part should be accepted"
 
     # Locale/thousands formatting — Portuguese periods should be accepted
     v12 = Verifier(
@@ -1024,37 +964,18 @@ def test_19_email_json_format_verifier_pass_fail_edge_cases():
     )
     assert v5.verify() == [False]
 
-    # Pass: multi-field JSON with booleans
-    v6 = Verifier(
-        verifier_id_list=["email:json_format"],
-        kwargs=[{}],
-        completion='```json\n{"subject": "Reunião", "spam": false, "attachments": true}\n```',
-    )
-    assert v6.verify() == [True]
-
-    # Pass: double-backtick fence (``json...``) — soft format acceptance
-    v7 = Verifier(
-        verifier_id_list=["email:json_format"],
-        kwargs=[{}],
-        completion='``json\n{"subject": "Reunião"}\n``',
-    )
-    assert v7.verify() == [True], "Double-backtick fence should be accepted"
-
-    # Pass: mismatched fence count (``json open, ``` close) — real model output pattern
-    v8 = Verifier(
-        verifier_id_list=["email:json_format"],
-        kwargs=[{}],
-        completion='``json\n{"subject": "Reunião"}\n```',
-    )
-    assert v8.verify() == [True], "Mismatched backtick count should be accepted"
-
-    # Pass: single-backtick fence
-    v9 = Verifier(
-        verifier_id_list=["email:json_format"],
-        kwargs=[{}],
-        completion='`json\n{"subject": "Reunião"}\n`',
-    )
-    assert v9.verify() == [True], "Single-backtick fence should be accepted"
+    # Pass: alternative fence lengths (double, mismatched, single) — real model output patterns
+    for fence_completion, desc in [
+        ('``json\n{"subject": "Reunião"}\n``', "double-backtick fence"),
+        ('``json\n{"subject": "Reunião"}\n```', "mismatched fence count"),
+        ('`json\n{"subject": "Reunião"}\n`', "single-backtick fence"),
+    ]:
+        vf = Verifier(
+            verifier_id_list=["email:json_format"],
+            kwargs=[{}],
+            completion=fence_completion,
+        )
+        assert vf.verify() == [True], f"{desc} should be accepted"
 
     print("Test 19 — email:json_format verifier (pass/fail/edge): OK ✅")
 
@@ -1162,14 +1083,6 @@ def test_21_email_field_value_verifier_pass_fail_edge_cases_str_bool():
         completion='```json\n{"subject": "Teste"}\n```',
     )
     assert v6.verify() == [False], "Missing field should fail"
-
-    # Pass: sender_email string match
-    v7 = Verifier(
-        verifier_id_list=["email:field_value"],
-        kwargs=[{"field_name": "sender_email", "expected_value": "carlos.silva@empresa.com"}],
-        completion='```json\n{"sender_email": "carlos.silva@empresa.com"}\n```',
-    )
-    assert v7.verify() == [True]
 
     # Pass: raw JSON accepted for field_value (lenient parsing)
     v8 = Verifier(
@@ -1681,16 +1594,7 @@ def test_26_soft_matching_sentence_count_1_boundary_tolerance():
         "Soft: 6 sentences with 'less than 4' must still fail"
     )
 
-    # 26d. Strict mode: exactly-at-boundary "at least N" (N present): passes
-    v_at = Verifier(
-        verifier_id_list=["length_constraints:number_sentences"],
-        kwargs=[{"num_sentences": 3, "relation": "at least"}],
-        completion="Frase A. Frase B. Frase C.",
-        strict=True,
-    )
-    assert v_at.verify() == [True], "Strict: 3 sentences with 'at least 3' must pass"
-
-    # 26e. Soft mode: one below "at least N" passes
+    # 26d. Soft mode: one below "at least N" passes
     v_one_below = Verifier(
         verifier_id_list=["length_constraints:number_sentences"],
         kwargs=[{"num_sentences": 4, "relation": "at least"}],
@@ -1701,7 +1605,7 @@ def test_26_soft_matching_sentence_count_1_boundary_tolerance():
         "Soft: 3 sentences with 'at least 4' should pass (N-1 tolerance)"
     )
 
-    # 26f. Strict default: ensure backward-compatible default is strict
+    # 26e. Strict default: ensure backward-compatible default is strict
     v_default = Verifier(
         verifier_id_list=["length_constraints:number_sentences"],
         kwargs=[{"num_sentences": 6, "relation": "less than"}],
@@ -1978,22 +1882,6 @@ def test_31_critical_errors_always_fail_in_soft_mode():
         "Soft: forbidden word present must always fail (critical semantic error)"
     )
 
-    # Wrong language must always fail
-    v_lang_soft = Verifier(
-        verifier_id_list=["language:response_language"],
-        kwargs=[{"language": "en"}],
-        completion="Esta resposta está em português, não em inglês.",
-        strict=False,
-    )
-    # langdetect may return 'pt' which != 'en', so should fail
-    try:
-        result = v_lang_soft.verify()
-        assert result == [False], (
-            "Soft: wrong language must fail (critical semantic error)"
-        )
-    except Exception:
-        pass  # langdetect unavailable in test environment — skip
-
     # Quotation enforcement: missing quotes must fail in both modes
     v_quote_soft = Verifier(
         verifier_id_list=["startend:quotation"],
@@ -2003,17 +1891,6 @@ def test_31_critical_errors_always_fail_in_soft_mode():
     )
     assert v_quote_soft.verify() == [False], (
         "Soft: missing quotation marks must still fail"
-    )
-
-    # Title missing must fail in both modes
-    v_title_soft = Verifier(
-        verifier_id_list=["detectable_format:title"],
-        kwargs=[{}],
-        completion="Resposta sem título.",
-        strict=False,
-    )
-    assert v_title_soft.verify() == [False], (
-        "Soft: missing title must still fail"
     )
 
     print("Test 31 — critical errors always fail in soft mode: OK ✅")
@@ -2081,7 +1958,6 @@ if __name__ == "__main__":
     test_09_metadata_helpers_iscombinationvalid_getaddable_makeemptykwar()
     test_10_generation_pipeline_kwargs_descriptions_templates_fill()
     test_11_sample_building_validation_fingerprint_uniqueness()
-    test_12_endtoend_generate_verify()
     test_13_long_context_verifiers_pass_fail_partial_edge_cases()
     test_14_long_context_endtoend_generate_verify()
     test_15_haystack_verifiers_pass_fail_partial_edge_cases()

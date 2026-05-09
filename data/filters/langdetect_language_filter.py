@@ -33,6 +33,8 @@ import os
 import numpy as np
 from langdetect import detect, LangDetectException
 
+# TODO: We should stop using print statements and instead use a proper logger.
+# See `data/tokenization/utils.py` for an example of how to set up logging.
 
 # Language code mapping (langdetect uses ISO 639-1 codes)
 LANGUAGE_CODES = {
@@ -91,6 +93,8 @@ def create_language_filter(languages):
     return filter_language
 
 
+# TODO: This is also used in `unicode_language_filter.py`. The best solution is to 
+# make these utility functions available in a shared utils file.
 def is_messages_column(dataset, column_name):
     """
     Check if a column contains messages in the expected format.
@@ -119,7 +123,8 @@ def is_messages_column(dataset, column_name):
     
     return False
 
-
+# TODO: This is also used in `unicode_language_filter.py`. The best solution is to 
+# make these utility functions available in a shared utils file.
 def flatten_messages(messages):
     """
     Flatten a messages list into a single text string.
@@ -144,7 +149,8 @@ def flatten_messages(messages):
 
 
 def main(args):
-    # Validate arguments
+    # TODO: Create a unified loader that can handle both JSONL and Parquet, and HF Datasets.
+    # We already have a working example in `synthetic/utils.py` and `data/tokenization/utils.py`.
     assert args.input_type in ["jsonl", "parquet"], "Dataset type must be either 'jsonl' or 'parquet'."
     assert args.output_type in ["jsonl", "parquet"], "Output type must be either 'jsonl' or 'parquet'."
     
@@ -234,6 +240,10 @@ def main(args):
     
     # Create output directory
     os.makedirs(args.output_dir, exist_ok=True)
+
+    # TODO: Chunking and saving logic is duplicated from `unicode_language_filter.py`. 
+    # We should unify this in a shared utility function.
+    # See `data/tokenization/utils.py` for an example of how to implement this in a reusable way.
     
     # Determine number of chunks (equal to number of input files)
     n_chunks = len(data_files)
@@ -268,7 +278,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Filter a dataset to keep only specified language text samples using langdetect.",
+        description="Language Detection Filter using langdetect",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=f"""
 Available languages:

@@ -33,13 +33,18 @@ err="$workdir/run_outputs/err-pack.$SLURM_JOB_ID"
 #############################################
 # Environment Setup
 #############################################
-source "$workdir/.modules.sh"
-source "$workdir/.venv/bin/activate"
+source $workdir/.modules.sh
+# python3 -m venv $workdir/.venv_intel
+source $workdir/.venv_intel/bin/activate
+
+# pip3 install --upgrade pip
+# git clone --depth 1 --branch main https://github.com/Polygl0t/llm-foundry.git
+# pip3 install -e "$workdir/llm-foundry/.[data]" --no-cache-dir
 
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export HF_DATASETS_CACHE="$workdir/.cache/$SLURM_JOB_ID"
 export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE"
-export CLEAN_CACHE="1"  # Set to "1" to clean cache after job completion
+export CLEAN_CACHE="1"  # <-- Set to "1" to clean cache after job completion
 
 echo "# [${SLURM_JOB_ID}] Job started at: $(date)" > "$out"
 echo "# [${SLURM_JOB_ID}] Using $SLURM_NNODES nodes" >> "$out"
@@ -51,6 +56,7 @@ echo "# Python executable: $(which python3)" >> "$out"
 #############################################
 # Main Job Execution
 #############################################
+
 python3 $workdir/llm-foundry/data/tokenization/pack.py \
     --input_path "$workdir/data/tokenized" \
     --output_dir "$workdir/data/packed" \

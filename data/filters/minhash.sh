@@ -6,7 +6,7 @@
 # Learn more about SLURM options at:
 # - https://slurm.schedmd.com/sbatch.html
 #############################################
-#SBATCH --account=ag_cst_gabriel           # <-- Change to your SLURM account
+#SBATCH --account=ag_bit_flek              # <-- Change to your SLURM account
 #SBATCH --partition=vlm_long               # <-- Change to your partition
 #SBATCH --job-name=dedup-minhash
 #SBATCH --nodes=1
@@ -35,12 +35,14 @@ err="$workdir/run_outputs/err-dedup-minhash.$SLURM_JOB_ID"
 # Environment Setup
 #############################################
 source $workdir/.modules.sh
+# python3 -m venv "$workdir/.venv_intel"
 source $workdir/.venv_intel/bin/activate
-# pip3 install datatrove[io,processing] --no-cache-dir
-# pip3 install indic-nlp-library --no-cache-dir
-# pip3 install stanza --no-cache-dir
-# pip3 install spacy --no-cache-dir
-# pip3 install pyyaml==6.0.2 --no-cache-dir
+
+# pip3 install --upgrade pip
+# git clone --depth 1 --branch main https://github.com/Polygl0t/llm-foundry.git
+# pip3 install -e "$workdir/llm-foundry/.[data]" --no-cache-dir
+
+# ==== For Indic NLP support, we need to install some additional libraries ====
 # pip3 install indic-nlp-library --no-cache-dir
 
 export DATA_FOLDER="$workdir/hindi/dataset"
@@ -53,9 +55,9 @@ export OUTPUT_DEDUPLICATION_FINAL="$workdir/hindi/dataset_dedup"
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export HF_DATASETS_CACHE="$workdir/.cache/$SLURM_JOB_ID"
 export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE"
-export CLEAN_CACHE="1"  # Set to "1" to clean cache after job completion
-export TOKENIZER_NAME_OR_PATH="Qwen/Qwen3-0.6B" # Qwen3 has a good multilingual tokenizer
-export LANGUAGE="hi"  # Hindi language code
+export TOKENIZER_NAME_OR_PATH="Qwen/Qwen3-0.6B"
+export LANGUAGE="hi"
+export CLEAN_CACHE="1"  # <-- Set to "1" to clean cache after job completion
 
 echo "# [${SLURM_JOB_ID}] Job started at: $(date)" > "$out"
 echo "# [${SLURM_JOB_ID}] Using $SLURM_NNODES nodes" >> "$out"
@@ -75,7 +77,7 @@ find "$OUTPUT_MINHASH_BUCKET" -mindepth 1 -delete 2>/dev/null || true
 find "$OUTPUT_REMOVED_IDS" -mindepth 1 -delete 2>/dev/null || true
 find "$OUTPUT_DUPLICATED_SAMPLES" -mindepth 1 -delete 2>/dev/null || true
 
-python3 -u "$workdir/minhash.py" \
+python3 -u "$workdir/llm-foundry/data/filters/minhash.py" \
     --tasks $SLURM_CPUS_PER_TASK \
     --workers $SLURM_CPUS_PER_TASK \
     --cache_dir "$HF_DATASETS_CACHE" \

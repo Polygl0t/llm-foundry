@@ -57,6 +57,9 @@ from datatrove.executor import LocalPipelineExecutor
 from datatrove.utils.typeshelper import Languages
 from datatrove.pipeline.tokens import TokensCounter
 
+
+# TODO: We should off-load the metadata reading and writing to a separate utility module.
+# See `data/cc/utils.py` for an example.
 def read_metadata(metadata_file):
     """Read metadata from file in YAML-like format."""
     if not os.path.exists(metadata_file):
@@ -80,7 +83,8 @@ def read_metadata(metadata_file):
                     metadata[key] = value
     return metadata
 
-
+# TODO: We should off-load the metadata reading and writing to a separate utility module.
+# See `data/cc/utils.py` for an example.
 def write_metadata(metadata_file, metadata):
     """Write metadata to file in YAML-like format."""
     with open(metadata_file, 'w', encoding='utf-8') as f:
@@ -108,7 +112,8 @@ def main(args):
     lang_id_dict = {
         "pt": "por_Latn",
         "bn": "ben",
-        "hi": "hin"
+        "hi": "hin",
+        "de": "deu"
     }
 
     # [MinhashConfig](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/dedup/minhash.py)
@@ -272,6 +277,8 @@ def main(args):
     metadata_file = os.path.join(OUTPUT_DEDUPLICATION_FINAL, '.metadata')
     write_metadata(metadata_file, metadata)
     
+    # TODO: We should stop using print statements and instead use a proper logger.
+    # See `data/tokenization/utils.py` for an example of how to set up logging.
     # Print formatted statistics
     print(f"\n{'─'*80}")
     print(f"📊 STATISTICS FOR '{LANGUAGE.upper()}'")
@@ -286,7 +293,7 @@ def main(args):
     print(f"✅ Post-processing for '{LANGUAGE}' completed.\n")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Data processing pipeline using DataTrove")
+    parser = argparse.ArgumentParser(description="Deduplication Pipeline")
 
     parser.add_argument("--tasks", type=int, default=32, help="Number of tasks")
     parser.add_argument("--workers", type=int, default=32, help="Number of workers")

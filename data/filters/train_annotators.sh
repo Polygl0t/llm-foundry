@@ -6,9 +6,9 @@
 # Learn more about SLURM options at:
 # - https://slurm.schedmd.com/sbatch.html
 #############################################
-#SBATCH --account=ag_cst_gabriel           # <-- Change to your SLURM account
+#SBATCH --account=ag_bit_flek              # <-- Change to your SLURM account
 #SBATCH --partition=sgpu_long              # <-- Change to your partition
-#SBATCH --job-name=train-edu-classifier-pt
+#SBATCH --job-name=train-annotators
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=4
 #SBATCH --threads-per-core=1
@@ -22,7 +22,7 @@
 #############################################
 username="nklugeco_hpc"                    # <-- Change to the corresponding username that created the workspace
 file_system="mlnvme"                       # <-- Change to your filesystem
-workspace_name="nanotronics"               # <-- Change to your workspace/project name
+workspace_name="polyglot"                  # <-- Change to your workspace/project name
 
 workdir="/lustre/$file_system/data/$username-$workspace_name"
 mkdir -p "$workdir/run_outputs"
@@ -45,12 +45,12 @@ done
 # - NCCL Documentation:
 # https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html
 #############################################
-
 source "$workdir/.modules.sh"
+# python3 -m venv "$workdir/.venv_amd"
 source "$workdir/.venv_amd/bin/activate"
 
-export HF_TOKEN="<your-token-here>" # <-- Change to your HF token
-export WANDB_TOKEN="<your-token-here>" # <-- Change to your wandb token
+export HF_TOKEN="<your-token-here>"
+export WANDB_TOKEN="<your-token-here>"
 export ID_LABEL="Edu-Score"
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export HF_DATASETS_CACHE="$workdir/.cache/$SLURM_JOB_ID"
@@ -77,9 +77,9 @@ done
 export CUDA_VISIBLE_DEVICES=0
 export UCX_NET_DEVICES=mlx5_0:1
 srun -n 1 -N 1 --gpus=1 --exclusive \
-python3 $workdir/train_classifier.py \
-    --dataset_path "$workdir/gigaverbo-v2-dedup/edu_classification_dataset" \
-    --cache_dir "$workdir/.cache" \
+python3 $workdir/llm-foundry/data/filters/train_annotator.py \
+    --dataset_path "$workdir/data" \
+    --cache_dir "$HF_DATASETS_CACHE" \
     --model_name "PORTULAN/albertina-100m-portuguese-ptbr-encoder" \
     --checkpoint_dir "$workdir/checkpoints/albertina-100m" \
     --freeze \
@@ -91,9 +91,9 @@ python3 $workdir/train_classifier.py \
 export CUDA_VISIBLE_DEVICES=1
 export UCX_NET_DEVICES=mlx5_1:1
 srun -n 1 -N 1 --gpus=1 --exclusive \
-python3 $workdir/train_classifier.py \
-    --dataset_path "$workdir/gigaverbo-v2-dedup/edu_classification_dataset" \
-    --cache_dir "$workdir/.cache" \
+python3 $workdir/llm-foundry/data/filters/train_annotator.py \
+    --dataset_path "$workdir/data" \
+    --cache_dir "$HF_DATASETS_CACHE" \
     --model_name "sagui-nlp/debertinha-ptbr-xsmall" \
     --checkpoint_dir "$workdir/checkpoints/debertinha" \
     --freeze \
@@ -105,9 +105,9 @@ python3 $workdir/train_classifier.py \
 export CUDA_VISIBLE_DEVICES=2
 export UCX_NET_DEVICES=mlx5_3:1
 srun -n 1 -N 1 --gpus=1 --exclusive \
-python3 $workdir/train_classifier.py \
-    --dataset_path "$workdir/gigaverbo-v2-dedup/edu_classification_dataset" \
-    --cache_dir "$workdir/.cache" \
+python3 $workdir/llm-foundry/data/filters/train_annotator.py \
+    --dataset_path "$workdir/data" \
+    --cache_dir "$HF_DATASETS_CACHE" \
     --model_name "pablocosta/bertabaporu-large-uncased" \
     --checkpoint_dir "$workdir/checkpoints/bertabaporu-large" \
     --freeze \
@@ -119,9 +119,9 @@ python3 $workdir/train_classifier.py \
 export CUDA_VISIBLE_DEVICES=3
 export UCX_NET_DEVICES=mlx5_2:1
 srun -n 1 -N 1 --gpus=1 --exclusive \
-python3 $workdir/train_classifier.py \
-    --dataset_path "$workdir/gigaverbo-v2-dedup/edu_classification_dataset" \
-    --cache_dir "$workdir/.cache" \
+python3 $workdir/llm-foundry/data/filters/train_annotator.py \
+    --dataset_path "$workdir/data" \
+    --cache_dir "$HF_DATASETS_CACHE" \
     --model_name "eduagarcia/RoBERTaCrawlPT-base" \
     --checkpoint_dir "$workdir/checkpoints/roberta-crawlpt" \
     --freeze \
@@ -137,12 +137,12 @@ wait
 #############################################
 # Clean HF_DATASETS_CACHE folder if requested
 if [ "$CLEAN_CACHE" = "1" ]; then
-    echo "# [${SLURM_JOB_ID}] Cleaning HF_DATASETS_CACHE" >> "$out"
+    echo "# [${SLURM_JOB_ID}] Cleaning HF_DATASETS_CACHE" >> "$out0"
     if [ -d "$HF_DATASETS_CACHE" ]; then
         find "$HF_DATASETS_CACHE" -mindepth 1 -delete 2>/dev/null || true
     fi
 else
-    echo "# [${SLURM_JOB_ID}] Skipping cache cleanup (CLEAN_CACHE=$CLEAN_CACHE)" >> "$out"
+    echo "# [${SLURM_JOB_ID}] Skipping cache cleanup (CLEAN_CACHE=$CLEAN_CACHE)" >> "$out0"
 fi
 
 for i in $(seq 0 $((SLURM_NTASKS_PER_NODE - 1))); do

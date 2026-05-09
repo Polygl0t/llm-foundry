@@ -1,30 +1,29 @@
 """
-Sequence Classification Inference for Dataset Scoring
+Inference Pipeline for Dataset Annotation
 
-Runs inference with HuggingFace sequence classification models to score datasets.
-Commonly used for educational content scoring, quality assessment, or toxicity detection.
+Runs inference with HuggingFace sequence classification models to annotate datasets.
 
 Methodology:
 - Loads pre-trained classifier (trained with train_classifier.py)
 - Applies optional chat template formatting to text
 - Runs batched inference with configurable batch size
-- Outputs both float scores (raw logits + 1) and rounded integer scores [1-5]
+- Outputs both float scores (raw logits + 1) and rounded integer scores (e.g., 1-5)
 - Preserves original dataset structure with added score columns
 
-Score mapping:
+Annotation mapping:
 - Model outputs logits in range [0, 4]
-- float_score: logits + 1 → [1, 5] range with decimals
-- int_score: round(clip(logits, 0, 4)) + 1 → integer [1, 5]
+- float_score: logits + 1 -> [1, 5] range with decimals
+- int_score: round(clip(logits, 0, 4)) + 1 -> integer [1, 5]
 
 Usage:
-    # Score dataset with edu classifier
-    python run_classifier.py --model_name username/edu-classifier \
+    # Annotate dataset with edu classifier
+    python run_annotator.py --model_name username/edu-classifier \
         --dataset_path data/ --text_column text \
         --output_folder scored/ --batch_size 32 \
         --float_score edu_score_float --int_score edu_score
     
-    # Score chat dataset with template
-    python run_classifier.py --model_name username/quality-classifier \
+    # Annotate chat dataset with template
+    python run_annotator.py --model_name username/quality-classifier \
         --dataset_path conversations.jsonl --text_column messages \
         --apply_chat_template --output_folder scored/ \
         --max_length 1024
@@ -36,7 +35,11 @@ import torch
 import glob
 import os
 
+# TODO: We should stop using print statements and instead use a proper logger.
+# See `data/tokenization/utils.py` for an example of how to set up logging.
 
+# TODO: Create a unified loader that can handle both JSONL and Parquet, and HF Datasets.
+# We already have a working example in `synthetic/utils.py` and `data/tokenization/utils.py`.
 def load_dataset_files(dataset_path, cache_dir):
     """
     Load dataset from a file or directory containing JSONL or Parquet files.
@@ -114,7 +117,8 @@ def apply_chat_template_to_dataset(dataset, tokenizer, text_column, num_proc):
     
     return formatted_dataset, 'formatted_text'
 
-
+# TODO: Chunking and saving logic should be abstracted out into a reusable utility function.
+# See `data/tokenization/utils.py` for an example of how to implement this in a reusable way.
 def save_dataset_split(dataset, dataset_type, dataset_files, output_folder):
     """
     Split dataset evenly and save with same filenames as input.
@@ -157,9 +161,11 @@ def save_dataset_split(dataset, dataset_type, dataset_files, output_folder):
 
 
 def main(args):
-    """Main execution function for the classifier script."""
     
     # Validate that input and output directories are different
+    # TODO: Maybe we can just make so that IF the input folder/file are
+    # the same as the output folder/file, we automatically save to a new 
+    # folder with a suffix like "_annotated" or something.
     input_path = os.path.abspath(args.dataset_path)
     output_path = os.path.abspath(args.output_folder)
     
@@ -198,7 +204,8 @@ def main(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
-    # Load dataset
+    # TODO: Create a unified loader that can handle both JSONL and Parquet, and HF Datasets.
+    # We already have a working example in `synthetic/utils.py` and `data/tokenization/utils.py`.
     dataset, dataset_type, dataset_files = load_dataset_files(
         args.dataset_path,
         args.cache_dir
@@ -238,7 +245,7 @@ def main(args):
 
         return batch
 
-    # Run classification on dataset
+    # Run the annotator over the dataset in batches
     dataset = dataset.map(
         run_annotator,
         batched=True,
@@ -251,7 +258,8 @@ def main(args):
     if args.apply_chat_template:
         dataset = dataset.remove_columns(['formatted_text'])
 
-    # Save dataset with same number and naming as input files
+    # TODO: Chunking and saving logic should be abstracted out into a reusable utility function.
+    # See `data/tokenization/utils.py` for an example of how to implement this in a reusable way.
     save_dataset_split(
         dataset,
         dataset_type,
@@ -261,7 +269,7 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Annotate a dataset with a HuggingFace sequence classification model.")
 
     parser.add_argument("--model_name", type=str, required=True, help="The name of the model to be used.")
     parser.add_argument("--apply_chat_template", action='store_true', help="Whether to apply a chat template to the text column.")

@@ -1,7 +1,7 @@
 """
-SFT Dataset Filter
+SFT Dataset Filter (Portuguese Version)
 
-A comprehensive filtering and conversion tool for instruction-tuning (SFT) datasets.
+This is a filtering and conversion tool for instruction-tuning (SFT) datasets.
 Designed to clean, validate, and transform instruction-following datasets by removing
 malformed code blocks, corrupted code content, undecoded Unicode sequences, word
 repetition loops (degenerate model outputs), and other issues that passed through 
@@ -17,7 +17,7 @@ The script expects datasets with a messages column (configurable) containing con
         "token_count": 123  # Optional, enables token-based features
     }
 
-Usage Examples:
+Usage:
     python sft_filter.py \
         --input_dir ./raw_data \
         --output_dir ./filtered_data \
@@ -34,6 +34,10 @@ Usage Examples:
         --remove_system_messages \
         --quality_score_column instruct_score \
         --min_quality_score 4.5
+
+TODO: Currently focused on Portuguese SFT datasets, but we should add support for 
+other languages in the future. Many of the filters are language-agnostic, but 
+some (like repetition loops) may need language-specific adjustments.
 """
 import datasets
 import numpy as np
@@ -173,6 +177,9 @@ INVALID_MARKER_PATTERN = re.compile(
 # When code is incorrectly translated to Portuguese (or other languages), keywords like
 # "class", "function", "return" become "classe", "função", "retornar", etc.
 # This indicates a translation error that corrupted the source code.
+# TODO: Expand to other languages in the future, and consider adding more keywords based on
+# common mistranslations. We could, for example, set a parameter so that the user can specify 
+# the language and we load a corresponding list of keywords (from a file or from a small API).
 MISTRANSLATED_CODE_INDICATORS = re.compile(
     r'\b(classe\s+pública|função|método|variável|retornar|enquanto|senão|verdadeiro|falso|'
     r'público|privado|protegido|estático|abstrato|interface|herança|exceção|importar|'
@@ -181,8 +188,9 @@ MISTRANSLATED_CODE_INDICATORS = re.compile(
     re.IGNORECASE
 )
 
-# Portuguese stopwords to exclude from uniqueness calculations
-# These common words naturally repeat in normal text and shouldn't trigger the filter
+# Stopwords to exclude from uniqueness calculations
+# These common words naturally repeat in normal text and shouldn't trigger the filter.
+# TODO: Expand this list based on analysis of false positives, and consider making it configurable.
 PORTUGUESE_STOPWORDS = {
     'a', 'o', 'e', 'de', 'da', 'do', 'das', 'dos', 'em', 'na', 'no', 'nas', 'nos',
     'um', 'uma', 'uns', 'umas', 'para', 'por', 'com', 'como', 'que', 'se', 'ou',
@@ -194,6 +202,9 @@ PORTUGUESE_STOPWORDS = {
     'deve', 'devem', 'há', 'sem', 'pela', 'pelo', 'pelas', 'pelos', 'após',
 }
 
+# TODO: This is (I think) equivalent to the `flatten_messages` in 
+# `data/filters/langdetect_language_filter.py`, but we should verify that and consolidate if possible.
+# If it is, this is something we should move to a shared utils.py to avoid code duplication.
 def get_all_content(example, messages_column="messages"):
     """
     Extract and concatenate all text content from a sample's messages.
@@ -639,7 +650,8 @@ def filter_token_count(example, max_tokens, token_count_column="token_count"):
     except (KeyError, TypeError):
         return False
 
-
+# TODO: Create a unified loader that can handle both JSONL and Parquet, and HF Datasets.
+# We already have a working example in `synthetic/utils.py` and `data/tokenization/utils.py`.
 def load_dataset(input_dir, input_type="jsonl", cache_dir=None):
     """
     Load dataset from JSONL or Parquet files in the specified directory.
@@ -722,6 +734,9 @@ def plot_token_distribution(dataset, output_dir, token_count_column="token_count
     print(f"[INFO] Token statistics: Mean={mean_tokens:.0f}, Median={median_tokens:.0f}, Min={min_tokens}, Max={max_tokens}")
 
 
+# TODO: Chunking and saving logic is duplicated from `unicode_language_filter.py`. 
+# We should unify this in a shared utility function.
+# See `data/tokenization/utils.py` for an example of how to implement this in a reusable way.
 def save_dataset(dataset, output_dir, output_type="jsonl", num_chunks=1, total_tokens=None):
     """
     Save dataset to disk, optionally splitting into multiple chunks.
@@ -784,7 +799,8 @@ def save_dataset(dataset, output_dir, output_type="jsonl", num_chunks=1, total_t
 
 
 def main(args):
-    # Validate arguments
+    # TODO: Create a unified loader that can handle both JSONL and Parquet, and HF Datasets.
+    # We already have a working example in `synthetic/utils.py` and `data/tokenization/utils.py`.
     assert args.input_type in ["jsonl", "parquet"], "Input type must be either 'jsonl' or 'parquet'."
     assert args.output_type in ["jsonl", "parquet"], "Output type must be either 'jsonl' or 'parquet'."
     
@@ -944,6 +960,8 @@ def main(args):
         total_tokens
     )
     
+    # TODO: We should stop using print statements and instead use a proper logger.
+    # See `data/tokenization/utils.py` for an example of how to set up logging.
     # Plot token distribution
     print(f"\n[INFO] Generating token distribution histogram...")
     plot_token_distribution(dataset, args.output_dir, token_count_column)
@@ -954,7 +972,7 @@ def main(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Filter and convert SFT datasets with various quality checks.")
 
     # Required arguments (I/O paths and types)
     parser.add_argument("--input_dir", type=str, required=True, help="Input directory containing the dataset files")

@@ -23,14 +23,16 @@ This repository contains all source code used for the development of the models,
 
 The code base is organized into the following main folders:
 
+- [`alignment/`](alignment/) — Implementation of post-training techniques for alignment, including both Supervised Fine-Tuning (SFT) and Direct Preference Optimization (DPO).
+  - [`alignment/gym/`](alignment/gym/) — Scripts for training and evaluating language models on custom environments.
 - [`data/`](data/) — Scripts for working with text preprocessing (i.e., filtering, tokenization, etc.).
+  - [`data/cc/`](data/cc/) — Scripts for working with Common Crawl data.
+  - [`data/filters/`](data/filters/) — Dataset filtering and annotation pipelines for text corpus curation.
+  - [`data/tokenization/`](data/tokenization/) — Tokenization, packing, decontamination, and validation split utilities for pretraining and SFT datasets.
 - [`distributed/`](distributed/) — Scripts for training and evaluating language models with DDP and FSDP.
-- [`dpo/`](dpo/) — Implementation for Direct Preference Optimization via TRL.
 - [`evals/`](evals/) — Scripts for evaluating language models via the `lm-evaluation-harness`.
-- [`gym/`](gym/) — Scripts for training and evaluating language models on custom environments.
 - [`hf_hub/`](hf_hub/) — Scripts for interacting with the Hugging Face Hub.
 - [`merge/`](merge/) — Scripts for running different merging techniques via `mergekit`.
-- [`sft/`](sft/) — Implementation of Supervised Fine-Tuning via TRL.
 - [`synthetic/`](synthetic/) — Scripts for generating synthetic datasets with vLLM.
 - [`tests/`](tests/) — Unit and integration tests for our code base.
 - [`tokenizer/`](tokenizer/) — Scripts for training and evaluating tokenizers.

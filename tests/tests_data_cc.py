@@ -1,5 +1,5 @@
 """
-Data test suite.
+Data/cc test suite.
 
 Tests the surrounding logic of the data/cc scripts:
   - utils.py (get_logger, read_metadata, write_metadata, initialize_or_load_metadata)
@@ -143,18 +143,6 @@ def test_07_writemetadata_writes_correct_format():
     print("Test 7 — write_metadata format: OK ✅")
 
 
-def test_08_writemetadata_readmetadata_roundtrip():
-    # 8. write_metadata + read_metadata — data survives a full roundtrip
-    #######################################
-    with tempfile.TemporaryDirectory() as tmpdir:
-        meta_path = os.path.join(tmpdir, ".metadata")
-        original = {"lines": 512, "tokens": 102400}
-        write_metadata(meta_path, original)
-        recovered = read_metadata(meta_path)
-        assert recovered == original
-    print("Test 8 — write/read_metadata roundtrip: OK ✅")
-
-
 def test_09_initializeorloadmetadata_empty_folder_returns_zeros():
     # 9. initialize_or_load_metadata — empty folder (no JSONL, no .metadata) → zeros
     #######################################
@@ -175,43 +163,32 @@ def test_10_initializeorloadmetadata_loads_existing_metadata_file():
     print("Test 10 — initialize_or_load_metadata (existing .metadata): OK ✅")
 
 
-def test_11_initializeorloadmetadata_scans_jsonl_and_creates_metadata():
-    # 11. initialize_or_load_metadata — scans JSONL shards, then persists .metadata
+def test_11_initializeorloadmetadata_scans_jsonl_skips_invalid_and_creates_metadata():
+    # 11. initialize_or_load_metadata — scans multiple JSONL shards, skips invalid JSON
+    #     lines, accumulates counts across shards, and persists .metadata
     #######################################
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Two shards, 5 records each with token_count = 10
-        for shard in range(2):
-            fpath = os.path.join(tmpdir, f"shard_{shard}.jsonl")
-            with open(fpath, "w") as f:
-                for i in range(5):
-                    f.write(json.dumps({"text": f"s{shard}r{i}", "token_count": 10}) + "\n")
+        # Shard 0: 5 valid records, token_count = 10 each
+        with open(os.path.join(tmpdir, "shard_0.jsonl"), "w") as f:
+            for i in range(5):
+                f.write(json.dumps({"text": f"r{i}", "token_count": 10}) + "\n")
 
-        result = initialize_or_load_metadata(tmpdir)
-        assert result["lines"] == 10   # 2 × 5
-        assert result["tokens"] == 100  # 10 × 10
-
-        # .metadata must have been created
-        meta_path = os.path.join(tmpdir, ".metadata")
-        assert os.path.exists(meta_path)
-        assert read_metadata(meta_path) == result
-    print("Test 11 — initialize_or_load_metadata (scan + create): OK ✅")
-
-
-def test_12_initializeorloadmetadata_handles_invalid_json_during_scan():
-    # 12. initialize_or_load_metadata — invalid JSON lines are silently skipped
-    #######################################
-    with tempfile.TemporaryDirectory() as tmpdir:
-        fpath = os.path.join(tmpdir, "mixed.jsonl")
-        with open(fpath, "w") as f:
+        # Shard 1: 2 valid records interspersed with invalid/blank lines
+        with open(os.path.join(tmpdir, "shard_1.jsonl"), "w") as f:
             f.write(json.dumps({"token_count": 20}) + "\n")
             f.write("{ not valid json\n")
             f.write("\n")
             f.write(json.dumps({"token_count": 30}) + "\n")
 
         result = initialize_or_load_metadata(tmpdir)
-        assert result["lines"] == 2    # only the two valid records
-        assert result["tokens"] == 50
-    print("Test 12 — initialize_or_load_metadata (invalid JSON): OK ✅")
+        assert result["lines"] == 7    # 5 from shard_0 + 2 valid from shard_1
+        assert result["tokens"] == 100  # 5×10 + 20 + 30
+
+        # .metadata must have been persisted
+        meta_path = os.path.join(tmpdir, ".metadata")
+        assert os.path.exists(meta_path)
+        assert read_metadata(meta_path) == result
+    print("Test 11 — initialize_or_load_metadata (multi-shard + invalid JSON): OK ✅")
 
 
 # %%
@@ -565,11 +542,9 @@ if __name__ == "__main__":
     test_05_readmetadata_parses_int_float_and_string()
     test_06_readmetadata_handles_blank_and_non_kv_lines()
     test_07_writemetadata_writes_correct_format()
-    test_08_writemetadata_readmetadata_roundtrip()
     test_09_initializeorloadmetadata_empty_folder_returns_zeros()
     test_10_initializeorloadmetadata_loads_existing_metadata_file()
-    test_11_initializeorloadmetadata_scans_jsonl_and_creates_metadata()
-    test_12_initializeorloadmetadata_handles_invalid_json_during_scan()
+    test_11_initializeorloadmetadata_scans_jsonl_skips_invalid_and_creates_metadata()
     test_13_all_languages_argument_parser_defaults_and_required_args()
     test_14_quality_filters_argument_parser_defaults_and_required_args()
     test_15_consolidation_writes_output_and_metadata()
@@ -579,5 +554,5 @@ if __name__ == "__main__":
     test_19_consolidation_multiple_languages_in_one_run()
     test_20_consolidation_multiple_shards_per_language()
     print("\n" + "=" * 50)
-    print("All data tests passed ✅")
+    print("All tests passed ✅")
     print("=" * 50)

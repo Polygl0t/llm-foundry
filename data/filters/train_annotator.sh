@@ -6,9 +6,9 @@
 # Learn more about SLURM options at:
 # - https://slurm.schedmd.com/sbatch.html
 #############################################
-#SBATCH --account=ag_cst_gabriel           # <-- Change to your SLURM account
+#SBATCH --account=ag_bit_flek              # <-- Change to your SLURM account
 #SBATCH --partition=sgpu_long              # <-- Change to your partition
-#SBATCH --job-name=train-classifier
+#SBATCH --job-name=train-annotator
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=4
 #SBATCH --threads-per-core=1
@@ -16,22 +16,21 @@
 #SBATCH --time=7-00:00:00
 #SBATCH --gres=gpu:a100:4
 #SBATCH --exclusive
-#SBATCH --dependency=afterany:22556203
 
 #############################################
 # Working Directory Setup
 #############################################
 username="nklugeco_hpc"                    # <-- Change to the corresponding username that created the workspace
 file_system="mlnvme"                       # <-- Change to your filesystem
-workspace_name="nanotronics"               # <-- Change to your workspace/project name
+workspace_name="polyglot"                  # <-- Change to your workspace/project name
 
 workdir="/lustre/$file_system/data/$username-$workspace_name"
-mkdir -p "$workdir/run_training_outputs"
+mkdir -p "$workdir/run_outputs"
 cd "$workdir"
 ulimit -c 0
 
-out="$workdir/run_training_outputs/out-train-classifier.$SLURM_JOB_ID"
-err="$workdir/run_training_outputs/err-train-classifier.$SLURM_JOB_ID"
+out="$workdir/run_outputs/out-train-annotator.$SLURM_JOB_ID"
+err="$workdir/run_outputs/err-train-annotator.$SLURM_JOB_ID"
 
 #############################################
 # Environment Setup
@@ -45,14 +44,29 @@ err="$workdir/run_training_outputs/err-train-classifier.$SLURM_JOB_ID"
 # https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html
 #############################################
 source "$workdir/.modules.sh"
+# python3 -m venv "$workdir/.venv_amd"
 source "$workdir/.venv_amd/bin/activate"
+
+# pip3 install --upgrade pip
+# git clone --depth 1 --branch main https://github.com/Polygl0t/llm-foundry.git
+# pip3 install -e "$workdir/llm-foundry/.[data]" --no-cache-dir
+
+# ==== For this script, you will also need PyTorch, Accelerate, and Evaluate ====
+# pip3 install torch==2.8.0 --no-cache-dir
+# pip3 install accelerate --no-cache-dir
+# pip3 install evaluate --no-cache-dir
+
+# ===== ALL HAIL FLASH-ATTN! =====
+# Using the pre-built flash-attn wheel for CUDA 12.6 and PyTorch 2.8 with CXX11 ABI set to TRUE, which is compatible with our environment. 
+# If you have a different setup, please build flash-attn from source or find the appropriate wheel for your configuration.
+# pip3 install https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3%2Bcu12torch2.8cxx11abiTRUE-cp312-cp312-linux_x86_64.whl --no-cache-dir
 
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export HF_DATASETS_CACHE="$workdir/.cache/$SLURM_JOB_ID"
 export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE"
-export CLEAN_CACHE="1"  # Set to "1" to clean cache after job completion
-export HF_TOKEN="<your-token-here>" # <-- Change to your HF token
-export WANDB_TOKEN="<your-token-here>" # <-- Change to your wandb token
+export HF_TOKEN="<your-token-here>"
+export WANDB_TOKEN="<your-token-here>"
+export CLEAN_CACHE="1"  # <-- Set to "1" to clean cache after job completion
 
 hf auth login --token "$HF_TOKEN"
 wandb login "$WANDB_TOKEN"
@@ -73,17 +87,17 @@ echo "# Python executable: $(which python3)" >> "$out"
 #############################################
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 
-export LAUNCHER="accelerate launch --config_file $workdir/.ddp_config.yaml"
+export LAUNCHER="accelerate launch --config_file $workdir/llm-foundry/data/filters/.ddp_config.yaml/"
 
-export PYTHON_FILE="$workdir/train_classifier.py"
+export PYTHON_FILE="$workdir/llm-foundry/data/filters/train_annotator.py"
 
-export ARGS="--train_dataset_dir ./portuguese/portuguese-instruct-quality-qwen-annotations/data \
+export ARGS="--train_dataset_dir ./data \
 --dataset_type jsonl \
 --shuffle_dataset \
 --cache_dir $HF_DATASETS_CACHE \
 --num_proc $SLURM_CPUS_PER_TASK \
---model_name Qwen/Qwen3-4B \
---checkpoint_dir ./checkpoints/models/portuguese-qwen3-4b-instruct-quality-classifier \
+--model_name Qwen/Qwen3-0.6B \
+--checkpoint_dir ./checkpoints \
 --hub_token $HF_TOKEN \
 --freeze \
 --test_size 10000 \
@@ -96,7 +110,6 @@ export ARGS="--train_dataset_dir ./portuguese/portuguese-instruct-quality-qwen-a
 --lr_scheduler_type cosine \
 --warmup_ratio 0.1 \
 --num_train_epochs 2 \
---attn_implementation flash_attention_2 \
 --per_device_train_batch_size 4 \
 --per_device_eval_batch_size 4 \
 --gradient_accumulation_steps 4 \

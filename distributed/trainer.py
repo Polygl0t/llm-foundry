@@ -299,7 +299,7 @@ class DDPTrainer:
 
         # Prepare a null context manager to use in combination with `model.no_sync()`
         # This is used to avoid synchronizing gradients during gradient accumulation steps.
-        # [nullcontext](https://docs.python.org/3/library/contextlib.html#contextlib.nullcontext)
+        # See https://docs.python.org/3/library/contextlib.html#contextlib.nullcontext
         null_context = contextlib.nullcontext()
 
         # Create an iterator from the train dataloader.
@@ -453,7 +453,7 @@ class DDPTrainer:
 
                 with sync_context:
                     # Autocast is a PyTorch context manager that enables mixed precision training.
-                    # [torch.autocast](https://docs.pytorch.org/tutorials/recipes/recipes/amp_recipe.html#adding-torch-autocast)
+                    # See https://docs.pytorch.org/tutorials/recipes/recipes/amp_recipe.html#adding-torch-autocast
                     with torch.autocast(device_type=device_type, dtype=precision):
 
                         # Transformers from HF perform the loss calculation internelly,
@@ -779,7 +779,7 @@ class FSDPTrainer:
                     model.set_requires_gradient_sync(is_last_micro_step)
 
                 # Autocast is a PyTorch context manager that enables mixed precision training.
-                # [torch.autocast](https://docs.pytorch.org/tutorials/recipes/recipes/amp_recipe.html#adding-torch-autocast)
+                # See https://docs.pytorch.org/tutorials/recipes/recipes/amp_recipe.html#adding-torch-autocast
                 with torch.autocast(device_type=device_type, dtype=precision):
 
                     # Transformers from HF perform the loss calculation internally,

@@ -23,10 +23,10 @@ for every row (since every packed chunk is exactly `block_size` tokens long afte
 padding/discarding).
 
 Padding values used by the BFD strategy:
-  input_ids      → --pad_token_id  (required for bfd)
-  labels         → -100
-  attention_mask → 0
-  assistant_masks→ 0
+  input_ids      -> --pad_token_id  (required for bfd)
+  labels         -> -100
+  attention_mask -> 0
+  assistant_masks-> 0
 
 Examples
 --------
@@ -107,7 +107,11 @@ def create_bfd_function(block_size, columns, pad_values):
             if 0 < length <= block_size:
                 entry = {"len": length}
                 for col in columns:
-                    entry[col] = list(examples[col][i])
+                    if len(examples[col][i]) < length:
+                        raise ValueError(
+                            f"Column '{col}' is shorter than seq_lengths for row {i}."
+                        )
+                    entry[col] = list(examples[col][i][:length])
                 sequences.append(entry)
 
         # Sort longest-first (Best-Fit Decreasing).

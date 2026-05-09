@@ -14,13 +14,11 @@ Workflow:
 - Trims first/last tokens from reference examples before indexing
 
 Input format:
-- JSONL files with an "ids" field containing tokenized sequences (List[int])
+- Dataset with an "input_ids" field containing tokenized sequences (List[int])
 - Both input and reference datasets must have this format
 
 Output:
-- Cleaned JSONL files with contaminated examples removed
-- "ids" and "text" fields are dropped from output
-- Files split into chunks matching input file count
+- Decontaminated dataset with contaminated examples removed
 
 Usage:
     python decontaminate.py --input_pattern "data/*.jsonl" \
@@ -36,6 +34,9 @@ import numpy as np
 import os
 
 def main(args):
+
+	# TODO: I dont like this variable assignment style. Replacing
+	# with direct args.XXX usage throughout the code would be cleaner. Can refactor later if desired.
 	# Parse arguments
 	cache_dir = args.cache_dir
 	files = glob.glob(args.input_pattern)
@@ -48,14 +49,11 @@ def main(args):
 	approx_max_k = args.approx_max_k
 	batch_size = args.batch_size
 
-	# If num_proc not provided, use available CPUs minus one to avoid overcommit
-	if num_proc is None or num_proc < 1:
-		cpus = os.cpu_count() or 1
-		num_proc = max(1, cpus - 1)
-
+	# TODO: We should use the common DatasetLoader in utils.py for loading datasets,
+	# which supports more formats and HF datasets.
 	# Load dataset (to be cleaned)
-	# This dataset should have an "ids" field with token ids.
-	# These ids will be checked against reference k-grams.
+	# This dataset should have an "input_ids" field with token ids.
+	# These input_ids will be checked against reference k-grams.
 	dataset = datasets.load_dataset(
 		"json",
 		data_files=files,
@@ -63,9 +61,11 @@ def main(args):
 		split="train",
 	)
 
+	# TODO: We should validate that the loaded dataset has the expected "input_ids" field and format, 
+	# and raise a clear error if not.
 	# Load & preprocess reference dataset
-	# This dataset should have an "ids" field with token ids.
-	# These ids will be the source of k-grams for decontamination.
+	# This dataset should have an "input_ids" field with token ids.
+	# These input_ids will be the source of k-grams for decontamination.
 	ref_ds = datasets.load_dataset(
 		"json",
 		data_files=references,
@@ -74,22 +74,20 @@ def main(args):
 	)
 
 	# Keep those with at least min_k+2 tokens (after trimming)
-	ref_ds = ref_ds.filter(lambda ex: len(ex["ids"]) > (min_k + 1))
+	ref_ds = ref_ds.filter(lambda ex: len(ex["input_ids"]) > (min_k + 1))
 
-	# Trim first and last token from ids
+	# Trim first and last token from input_ids
 	def trim_ids(example):
-		example["ids"] = example["ids"][1:-1]
+		example["input_ids"] = example["input_ids"][1:-1]
 		return example
 
 	ref_ds = ref_ds.map(trim_ids, num_proc=num_proc)
 
 	# Turn into list of lists: List[List[int]]
-	reference_ids_list = list(ref_ds["ids"])
-
-	# Deduplicate reference examples to avoid redundant indexing (can hugely cut work!)
-	if reference_ids_list:
-		unique_tuples = set(tuple(ids) for ids in reference_ids_list)
-		reference_ids_list = [list(t) for t in unique_tuples]
+	reference_ids_list = list(ref_ds["input_ids"])
+	unique_tuples = set(tuple(ids) for ids in reference_ids_list)
+	# TODO: Is this list of lists -> set of tuples -> list of lists transformation necessary?
+	reference_ids_list = [list(t) for t in unique_tuples]
 
 	# Build k-gram lookup for fast membership checks
 	# We'll create:
@@ -117,6 +115,8 @@ def main(args):
 						m_t = tuple(m)
 						masked_map[k][m_t] = True
 
+	# TODO: We should stop using print statements and instead use a proper logger.
+	# See `data/tokenization/utils.py` for an example of how to set up logging.
 	# Quick diagnostics for logging
 	total_kgrams = sum(len(s) for s in ref_kgrams.values())
 	print(f"Built reference k-grams: lengths={sorted(ref_kgrams.keys())}, total_kgrams={total_kgrams}")
@@ -129,7 +129,7 @@ def main(args):
 	# matches any of the reference k-grams. If so, mark as contaminated.
 	def is_clean_batch_contiguous(batch):
 		out = []
-		ids_batch = batch["ids"]
+		ids_batch = batch["input_ids"]
 		if not ref_kgrams:
 			# no references -> everything is clean
 			return [True] * len(ids_batch)
@@ -182,24 +182,24 @@ def main(args):
 		num_proc=num_proc
 	)
 
-	# Remove the "ids" and "text" fields before saving
-	cleaned = cleaned.remove_columns(["ids", "text"])
-
 	print("Original size:", len(dataset))
 	print("Cleaned size:", len(cleaned))
 
+	# TODO: Chunking and saving logic could be imported from utils.py to avoid duplication.
 	indices = np.array_split(np.arange(len(cleaned)), len(files))
 	chunks = [cleaned.select(idx) for idx in indices]
 	os.makedirs(output_dir, exist_ok=True)
 	for i, chunk in enumerate(chunks):
 		chunk.to_json(f"{output_dir}/train-{i:05d}-of-{len(chunks):05d}.jsonl")
 
+	# TODO: We should update the metadata from the decontaminated dataset.
+
 if __name__ == "__main__":
-	parser = argparse.ArgumentParser("Decontaminate JSONL dataset using contiguous k-token matching against reference datasets.")
+	parser = argparse.ArgumentParser("Decontaminate dataset using contiguous k-token matching against reference datasets.")
 	parser.add_argument("--input_pattern", type=str, required=True, help="Glob pattern for input contaminated JSONL files.")
 	parser.add_argument("--reference_files", type=str, nargs='+', required=True, help="List of reference JSONL files.")
 	parser.add_argument("--cache_dir", type=str, default=None, help="Cache directory for datasets.")
-	parser.add_argument("--num_proc", type=int, default=None, help="Number of processes for dataset operations (default: auto-detect).")
+	parser.add_argument("--num_proc", type=int, default=8, help="Number of processes for dataset operations.")
 	parser.add_argument("--batch_size", type=int, default=10000, help="Batch size for batched filter/map operations (default 10000). Increasing reduces Python overhead.")
 	parser.add_argument("--output_dir", type=str, required=True, help="Output directory for cleaned JSONL files.")
 	parser.add_argument("--min_k", type=int, default=8, help="Minimum contiguous token length to consider a match (default 8).")

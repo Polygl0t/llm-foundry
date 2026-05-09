@@ -6,13 +6,13 @@
 # Learn more about SLURM options at:
 # - https://slurm.schedmd.com/sbatch.html
 #############################################
-#SBATCH --account=ag_cst_gabriel           # <-- Change to your SLURM account
-#SBATCH --partition=intelsr_long           # <-- Change to your partition
-#SBATCH --job-name=langdetect-filter
+#SBATCH --account=ag_bit_flek              # <-- Change to your SLURM account
+#SBATCH --partition=intelsr_short          # <-- Change to your partition
+#SBATCH --job-name=lang-filter
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=64
-#SBATCH --time=1-00:00:00
+#SBATCH --time=08:00:00
 #SBATCH --mem=500G
 #SBATCH --exclusive
 
@@ -28,20 +28,24 @@ mkdir -p "$workdir/run_outputs"
 cd "$workdir"
 ulimit -c 0
 
-out="$workdir/run_outputs/out-langdetect-filter.$SLURM_JOB_ID"
-err="$workdir/run_outputs/err-langdetect-filter.$SLURM_JOB_ID"
+out="$workdir/run_outputs/out-lang-filter.$SLURM_JOB_ID"
+err="$workdir/run_outputs/err-lang-filter.$SLURM_JOB_ID"
 
 #############################################
 # Environment Setup
 #############################################
 source $workdir/.modules.sh
+# python3 -m venv $workdir/.venv_intel
 source $workdir/.venv_intel/bin/activate
-# pip3 install langdetect --no-cache-dir
+
+# pip3 install --upgrade pip
+# git clone --depth 1 --branch main https://github.com/Polygl0t/llm-foundry.git
+# pip3 install -e "$workdir/llm-foundry/.[data]" --no-cache-dir
 
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export HF_DATASETS_CACHE="$workdir/.cache/$SLURM_JOB_ID"
 export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE"
-export CLEAN_CACHE="1"  # Set to "1" to clean cache after job completion
+export CLEAN_CACHE="1"  # <-- Set to "1" to clean cache after job completion
 
 echo "# [${SLURM_JOB_ID}] Job started at: $(date)" > "$out"
 echo "# [${SLURM_JOB_ID}] Using $SLURM_NNODES nodes" >> "$out"
@@ -53,9 +57,10 @@ echo "# Python executable: $(which python3)" >> "$out"
 #############################################
 # Main Job Execution
 #############################################
-python3 "$workdir/langdetect_language_filter.py" \
-    --input_dir "$workdir/portuguese/gigaverbo-v2-sft/dpo_chosen" \
-    --output_dir "$workdir/portuguese/gigaverbo-v2-sft/dpo_chosen-filtered" \
+
+python3 "$workdir/llm-foundry/data/filters/langdetect_language_filter.py" \
+    --input_dir "$workdir/data" \
+    --output_dir "$workdir/data-filtered" \
     --input_type "jsonl" \
     --output_type "jsonl" \
     --text_column "messages" \

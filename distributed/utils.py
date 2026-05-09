@@ -41,7 +41,7 @@ class StructuredTrainingLogger:
     @classmethod
     def create_python_logger(cls, name):
         """Create a Python logger using the trainer's default console configuration."""
-        # [Logging facility for Python](https://docs.python.org/3/library/logging.html#)
+        # See https://docs.python.org/3/library/logging.html#
         logger = logging.getLogger(name)
 
         logging.basicConfig(
@@ -125,7 +125,7 @@ class DistributedEnvironment:
         if self.world_size > 1:
             # Multi-process distributed training.
             if torch.cuda.is_available():
-                # [PyTorch Distributed Documentation](https://docs.pytorch.org/docs/stable/distributed.html)
+                # See https://docs.pytorch.org/docs/stable/distributed.html
                 dist.init_process_group(
                     backend="nccl",
                     world_size=self.world_size,
@@ -164,7 +164,7 @@ class DistributedEnvironment:
     @staticmethod
     def seed_everything(seed):
         """Set the random state seed for reproducibility."""
-        # [Common PyTorch Functions](https://docs.pytorch.org/docs/stable/torch.html)
+        # See https://docs.pytorch.org/docs/stable/torch.html
         torch.manual_seed(seed)
         np.random.seed(seed)
         if torch.cuda.is_available():
@@ -384,8 +384,8 @@ def initialize_wandb(args, slurm_job_id, max_steps):
     Only call this on the master process and when `args.wandb_token` is not None.
 
     References:
-        - [wandb.login](https://docs.wandb.ai/ref/python/sdk/functions/login)
-        - [wandb.init](https://docs.wandb.ai/ref/python/sdk/functions/init/)
+        - See https://docs.wandb.ai/ref/python/sdk/functions/login
+        - See https://docs.wandb.ai/ref/python/sdk/functions/init/
     """
     import wandb
     import time as _time
@@ -409,8 +409,8 @@ def create_emissions_tracker(args, logger):
     Only call this on the master process.
 
     References:
-        - [EmissionsTracker](https://mlco2.github.io/codecarbon/usage.html#explicit-object)
-        - [Tracking on the main process only](https://github.com/mlco2/codecarbon/issues/544)
+        - See https://mlco2.github.io/codecarbon/usage.html#explicit-object
+        - See https://github.com/mlco2/codecarbon/issues/544
     """
     from codecarbon import EmissionsTracker
 

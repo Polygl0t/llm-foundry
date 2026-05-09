@@ -33,13 +33,18 @@ err="$workdir/run_outputs/err-decontaminate.$SLURM_JOB_ID"
 #############################################
 # Environment Setup
 #############################################
-source "$workdir/.modules.sh"
-source "$workdir/.venv_intel/bin/activate"
+source $workdir/.modules.sh
+# python3 -m venv $workdir/.venv_intel
+source $workdir/.venv_intel/bin/activate
+
+# pip3 install --upgrade pip
+# git clone --depth 1 --branch main https://github.com/Polygl0t/llm-foundry.git
+# pip3 install -e "$workdir/llm-foundry/.[data]" --no-cache-dir
 
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export HF_DATASETS_CACHE="$workdir/.cache/$SLURM_JOB_ID"
 export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE"
-export CLEAN_CACHE="1"  # Set to "1" to clean cache after job completion
+export CLEAN_CACHE="1"  # <-- Set to "1" to clean cache after job completion
 
 echo "# [${SLURM_JOB_ID}] Job started at: $(date)" > "$out"
 echo "# [${SLURM_JOB_ID}] Using $SLURM_NNODES nodes" >> "$out"
@@ -51,12 +56,13 @@ echo "# Python executable: $(which python3)" >> "$out"
 #############################################
 # Main Job Execution
 #############################################
-python3 $workdir/decontaminate.py \
-    --input_pattern "$workdir/portuguese/gigaverbo-v2-sft/contaminated/*.jsonl" \
-    --reference_files "$workdir/portuguese/gigaverbo-v2-sft/references.jsonl" \
+
+python3 $workdir/llm-foundry/data/tokenization/decontaminate.py \
+    --input_pattern "$workdir/data/*.jsonl" \
+    --reference_files "$workdir/references.jsonl" \
     --cache_dir "$HF_DATASETS_CACHE" \
     --num_proc $SLURM_CPUS_PER_TASK \
-    --output_dir "$workdir/portuguese/gigaverbo-v2-sft/decontaminated" \
+    --output_dir "$workdir/data/decontaminated" \
     --min_k 8 \
     --max_k 32 \
     --allow_one_token_mismatch \

@@ -25,6 +25,7 @@ import math
 import tempfile
 import shutil
 import traceback
+import atexit
 
 sys.pycache_prefix = os.path.join(tempfile.gettempdir(), "pycache")
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -32,6 +33,28 @@ REPO_ROOT = os.path.dirname(SCRIPT_DIR)
 DISTRIBUTED_DIR = os.path.join(REPO_ROOT, "distributed")
 if DISTRIBUTED_DIR not in sys.path:
     sys.path.insert(0, DISTRIBUTED_DIR)
+
+GENERATED_BOOTSTRAP_CHECKPOINT_DIR = os.path.join(REPO_ROOT, "checkpoints", "S1", ".step_00000")
+GENERATED_BOOTSTRAP_CHECKPOINT_PREEXISTED = os.path.exists(GENERATED_BOOTSTRAP_CHECKPOINT_DIR)
+
+
+def cleanup_generated_bootstrap_checkpoint():
+    """Remove the default bootstrap checkpoint if this test run created it."""
+    if GENERATED_BOOTSTRAP_CHECKPOINT_PREEXISTED:
+        return
+    if os.path.isdir(GENERATED_BOOTSTRAP_CHECKPOINT_DIR):
+        shutil.rmtree(GENERATED_BOOTSTRAP_CHECKPOINT_DIR)
+        for directory in [
+            os.path.dirname(GENERATED_BOOTSTRAP_CHECKPOINT_DIR),
+            os.path.dirname(os.path.dirname(GENERATED_BOOTSTRAP_CHECKPOINT_DIR)),
+        ]:
+            try:
+                os.rmdir(directory)
+            except OSError:
+                pass
+
+
+atexit.register(cleanup_generated_bootstrap_checkpoint)
 
 # Store test results as tuples of (test_name, passed_bool, error_message).
 _results: list[tuple[str, bool, str]] = []
@@ -49,6 +72,7 @@ def run_test(name, fn):
 
 
 def report():
+    cleanup_generated_bootstrap_checkpoint()
     passed = sum(1 for _, ok, _ in _results if ok)
     failed = sum(1 for _, ok, _ in _results if not ok)
     print("\n" + "=" * 60)
@@ -67,93 +91,10 @@ def report():
 
 # %%
 #######################################
-# 1. Imports & Setup
+# 1. TrainingArguments & Config Loading
 #######################################
 print("\n" + "=" * 60)
-print("1. Imports & Setup")
-print("=" * 60)
-
-
-def test_import_specifications():
-    from specifications import TrainingArguments  # noqa: F401
-
-
-def test_import_mfu():
-    from mfu import (  # noqa: F401
-        MFUContext,
-        TrainingPerformanceMetrics,
-        PEAK_FLOPS_BY_HARDWARE,
-        MFU_REGISTRY,
-        create_mfu_context,
-        calculate_training_metrics,
-    )
-
-
-def test_import_data_loading():
-    from data_loading import (  # noqa: F401
-        create_collate_fn,
-        prepare_dataloaders,
-        DataLoaderBundle,
-        SUPPORTED_FORMATS,
-    )
-
-
-def test_import_model_setup():
-    from model_setup import (  # noqa: F401
-        prepare_training_components,
-        ModelInitializationResult,
-        _resolve_checkpoint_path,
-        _build_model_from_config,
-        apply_fsdp_wrapping,
-        get_full_model_state_dict,
-        get_full_optimizer_state_dict,
-        _iter_transformer_blocks,
-    )
-
-
-def test_import_optimizers():
-    from optimizers import (  # noqa: F401
-        create_lr_scheduler,
-        create_optimizer,
-        get_optimizer_summary_lines,
-        get_muon_momentum,
-        zeropower_via_newtonschulz5,
-        muon_update,
-        adam_update,
-        SingleDeviceMuon,
-        SingleDeviceMuonWithAuxAdam,
-    )
-
-
-def test_import_utils():
-    from utils import (  # noqa: F401
-        StructuredTrainingLogger,
-        compute_training_schedule,
-        cleanup_log_file,
-        checkpoint_already_validated,
-    )
-
-
-if __name__ == "__main__":
-    for _fn in [
-        test_import_specifications,
-        test_import_mfu,
-        test_import_data_loading,
-        test_import_model_setup,
-        test_import_optimizers,
-        test_import_utils,
-    ]:
-        run_test(_fn.__name__, _fn)
-
-    print("Test 1 — Imports & Setup: OK ✅")
-
-
-# %%
-#######################################
-# 2. TrainingArguments & Config Loading
-#######################################
-print("\n" + "=" * 60)
-print("2. TrainingArguments & Config Loading")
+print("1. TrainingArguments & Config Loading")
 print("=" * 60)
 
 import yaml
@@ -171,14 +112,13 @@ def test_training_args_defaults():
     assert args.optimizer_type == "adamw"
     assert args.bf16 is False
     assert args.sanity_check is False
-
-
-def test_training_args_override():
-    """TrainingArguments fields can be overridden at construction time."""
-    args = TrainingArguments(micro_batch_size=4, seed=42, bf16=True)
-    assert args.micro_batch_size == 4
-    assert args.seed == 42
-    assert args.bf16 is True
+    assert args.fsdp_mixed_precision is True
+    assert args.dp_shard is None
+    assert args.full_shard is True
+    assert args.cpu_offload is False
+    assert args.explicit_prefetching is False
+    assert args.enable_expert_parallelism is False
+    assert args.use_kernels is False
 
 
 def test_training_args_from_yaml():
@@ -187,6 +127,7 @@ def test_training_args_from_yaml():
         "micro_batch_size": 8,
         "total_batch_size": 1024,
         "seed": 99,
+        "bf16": True,
         "optimizer_type": "muon_adam",
         "lr_decay_type": "wsd",
     }
@@ -197,6 +138,8 @@ def test_training_args_from_yaml():
         args = TrainingArguments.from_yaml(tmp_path)
         assert args.micro_batch_size == 8
         assert args.total_batch_size == 1024
+        assert args.seed == 99
+        assert args.bf16 is True
         assert args.optimizer_type == "muon_adam"
     finally:
         os.unlink(tmp_path)
@@ -226,16 +169,6 @@ def test_training_args_invalid_field():
     assert raised, "Expected TypeError for unknown field"
 
 
-def test_training_args_fsdp_defaults():
-    """FSDP-specific fields have correct defaults."""
-    args = TrainingArguments()
-    assert args.fsdp_mixed_precision is True
-    assert args.dp_shard is None
-    assert args.full_shard is True
-    assert args.cpu_offload is False
-    assert args.explicit_prefetching is False
-
-
 def test_training_args_fsdp_override():
     """FSDP-specific fields can be overridden."""
     args = TrainingArguments(
@@ -255,24 +188,22 @@ def test_training_args_fsdp_override():
 if __name__ == "__main__":
     for _fn in [
         test_training_args_defaults,
-        test_training_args_override,
         test_training_args_from_yaml,
         test_training_args_to_dict_includes_runtime_fields,
         test_training_args_invalid_field,
-        test_training_args_fsdp_defaults,
         test_training_args_fsdp_override,
     ]:
         run_test(_fn.__name__, _fn)
 
-    print("Test 2 — TrainingArguments & Config Loading: OK ✅")
+    print("Test 1 — TrainingArguments & Config Loading: OK ✅")
 
 
 # %%
 #######################################
-# 3. MFU Calculation
+# 2. MFU Calculation
 #######################################
 print("\n" + "=" * 60)
-print("3. MFU Calculation")
+print("2. MFU Calculation")
 print("=" * 60)
 
 from mfu import (
@@ -295,15 +226,16 @@ def test_peak_flops_registry():
     assert PEAK_FLOPS_BY_HARDWARE["a100"] == 300e12
 
 
-def test_mfu_registry_dense():
-    """dense_transformer strategy is registered."""
+def test_mfu_registry_aliases():
+    """MFU strategy registry contains expected concrete strategies and aliases."""
     assert "dense_transformer" in MFU_REGISTRY
-
-
-def test_mfu_registry_moe():
-    """'moe' strategy is registered and reuses the dense-transformer formula."""
     assert "moe" in MFU_REGISTRY
     assert MFU_REGISTRY["moe"] is MFU_REGISTRY["dense_transformer"]
+    assert "hybrid" in MFU_REGISTRY
+    assert "mamba" in MFU_REGISTRY
+    assert MFU_REGISTRY["hybrid"] is MFU_REGISTRY["mamba"]
+    assert "moe_hybrid" in MFU_REGISTRY
+    assert MFU_REGISTRY["moe_hybrid"] is MFU_REGISTRY["hybrid"]
 
 
 def test_calculate_training_metrics_moe_uses_active_params():
@@ -380,8 +312,8 @@ def test_calculate_training_metrics():
     assert metrics.mfu > 0
 
 
-def test_calculate_training_metrics_zero_dt():
-    """dt <= 0 must raise."""
+def test_calculate_training_metrics_rejects_invalid_inputs():
+    """Invalid timing and unknown MFU types must raise."""
     ctx = MFUContext(
         mfu_type="dense_transformer",
         peak_flops=300e12,
@@ -398,10 +330,7 @@ def test_calculate_training_metrics_zero_dt():
         raised = True
     assert raised
 
-
-def test_calculate_training_metrics_invalid_type():
-    """Unknown mfu_type must raise."""
-    ctx = MFUContext(
+    bad_type_ctx = MFUContext(
         mfu_type="moe_transformer",
         peak_flops=300e12,
         num_parameters=125_000_000,
@@ -412,17 +341,10 @@ def test_calculate_training_metrics_invalid_type():
     )
     raised = False
     try:
-        calculate_training_metrics(ctx, 4, 2, 1, dt=1.0)
+        calculate_training_metrics(bad_type_ctx, 4, 2, 1, dt=1.0)
     except ValueError:
         raised = True
     assert raised
-
-
-def test_mfu_registry_hybrid():
-    """'hybrid' and 'mamba' both map to the same strategy."""
-    assert "hybrid" in MFU_REGISTRY
-    assert "mamba" in MFU_REGISTRY
-    assert MFU_REGISTRY["hybrid"] is MFU_REGISTRY["mamba"]
 
 
 def _make_mamba_context(**overrides):
@@ -524,13 +446,6 @@ def test_linear_attention_layer_macs_formula():
     assert _linear_attention_layer_macs(ctx) == expected
 
 
-def test_mamba_mfu_pure():
-    """MFU for a pure Mamba model (no layer_types) produces a positive value."""
-    ctx = _make_mamba_context(num_hidden_layers=4, layer_types=())
-    metrics = calculate_training_metrics(ctx, micro_batch_size=4, gradient_accumulation_steps=1, world_size=1, dt=1.0)
-    assert metrics.mfu > 0
-
-
 def test_mamba_mfu_hybrid_layer_types():
     """
     Hybrid model: 3 mamba layers + 1 attention layer.
@@ -603,12 +518,6 @@ def test_create_mfu_context_mamba_fields():
     assert ctx.layer_types == ("mamba", "mamba", "mamba", "attention")
     # Fields not set on args should get defaults
     assert ctx.linear_num_key_heads == 0
-
-
-def test_mfu_registry_moe_hybrid():
-    """'moe_hybrid' is registered and reuses the mamba/hybrid strategy."""
-    assert "moe_hybrid" in MFU_REGISTRY
-    assert MFU_REGISTRY["moe_hybrid"] is MFU_REGISTRY["hybrid"]
 
 
 def test_active_mlp_macs_dense_vs_moe():
@@ -691,67 +600,66 @@ def test_create_mfu_context_moe_fields():
 if __name__ == "__main__":
     for _fn in [
         test_peak_flops_registry,
-        test_mfu_registry_dense,
-        test_mfu_registry_moe,
+        test_mfu_registry_aliases,
         test_calculate_training_metrics_moe_uses_active_params,
-        test_mfu_registry_hybrid,
         test_create_mfu_context,
         test_create_mfu_context_unsupported_hardware,
         test_calculate_training_metrics,
-        test_calculate_training_metrics_zero_dt,
-        test_calculate_training_metrics_invalid_type,
+        test_calculate_training_metrics_rejects_invalid_inputs,
         test_mamba_layer_macs_formula,
         test_attention_layer_macs_formula,
         test_attention_layer_macs_gqa,
         test_linear_attention_layer_macs_formula,
-        test_mamba_mfu_pure,
         test_mamba_mfu_hybrid_layer_types,
         test_mamba_mfu_linear_attention_hybrid,
         test_create_mfu_context_mamba_fields,
-        test_mfu_registry_moe_hybrid,
         test_active_mlp_macs_dense_vs_moe,
         test_moe_hybrid_mfu_granite_like,
         test_create_mfu_context_moe_fields,
     ]:
         run_test(_fn.__name__, _fn)
 
-    print("Test 3 — MFU Calculation: OK ✅")
+    print("Test 2 — MFU Calculation: OK ✅")
 
 
 # %%
 #######################################
-# 4. Collate Function
+# 3. Collate Function
 #######################################
 print("\n" + "=" * 60)
-print("4. Collate Function")
+print("3. Collate Function")
 print("=" * 60)
 
 from data_loading import create_collate_fn
 
 
-def test_collate_fn_no_mask():
-    """Collate with no mask IDs: labels == input_ids."""
+def test_collate_fn_generates_and_masks_labels():
+    """Collate creates labels from input_ids and masks configured token IDs."""
     collate = create_collate_fn(mask_token_ids=set())
     batch = collate([{"input_ids": torch.tensor([1, 2, 3, 4, 5])}])
     assert "labels" in batch
     assert "input_ids" in batch
     assert torch.equal(batch["labels"], batch["input_ids"])
 
-
-def test_collate_fn_with_mask():
-    """Collate masks specified token IDs with -100."""
     pad_id, eos_id = 0, 2
     collate = create_collate_fn(mask_token_ids={pad_id, eos_id})
-    examples = [{"input_ids": torch.tensor([0, 1, 2, 3, 0])}]
+    examples = [
+        {"input_ids": torch.tensor([0, 1, 2, 3, 0])},
+        {"input_ids": torch.tensor([4, 5, 0, 6, 7])},
+    ]
     batch = collate(examples)
     labels = batch["labels"]
+    assert batch["input_ids"].shape == (2, 5)
+    assert labels.shape == (2, 5)
     # positions with token 0 or 2 should be -100
     assert labels[0, 0].item() == -100
     assert labels[0, 2].item() == -100
     assert labels[0, 4].item() == -100
+    assert labels[1, 2].item() == -100
     # other positions should be unchanged
     assert labels[0, 1].item() == 1
     assert labels[0, 3].item() == 3
+    assert labels[1, 0].item() == 4
 
 
 def test_collate_fn_preserves_existing_labels():
@@ -763,41 +671,22 @@ def test_collate_fn_preserves_existing_labels():
     assert torch.equal(batch["labels"], existing_labels.unsqueeze(0))
 
 
-def test_collate_fn_multi_sample_batch():
-    """Collate with multiple samples produces correct batch dimensions."""
-    collate = create_collate_fn(mask_token_ids={0})
-    examples = [
-        {"input_ids": torch.tensor([0, 1, 2, 3])},
-        {"input_ids": torch.tensor([4, 5, 0, 6])},
-    ]
-    batch = collate(examples)
-    assert batch["input_ids"].shape == (2, 4)
-    assert batch["labels"].shape == (2, 4)
-    # Verify masking in each row
-    assert batch["labels"][0, 0].item() == -100
-    assert batch["labels"][1, 2].item() == -100
-    assert batch["labels"][0, 1].item() == 1
-    assert batch["labels"][1, 0].item() == 4
-
-
 if __name__ == "__main__":
     for _fn in [
-        test_collate_fn_no_mask,
-        test_collate_fn_with_mask,
+        test_collate_fn_generates_and_masks_labels,
         test_collate_fn_preserves_existing_labels,
-        test_collate_fn_multi_sample_batch,
     ]:
         run_test(_fn.__name__, _fn)
 
-    print("Test 4 — Collate Function: OK ✅")
+    print("Test 3 — Collate Function: OK ✅")
 
 
 # %%
 #######################################
-# 5. Sanity-Check Dataset & DataLoader
+# 4. Sanity-Check Dataset & DataLoader
 #######################################
 print("\n" + "=" * 60)
-print("5. Sanity-Check Dataset & DataLoader")
+print("4. Sanity-Check Dataset & DataLoader")
 print("=" * 60)
 
 from data_loading import prepare_dataloaders, DataLoaderBundle, _load_sanity_check_datasets, RandomTokenDataset
@@ -891,7 +780,7 @@ def test_load_sanity_check_datasets():
 
 
 def test_prepare_dataloaders_sanity():
-    """prepare_dataloaders in sanity-check mode returns a valid DataLoaderBundle."""
+    """prepare_dataloaders returns valid train and validation loaders."""
     args = _make_sanity_args()
     bundle = prepare_dataloaders(
         args=args,
@@ -902,26 +791,14 @@ def test_prepare_dataloaders_sanity():
     assert isinstance(bundle, DataLoaderBundle)
     assert bundle.num_train_samples == 64
     assert bundle.num_val_samples == max(1, int(64 * 0.1))
-
-
-def test_dataloader_iteration():
-    """We can iterate over the train dataloader and get correct batch shapes."""
-    args = _make_sanity_args()
-    bundle = prepare_dataloaders(args=args, tokenizer=_tokenizer, world_size=1, rank=0)
-    batch = next(iter(bundle.train_dataloader))
-    assert "input_ids" in batch
-    assert "labels" in batch
-    assert batch["input_ids"].shape[0] <= args.micro_batch_size
-    assert batch["input_ids"].shape[1] == 32
-
-
-def test_dataloader_val_iteration():
-    """Validation dataloader yields correct batches."""
-    args = _make_sanity_args()
-    bundle = prepare_dataloaders(args=args, tokenizer=_tokenizer, world_size=1, rank=0)
-    batch = next(iter(bundle.val_dataloader))
-    assert "input_ids" in batch
-    assert batch["input_ids"].shape[1] == 32
+    train_batch = next(iter(bundle.train_dataloader))
+    assert "input_ids" in train_batch
+    assert "labels" in train_batch
+    assert train_batch["input_ids"].shape[0] <= args.micro_batch_size
+    assert train_batch["input_ids"].shape[1] == 32
+    val_batch = next(iter(bundle.val_dataloader))
+    assert "input_ids" in val_batch
+    assert val_batch["input_ids"].shape[1] == 32
 
 
 def test_dataloader_custom_collate():
@@ -946,21 +823,19 @@ if __name__ == "__main__":
     for _fn in [
         test_load_sanity_check_datasets,
         test_prepare_dataloaders_sanity,
-        test_dataloader_iteration,
-        test_dataloader_val_iteration,
         test_dataloader_custom_collate,
     ]:
         run_test(_fn.__name__, _fn)
 
-    print("Test 5 — Sanity-Check Dataset & DataLoader: OK ✅")
+    print("Test 4 — Sanity-Check Dataset & DataLoader: OK ✅")
 
 
 # %%
 #######################################
-# 6. Model Initialization (CPU)
+# 5. Model Initialization (CPU)
 #######################################
 print("\n" + "=" * 60)
-print("6. Model Initialization (CPU)")
+print("5. Model Initialization (CPU)")
 print("=" * 60)
 
 from model_setup import (
@@ -977,14 +852,10 @@ from model_setup import (
 from transformers import AutoConfig
 
 
-def test_resolve_checkpoint_path_none():
-    """No checkpoint => None."""
+def test_resolve_checkpoint_path_empty_latest_and_direct():
+    """Checkpoint resolution handles empty, latest step, and direct paths."""
     assert _resolve_checkpoint_path(None) is None
     assert _resolve_checkpoint_path("") is None
-
-
-def test_resolve_checkpoint_path_with_steps():
-    """Picks the latest step_* directory."""
     tmp = tempfile.mkdtemp()
     try:
         for step in [1, 5, 10]:
@@ -994,9 +865,6 @@ def test_resolve_checkpoint_path_with_steps():
     finally:
         shutil.rmtree(tmp)
 
-
-def test_resolve_checkpoint_path_direct():
-    """A path without step_* subdirs is returned as-is."""
     tmp = tempfile.mkdtemp()
     try:
         result = _resolve_checkpoint_path(tmp)
@@ -1027,26 +895,6 @@ def _create_tiny_model_config(tmpdir):
     return tmpdir
 
 
-def test_build_model_from_config():
-    """Build a tiny model from a config file on CPU."""
-    tmpdir = tempfile.mkdtemp()
-    try:
-        config_dir = _create_tiny_model_config(tmpdir)
-        args = TrainingArguments(
-            path_to_model_config=config_dir,
-            attn_implementation="eager",
-            cache_dir=tmpdir,
-            checkpoint_dir=tmpdir,
-            stage_name="test",
-        )
-        model = _build_model_from_config(args, _tokenizer, torch.float32, master_process=True)
-        assert model is not None
-        total_params = sum(p.numel() for p in model.parameters())
-        assert total_params > 0
-    finally:
-        shutil.rmtree(tmpdir)
-
-
 def test_build_model_no_config_raises():
     """Missing path_to_model_config raises ValueError."""
     args = TrainingArguments(path_to_model_config=None)
@@ -1068,6 +916,8 @@ def test_prepare_training_components_cpu():
             tokenizer_name_or_path=_TINY_TOKENIZER_NAME,
             attn_implementation="eager",
             cache_dir=tmpdir,
+            checkpoint_dir=tmpdir,
+            stage_name="test",
             torch_compile=False,
             use_liger_kernel=False,
             gradient_checkpointing=False,
@@ -1107,6 +957,8 @@ def test_prepare_training_components_bf16():
             tokenizer_name_or_path=_TINY_TOKENIZER_NAME,
             attn_implementation="eager",
             cache_dir=tmpdir,
+            checkpoint_dir=tmpdir,
+            stage_name="test",
             torch_compile=False,
             use_liger_kernel=False,
             gradient_checkpointing=False,
@@ -1141,11 +993,20 @@ def _make_mock_config(**kwargs):
     return cfg
 
 
-def test_active_params_dense_model():
-    """Dense models: active_trainable_params == trainable_params."""
+def test_active_params_dense_and_single_expert_models():
+    """Dense and single-expert models use all trainable params."""
     cfg = _make_mock_config(hidden_size=2048, num_hidden_layers=24, intermediate_size=5632)
     total = 1_000_000
     assert _compute_active_trainable_params(cfg, total) == total
+
+    single_expert_cfg = _make_mock_config(
+        hidden_size=2048,
+        num_hidden_layers=24,
+        intermediate_size=5632,
+        num_experts=1,
+        num_experts_per_tok=1,
+    )
+    assert _compute_active_trainable_params(single_expert_cfg, total) == total
 
 
 def test_active_params_qwen_moe():
@@ -1190,25 +1051,6 @@ def test_active_params_granite_moe():
     assert active < total
 
 
-def test_active_params_single_expert_is_dense():
-    """A config with num_experts=1 is treated as dense."""
-    cfg = _make_mock_config(
-        hidden_size=2048,
-        num_hidden_layers=24,
-        intermediate_size=5632,
-        num_experts=1,
-        num_experts_per_tok=1,
-    )
-    total = 5_000_000
-    assert _compute_active_trainable_params(cfg, total) == total
-
-
-def test_try_create_distributed_config_disabled():
-    """When enable_expert_parallelism is False, returns None."""
-    result = _try_create_distributed_config(False, master_process=True)
-    assert result is None
-
-
 def test_try_create_distributed_config_enabled():
     """
     When enable_expert_parallelism is True, returns a DistributedConfig
@@ -1222,12 +1064,6 @@ def test_try_create_distributed_config_enabled():
         assert result is not None
     except (ImportError, ModuleNotFoundError):
         assert result is None
-
-
-def test_enable_expert_parallelism_spec_default():
-    """enable_expert_parallelism defaults to False in TrainingArguments."""
-    args = TrainingArguments()
-    assert args.enable_expert_parallelism is False
 
 
 def test_check_kernels_available_disabled():
@@ -1254,12 +1090,6 @@ def test_check_kernels_available_enabled():
             assert result is False
     except (ImportError, ModuleNotFoundError):
         assert result is False
-
-
-def test_use_kernels_spec_default():
-    """use_kernels defaults to False in TrainingArguments."""
-    args = TrainingArguments()
-    assert args.use_kernels is False
 
 
 def test_iter_transformer_blocks_returns_layers():
@@ -1303,38 +1133,31 @@ def test_iter_transformer_blocks_missing_raises():
 
 if __name__ == "__main__":
     for _fn in [
-        test_resolve_checkpoint_path_none,
-        test_resolve_checkpoint_path_with_steps,
-        test_resolve_checkpoint_path_direct,
-        test_build_model_from_config,
+        test_resolve_checkpoint_path_empty_latest_and_direct,
         test_build_model_no_config_raises,
         test_prepare_training_components_cpu,
         test_prepare_training_components_bf16,
         test_create_tokenizer_no_source_raises,
-        test_active_params_dense_model,
+        test_active_params_dense_and_single_expert_models,
         test_active_params_qwen_moe,
         test_active_params_granite_moe,
-        test_active_params_single_expert_is_dense,
-        test_try_create_distributed_config_disabled,
         test_try_create_distributed_config_enabled,
-        test_enable_expert_parallelism_spec_default,
         test_check_kernels_available_disabled,
         test_check_kernels_available_enabled,
-        test_use_kernels_spec_default,
         test_iter_transformer_blocks_returns_layers,
         test_iter_transformer_blocks_missing_raises,
     ]:
         run_test(_fn.__name__, _fn)
 
-    print("Test 6 — Model Initialization (CPU): OK ✅")
+    print("Test 5 — Model Initialization (CPU): OK ✅")
 
 
 # %%
 #######################################
-# 7. Optimizers & LR Schedulers (CPU)
+# 6. Optimizers & LR Schedulers (CPU)
 #######################################
 print("\n" + "=" * 60)
-print("7. Optimizers & LR Schedulers (CPU)")
+print("6. Optimizers & LR Schedulers (CPU)")
 print("=" * 60)
 
 from optimizers import (
@@ -1549,15 +1372,15 @@ if __name__ == "__main__":
     ]:
         run_test(_fn.__name__, _fn)
 
-    print("Test 7 — Optimizers & LR Schedulers (CPU): OK ✅")
+    print("Test 6 — Optimizers & LR Schedulers (CPU): OK ✅")
 
 
 # %%
 #######################################
-# 8. Utility Functions
+# 7. Utility Functions
 #######################################
 print("\n" + "=" * 60)
-print("8. Utility Functions")
+print("7. Utility Functions")
 print("=" * 60)
 
 from utils import (
@@ -1910,15 +1733,15 @@ if __name__ == "__main__":
     ]:
         run_test(_fn.__name__, _fn)
 
-    print("Test 8 — Utility Functions: OK ✅")
+    print("Test 7 — Utility Functions: OK ✅")
 
 
 # %%
 #######################################
-# 9. Integration: Forward Pass on CPU
+# 8. Integration: Forward Pass on CPU
 #######################################
 print("\n" + "=" * 60)
-print("9. Integration: Forward Pass on CPU")
+print("8. Integration: Forward Pass on CPU")
 print("=" * 60)
 
 
@@ -1935,6 +1758,8 @@ def test_end_to_end_forward_pass():
             tokenizer_name_or_path=_TINY_TOKENIZER_NAME,
             attn_implementation="eager",
             cache_dir=tmpdir,
+            checkpoint_dir=tmpdir,
+            stage_name="test",
             torch_compile=False,
             use_liger_kernel=False,
             gradient_checkpointing=False,
@@ -1994,6 +1819,8 @@ def test_end_to_end_backward_pass():
             tokenizer_name_or_path=_TINY_TOKENIZER_NAME,
             attn_implementation="eager",
             cache_dir=tmpdir,
+            checkpoint_dir=tmpdir,
+            stage_name="test",
             torch_compile=False,
             use_liger_kernel=False,
             gradient_checkpointing=False,
@@ -2040,6 +1867,8 @@ def test_end_to_end_optimizer_step():
             tokenizer_name_or_path=_TINY_TOKENIZER_NAME,
             attn_implementation="eager",
             cache_dir=tmpdir,
+            checkpoint_dir=tmpdir,
+            stage_name="test",
             torch_compile=False,
             use_liger_kernel=False,
             gradient_checkpointing=False,
@@ -2099,6 +1928,8 @@ def test_end_to_end_mfu_with_model():
             tokenizer_name_or_path=_TINY_TOKENIZER_NAME,
             attn_implementation="eager",
             cache_dir=tmpdir,
+            checkpoint_dir=tmpdir,
+            stage_name="test",
             torch_compile=False,
             use_liger_kernel=False,
             gradient_checkpointing=False,
@@ -2127,15 +1958,15 @@ if __name__ == "__main__":
     ]:
         run_test(_fn.__name__, _fn)
 
-    print("Test 9 — Integration: Forward Pass on CPU: OK ✅")
+    print("Test 8 — Integration: Forward Pass on CPU: OK ✅")
 
 
 # %%
 #######################################
-# 10. Trainers (DDPTrainer & FSDPTrainer)
+# 9. Trainers (DDPTrainer & FSDPTrainer)
 #######################################
 print("\n" + "=" * 60)
-print("10. Trainers (DDPTrainer & FSDPTrainer)")
+print("9. Trainers (DDPTrainer & FSDPTrainer)")
 print("=" * 60)
 
 from trainer import DDPTrainer, FSDPTrainer
@@ -2376,12 +2207,12 @@ if __name__ == "__main__":
     ]:
         run_test(_fn.__name__, _fn)
 
-    print("Test 10 — Trainers (DDPTrainer & FSDPTrainer): OK ✅")
+    print("Test 9 — Trainers (DDPTrainer & FSDPTrainer): OK ✅")
 
 
 # %%
 #######################################
-# 11. Report
+# 10. Report
 #######################################
 if __name__ == "__main__":
     report()

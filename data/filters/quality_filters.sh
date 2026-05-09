@@ -6,7 +6,7 @@
 # Learn more about SLURM options at:
 # - https://slurm.schedmd.com/sbatch.html
 #############################################
-#SBATCH --account=ag_cst_gabriel           # <-- Change to your SLURM account
+#SBATCH --account=ag_bit_flek              # <-- Change to your SLURM account
 #SBATCH --partition=vlm_long               # <-- Change to your partition
 #SBATCH --job-name=quality-filters
 #SBATCH --nodes=1
@@ -35,24 +35,26 @@ err="$workdir/run_outputs/err-quality-filters.$SLURM_JOB_ID"
 # Environment Setup
 #############################################
 source $workdir/.modules.sh
+# python3 -m venv "$workdir/.venv_intel"
 source $workdir/.venv_intel/bin/activate
-# pip3 install datatrove[io,processing] --no-cache-dir
-# pip3 install indic-nlp-library --no-cache-dir
-# pip3 install stanza --no-cache-dir
-# pip3 install spacy --no-cache-dir
-# pip3 install pyyaml==6.0.2 --no-cache-dir
+
+# pip3 install --upgrade pip
+# git clone --depth 1 --branch main https://github.com/Polygl0t/llm-foundry.git
+# pip3 install -e "$workdir/llm-foundry/.[data]" --no-cache-dir
+
+# ==== For Indic NLP support, we need to install some additional libraries ====
 # pip3 install indic-nlp-library --no-cache-dir
 
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export HF_DATASETS_CACHE="$workdir/.cache/$SLURM_JOB_ID"
 export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE"
-export CLEAN_CACHE="1"  # Set to "1" to clean cache after job completion
 export CONFIG_FOLDER="$workdir/.configs"
 export DATA_FOLDER="$workdir/bengali/bengali_text"
 export LOGS_FOLDER="$workdir/bengali/logs"
 export FINAL_OUTPUT_FOLDER="$workdir/bengali/final_output"
-export TOKENIZER_NAME_OR_PATH="Qwen/Qwen3-0.6B" # Qwen3 has a good multilingual tokenizer
-export LANGUAGE="bn"  # Bengali language code
+export TOKENIZER_NAME_OR_PATH="Qwen/Qwen3-0.6B"
+export LANGUAGE="bn"
+export CLEAN_CACHE="1"  # <-- Set to "1" to clean cache after job completion
 
 echo "# [${SLURM_JOB_ID}] Job started at: $(date)" > "$out"
 echo "# [${SLURM_JOB_ID}] Using $SLURM_NNODES nodes" >> "$out"
@@ -68,7 +70,7 @@ echo "# Python executable: $(which python3)" >> "$out"
 mkdir -p "$LOGS_FOLDER" "$FINAL_OUTPUT_FOLDER"
 find "$LOGS_FOLDER" -mindepth 1 -delete 2>/dev/null || true
 
-python3 -u "$workdir/quality_filters.py" \
+python3 -u "$workdir/llm-foundry/data/filters/quality_filters.py" \
     --tasks $SLURM_CPUS_PER_TASK \
     --workers $SLURM_CPUS_PER_TASK \
     --cache_dir "$HF_DATASETS_CACHE" \

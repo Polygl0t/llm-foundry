@@ -9,7 +9,6 @@ import sys
 from typing import Optional
 
 
-# LOGGING
 def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     """
     Create and return a logger with a consistent format.
@@ -45,7 +44,6 @@ def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     return logger
 
 
-# METADATA HELPERS
 def read_metadata(metadata_file: str) -> Optional[dict]:
     """
     Read metadata from a file in YAML-like key: value format.
