@@ -26,12 +26,12 @@ Example usage:
     python inference_test.py --model_path checkpoints/model-sft/final
     
     # Run with custom samples and settings
-    python inference_test.py \
-        --model_path checkpoints/llama-sft/final \
-        --samples_file custom_samples.json \
-        --output_file results/evaluation.json \
-        --max_new_tokens 1024 \
-        --temperature 0.1 \
+    python inference_test.py \\
+        --model_path checkpoints/llama-sft/final \\
+        --samples_file custom_samples.json \\
+        --output_file results/evaluation.json \\
+        --max_new_tokens 1024 \\
+        --temperature 0.1 \\
         --enable_thinking
 
 Output:
@@ -55,8 +55,10 @@ from transformers import (
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description=__doc__
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    
     parser.add_argument(
         "--model_path",
         type=str,

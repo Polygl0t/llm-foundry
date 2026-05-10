@@ -7,17 +7,17 @@ principles/rules specified in a constitution file. It supports optional critique
 the generated responses.
 
 Example usage:
-    python generate_cai.py \
-        --model_name_or_path Qwen/Qwen3-0.6B \
-        --dataset_path data/prompts.jsonl \
-        --prompt_column instruction \
-        --constitution_file constitutions/helpful_honest.md \
-        --output_dir outputs/cai_data \
-        --output_file synthetic.jsonl \
-        --enable_thinking \
-        --max_length 1024 \
-        --temperature 0.7 \
-        --enable_critique \
+    python generate_cai.py \\
+        --model_name_or_path Qwen/Qwen3-0.6B \\
+        --dataset_path data/prompts.jsonl \\
+        --prompt_column instruction \\
+        --constitution_file constitutions/helpful_honest.md \\
+        --output_dir outputs/cai_data \\
+        --output_file synthetic.jsonl \\
+        --enable_thinking \\
+        --max_length 1024 \\
+        --temperature 0.7 \\
+        --enable_critique \\
         --max_revisions 1
 """
 from vllm import SamplingParams
@@ -124,7 +124,8 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description=__doc__
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     
     parser.add_argument("--model_name_or_path", type=str, required=True, help="Hugging Face model name or path.")

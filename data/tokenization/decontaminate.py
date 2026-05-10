@@ -21,9 +21,9 @@ Output:
 - Decontaminated dataset with contaminated examples removed
 
 Usage:
-    python decontaminate.py --input_pattern "data/*.jsonl" \
-        --reference_files eval_set.jsonl test_set.jsonl \
-        --output_dir cleaned_data \
+    python decontaminate.py --input_pattern "data/*.jsonl" \\
+        --reference_files eval_set.jsonl test_set.jsonl \\
+        --output_dir cleaned_data \\
         --min_k 8 --max_k 32 --allow_one_token_mismatch
 """
 import datasets
@@ -195,7 +195,11 @@ def main(args):
 	# TODO: We should update the metadata from the decontaminated dataset.
 
 if __name__ == "__main__":
-	parser = argparse.ArgumentParser(description=__doc__)
+	parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
 	parser.add_argument("--input_pattern", type=str, required=True, help="Glob pattern for input contaminated JSONL files.")
 	parser.add_argument("--reference_files", type=str, nargs='+', required=True, help="List of reference JSONL files.")
 	parser.add_argument("--cache_dir", type=str, default=None, help="Cache directory for datasets.")

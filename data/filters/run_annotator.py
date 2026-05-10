@@ -17,15 +17,15 @@ Annotation mapping:
 
 Usage:
     # Annotate dataset with edu classifier
-    python run_annotator.py --model_name username/edu-classifier \
-        --dataset_path data/ --text_column text \
-        --output_folder scored/ --batch_size 32 \
+    python run_annotator.py --model_name username/edu-classifier \\
+        --dataset_path data/ --text_column text \\
+        --output_folder scored/ --batch_size 32 \\
         --float_score edu_score_float --int_score edu_score
     
     # Annotate chat dataset with template
-    python run_annotator.py --model_name username/quality-classifier \
-        --dataset_path conversations.jsonl --text_column messages \
-        --apply_chat_template --output_folder scored/ \
+    python run_annotator.py --model_name username/quality-classifier \\
+        --dataset_path conversations.jsonl --text_column messages \\
+        --apply_chat_template --output_folder scored/ \\
         --max_length 1024
 """
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
@@ -269,7 +269,10 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
 
     parser.add_argument("--model_name", type=str, required=True, help="The name of the model to be used.")
     parser.add_argument("--apply_chat_template", action='store_true', help="Whether to apply a chat template to the text column.")

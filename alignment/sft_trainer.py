@@ -20,16 +20,16 @@ If the dataset is already tokenized, it should contain:
 }
 
 Example usage:
-    python sft_trainer.py \
-        --model_name_or_path meta-llama/Llama-3.1-8B \
-        --train_dataset_dir data/train \
-        --checkpoint_dir checkpoints/llama-sft \
-        --max_length 4096 \
-        --packing --assistant_only_loss \
-        --per_device_train_batch_size 4 \
-        --gradient_accumulation_steps 4 \
-        --learning_rate 3e-4 \
-        --num_train_epochs 3 \
+    python sft_trainer.py \\
+        --model_name_or_path meta-llama/Llama-3.1-8B \\
+        --train_dataset_dir data/train \\
+        --checkpoint_dir checkpoints/llama-sft \\
+        --max_length 4096 \\
+        --packing --assistant_only_loss \\
+        --per_device_train_batch_size 4 \\
+        --gradient_accumulation_steps 4 \\
+        --learning_rate 3e-4 \\
+        --num_train_epochs 3 \\
         --bf16 --gradient_checkpointing
         
 # TODO: There are many common code between this script and the `sft_trainer.py` script, 
@@ -298,7 +298,11 @@ def main(args):
     
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
     # Core dataset/model args
     parser.add_argument("--dataset_type", choices=["jsonl", "parquet"], default="parquet", help="Type of the dataset files. Can be either 'jsonl' or 'parquet'.")
     parser.add_argument("--train_dataset_dir", type=str, nargs="+", required=True, help="Path(s) to the training dataset directory or file. Can be a single directory/file or a list of directories/files.")

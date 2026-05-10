@@ -22,48 +22,48 @@ Sizing parameters:
 
 Usage examples:
     # Word-list tasks only (5 types x 2000 = 10000 samples)
-    python generate_from_long_context_templates.py \
-        --output_file word_list.jsonl \
-        --num_samples 2000 \
-        --num_context_words 50 \
-        --task_types common_words rare_words count_word \
+    python generate_from_long_context_templates.py \\
+        --output_file word_list.jsonl \\
+        --num_samples 2000 \\
+        --num_context_words 50 \\
+        --task_types common_words rare_words count_word \\
                      word_at_position frequency_comparison
 
     # Word-list tasks at multiple context sizes (5 types x 3 sizes x 2000 = 30000 samples)
-    python generate_from_long_context_templates.py \
-        --output_file word_list.jsonl \
-        --num_samples 2000 \
-        --num_context_words 50 100 200 \
-        --task_types common_words rare_words count_word \
+    python generate_from_long_context_templates.py \\
+        --output_file word_list.jsonl \\
+        --num_samples 2000 \\
+        --num_context_words 50 100 200 \\
+        --task_types common_words rare_words count_word \\
                      word_at_position frequency_comparison
 
     # Haystack tasks only (4 types x 1 seq_len x 2000 = 8000 samples)
-    python generate_from_long_context_templates.py \
-        --output_file haystack.jsonl \
-        --num_samples 2000 \
-        --max_seq_length 4096 \
-        --tokenizer Polygl0t/Tucano2-0.6B-Base \
-        --docs_dir assets \
-        --task_types needle_single_number needle_multi_number_same_key \
+    python generate_from_long_context_templates.py \\
+        --output_file haystack.jsonl \\
+        --num_samples 2000 \\
+        --max_seq_length 4096 \\
+        --tokenizer Polygl0t/Tucano2-0.6B-Base \\
+        --docs_dir assets \\
+        --task_types needle_single_number needle_multi_number_same_key \\
                      needle_multi_number_diff_keys needle_uuid
 
     # Haystack tasks at multiple sequence lengths (4 types x 3 lengths x 2000 = 24000 samples)
-    python generate_from_long_context_templates.py \
-        --output_file haystack.jsonl \
-        --num_samples 2000 \
-        --max_seq_length 2048 4096 8192 \
-        --tokenizer Polygl0t/Tucano2-0.6B-Base \
-        --docs_dir assets \
-        --task_types needle_single_number needle_multi_number_same_key \
+    python generate_from_long_context_templates.py \\
+        --output_file haystack.jsonl \\
+        --num_samples 2000 \\
+        --max_seq_length 2048 4096 8192 \\
+        --tokenizer Polygl0t/Tucano2-0.6B-Base \\
+        --docs_dir assets \\
+        --task_types needle_single_number needle_multi_number_same_key \\
                      needle_multi_number_diff_keys needle_uuid
 
     # All tasks (word-list sized by words, haystack sized by tokens)
-    python generate_from_long_context_templates.py \
-        --output_file long_tasks.jsonl \
-        --num_samples 1000 \
-        --num_context_words 50 100 200 400 \
-        --max_seq_length 1024 2048 4096 8192 \
-        --tokenizer Polygl0t/Tucano2-0.6B-Base \
+    python generate_from_long_context_templates.py \\
+        --output_file long_tasks.jsonl \\
+        --num_samples 1000 \\
+        --num_context_words 50 100 200 400 \\
+        --max_seq_length 1024 2048 4096 8192 \\
+        --tokenizer Polygl0t/Tucano2-0.6B-Base \\
         --docs_dir assets
 """
 
@@ -804,8 +804,10 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Template-based long context retrieval task generation.",
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    
     parser.add_argument(
         "--output_file",
         type=str,

@@ -14,19 +14,19 @@ Pipeline stages:
 
 Usage:
     # Extract all languages from CC-MAIN-2025-30
-    python process_cc_dump_all_languages.py \
-        --warc_files_folder /data/cc/CC-MAIN-2025-30/ \
-        --output_folder all_languages/ \
-        --dump CC-MAIN-2025-30 \
+    python process_cc_dump_all_languages.py \\
+        --warc_files_folder /data/cc/CC-MAIN-2025-30/ \\
+        --output_folder all_languages/ \\
+        --dump CC-MAIN-2025-30 \\
         --tasks 32 --workers 32
     
     # Extract specific languages with GlotLID backend
-    python process_cc_dump_all_languages.py \
-        --warc_files_folder /data/cc/warc/ \
-        --output_folder extracted/ \
-        --dump CC-MAIN-2025-30 \
-        --languages pt bn hi ar \
-        --language_filter_backend glotlid \
+    python process_cc_dump_all_languages.py \\
+        --warc_files_folder /data/cc/warc/ \\
+        --output_folder extracted/ \\
+        --dump CC-MAIN-2025-30 \\
+        --languages pt bn hi ar \\
+        --language_filter_backend glotlid \\
         --language_threshold 0.7
     
 Notes:
@@ -280,7 +280,8 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description=__doc__
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
     parser.add_argument(

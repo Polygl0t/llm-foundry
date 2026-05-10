@@ -18,16 +18,16 @@ text, and a corresponding `email:field_value` verifier is added so the
 extraction can be verified exactly.
 
 Usage:
-    python generate_from_email_templates.py \
-        --emails_file ./assets/emails.jsonl \
-        --output_file email_tasks.jsonl \
+    python generate_from_email_templates.py \\
+        --emails_file ./assets/emails.jsonl \\
+        --output_file email_tasks.jsonl \\
         --num_samples 10000
 
-    python generate_from_email_templates.py \
-        --emails_file ./assets/emails.jsonl \
-        --output_file email_tasks.jsonl \
-        --num_samples 10000 \
-        --min_fields 3 --max_fields 7 \
+    python generate_from_email_templates.py \\
+        --emails_file ./assets/emails.jsonl \\
+        --output_file email_tasks.jsonl \\
+        --num_samples 10000 \\
+        --min_fields 3 --max_fields 7 \\
         --seed 42 --verbose
 """
 
@@ -419,8 +419,10 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Email structured-extraction task generator.",
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    
     parser.add_argument(
         "--emails_file",
         type=str,

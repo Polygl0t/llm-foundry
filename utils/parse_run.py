@@ -398,12 +398,10 @@ def main(args):
 if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(
-        description=(
-            "Parse a training log file and/or an emissions CSV into structured output files."
-        ),
+        description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__,
     )
+    
     parser.add_argument("--log", metavar="PATH", help="Path to training log file.")
     parser.add_argument("--emissions", metavar="PATH", help="Path to emissions CSV file.")
     parser.add_argument(

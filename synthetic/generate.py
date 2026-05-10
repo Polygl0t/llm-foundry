@@ -5,13 +5,13 @@ This script generates synthetic text samples using Hugging Face language models 
 high-throughput inference.
 
 Example usage:
-    python generate.py \
-        --model_name_or_path Qwen/Qwen3-0.6B \
-        --dataset_path data/seed_texts.jsonl \
-        --text_column text \
-        --system "Summarize the following text." \
-        --output_dir outputs/synthetic \
-        --output_file generated.jsonl \
+    python generate.py \\
+        --model_name_or_path Qwen/Qwen3-0.6B \\
+        --dataset_path data/seed_texts.jsonl \\
+        --text_column text \\
+        --system "Summarize the following text." \\
+        --output_dir outputs/synthetic \\
+        --output_file generated.jsonl \\
         --max_length 512
 """
 from vllm import SamplingParams
@@ -111,7 +111,8 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description=__doc__
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     
     parser.add_argument("--model_name_or_path", type=str, required=True, help="Hugging Face model name or path.")

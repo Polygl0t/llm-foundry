@@ -9,22 +9,22 @@ Synthetic problems use relaxed validation (exact match OR integer part of a floa
 
 Usage:
     # Use all 12481 problems from the dataset (no synthetic): 
-    python generate_from_math_dataset.py \
-        --output_file math_tasks.jsonl \
+    python generate_from_math_dataset.py \\
+        --output_file math_tasks.jsonl \\
         --num_samples 12481
 
     # With synthetic problems:
-    python generate_from_math_dataset.py \
-        --output_file math_tasks.jsonl \
-        --num_samples 12481 \
-        --num_synthetic 10000 \
+    python generate_from_math_dataset.py \\
+        --output_file math_tasks.jsonl \\
+        --num_samples 12481 \\
+        --num_synthetic 10000 \\
         --seed 42
 
     # Only synthetic:
-    python generate_from_math_dataset.py \
-        --output_file math_tasks.jsonl \
-        --num_samples 0 \
-        --num_synthetic 500 \
+    python generate_from_math_dataset.py \\
+        --output_file math_tasks.jsonl \\
+        --num_samples 0 \\
+        --num_synthetic 500 \\
         --seed 42
 
 """
@@ -279,8 +279,10 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Math dataset generator for the gym.",
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    
     parser.add_argument(
         "--output_file",
         type=str,

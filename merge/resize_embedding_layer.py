@@ -215,27 +215,10 @@ def main(args: argparse.Namespace) -> int:
 
 
 def parse_args() -> argparse.Namespace:
-	"""Parse command-line arguments."""
+
 	parser = argparse.ArgumentParser(
-		description="Check and resize model embeddings to match tokenizer vocabulary size.",
-		formatter_class=argparse.RawDescriptionHelpFormatter,
-		epilog="""
-Examples:
-  # Check for size mismatches (no changes)
-  python resize_embedding_layer.py /path/to/model
-
-  # Check and save mismatch details to JSON
-  python resize_embedding_layer.py /path/to/model --save-missing
-
-  # Check and resize, saving to default output directory
-  python resize_embedding_layer.py /path/to/model --resize
-
-  # Check and resize, saving to custom output directory
-  python resize_embedding_layer.py /path/to/model --resize --output-dir /path/to/output
-
-  # Use float16 instead of bfloat16
-  python resize_embedding_layer.py /path/to/model --dtype float16 --resize
-		"""
+		description=__doc__,
+		formatter_class=argparse.RawDescriptionHelpFormatter
 	)
 	
 	parser.add_argument(

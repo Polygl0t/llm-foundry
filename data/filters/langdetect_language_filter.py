@@ -15,15 +15,15 @@ Output:
 
 Usage:
     # Filter for single language
-    python langdetect_language_filter.py --input_dir data/ --output_dir filtered/ \
+    python langdetect_language_filter.py --input_dir data/ --output_dir filtered/ \\
         --languages portuguese
     
     # Filter for multiple languages
-    python langdetect_language_filter.py --input_dir data/ --output_dir filtered/ \
+    python langdetect_language_filter.py --input_dir data/ --output_dir filtered/ \\
         --languages english portuguese spanish --num_proc 16
     
     # Save excluded samples for testing
-    python langdetect_language_filter.py --input_dir data/ --output_dir excluded/ \
+    python langdetect_language_filter.py --input_dir data/ --output_dir excluded/ \\
         --languages english --save_excluded
 """
 import datasets
@@ -279,22 +279,9 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=__doc__,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=f"""
-Available languages:
-{', '.join(sorted(LANGUAGE_CODES.keys()))}
-
-Examples:
-  # Filter for English and Portuguese
-  python langdetect_language_filter.py --input_dir data/ --output_dir filtered/ --languages english portuguese
-  
-  # Filter for Chinese only
-  python langdetect_language_filter.py --input_dir data/ --output_dir filtered/ --languages chinese
-  
-  # Filter for multiple languages
-  python langdetect_language_filter.py --input_dir data/ --output_dir filtered/ --languages english spanish french
-"""
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
+    
     parser.add_argument("--input_dir", type=str, required=True, help="Directory containing the input dataset files")
     parser.add_argument("--output_dir", type=str, required=True, help="Output directory to save filtered dataset")
     parser.add_argument("--languages", type=str, nargs='+', required=True, 

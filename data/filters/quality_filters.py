@@ -26,13 +26,13 @@ Output:
 
 Usage:
     # Filter Portuguese dataset
-    python quality_filters.py --data_folder raw/ --final_output_folder filtered/ \
-        --language pt --config_folder .configs/ \
-        --tokenizer_name_or_path Qwen/Qwen3-0.6B \
+    python quality_filters.py --data_folder raw/ --final_output_folder filtered/ \\
+        --language pt --config_folder .configs/ \\
+        --tokenizer_name_or_path Qwen/Qwen3-0.6B \\
         --tasks 32 --workers 32
     
     # Filter with metadata expansion
-    python quality_filters.py --data_folder data/ --final_output_folder clean/ \
+    python quality_filters.py --data_folder data/ --final_output_folder clean/ \\
         --language bn --expand_metadata --cache_dir .cache/
 """
 import os
@@ -302,7 +302,10 @@ def main(args):
     print(f"✅ Post-processing for '{LANGUAGE}' completed.\n")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
 
     parser.add_argument("--tasks", type=int, default=32, help="Number of tasks")
     parser.add_argument("--workers", type=int, default=32, help="Number of workers")

@@ -1,5 +1,5 @@
 """
-JSONL File Splitter!🔪
+JSONL File Splitter
 
 Splits large JSONL files into manageable chunks based on token count thresholds.
 Designed for post-processing CommonCrawl extractions or other large datasets.
@@ -124,7 +124,8 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description=__doc__
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     
     parser.add_argument(

@@ -190,14 +190,8 @@ def inspect_model(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Inspect a model initialized from a config file.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  python inspect_model.py --config_path ./config.json
-  python inspect_model.py --config_path ./config.json --base_model meta-llama/Llama-2-7b
-  python inspect_model.py --config_path ./config.json --precision float32
-        """
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
     
     parser.add_argument(

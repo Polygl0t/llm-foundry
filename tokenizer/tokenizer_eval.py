@@ -4,7 +4,6 @@ Tokenizer Evaluation Script
 This script evaluates and compares multiple tokenizers on various metrics .
 
 Metrics Computed:
------------------
 1. Subword Fertility (SF): Average tokens per word
    Formula: SF = Total Tokens / Total Words
    Lower is better (less splitting = more efficient)
@@ -19,12 +18,11 @@ Metrics Computed:
 4. Unknown Token Count: Number of <unk> tokens
    Lower is better (better vocabulary coverage)
 
-Example Usage:
---------------
-python tokenizer_eval.py \
-    --tokenizers_to_evaluate gpt2 bert-base-uncased meta-llama/Llama-2-7b-hf \
-    --input_file sample_text.txt \
-    --output_file tokenizer_comparison.json \
+Usage:
+python tokenizer_eval.py \\
+    --tokenizers_to_evaluate gpt2 bert-base-uncased meta-llama/Llama-2-7b-hf \\
+    --input_file sample_text.txt \\
+    --output_file tokenizer_comparison.json \\
     --cache_dir ./.cache
 """
 import argparse
@@ -217,30 +215,8 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Evaluate and compare tokenizers on efficiency and behavior metrics.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Compare multiple tokenizers on a text sample
-  python tokenizer_eval.py \
-      --tokenizers_to_evaluate gpt2 bert-base-uncased meta-llama/Llama-2-7b-hf \
-      --input_file sample.txt \
-      --output_file results.json
-
-  # Evaluate with custom cache and HF token for private models
-  python tokenizer_eval.py \
-      --tokenizers_to_evaluate username/my-tokenizer \
-      --input_file data.txt \
-      --output_file eval.json \
-      --cache_dir ~/.cache/tokenizers \
-      --token hf_xxx
-
-Understanding the Metrics:
-  Subword Fertility (SF): Lower values indicate more efficient tokenizers
-  Proportion of Continued Words (PCW): Lower values mean less word fragmentation
-  Chars/Token: Higher values suggest more information packed per token
-  UNK count: Lower values indicate better vocabulary coverage
-        """
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
     
     parser.add_argument(

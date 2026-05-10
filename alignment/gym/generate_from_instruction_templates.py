@@ -8,14 +8,14 @@ This generator constructs each sample from scratch:
      instruction set and appended to the prompt.
 
 Usage:
-    python generate_from_instruction_templates.py \
-        --output_file instruct_tasks.jsonl \
+    python generate_from_instruction_templates.py \\
+        --output_file instruct_tasks.jsonl \\
         --num_samples 50000
 
-    python generate_from_instruction_templates.py \
-        --output_file instruct_tasks.jsonl \
-        --num_samples 50000 \
-        --min_modifiers 1 --max_modifiers 4 \
+    python generate_from_instruction_templates.py \\
+        --output_file instruct_tasks.jsonl \\
+        --num_samples 50000 \\
+        --min_modifiers 1 --max_modifiers 4 \\
         --seed 123 --verbose
 """
 
@@ -323,8 +323,10 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Template-based Instruction generation.",
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    
     parser.add_argument(
         "--output_file",
         type=str,

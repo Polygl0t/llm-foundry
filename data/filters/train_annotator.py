@@ -16,21 +16,21 @@ Output:
 
 Usage:
     # Train edu-score classifier
-    python train_classifier.py --train_dataset_dir scored_data.jsonl \
-        --dataset_type jsonl \
-        --shuffle_dataset \
-        --model_name microsoft/deberta-v3-base \
-        --text_column text --target_column score --id_label Edu-Score \
-        --checkpoint_dir checkpoints/ --max_length 512 \
-        --per_device_train_batch_size 32 --num_train_epochs 20 \
+    python train_classifier.py --train_dataset_dir scored_data.jsonl \\
+        --dataset_type jsonl \\
+        --shuffle_dataset \\
+        --model_name microsoft/deberta-v3-base \\
+        --text_column text --target_column score --id_label Edu-Score \\
+        --checkpoint_dir checkpoints/ --max_length 512 \\
+        --per_device_train_batch_size 32 --num_train_epochs 20 \\
         --learning_rate 3e-4 --bf16
     
     # Train with frozen layers (faster)
-    python train_classifier.py --train_dataset_dir data.jsonl \
-        --dataset_type jsonl \
-        --shuffle_dataset \
-        --model_name Qwen/Qwen2-1.5B --freeze \
-        --checkpoint_dir ckpt/ --gradient_checkpointing \
+    python train_classifier.py --train_dataset_dir data.jsonl \\
+        --dataset_type jsonl \\
+        --shuffle_dataset \\
+        --model_name Qwen/Qwen2-1.5B --freeze \\
+        --checkpoint_dir ckpt/ --gradient_checkpointing \\
         --hub_token TOKEN --hub_model_id username/my-classifier
 """
 from transformers import (
@@ -383,7 +383,11 @@ def main(args):
     
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
     # Core dataset/model args
     parser.add_argument("--dataset_type", choices=["jsonl", "parquet"], default="parquet", help="Type of the dataset files. Can be either 'jsonl' or 'parquet'.")
     parser.add_argument("--train_dataset_dir", type=str, nargs="+", required=True, help="Path(s) to the training dataset directory or file. Can be a single directory/file or a list of directories/files.")

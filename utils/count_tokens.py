@@ -6,8 +6,8 @@ This script scans directories containing tokenized datasets, aggregates statisti
 sample counts, and other metrics across the entire dataset structure.
 
 Example usage:
-    python count_tokens.py \
-        --main-dir data/tokenized \
+    python count_tokens.py \\
+        --main-dir data/tokenized \\
         --output-file dataset_report.txt
 """
 import os
@@ -158,7 +158,11 @@ def main(main_dir, output_file):
             report_file.write(line + "\n")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Count tokens in tokenized datasets and generate a report.")
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    
     parser.add_argument("--main-dir", type=str, help="Path to the main directory containing tokenized datasets.")
     parser.add_argument("--output-file", type=str, default="report.txt", help="Output report file name.")
     args = parser.parse_args()

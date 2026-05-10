@@ -15,24 +15,24 @@ Output columns (all configurable via flags):
                     requires --apply_chat_template.
 
 Usage:
-Pretraining tokenization:
-    python tokenize.py \
-        --input_path  data/pretrain_raw \
-        --output_dir  data/pretrain_tokenized \
-        --tokenizer_name Qwen/Qwen3-0.6B \
-        --add_bos_token --add_eos_token \
-        --return_seq_lengths \
+(Pretraining tokenization)
+    python tokenize.py \\
+        --input_path  data/pretrain_raw \\
+        --output_dir  data/pretrain_tokenized \\
+        --tokenizer_name Qwen/Qwen3-0.6B \\
+        --add_bos_token --add_eos_token \\
+        --return_seq_lengths \\
         --max_length 8192
 
-SFT tokenization:
-    python tokenize.py \
-        --input_path  data/sft_raw \
-        --output_dir  data/sft_tokenized \
-        --tokenizer_name Qwen/Qwen3-0.6B \
-        --text_column messages \
-        --apply_chat_template \
-        --return_seq_lengths \
-        --return_labels \
+(SFT tokenization)
+    python tokenize.py \\
+        --input_path  data/sft_raw \\
+        --output_dir  data/sft_tokenized \\
+        --tokenizer_name Qwen/Qwen3-0.6B \\
+        --text_column messages \\
+        --apply_chat_template \\
+        --return_seq_lengths \\
+        --return_labels \\
         --return_assistant_masks
 """
 import argparse

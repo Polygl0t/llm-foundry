@@ -18,21 +18,21 @@ The script expects datasets with a messages column (configurable) containing con
     }
 
 Usage:
-    python sft_filter.py \
-        --input_dir ./raw_data \
-        --output_dir ./filtered_data \
-        --input_type parquet \
-        --output_type parquet \
-        --messages_column messages \
-        --token_count_column token_count \
-        --filter_incomplete_sentences \
-        --filter_malformed_code_blocks \
-        --filter_corrupted_code \
-        --filter_undecoded_sequences \
-        --filter_invalid_markers \
-        --filter_repetition_loops \
-        --remove_system_messages \
-        --quality_score_column instruct_score \
+    python sft_filter.py \\
+        --input_dir ./raw_data \\
+        --output_dir ./filtered_data \\
+        --input_type parquet \\
+        --output_type parquet \\
+        --messages_column messages \\
+        --token_count_column token_count \\
+        --filter_incomplete_sentences \\
+        --filter_malformed_code_blocks \\
+        --filter_corrupted_code \\
+        --filter_undecoded_sequences \\
+        --filter_invalid_markers \\
+        --filter_repetition_loops \\
+        --remove_system_messages \\
+        --quality_score_column instruct_score \\
         --min_quality_score 4.5
 
 TODO: Currently focused on Portuguese SFT datasets, but we should add support for 
@@ -972,7 +972,10 @@ def main(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
 
     # Required arguments (I/O paths and types)
     parser.add_argument("--input_dir", type=str, required=True, help="Input directory containing the dataset files")

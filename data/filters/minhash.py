@@ -26,14 +26,14 @@ Output structure:
 
 Usage:
     # Deduplicate Portuguese dataset
-    python minhash.py --data_folder raw_data/ --language pt \
-        --output_deduplication_final deduplicated/ \
-        --tokenizer_name_or_path Qwen/Qwen3-0.6B \
+    python minhash.py --data_folder raw_data/ --language pt \\
+        --output_deduplication_final deduplicated/ \\
+        --tokenizer_name_or_path Qwen/Qwen3-0.6B \\
         --tasks 32 --workers 32
     
     # Deduplicate with metadata expansion
-    python minhash.py --data_folder data/ --language bn \
-        --output_deduplication_final clean_data/ \
+    python minhash.py --data_folder data/ --language bn \\
+        --output_deduplication_final clean_data/ \\
         --expand_metadata --cache_dir .cache/
 """
 import os
@@ -293,7 +293,10 @@ def main(args):
     print(f"✅ Post-processing for '{LANGUAGE}' completed.\n")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
 
     parser.add_argument("--tasks", type=int, default=32, help="Number of tasks")
     parser.add_argument("--workers", type=int, default=32, help="Number of workers")

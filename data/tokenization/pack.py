@@ -28,21 +28,20 @@ Padding values used by the BFD strategy:
   attention_mask -> 0
   assistant_masks-> 0
 
-Examples
---------
-Concatenation:
-    python pack.py \
-        --input_path  data/data_tokenized \
-        --output_dir  data/data_packed \
-        --strategy    concatenate \
+Usage:
+(Concatenation)
+    python pack.py \\
+        --input_path  data/data_tokenized \\
+        --output_dir  data/data_packed \\
+        --strategy    concatenate \\
         --block_size  4096
 
-Best-Fit Decreasing:
-    python pack.py \
-        --input_path   data/data_tokenized \
-        --output_dir   data/data_packed \
-        --strategy     bfd \
-        --block_size   4096 \
+(Best-Fit Decreasing)
+    python pack.py \\
+        --input_path   data/data_tokenized \\
+        --output_dir   data/data_packed \\
+        --strategy     bfd \\
+        --block_size   4096 \\
         --pad_token_id 0
 """
 import argparse

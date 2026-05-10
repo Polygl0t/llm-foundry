@@ -39,12 +39,12 @@ Notes:
 
 Usage:
     # Process CC-MAIN-2025-30 for Portuguese and Bengali
-    python process_cc_dump_with_quality_filters.py \
-        --warc_files_folder /data/cc/CC-MAIN-2025-30/ \
-        --config_folder .configs/ \
-        --final_output_folder output/ \
-        --dump CC-MAIN-2025-30 \
-        --languages pt bn \
+    python process_cc_dump_with_quality_filters.py \\
+        --warc_files_folder /data/cc/CC-MAIN-2025-30/ \\
+        --config_folder .configs/ \\
+        --final_output_folder output/ \\
+        --dump CC-MAIN-2025-30 \\
+        --languages pt bn \\
         --tasks 32 --workers 32
 """
 import argparse
@@ -455,7 +455,10 @@ def main(args):
     logger.info("All language-specific processing completed.")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
 
     parser.add_argument(
         "--config_folder", type=str, required=True, help="The folder containing language configuration files"

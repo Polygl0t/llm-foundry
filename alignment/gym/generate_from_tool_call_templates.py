@@ -12,15 +12,15 @@ from the tool's `input_samples` and embedded in the user request using the
 tool's own `request_samples` as templates.
 
 Usage:
-    python generate_from_tool_call_templates.py \
-        --output_file tool_call_tasks.jsonl \
+    python generate_from_tool_call_templates.py \\
+        --output_file tool_call_tasks.jsonl \\
         --num_samples 500
 
-    python generate_from_tool_call_templates.py \
-        --output_file tool_call_tasks.jsonl \
-        --num_samples 20000 \
-        --min_tools 1 --max_tools 3 \
-        --refusal_ratio 0.2 \
+    python generate_from_tool_call_templates.py \\
+        --output_file tool_call_tasks.jsonl \\
+        --num_samples 20000 \\
+        --min_tools 1 --max_tools 3 \\
+        --refusal_ratio 0.2 \\
         --seed 42 --verbose
 """
 
@@ -691,8 +691,10 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Procedural tool-calling task generator.",
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    
     parser.add_argument(
         "--output_file",
         type=str,
