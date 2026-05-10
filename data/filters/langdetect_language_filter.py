@@ -278,7 +278,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Language Detection Filter using langdetect",
+        description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=f"""
 Available languages:

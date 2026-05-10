@@ -110,7 +110,10 @@ def main(args):
     logger.info("Synthesis completed successfully!")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Generate synthetic samples using a Hugging Face models and vLLM.")
+    parser = argparse.ArgumentParser(
+        description=__doc__
+    )
+    
     parser.add_argument("--model_name_or_path", type=str, required=True, help="Hugging Face model name or path.")
     parser.add_argument("--tensor_parallel_size", type=int, default=1, help="Tensor parallel size for model loading.")
     parser.add_argument("--gpu_memory_utilization", type=float, default=0.9, help="GPU memory utilization for model loading.")

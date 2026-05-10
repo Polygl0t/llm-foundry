@@ -380,7 +380,7 @@ def main(specs, slurm_job_id, hardware):
     env.cleanup()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Fully Sharded Data Parallel Training")
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--specs",
         type=str,

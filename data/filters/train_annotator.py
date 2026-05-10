@@ -69,9 +69,9 @@ def compute_metrics(eval_pred):
     f1 = f1_metric.compute(predictions=preds, references=labels, average="macro")["f1"]
     accuracy = accuracy_metric.compute(predictions=preds, references=labels)["accuracy"]
 
-    # [classification_report](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.classification_report.html)
+    # See https://scikit-learn.org/stable/modules/generated/sklearn.metrics.classification_report.html
     report = classification_report(labels, preds)
-    # [confusion_matrix](https://scikit-learn.org/stable/modules/generated/sklearn.metrics.confusion_matrix.html)
+    # See https://scikit-learn.org/stable/modules/generated/sklearn.metrics.confusion_matrix.html
     cm = confusion_matrix(labels, preds)
 
     print("Validation Report:\n" + report)
@@ -115,7 +115,7 @@ def main(args):
     state.wait_for_everyone()
 
     # Load the datasets from disk
-    # [datasets.load_dataset](https://huggingface.co/docs/datasets/main/en/package_reference/loading_methods#datasets.load_dataset)
+    # See https://huggingface.co/docs/datasets/main/en/package_reference/loading_methods#datasets.load_dataset
     dataset = datasets.load_dataset(
         "json" if args.dataset_type == "jsonl" else args.dataset_type,
         data_files=train_dataset_files,
@@ -145,7 +145,7 @@ def main(args):
     )
 
     # We use the AutoConfig to infer what is the model type and how to configure the model.
-    # [AutoConfig](https://huggingface.co/docs/transformers/model_doc/auto#transformers.AutoConfig)
+    # See https://huggingface.co/docs/transformers/model_doc/auto#transformers.AutoConfig
     config = AutoConfig.from_pretrained(
         args.model_name,
         cache_dir=args.cache_dir,
@@ -177,7 +177,7 @@ def main(args):
             del model_args["classifier_dropout"]
 
     # We use the AutoModelForSequenceClassification to load the model.
-    # [AutoModelForSequenceClassification](https://huggingface.co/docs/transformers/model_doc/auto#transformers.AutoModelForSequenceClassification)
+    # See https://huggingface.co/docs/transformers/model_doc/auto#transformers.AutoModelForSequenceClassification
     model = AutoModelForSequenceClassification.from_pretrained(
         args.model_name,
         attn_implementation=args.attn_implementation,
@@ -185,7 +185,7 @@ def main(args):
     )
 
     # We use the AutoTokenizer to load the tokenizer.
-    # [AutoTokenizer](https://huggingface.co/docs/transformers/model_doc/auto#transformers.AutoTokenizer)
+    # See https://huggingface.co/docs/transformers/model_doc/auto#transformers.AutoTokenizer
     # Make sure to set the `model_max_length` in a way that it does not exceed the model's max position embeddings.
     tokenizer = AutoTokenizer.from_pretrained(
         args.model_name,
@@ -204,7 +204,6 @@ def main(args):
 
     if args.chat_template_path is not None:
         # Load a Jinja template for the chat model
-        # Learn more about chat templates [here](https://huggingface.co/docs/transformers/main/chat_templating)
         with open(args.chat_template_path, "r") as f:
             tokenizer.chat_template = f.read()
 
@@ -239,7 +238,7 @@ def main(args):
         )
 
     # Create a simple data collator that pads the inputs to the maximum length in the batch
-    # [DataCollatorWithPadding](https://huggingface.co/docs/transformers/main_classes/data_collator#transformers.DataCollatorWithPadding)
+    # See https://huggingface.co/docs/transformers/main_classes/data_collator#transformers.DataCollatorWithPadding
     data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
     if args.freeze:
@@ -289,7 +288,7 @@ def main(args):
     # Set the `WANDB_PROJECT` to args.wandb_project
     os.environ["WANDB_PROJECT"] = args.wandb_project
 
-    # [TrainingArguments](https://huggingface.co/docs/transformers/main_classes/trainer#transformers.TrainingArguments)
+    # See https://huggingface.co/docs/transformers/main_classes/trainer#transformers.TrainingArguments
     training_args = TrainingArguments(
         output_dir=args.checkpoint_dir,
         eval_strategy="steps",
@@ -327,7 +326,7 @@ def main(args):
         run_name=f"{args.model_name.split('/')[-1]}-jobid-{jobid}-bs-{args.per_device_train_batch_size}-acumulation-{args.gradient_accumulation_steps}-ngpu-{torch.cuda.device_count()}-epochs-{args.num_train_epochs}",
     )
 
-    #[Trainer](https://huggingface.co/docs/transformers/main_classes/trainer#transformers.Trainer)
+    # See https://huggingface.co/docs/transformers/main_classes/trainer#transformers.Trainer
     trainer = Trainer(
         model=model,
         processing_class=tokenizer,
@@ -384,7 +383,7 @@ def main(args):
     
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description=__doc__)
     # Core dataset/model args
     parser.add_argument("--dataset_type", choices=["jsonl", "parquet"], default="parquet", help="Type of the dataset files. Can be either 'jsonl' or 'parquet'.")
     parser.add_argument("--train_dataset_dir", type=str, nargs="+", required=True, help="Path(s) to the training dataset directory or file. Can be a single directory/file or a list of directories/files.")

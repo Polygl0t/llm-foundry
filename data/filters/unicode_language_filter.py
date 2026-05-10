@@ -315,7 +315,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Filter a dataset to keep only specified language text samples.",
+        description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=f"""
 Available languages:

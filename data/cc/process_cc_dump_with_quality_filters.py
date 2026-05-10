@@ -455,7 +455,7 @@ def main(args):
     logger.info("All language-specific processing completed.")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="CommonCrawl Processing Pipeline with Quality Filters")
+    parser = argparse.ArgumentParser(description=__doc__)
 
     parser.add_argument(
         "--config_folder", type=str, required=True, help="The folder containing language configuration files"

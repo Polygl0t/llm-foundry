@@ -293,7 +293,7 @@ def main(args):
     print(f"✅ Post-processing for '{LANGUAGE}' completed.\n")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Deduplication Pipeline")
+    parser = argparse.ArgumentParser(description=__doc__)
 
     parser.add_argument("--tasks", type=int, default=32, help="Number of tasks")
     parser.add_argument("--workers", type=int, default=32, help="Number of workers")

@@ -972,7 +972,7 @@ def main(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Filter and convert SFT datasets with various quality checks.")
+    parser = argparse.ArgumentParser(description=__doc__)
 
     # Required arguments (I/O paths and types)
     parser.add_argument("--input_dir", type=str, required=True, help="Input directory containing the dataset files")

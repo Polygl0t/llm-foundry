@@ -269,7 +269,7 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Annotate a dataset with a HuggingFace sequence classification model.")
+    parser = argparse.ArgumentParser(description=__doc__)
 
     parser.add_argument("--model_name", type=str, required=True, help="The name of the model to be used.")
     parser.add_argument("--apply_chat_template", action='store_true', help="Whether to apply a chat template to the text column.")

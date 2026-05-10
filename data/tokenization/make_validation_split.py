@@ -164,7 +164,7 @@ def main(input_dir, output_dir, input_type, output_file, n_samples, n_files=None
             meta_file.write(f"Tokenizer: {tokenizer_name}\n")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Create a validation split by removing samples from files in a folder.")
+    parser = argparse.ArgumentParser(description=__doc__)
     # TODO: We should allow for the user to give a list of folders to sample from instead of just one folder. 
     # This would allow us to create validation splits from multiple sources if needed.
     parser.add_argument("--input_dir", type=str, required=True, help="Directory containing input files to sample from.")

@@ -55,7 +55,7 @@ from transformers import (
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Run inference on a language model with various task samples."
+        description=__doc__
     )
     parser.add_argument(
         "--model_path",

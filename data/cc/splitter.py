@@ -124,7 +124,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Split large JSONL files into smaller chunks 🔪🔪🔪"
+        description=__doc__
     )
     
     parser.add_argument(

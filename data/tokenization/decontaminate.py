@@ -195,7 +195,7 @@ def main(args):
 	# TODO: We should update the metadata from the decontaminated dataset.
 
 if __name__ == "__main__":
-	parser = argparse.ArgumentParser("Decontaminate dataset using contiguous k-token matching against reference datasets.")
+	parser = argparse.ArgumentParser(description=__doc__)
 	parser.add_argument("--input_pattern", type=str, required=True, help="Glob pattern for input contaminated JSONL files.")
 	parser.add_argument("--reference_files", type=str, nargs='+', required=True, help="List of reference JSONL files.")
 	parser.add_argument("--cache_dir", type=str, default=None, help="Cache directory for datasets.")

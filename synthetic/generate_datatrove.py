@@ -372,7 +372,7 @@ def main(args):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(
-        description="Generate synthetic data using vLLM and Datatrove pipelines on a single node with local I/O",
+        description=__doc__,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
