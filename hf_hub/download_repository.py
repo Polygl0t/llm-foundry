@@ -10,7 +10,8 @@ Usage:
         --output_dir /path/to/output \
         --token YOUR_HF_TOKEN \
         --repo_type dataset \
-        --cache_dir ./.cache
+        --cache_dir ./.cache \
+        --allow_patterns "*"
 """
 from huggingface_hub import snapshot_download
 import os
@@ -25,6 +26,8 @@ def main():
     parser.add_argument("--token", required=True, help="Hugging Face token for authentication")
     parser.add_argument("--repo_type", default="dataset", choices=["dataset", "model", "space"],
                        help="Type of repository to download")
+    parser.add_argument("--allow_patterns", nargs="+", default=["*"],
+                       help="Optional glob patterns to filter files to download (e.g., 'de/*' '*.md')")
     
     args = parser.parse_args()
     
@@ -37,6 +40,7 @@ def main():
         token=args.token,
         local_dir_use_symlinks=False,
         local_dir=args.output_dir,
+        allow_patterns=args.allow_patterns
     )
 
 if __name__ == "__main__":

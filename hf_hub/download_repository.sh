@@ -59,6 +59,7 @@ python3 "$workdir/download_repository.py" \
     --cache_dir "$HF_DATASETS_CACHE" \
     --token "$HF_TOKEN" \
     --repo_type "dataset" 1>>"$out" 2>>"$err"
+# Optional: add --allow_patterns "de/*" "*.md" or different patterns to filter which files are downloaded
 
 #############################################
 # End of Script
