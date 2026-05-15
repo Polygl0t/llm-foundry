@@ -2,6 +2,7 @@
 Shared utilities for tokenization and packing scripts.
 """
 import glob
+import json
 import os
 import sys
 import logging
@@ -104,7 +105,7 @@ class DatasetLoader:
         return datasets.load_dataset(**load_args)
 
 
-def save_dataset(dataset, output_dir, output_type, tokens_per_chunk, token_count):
+def save_dataset(dataset, output_dir, output_type, tokens_per_chunk, token_count, *, n_chunks=None):
     """Save a dataset to disk, splitting into chunks of at most `tokens_per_chunk` tokens.
 
     Args:
@@ -113,6 +114,8 @@ def save_dataset(dataset, output_dir, output_type, tokens_per_chunk, token_count
         output_type:      `'parquet'` or `'jsonl'`.
         tokens_per_chunk: Maximum number of tokens per output file.
         token_count:      Total token count (used to compute the number of chunks).
+        n_chunks:         If provided, use this directly instead of computing from
+                          `tokens_per_chunk` and `token_count`.
 
     Returns:
         Number of chunks written (0 if the dataset is empty).
@@ -121,7 +124,8 @@ def save_dataset(dataset, output_dir, output_type, tokens_per_chunk, token_count
     if sample_count == 0:
         return 0
 
-    n_chunks = max(1, (token_count + tokens_per_chunk - 1) // tokens_per_chunk)
+    if n_chunks is None:
+        n_chunks = max(1, (token_count + tokens_per_chunk - 1) // tokens_per_chunk)
     indices = np.array_split(np.arange(sample_count), n_chunks)
 
     os.makedirs(output_dir, exist_ok=True)
@@ -144,3 +148,25 @@ def save_metadata(output_dir, **kwargs):
     with open(os.path.join(output_dir, ".metadata"), "w") as f:
         for key, value in kwargs.items():
             f.write(f"{key}: {value}\n")
+
+
+def list_matching_files(directory: str, *patterns: str) -> list[str]:
+    """Return a sorted list of files in `directory` matching any glob pattern."""
+    matches: set[str] = set()
+    for pattern in patterns:
+        matches.update(glob.glob(os.path.join(directory, pattern)))
+    return sorted(matches)
+
+
+def infer_file_features(file_path: str, output_type: str) -> list[str]:
+    """Infer output feature names from a written parquet or jsonl shard."""
+    if output_type == "parquet":
+        import pyarrow.parquet as pq
+
+        return list(pq.read_schema(file_path).names)
+
+    with open(file_path, "r", encoding="utf-8") as fh:
+        line = fh.readline()
+        if not line.strip():
+            return []
+        return list(json.loads(line).keys())

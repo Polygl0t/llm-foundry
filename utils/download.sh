@@ -6,13 +6,14 @@
 # Learn more about SLURM options at:
 # - https://slurm.schedmd.com/sbatch.html
 #############################################
-#SBATCH --account=ag_cst_gabriel           # <-- Change to your SLURM account
+#SBATCH --account=ag_bit_flek              # <-- Change to your SLURM account
 #SBATCH --partition=lm_long                # <-- Change to your partition
-#SBATCH --job-name=hf_upload
+#SBATCH --job-name=hf-download
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=96
+#SBATCH --cpus-per-task=64
 #SBATCH --time=7-00:00:00
+#SBATCH --mem=1900G
 #SBATCH --exclusive
 
 #############################################
@@ -27,19 +28,25 @@ mkdir -p "$workdir/run_outputs"
 cd "$workdir"
 ulimit -c 0
 
-out="$workdir/run_outputs/out-hf-upload-ckpts.$SLURM_JOB_ID"
-err="$workdir/run_outputs/err-hf-upload-ckpts.$SLURM_JOB_ID"
+out="$workdir/run_outputs/out-download-hf.$SLURM_JOB_ID"
+err="$workdir/run_outputs/err-download-hf.$SLURM_JOB_ID"
 
 #############################################
 # Environment Setup
 #############################################
-source "$workdir/.modules.sh"
-source "$workdir/.venv_intel/bin/activate"
+source $workdir/.modules.sh
+# python3 -m venv $workdir/.venv_intel
+source $workdir/.venv_intel/bin/activate
+
+# pip3 install --upgrade pip
+# git clone --depth 1 --branch main https://github.com/Polygl0t/llm-foundry.git
+# pip3 install -e "$workdir/llm-foundry/.[data]" --no-cache-dir
 
 export HF_TOKEN="<your-token-here>" # <-- Change to your HF token
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export HF_DATASETS_CACHE="$workdir/.cache/$SLURM_JOB_ID"
 export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE"
+export CLEAN_CACHE="1"  # Set to "1" to clean cache after job completion
 
 echo "# [${SLURM_JOB_ID}] Job started at: $(date)" > "$out"
 echo "# [${SLURM_JOB_ID}] Using $SLURM_NNODES nodes" >> "$out"
@@ -51,12 +58,26 @@ echo "# Python executable: $(which python3)" >> "$out"
 #############################################
 # Main Job Execution
 #############################################
-python3 "$workdir/upload_ckpts_to_hf.py" \
+python3 "$workdir/llm-foundry/utils/download.py" \
+    --repo_name "Polygl0t/bengali-edu-qwen-annotations" \
+    --output_dir "$workdir/bengali_edu_qwen_annotations" \
+    --cache_dir "$HF_DATASETS_CACHE" \
     --token "$HF_TOKEN" \
-    --repo_id "Polygl0t/LilTii-v0.2" \
-    --root_dir "$workdir/checkpoints/models/LilTii/v0.2" 1>>"$out" 2>>"$err"
+    --repo_type "dataset" 1>>"$out" 2>>"$err"
+# Optional: add --allow_patterns "de/*" "*.md" or different patterns to filter which files are downloaded
 
 #############################################
 # End of Script
 #############################################
+
+# Clean cache folder if requested
+if [ "$CLEAN_CACHE" = "1" ]; then
+    echo "# [${SLURM_JOB_ID}] Cleaning HF_DATASETS_CACHE" >> "$out"
+    if [ -d "$HF_DATASETS_CACHE" ]; then
+        find "$HF_DATASETS_CACHE" -mindepth 1 -delete 2>/dev/null || true
+    fi
+else
+    echo "# [${SLURM_JOB_ID}] Skipping cache cleanup (CLEAN_CACHE=$CLEAN_CACHE)" >> "$out"
+fi
+
 echo "# [${SLURM_JOB_ID}] Job finished at: $(date)" >> "$out"

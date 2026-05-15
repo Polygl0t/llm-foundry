@@ -8,12 +8,11 @@
 #############################################
 #SBATCH --account=ag_cst_gabriel           # <-- Change to your SLURM account
 #SBATCH --partition=lm_long                # <-- Change to your partition
-#SBATCH --job-name=hf-upload
+#SBATCH --job-name=ckpts-hf-upload
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=64
+#SBATCH --cpus-per-task=96
 #SBATCH --time=7-00:00:00
-#SBATCH --mem=1900G
 #SBATCH --exclusive
 
 #############################################
@@ -28,14 +27,19 @@ mkdir -p "$workdir/run_outputs"
 cd "$workdir"
 ulimit -c 0
 
-out="$workdir/run_outputs/out-hf-upload.$SLURM_JOB_ID"
-err="$workdir/run_outputs/err-hf-upload.$SLURM_JOB_ID"
+out="$workdir/run_outputs/out-ckpts-hf-upload.$SLURM_JOB_ID"
+err="$workdir/run_outputs/err-ckpts-hf-upload.$SLURM_JOB_ID"
 
 #############################################
 # Environment Setup
 #############################################
-source "$workdir/.modules.sh"
-source "$workdir/.venv_intel/bin/activate"
+source $workdir/.modules.sh
+# python3 -m venv $workdir/.venv_intel
+source $workdir/.venv_intel/bin/activate
+
+# pip3 install --upgrade pip
+# git clone --depth 1 --branch main https://github.com/Polygl0t/llm-foundry.git
+# pip3 install -e "$workdir/llm-foundry/.[data]" --no-cache-dir
 
 export HF_TOKEN="<your-token-here>" # <-- Change to your HF token
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
@@ -52,13 +56,9 @@ echo "# Python executable: $(which python3)" >> "$out"
 #############################################
 # Main Job Execution
 #############################################
-python3 "$workdir/upload_repository.py" \
-    --main_dir "$workdir/gigaverbo_v2_hf" \
-    --new_repo_id "Polygl0t/gigaverbo-v2" \
-    --private \
-    --token "$HF_TOKEN" \
-    --num_workers $SLURM_CPUS_PER_TASK \
-    --repo_type "dataset" 1>>"$out" 2>>"$err"
+python3 "$workdir/llm-foundry/utils/upload_ckpts_to_hf.py" \
+    --repo_id "Polygl0t/LilTii-v0.2" \
+    --root_dir "$workdir/ckps/liltii_v0_2" 1>>"$out" 2>>"$err"
 
 #############################################
 # End of Script

@@ -58,7 +58,7 @@ echo "# Python executable: $(which python3)" >> "$out"
 #############################################
 
 python3 $workdir/llm-foundry/data/tokenization/decontaminate.py \
-    --input_pattern "$workdir/data/*.jsonl" \
+    --input_dir "$workdir/data" \
     --reference_files "$workdir/references.jsonl" \
     --cache_dir "$HF_DATASETS_CACHE" \
     --num_proc $SLURM_CPUS_PER_TASK \

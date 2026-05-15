@@ -1,5 +1,5 @@
 """
-Validation Split Creation Tool for Tokenized Datasets
+Validation Split Creation
 
 This script creates validation splits by extracting a specified number of samples from multiple
 training data files and consolidating them into a separate validation file. Useful for preparing
@@ -12,22 +12,29 @@ Output:
 
 Usage:
     python make_validation_split.py \\
-        --input_dir data/train_chunks \\
+        --input_dirs data/train_chunks \\
         --output_dir data/validation \\
         --input_type parquet \\
         --output_file validation_split \\
         --n_samples 20000 \\
         --n_files 10
 
-TODO: We need to check if we can re-use some of the utility functions from utils.py to make
-this script more concise and maintainable.
+    # Multiple source directories:
+    python make_validation_split.py \\
+        --input_dirs data/train_en data/train_de data/train_fr \\
+        --output_dir data/validation \\
+        --input_type parquet \\
+        --n_samples 20000
 """
 import os
 import datasets
 import math
 import argparse
 import random
-import glob
+
+from utils import get_logger, list_matching_files
+
+logger = get_logger(__name__)
 
 
 def read_metadata(metadata_path):
@@ -42,35 +49,35 @@ def read_metadata(metadata_path):
     return metadata
 
 
-def get_files_from_folder(input_dir, input_type, n_files=None):
-    """Get list of files from a folder, optionally randomly selecting n_files."""
-    extension = ".parquet" if input_type == "parquet" else ".jsonl"
-    pattern = os.path.join(input_dir, f"*{extension}")
-    all_files = sorted(glob.glob(pattern))
-    
-    if not all_files:
-        raise FileNotFoundError(f"No {extension} files found in {input_dir}")
-    
+def get_files_from_dirs(input_dirs, input_type, n_files=None):
+    """Get files from one or more folders, optionally randomly selecting n_files total."""
+    pattern = "*.parquet" if input_type == "parquet" else "*.jsonl"
+    all_files: list[str] = []
+    for d in input_dirs:
+        found = list_matching_files(d, pattern)
+        if not found:
+            raise FileNotFoundError(f"No {pattern} files found in '{d}'.")
+        all_files.extend(found)
+    all_files = sorted(set(all_files))
+
     if n_files is not None and n_files < len(all_files):
-        files = random.sample(all_files, n_files)
-    else:
-        files = all_files
-    
-    return sorted(files)
+        all_files = random.sample(all_files, n_files)
+
+    return sorted(all_files)
 
 
-def main(input_dir, output_dir, input_type, output_file, n_samples, n_files=None):
+def main(input_dirs, output_dir, input_type, output_file, n_samples, n_files=None):
     """
-    Removes n_samples rows (evenly as possible) from randomly selected files in `input_dir`,
-    saves the removed rows to a single file, and overwrites the source files
-    with the remaining rows.
+    Removes n_samples rows (evenly as possible) from randomly selected files across
+    one or more `input_dirs`, saves the removed rows to a single file, and overwrites
+    the source files with the remaining rows.
     """
-    # Get files from folder
-    files = get_files_from_folder(input_dir, input_type, n_files)
-    print(f"Selected {len(files)} files for sampling")
-    
-    # Read tokenizer name from source folder metadata
-    source_metadata_path = os.path.join(input_dir, ".metadata")
+    # Get files from all input folders
+    files = get_files_from_dirs(input_dirs, input_type, n_files)
+    logger.info(f"Selected {len(files)} files for sampling from {len(input_dirs)} director{'y' if len(input_dirs) == 1 else 'ies'}")
+
+    # Read tokenizer name from the first source folder metadata
+    source_metadata_path = os.path.join(input_dirs[0], ".metadata")
     source_metadata = read_metadata(source_metadata_path)
     tokenizer_name = source_metadata.get("Tokenizer", "")
     
@@ -131,11 +138,11 @@ def main(input_dir, output_dir, input_type, output_file, n_samples, n_files=None
     # Concatenate all removed rows and save to a single file
     if removed_tables:
         concat = datasets.concatenate_datasets(removed_tables)
-        print(concat)
+        logger.info(str(concat))
         sample_count = len(concat)
         token_count = sample_count * block_size
-        print(f"Number of samples: {sample_count:,}")
-        print(f"Number of tokens: {token_count:,}")
+        logger.info(f"Number of samples: {sample_count:,}")
+        logger.info(f"Number of tokens: {token_count:,}")
         if input_type == "parquet":
             concat.to_parquet(os.path.join(output_dir, output_file + ".parquet"))
         else:
@@ -164,32 +171,28 @@ def main(input_dir, output_dir, input_type, output_file, n_samples, n_files=None
             meta_file.write(f"Tokenizer: {tokenizer_name}\n")
 
 if __name__ == "__main__":
-    argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
-    # TODO: We should allow for the user to give a list of folders to sample from instead of just one folder. 
-    # This would allow us to create validation splits from multiple sources if needed.
-    parser.add_argument("--input_dir", type=str, required=True, help="Directory containing input files to sample from.")
+    parser.add_argument("--input_dirs", type=str, nargs="+", required=True, help="One or more directories containing input files to sample from.")
     parser.add_argument("--output_dir", type=str, default="./", help="Directory to save the validation split and metadata.")
     parser.add_argument("--input_type", type=str, default="parquet", choices=["parquet", "json"], help="Input file type.")
     parser.add_argument("--output_file", type=str, default="validation_split", help="Filename for the validation split file.")
     parser.add_argument("--n_samples", type=int, default=20000, help="Total number of samples to remove for validation split.")
-    parser.add_argument("--n_files", type=int, default=None, help="Number of files to randomly select from the folder (default: use all files).")
+    parser.add_argument("--n_files", type=int, default=None, help="Total number of files to randomly select across all input directories (default: use all files).")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for file selection.")
     args = parser.parse_args()
-    
+
     # Set random seed for reproducibility
     random.seed(args.seed)
-    
-    print("Sampling validation split...")
+
     main(
-        input_dir=args.input_dir,
+        input_dirs=args.input_dirs,
         output_dir=args.output_dir,
         input_type=args.input_type,
         output_file=args.output_file,
         n_samples=args.n_samples,
-        n_files=args.n_files
+        n_files=args.n_files,
     )
-    print("Validation split created! 🎉")

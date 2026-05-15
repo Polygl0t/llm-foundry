@@ -1942,9 +1942,6 @@ def test_33_letterfrequency_kwargs_less_than_uses_higher_threshold():
 #######################################
 # Summary
 #######################################
-print("\n" + "=" * 50)
-print("All gym tests passed ✅")
-print("=" * 50)
 
 
 if __name__ == "__main__":

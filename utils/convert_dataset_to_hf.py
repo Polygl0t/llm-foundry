@@ -1,12 +1,15 @@
 """
 Convert JSONL/Parquet Files to Hugging Face Dataset Format
 
+This is very useful for converting our local dataset to have
+the same expected format as what HF's dataset viewer expects.
+
 Usage:
-    python convert_to_hf.py \
-        --directory_path ./raw_data \
-        --dataset_type jsonl \
-        --output_path ./processed_data \
-        --default_dataset_name default \
+    python convert_dataset_to_hf.py \\
+        --directory_path ./raw_data \\
+        --dataset_type jsonl \\
+        --output_path ./processed_data \\
+        --default_dataset_name default \\
         --num_workers 16
 """
 import time
@@ -327,10 +330,15 @@ def main(args):
     # Create output directory
     os.makedirs(args.output_path, exist_ok=True)
     
-    # Find all folders to process
+    # Find all folders to process (skip files, symlinks, and the output directory)
+    output_realpath = os.path.realpath(args.output_path)
     folder_names = sorted(os.listdir(args.directory_path))
     folder_paths = [os.path.join(args.directory_path, name) for name in folder_names]
-    folder_paths = [(name, path) for name, path in zip(folder_names, folder_paths) if os.path.isdir(path)]
+    folder_paths = [
+        (name, path) for name, path in zip(folder_names, folder_paths)
+        if os.path.isdir(path) and not os.path.islink(path)
+        and os.path.realpath(path) != output_realpath
+    ]
     
     print(f"Found {len(folder_paths)} folders to process")
     for name, path in folder_paths:
@@ -397,8 +405,10 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Converter for large JSONL/Parquet datasets to HuggingFace format"
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    
     parser.add_argument("--directory_path", type=str, required=True, help="Path to the directory containing data folders")
     parser.add_argument("--dataset_type", type=str, choices=['jsonl', 'parquet'], default='jsonl', help="Type of source files (jsonl or parquet)")
     parser.add_argument("--output_path", type=str, required=True, help="Path to save the converted dataset")
@@ -409,11 +419,11 @@ if __name__ == "__main__":
     parser.add_argument("--num_workers", type=int, default=8, help="Number of parallel workers for upload")
     parser.add_argument("--new_repo_id", type=str, default=None, help="HuggingFace repository ID for upload")
     parser.add_argument("--private", action='store_true', help="Create private repository")
-    parser.add_argument("--token", type=str, default=None, help="HuggingFace token")
+    parser.add_argument("--token", type=str, default=os.environ.get("HF_TOKEN"), help="HuggingFace token (defaults to HF_TOKEN env var)")
     
     args = parser.parse_args()
     
-    print("🚀 Starting conversion process!")
+    print(f"   Starting conversion process!")
     print(f"   Source: {args.directory_path}")
     print(f"   Output: {args.output_path}")
     print(f"   Type: {args.dataset_type}")
@@ -423,4 +433,3 @@ if __name__ == "__main__":
     
     main(args)
     
-    print("\n🎉 Done!")

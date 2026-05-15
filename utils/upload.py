@@ -1,16 +1,16 @@
 """
-Upload Repository to Hugging Face Hub with Automatic Retry Logic
+Upload Repository to Hugging Face Hub
 
 This script uploads a local directory to the Hugging Face Hub as either a dataset
 or model repository, with automatic retry on failure.
 
 Usage:
-    python upload_repository.py \
-        --main_dir /path/to/local/folder \
-        --new_repo_id username/repo-name \
-        --token YOUR_HF_TOKEN \
-        --repo_type dataset \
-        --num_workers 8 \
+    python upload.py \\
+        --main_dir /path/to/local/folder \\
+        --new_repo_id username/repo-name \\
+        --token YOUR_HF_TOKEN \\
+        --repo_type dataset \\
+        --num_workers 8 \\
         --private
 """
 from huggingface_hub import HfApi
@@ -43,10 +43,13 @@ def main(args):
             print("Retrying in 60 seconds...")
             time.sleep(60)
 
-    print(f"Repository uploaded to the hub at {args.new_repo_id}.")
-
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Upload a repository to the Hugging Face Hub")
+    
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
     parser.add_argument("--main_dir", type=str, default=None, help="Directory to upload")
     parser.add_argument("--new_repo_id", type=str, default=None, help="New repository ID on the Hugging Face Hub")
     parser.add_argument("--private", action='store_true', help="Make the repository private")

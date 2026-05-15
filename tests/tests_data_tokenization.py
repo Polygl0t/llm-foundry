@@ -169,7 +169,7 @@ pack = _load_module_from_tokenization_dir("tokenization_pack_mod", "pack.py")
 tokenize = _load_module_from_tokenization_dir("tokenization_tokenize_mod", "tokenize.py")
 from utils import save_metadata
 
-print("All imports OK")
+print("All imports OK ✅")
 
 
 def _reset_fake_datasets():
@@ -187,7 +187,7 @@ def test_01_read_metadata_returns_empty_dict_for_missing_file():
     with tempfile.TemporaryDirectory() as tmpdir:
         result = make_validation_split.read_metadata(os.path.join(tmpdir, ".metadata"))
         assert result == {}
-    print("Test 1 - read_metadata missing file: OK")
+    print("Test 1 - read_metadata missing file: OK ✅")
 
 
 def test_02_read_metadata_parses_key_value_strings():
@@ -198,19 +198,19 @@ def test_02_read_metadata_parses_key_value_strings():
             f.write("Tokens: 40\n")
             f.write("ignored line\n")
         assert make_validation_split.read_metadata(meta_path) == {"Samples": "10", "Tokens": "40"}
-    print("Test 2 - read_metadata parsing: OK")
+    print("Test 2 - read_metadata parsing: OK ✅")
 
 
-def test_03_get_files_from_folder_returns_sorted_json_files():
+def test_03_get_files_from_dirs_returns_sorted_json_files():
     with tempfile.TemporaryDirectory() as tmpdir:
         for name in ["b.jsonl", "a.jsonl", "skip.txt"]:
             open(os.path.join(tmpdir, name), "w").close()
-        files = make_validation_split.get_files_from_folder(tmpdir, "json")
+        files = make_validation_split.get_files_from_dirs([tmpdir], "json")
         assert [os.path.basename(path) for path in files] == ["a.jsonl", "b.jsonl"]
-    print("Test 3 - get_files_from_folder json sorted: OK")
+    print("Test 3 - get_files_from_dirs json sorted: OK ✅")
 
 
-def test_04_get_files_from_folder_can_sample_n_files():
+def test_04_get_files_from_dirs_can_sample_n_files():
     with tempfile.TemporaryDirectory() as tmpdir:
         for i in range(5):
             open(os.path.join(tmpdir, f"part_{i}.parquet"), "w").close()
@@ -218,19 +218,19 @@ def test_04_get_files_from_folder_can_sample_n_files():
             os.path.join(tmpdir, "part_4.parquet"),
             os.path.join(tmpdir, "part_1.parquet"),
         ]):
-            files = make_validation_split.get_files_from_folder(tmpdir, "parquet", n_files=2)
+            files = make_validation_split.get_files_from_dirs([tmpdir], "parquet", n_files=2)
         assert [os.path.basename(path) for path in files] == ["part_1.parquet", "part_4.parquet"]
-    print("Test 4 - get_files_from_folder sampled files: OK")
+    print("Test 4 - get_files_from_dirs sampled files: OK ✅")
 
 
-def test_05_get_files_from_folder_raises_when_empty():
+def test_05_get_files_from_dirs_raises_when_empty():
     with tempfile.TemporaryDirectory() as tmpdir:
         try:
-            make_validation_split.get_files_from_folder(tmpdir, "json")
+            make_validation_split.get_files_from_dirs([tmpdir], "json")
             raise AssertionError("Expected FileNotFoundError")
         except FileNotFoundError:
             pass
-    print("Test 5 - get_files_from_folder empty folder: OK")
+    print("Test 5 - get_files_from_dirs empty folder: OK ✅")
 
 
 def test_06_validation_split_main_writes_json_split_and_metadata():
@@ -255,7 +255,7 @@ def test_06_validation_split_main_writes_json_split_and_metadata():
             {"input_ids": [21, 22, 23, 24], "id": "b2"},
         ])
 
-        make_validation_split.main(input_dir, output_dir, "json", "valid", n_samples=4)
+        make_validation_split.main([input_dir], output_dir, "json", "valid", n_samples=4)
 
         with open(os.path.join(output_dir, "valid.jsonl")) as f:
             valid_rows = [json.loads(line) for line in f]
@@ -268,7 +268,7 @@ def test_06_validation_split_main_writes_json_split_and_metadata():
             "Chunks": "1",
             "Tokenizer": "toy-tokenizer",
         }
-    print("Test 6 - validation split main json output: OK")
+    print("Test 6 - validation split main json output: OK ✅")
 
 
 def test_07_validation_split_main_accumulates_existing_metadata():
@@ -286,13 +286,13 @@ def test_07_validation_split_main_accumulates_existing_metadata():
             {"input_ids": [3, 4], "id": "new1"},
         ])
 
-        make_validation_split.main(input_dir, output_dir, "json", "valid", n_samples=1)
+        make_validation_split.main([input_dir], output_dir, "json", "valid", n_samples=1)
 
         meta = make_validation_split.read_metadata(os.path.join(output_dir, ".metadata"))
         assert meta["Samples"] == "3"
         assert meta["Tokens"] == "10"
         assert meta["Chunks"] == "2"
-    print("Test 7 - validation split accumulates metadata: OK")
+    print("Test 7 - validation split accumulates metadata: OK ✅")
 
 
 def test_08_validation_split_main_rejects_too_many_samples():
@@ -305,11 +305,11 @@ def test_08_validation_split_main_rejects_too_many_samples():
         open(file_path, "w").close()
         fake_datasets.datasets_by_file[file_path] = TinyDataset([{"input_ids": [1]}])
         try:
-            make_validation_split.main(input_dir, output_dir, "json", "valid", n_samples=2)
+            make_validation_split.main([input_dir], output_dir, "json", "valid", n_samples=2)
             raise AssertionError("Expected ValueError")
         except ValueError as exc:
             assert "greater than total" in str(exc)
-    print("Test 8 - validation split rejects too many samples: OK")
+    print("Test 8 - validation split rejects too many samples: OK ✅")
 
 
 # %%
@@ -326,14 +326,14 @@ def test_09_concatenate_pack_splits_blocks_and_discards_tail():
     assert result["input_ids"] == [[1, 2, 3, 4], [5, 6, 7, 8]]
     assert result["attention_mask"] == [[1, 1, 1, 1], [1, 1, 1, 1]]
     assert result["seq_lengths"] == [4, 4]
-    print("Test 9 - concatenate packing: OK")
+    print("Test 9 - concatenate packing: OK ✅")
 
 
 def test_10_concatenate_pack_handles_no_full_blocks():
     pack_fn = pack.create_concatenate_function(10, ["input_ids"])
     result = pack_fn({"input_ids": [[1, 2, 3]]})
     assert result == {"input_ids": [], "seq_lengths": []}
-    print("Test 10 - concatenate packing no blocks: OK")
+    print("Test 10 - concatenate packing no blocks: OK ✅")
 
 
 def test_11_bfd_pack_pads_partial_chunks():
@@ -351,7 +351,7 @@ def test_11_bfd_pack_pads_partial_chunks():
     assert result["labels"] == [[1, 2, 3, 4, -100]]
     assert result["attention_mask"] == [[1, 1, 1, 1, 0]]
     assert result["seq_lengths"] == [5]
-    print("Test 11 - bfd pads partial chunks: OK")
+    print("Test 11 - bfd pads partial chunks: OK ✅")
 
 
 def test_12_bfd_pack_discards_empty_and_too_long_sequences():
@@ -359,7 +359,7 @@ def test_12_bfd_pack_discards_empty_and_too_long_sequences():
     result = pack_fn({"input_ids": [[], [1, 2, 3, 4, 5], [6, 7]]})
     assert result["input_ids"] == [[6, 7, 0, 0]]
     assert result["seq_lengths"] == [4]
-    print("Test 12 - bfd discards invalid lengths: OK")
+    print("Test 12 - bfd discards invalid lengths: OK ✅")
 
 
 def test_13_bfd_pack_uses_seq_lengths_when_present():
@@ -367,7 +367,7 @@ def test_13_bfd_pack_uses_seq_lengths_when_present():
     result = pack_fn({"input_ids": [[1, 2, 99], [3, 4]], "seq_lengths": [2, 2]})
     assert result["input_ids"] == [[1, 2, 3, 4]]
     assert result["seq_lengths"] == [4]
-    print("Test 13 - bfd uses seq_lengths: OK")
+    print("Test 13 - bfd uses seq_lengths: OK ✅")
 
 
 def test_14_pack_main_rejects_dataset_without_input_ids():
@@ -391,7 +391,7 @@ def test_14_pack_main_rejects_dataset_without_input_ids():
             raise AssertionError("Expected ValueError")
         except ValueError as exc:
             assert "input_ids" in str(exc)
-    print("Test 14 - pack main requires input_ids: OK")
+    print("Test 14 - pack main requires input_ids: OK ✅")
 
 
 def test_15_pack_main_bfd_requires_pad_token_id():
@@ -415,7 +415,7 @@ def test_15_pack_main_bfd_requires_pad_token_id():
             raise AssertionError("Expected ValueError")
         except ValueError as exc:
             assert "pad_token_id" in str(exc)
-    print("Test 15 - pack main bfd requires pad token: OK")
+    print("Test 15 - pack main bfd requires pad token: OK ✅")
 
 
 def test_16_pack_main_saves_packed_dataset_and_metadata():
@@ -444,7 +444,7 @@ def test_16_pack_main_saves_packed_dataset_and_metadata():
         assert meta["tokens"] == "6"
         assert meta["strategy"] == "concatenate"
         assert meta["packed_columns"] == "input_ids"
-    print("Test 16 - pack main saves output: OK")
+    print("Test 16 - pack main saves output: OK ✅")
 
 
 # %%
@@ -514,7 +514,7 @@ def test_17_load_tokenizer_rejects_assistant_masks_without_chat_template():
             raise AssertionError("Expected ValueError")
         except ValueError as exc:
             assert "requires --apply_chat_template" in str(exc)
-    print("Test 17 - load_tokenizer assistant masks require template: OK")
+    print("Test 17 - load_tokenizer assistant masks require template: OK ✅")
 
 
 def test_18_load_tokenizer_loads_chat_template_from_file():
@@ -528,7 +528,7 @@ def test_18_load_tokenizer_loads_chat_template_from_file():
         with patch.object(tokenize.AutoTokenizer, "from_pretrained", return_value=tokenizer_obj):
             loaded = tokenize.load_tokenizer(args)
         assert loaded.chat_template == "custom template"
-    print("Test 18 - load_tokenizer reads chat template file: OK")
+    print("Test 18 - load_tokenizer reads chat template file: OK ✅")
 
 
 def test_19_load_tokenizer_requires_chat_template_when_missing():
@@ -541,7 +541,7 @@ def test_19_load_tokenizer_requires_chat_template_when_missing():
             raise AssertionError("Expected ValueError")
         except ValueError as exc:
             assert "no chat template" in str(exc)
-    print("Test 19 - load_tokenizer missing chat template: OK")
+    print("Test 19 - load_tokenizer missing chat template: OK ✅")
 
 
 def test_20_standard_tokenize_adds_special_tokens_and_masks():
@@ -552,7 +552,7 @@ def test_20_standard_tokenize_adds_special_tokens_and_masks():
     assert result["seq_lengths"] == [4, 3]
     assert result["attention_mask"] == [[1, 1, 1, 1], [1, 1, 1]]
     assert result["labels"] == result["input_ids"]
-    print("Test 20 - standard tokenize function: OK")
+    print("Test 20 - standard tokenize function: OK ✅")
 
 
 def test_21_chat_tokenize_returns_assistant_masks_and_masked_labels():
@@ -571,7 +571,7 @@ def test_21_chat_tokenize_returns_assistant_masks_and_masked_labels():
     assert result["input_ids"] == [[5, 4, 2, 9]]
     assert result["assistant_masks"] == [[0, 0, 1, 1]]
     assert result["labels"] == [[-100, -100, 2, 9]]
-    print("Test 21 - chat tokenize masks labels: OK")
+    print("Test 21 - chat tokenize masks labels: OK ✅")
 
 
 def test_21b_load_tokenizer_rejects_chat_template_with_bos_or_eos():
@@ -583,7 +583,7 @@ def test_21b_load_tokenizer_rejects_chat_template_with_bos_or_eos():
                 raise AssertionError("Expected ValueError")
             except ValueError as exc:
                 assert "must not be combined with --apply_chat_template" in str(exc)
-    print("Test 21b - load_tokenizer rejects chat template + BOS/EOS: OK")
+    print("Test 21b - load_tokenizer rejects chat template + BOS/EOS: OK ✅")
 
 
 def test_22_tokenize_main_rejects_missing_text_column():
@@ -595,7 +595,7 @@ def test_22_tokenize_main_rejects_missing_text_column():
             raise AssertionError("Expected ValueError")
         except ValueError as exc:
             assert "Column 'missing'" in str(exc)
-    print("Test 22 - tokenize main validates text column: OK")
+    print("Test 22 - tokenize main validates text column: OK ✅")
 
 
 def test_23_tokenize_main_filters_truncates_saves_and_metadata():
@@ -624,7 +624,7 @@ def test_23_tokenize_main_filters_truncates_saves_and_metadata():
         assert meta["tokens"] == "4"
         assert meta["tokenizer"] == "fake-tokenizer"
         assert meta["add_bos_token"] == "True"
-    print("Test 23 - tokenize main saves output and metadata: OK")
+    print("Test 23 - tokenize main saves output and metadata: OK ✅")
 
 
 # %%
@@ -634,12 +634,13 @@ def test_23_tokenize_main_filters_truncates_saves_and_metadata():
 
 def _decontaminate_args(tmpdir, **overrides):
     defaults = dict(
-        input_pattern=os.path.join(tmpdir, "input", "*.jsonl"),
-        reference_files=[os.path.join(tmpdir, "ref.jsonl")],
+        input_dir=os.path.join(tmpdir, "input"),
+        reference_path=os.path.join(tmpdir, "ref.jsonl"),
         cache_dir=None,
         num_proc=1,
         batch_size=2,
         output_dir=os.path.join(tmpdir, "output"),
+        output_type="jsonl",
         min_k=3,
         max_k=4,
         allow_one_token_mismatch=False,
@@ -669,7 +670,7 @@ def test_24_decontaminate_exact_match_filters_contaminated_rows():
         with open(os.path.join(tmpdir, "output", "train-00000-of-00001.jsonl")) as f:
             rows = [json.loads(line) for line in f]
         assert rows == [{"input_ids": [7, 7, 7, 7], "id": "good"}]
-    print("Test 24 - decontaminate exact match: OK")
+    print("Test 24 - decontaminate exact match: OK ✅")
 
 
 def test_25_decontaminate_allows_one_token_mismatch_when_enabled():
@@ -692,7 +693,7 @@ def test_25_decontaminate_allows_one_token_mismatch_when_enabled():
         with open(os.path.join(tmpdir, "output", "train-00000-of-00001.jsonl")) as f:
             rows = [json.loads(line) for line in f]
         assert rows == [{"input_ids": [8, 8, 8], "id": "clean"}]
-    print("Test 25 - decontaminate one-token mismatch: OK")
+    print("Test 25 - decontaminate one-token mismatch: OK ✅")
 
 
 def test_26_decontaminate_keeps_all_rows_when_references_too_short():
@@ -712,7 +713,7 @@ def test_26_decontaminate_keeps_all_rows_when_references_too_short():
         with open(os.path.join(tmpdir, "output", "train-00000-of-00001.jsonl")) as f:
             rows = [json.loads(line) for line in f]
         assert rows == [{"input_ids": [1, 2, 3], "id": "kept"}]
-    print("Test 26 - decontaminate short references keep rows: OK")
+    print("Test 26 - decontaminate short references keep rows: OK ✅")
 
 
 def test_27_decontaminate_chunks_output_by_input_file_count():
@@ -726,49 +727,51 @@ def test_27_decontaminate_chunks_output_by_input_file_count():
         open(ref_file, "w").close()
         fake_datasets.next_datasets = [
             TinyDataset([{"input_ids": [i, i, i], "id": i} for i in range(4)]),
-            TinyDataset([]),
+            TinyDataset([{"input_ids": [1, 2, 3]}]),
         ]
         decontaminate.main(_decontaminate_args(tmpdir, min_k=3))
         files = sorted(name for name in os.listdir(os.path.join(tmpdir, "output")) if name.endswith(".jsonl"))
         assert files == ["train-00000-of-00002.jsonl", "train-00001-of-00002.jsonl"]
-    print("Test 27 - decontaminate output chunk count: OK")
+    print("Test 27 - decontaminate output chunk count: OK ✅")
 
 
 def test_28_decontaminate_argument_parser_defaults_and_required_args():
-    parser = argparse.ArgumentParser("Decontaminate dataset using contiguous k-token matching against reference datasets.")
-    parser.add_argument("--input_pattern", type=str, required=True)
-    parser.add_argument("--reference_files", type=str, nargs="+", required=True)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input_dir", type=str, required=True)
+    parser.add_argument("--reference_path", type=str, required=True)
     parser.add_argument("--cache_dir", type=str, default=None)
     parser.add_argument("--num_proc", type=int, default=8)
     parser.add_argument("--batch_size", type=int, default=10000)
     parser.add_argument("--output_dir", type=str, required=True)
+    parser.add_argument("--output_type", type=str, default="jsonl", choices=["jsonl", "parquet"])
     parser.add_argument("--min_k", type=int, default=8)
     parser.add_argument("--max_k", type=int, default=32)
     parser.add_argument("--allow_one_token_mismatch", action="store_true")
     parser.add_argument("--approx_max_k", type=int, default=10)
 
     args = parser.parse_args([
-        "--input_pattern", "data/*.jsonl",
-        "--reference_files", "eval.jsonl", "test.jsonl",
+        "--input_dir", "data/tokenized_train",
+        "--reference_path", "eval_set/",
         "--output_dir", "cleaned",
     ])
     assert args.cache_dir is None
     assert args.num_proc == 8
     assert args.batch_size == 10000
+    assert args.output_type == "jsonl"
     assert args.min_k == 8
     assert args.max_k == 32
     assert args.allow_one_token_mismatch is False
     assert args.approx_max_k == 10
-    assert args.reference_files == ["eval.jsonl", "test.jsonl"]
-    print("Test 28 - decontaminate argument parser: OK")
+    assert args.reference_path == "eval_set/"
+    print("Test 28 - decontaminate argument parser: OK ✅")
 
 
 if __name__ == "__main__":
     test_01_read_metadata_returns_empty_dict_for_missing_file()
     test_02_read_metadata_parses_key_value_strings()
-    test_03_get_files_from_folder_returns_sorted_json_files()
-    test_04_get_files_from_folder_can_sample_n_files()
-    test_05_get_files_from_folder_raises_when_empty()
+    test_03_get_files_from_dirs_returns_sorted_json_files()
+    test_04_get_files_from_dirs_can_sample_n_files()
+    test_05_get_files_from_dirs_raises_when_empty()
     test_06_validation_split_main_writes_json_split_and_metadata()
     test_07_validation_split_main_accumulates_existing_metadata()
     test_08_validation_split_main_rejects_too_many_samples()

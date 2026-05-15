@@ -23,7 +23,7 @@ This repository contains all source code used for the development of the models,
 
 The code base is organized into the following main folders:
 
-- [`alignment/`](alignment/) — Implementation of post-training techniques for alignment, including both Supervised Fine-Tuning (SFT) and Direct Preference Optimization (DPO).
+- [`alignment/`](alignment/) — Implementation of post-training techniques for alignment, including both Supervised Fine-Tuning (SFT) and Direct Preference Optimization (DPO), Reward Model training, and Group Relative Policy Optimization (GRPO) with verifier-based rewards.
   - [`alignment/gym/`](alignment/gym/) — Scripts for training and evaluating language models on custom environments.
 - [`data/`](data/) — Scripts for working with text preprocessing (i.e., filtering, tokenization, etc.).
   - [`data/cc/`](data/cc/) — Scripts for working with Common Crawl data.
@@ -31,7 +31,6 @@ The code base is organized into the following main folders:
   - [`data/tokenization/`](data/tokenization/) — Tokenization, packing, decontamination, and validation split utilities for pretraining and SFT datasets.
 - [`distributed/`](distributed/) — Scripts for training and evaluating language models with DDP and FSDP.
 - [`evals/`](evals/) — Scripts for evaluating language models via the `lm-evaluation-harness`.
-- [`hf_hub/`](hf_hub/) — Scripts for interacting with the Hugging Face Hub.
 - [`merge/`](merge/) — Scripts for running different merging techniques via `mergekit`.
 - [`synthetic/`](synthetic/) — Scripts for generating synthetic datasets with vLLM.
 - [`tests/`](tests/) — Unit and integration tests for our code base.

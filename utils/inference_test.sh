@@ -5,7 +5,7 @@
 #############################################
 #SBATCH --account=ag_bit_flek               # <-- Change to your SLURM account
 #SBATCH --partition=mlgpu_short             # <-- Change to your partition
-#SBATCH --job-name=vibe-test
+#SBATCH --job-name=inference-test
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --threads-per-core=1
@@ -26,8 +26,8 @@ mkdir -p "$workdir/run_outputs"
 cd "$workdir"
 ulimit -c 0
 
-out="$workdir/run_outputs/out-vibe-test.$SLURM_JOB_ID"
-err="$workdir/run_outputs/err-vibe-test.$SLURM_JOB_ID"
+out="$workdir/run_outputs/out-inference-test.$SLURM_JOB_ID"
+err="$workdir/run_outputs/err-inference-test.$SLURM_JOB_ID"
 
 #############################################
 # Environment Setup
@@ -56,10 +56,10 @@ echo "# Python executable: $(which python3)" >> "$out"
 # Main Job Execution
 #############################################
 export CUDA_VISIBLE_DEVICES=0
-python3 $workdir/llm-foundry/alignment/vibes.py \
-    --model_path "$workdir/checkpoints/Tucano2-qwen-0.5B-Instruct" \
-    --output_file "$workdir/checkpoints/Tucano2-qwen-0.5B-Instruct/inference_samples.json" \
-    --samples_file "$workdir/llm-foundry/alignment/samples.json" \
+python3 $workdir/llm-foundry/utils/inference_test.py \
+    --model_path "Polygl0t/Tucano2-qwen-0.5B-Instruct" \
+    --output_file "$workdir/inference_samples.json" \
+    --samples_file "$workdir/samples.json" \
     --max_new_tokens 1024 \
     --temperature 0.2 1>$out 2>$err
 

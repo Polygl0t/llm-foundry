@@ -33,17 +33,22 @@ Usage:
         --per_device_train_batch_size 4 \\
         --num_train_epochs 1
 
-# TODO: There are many common code between this script and the `sft_trainer.py` script, 
-# we should refactor the code to avoid duplication, and off load the common code to a separate module.
 """
 import transformers
-import accelerate
-import datasets
 import argparse
 import torch
-import glob
 import trl
 import os
+
+from utils import (
+    get_logger,
+    setup_distributed_state,
+    load_training_dataset,
+    split_dataset,
+    load_tokenizer,
+    resolve_checkpoint_path,
+    run_training,
+)
 
 LOSS_DESCRIPTIONS = {
     "sigmoid": "sigmoid loss from the original DPO paper.",
@@ -64,43 +69,13 @@ LOSS_DESCRIPTIONS = {
 
 def main(args):
 
+    logger = get_logger("DPO-Trainer")
+
     # Initialize the partial state for distributed training
-    state = accelerate.PartialState()
-    # print the state of every process
-    master_process = int(state.process_index) == 0
-    if master_process:
-        print(f"{state}")
+    state, master_process = setup_distributed_state(logger)
 
-    # Load our training dataset.
-    # We expect the dataset to be in a specific format: jsonl or parquet.
-    assert args.dataset_type in ["jsonl", "parquet"], f"Dataset type must be either 'jsonl' or 'parquet', got {args.dataset_type}."
-
-    train_dataset_files = []
-    train_dirs = args.train_dataset_dir
-    if isinstance(train_dirs, str):
-        train_dirs = [train_dirs]
-
-    # Below, we loop over all training directories and collect the dataset files that
-    # have the correct file extension.
-    for train_dir in train_dirs:
-        if os.path.isfile(train_dir) and train_dir.endswith(f".{args.dataset_type}"):
-            train_dataset_files.append(train_dir)
-        elif os.path.isdir(train_dir):
-            train_dataset_files += glob.glob(f"{train_dir}/*.{args.dataset_type}")
-
-    # Ensure all processes have the same file list (synchronize before loading)
-    train_dataset_files = sorted(train_dataset_files)
-    state.wait_for_everyone()
-    
-    # Load the datasets from disk
-    # See https://huggingface.co/docs/datasets/main/en/package_reference/loading_methods#datasets.load_dataset
-    dataset = datasets.load_dataset(
-        "json" if args.dataset_type == "jsonl" else args.dataset_type,
-        data_files=train_dataset_files,
-        split='train',
-        num_proc=min(len(train_dataset_files), args.num_proc),
-        cache_dir=args.cache_dir,
-    )
+    # Collect and load the training dataset
+    dataset = load_training_dataset(args.train_dataset_dir, args.dataset_type, args.num_proc, args.cache_dir, state)
 
     if args.shuffle_dataset:
         dataset = dataset.shuffle(seed=args.seed)
@@ -115,43 +90,11 @@ def main(args):
         if not master_process:
             dataset = dataset.map(trl.extract_prompt, num_proc=args.num_proc, desc="Extracting prompt from the data", load_from_cache_file=True)
 
-    if args.test_size is not None:
-        dataset = dataset.train_test_split(
-            test_size=args.test_size,
-            seed=args.seed,
-        )
-        if master_process:
-        # Save the test set to a JSONL file if requested
-            if args.save_test_set:
-                # Skip if the file already exists
-                if os.path.exists(os.path.join(args.checkpoint_dir, "test_set.jsonl")):
-                    pass
-                else:
-                    test_file = os.path.join(args.checkpoint_dir, "test_set.jsonl")
-                    dataset["test"].to_json(test_file, orient="records", lines=True)
-        # Wait for main process to finish saving.
-        state.wait_for_everyone()
-    
-    # We use the AutoTokenizer to load the tokenizer.
-    # See https://huggingface.co/docs/transformers/main/en/model_doc/auto#transformers.AutoTokenizer
-    # Make sure to set the `max_length` in a way that it does not exceed the model's max position embeddings.
-    tokenizer = transformers.AutoTokenizer.from_pretrained(
-        args.model_name_or_path,
-        model_max_length=args.max_length,
-        cache_dir=args.cache_dir,
-        use_fast=True,
-        trust_remote_code=True,
-    )
+    # Split into train/test sets if requested
+    dataset = split_dataset(dataset, args.test_size, args.seed, args.checkpoint_dir, args.save_test_set, master_process, state)
 
-    # Load a Jinja template for the chat model
-    if tokenizer.chat_template is None:
-        assert args.chat_template_path is not None, "Tokenizer does not have a chat template. Please provide a chat template path."
-        with open(args.chat_template_path, "r") as f:
-            tokenizer.chat_template = f.read()
-
-    # Check if the tokenizer has a pad token and if the pad token is different from the eos token
-    assert tokenizer.pad_token is not None, "The tokenizer does not have a pad token. Please set a pad token before training."
-    assert tokenizer.pad_token != tokenizer.eos_token, "The tokenizer's pad token is the same as the eos token. Please set a different pad token before training."
+    # Load the tokenizer and validate it
+    tokenizer = load_tokenizer(args.model_name_or_path, args.max_length, args.cache_dir, args.chat_template_path)
 
     # Initialize the model and reference model explicitly
     dtype = torch.bfloat16 if args.bf16 else torch.float32
@@ -263,36 +206,12 @@ def main(args):
     if torch.distributed.is_initialized():
         torch.distributed.barrier()
     
+    checkpoint_path = None
     if args.resume_from_checkpoint:
+        checkpoint_path = resolve_checkpoint_path(args.resume_from_checkpoint, master_process, logger)
 
-        # We expect the `resume_from_checkpoint` argument to be the path to a directory of checkpoints,
-        # the logic below will find the latest checkpoint in that directory.
-        checkpoint_path = args.resume_from_checkpoint
-
-        try:
-            # We try to find the latest checkpoint in the directory.
-            checkpoint_dirs = os.listdir(checkpoint_path)
-            checkpoint_dirs = [dir for dir in checkpoint_dirs if dir.startswith(f"checkpoint-")] # Checkpoints are intended to be named like "checkpoint-"
-            checkpoint_path = os.path.join(checkpoint_path, sorted(checkpoint_dirs, key=lambda x: int(x.split("-")[-1].split(".")[0]))[-1])
-        except:
-            # If the checkpoint directory does not contain any checkpoints, we will assume
-            # that `resume_from_checkpoint` is already set to the latest checkpoint.
-            pass
-        if master_process:
-            print(f"Resuming training from checkpoint: {checkpoint_path}")
-
-    # Start the training
-    try:
-        trainer.train(resume_from_checkpoint=checkpoint_path if args.resume_from_checkpoint else None)
-    except Exception as e:
-        save_path = os.path.join(args.checkpoint_dir, "last")
-        trainer.save_model(save_path)
-        if master_process:
-            print(f"Training failed with error: {e}")
-            print(f"Model saved to 'last' checkpoint at {save_path}")
-
-    # Save the final model
-    trainer.save_model(os.path.join(args.checkpoint_dir, "final"))
+    # Start training, save final model (or 'last' on error)
+    run_training(trainer, checkpoint_path, args.checkpoint_dir, master_process, logger)
     # Done!
 
 if __name__ == "__main__":

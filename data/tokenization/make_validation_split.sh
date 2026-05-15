@@ -58,7 +58,7 @@ echo "# Python executable: $(which python3)" >> "$out"
 # Main Job Execution
 #############################################
 python3 "$workdir/llm-foundry/data/tokenization/make_validation_split.py" \
-    --input_dir "$workdir/data/train" \
+    --input_dirs "$workdir/data/train" \
     --output_dir "$workdir/data/validation" \
     --input_type "parquet" \
     --n_files 10 \

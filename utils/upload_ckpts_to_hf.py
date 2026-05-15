@@ -16,33 +16,29 @@ Directory Structure Expected:
 
 Usage:
     export HF_TOKEN=your_token_here
-    python upload_ckpts_to_hf.py \
-        --token YOUR_HF_TOKEN \
-        --repo_id username/model-name \
+    python upload_ckpts_to_hf.py \\
+        --token YOUR_HF_TOKEN \\
+        --repo_id username/model-name \\
         --root_dir /path/to/checkpoints
 """
-from huggingface_hub import create_repo, login, create_branch, HfApi
+from huggingface_hub import create_repo, create_branch, HfApi
 import argparse
 import os
 import sys
 
-def upload_checkpoints_to_hf(token, repo_id, root_dir):
-    # Use environment variable for token security
-    token = os.getenv("HF_TOKEN", token)
+def main(token, repo_id, root_dir):
+
+    # Exit if token is not provided
     if not token:
-        print("Error: Please set HF_TOKEN environment variable")
+        print("❌ Error: HF_TOKEN environment variable is not set and --token was not provided")
         sys.exit(1)
     
     try:
         api = HfApi(token=token)
-        login(token=token)
-        
-        repo_id = repo_id
-        root_dir = root_dir
 
         # Check if root directory exists
         if not os.path.exists(root_dir):
-            print(f"Error: Root directory {root_dir} does not exist")
+            print(f"❌ Error: Root directory {root_dir} does not exist")
             return
         
         # Create repository
@@ -50,9 +46,9 @@ def upload_checkpoints_to_hf(token, repo_id, root_dir):
         repo = create_repo(repo_id, private=True, repo_type="model", exist_ok=True)
         print(f"Repository created/verified: {repo}")
         
-        # List all folders that start with "step-" or are named "main"
-        step_folders = [f for f in os.listdir(root_dir) 
-                       if os.path.isdir(os.path.join(root_dir, f))]
+        # List all subdirectories to upload as branches
+        step_folders = [f for f in os.listdir(root_dir)
+                        if os.path.isdir(os.path.join(root_dir, f)) and not os.path.islink(os.path.join(root_dir, f))]
         
         if not step_folders:
             print("No step folders found")
@@ -85,7 +81,7 @@ def upload_checkpoints_to_hf(token, repo_id, root_dir):
                     print(f"✓ Uploaded {step_folder_path} to {repo_id} at branch {step}")
                     
             except Exception as e:
-                print(f"✗ Error uploading {step}: {str(e)}")
+                print(f"❌ Error uploading {step}: {str(e)}")
                 continue
         
         try:
@@ -103,23 +99,28 @@ def upload_checkpoints_to_hf(token, repo_id, root_dir):
                         repo_id=repo_id,
                         revision="main"
                     )
-                    print(f"✓ Uploaded {file} to main branch")
+                    print(f"✅ Uploaded {file} to main branch")
             else:
                 print("No extra files found in root directory")
 
         except Exception as e:
-            print(f"✗ Error uploading extra files: {str(e)}")
+            print(f"❌ Error uploading extra files: {str(e)}")
 
     except Exception as e:
-        print(f"Error: {str(e)}")
+        print(f"❌ Error: {str(e)}")
         return
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Upload model checkpoints to Hugging Face Hub")
-    parser.add_argument("--token", type=str, required=True, default=None, help="Hugging Face API token (or set HF_TOKEN env variable)")
+
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    
+    parser.add_argument("--token", type=str, default=os.environ.get("HF_TOKEN"), help="Hugging Face API token (defaults to HF_TOKEN env var)")
     parser.add_argument("--repo_id", type=str, required=True, help="Repository ID (e.g., username/repo_name)")
     parser.add_argument("--root_dir", type=str, required=True, help="Root directory containing step folders")
     
     args = parser.parse_args()
     
-    upload_checkpoints_to_hf(args.token, args.repo_id, args.root_dir)
+    main(args.token, args.repo_id, args.root_dir)

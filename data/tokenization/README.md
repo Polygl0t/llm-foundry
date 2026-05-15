@@ -54,14 +54,14 @@ python pack.py \
 
 # Decontaminate against evaluation sets
 python decontaminate.py \
-    --input_pattern "data/*.jsonl" \
+    --input_dir data/tokenized_train \
     --reference_files eval_set.jsonl test_set.jsonl \
     --output_dir cleaned_data \
     --min_k 8 --max_k 32 --allow_one_token_mismatch
 
 # Create a validation split
 python make_validation_split.py \
-    --input_dir data/train_chunks \
+    --input_dirs data/train_chunks \
     --output_dir data/validation \
     --input_type parquet \
     --output_file validation_split \
