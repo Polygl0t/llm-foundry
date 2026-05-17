@@ -29,6 +29,9 @@ import argparse
 import json
 from transformers import AutoTokenizer
 import pandas as pd
+from utils import get_logger
+
+logger = get_logger("Tokenizer-Eval")
 
 def main(args):
     """
@@ -64,7 +67,7 @@ def main(args):
 
     # Evaluate each tokenizer in the list
     for tokenizer_name in args.tokenizers_to_evaluate:
-        print(f"\nEvaluating tokenizer: {tokenizer_name}")
+        logger.info(f"Evaluating tokenizer: {tokenizer_name}")
         
         # Extract a short name for display purposes
         name = tokenizer_name.split('/')[-1]
@@ -183,7 +186,7 @@ def main(args):
         results.append(d)
         
         # Print summary for this tokenizer
-        print(f"  ✓ Fertility: {fertility:.3f} | PCW: {pcw:.3f} | Chars/Token: {mean_chars_per_token:.2f}")
+        logger.info(f"Fertility: {fertility:.3f} | PCW: {pcw:.3f} | Chars/Token: {mean_chars_per_token:.2f}")
 
     # Sort results by fertility (most efficient tokenizers first)
     # Lower fertility = fewer tokens = more efficient
@@ -197,20 +200,20 @@ def main(args):
     table = pd.DataFrame(results)
     table.columns = columns
 
-    print("\n" + "=" * 80)
-    print("TOKENIZER EVALUATION RESULTS")
-    print("=" * 80)
-    print(f"\nResults saved to: {args.output_file}")
-    print(f"Text analyzed: {total_num_words:,} words, {len(text):,} characters")
-    print("\nComparison Table (sorted by Fertility):")
-    print(table.to_markdown(index=False))
-    print("\n" + "=" * 80)
-    print("\nInterpretation Guide:")
-    print("  • Fertility: Lower = more efficient (fewer tokens per word)")
-    print("  • PCW: Lower = less fragmentation (fewer words split)")
-    print("  • Chars/Token: Higher = more information per token")
-    print("  • UNK count: Lower = better vocabulary coverage")
-    print("=" * 80)
+    logger.info("=" * 80)
+    logger.info("TOKENIZER EVALUATION RESULTS")
+    logger.info("=" * 80)
+    logger.info(f"Results saved to: {args.output_file}")
+    logger.info(f"Text analyzed: {total_num_words:,} words, {len(text):,} characters")
+    logger.info("Comparison Table (sorted by Fertility):")
+    logger.info("\n" + table.to_markdown(index=False))
+    logger.info("=" * 80)
+    logger.info("Interpretation Guide:")
+    logger.info("  Fertility: Lower = more efficient (fewer tokens per word)")
+    logger.info("  PCW: Lower = less fragmentation (fewer words split)")
+    logger.info("  Chars/Token: Higher = more information per token")
+    logger.info("  UNK count: Lower = better vocabulary coverage")
+    logger.info("=" * 80)
 
 
 if __name__ == "__main__":
@@ -260,16 +263,16 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     
-    print("=" * 80)
-    print("TOKENIZER EVALUATION TOOL")
-    print("=" * 80)
-    print(f"\nInput file: {args.input_file}")
-    print(f"Output file: {args.output_file}")
-    print(f"Tokenizers to evaluate: {len(args.tokenizers_to_evaluate)}")
+    logger.info("=" * 80)
+    logger.info("TOKENIZER EVALUATION TOOL")
+    logger.info("=" * 80)
+    logger.info(f"Input file: {args.input_file}")
+    logger.info(f"Output file: {args.output_file}")
+    logger.info(f"Tokenizers to evaluate: {len(args.tokenizers_to_evaluate)}")
     for tok in args.tokenizers_to_evaluate:
-        print(f"  • {tok}")
-    print("\nStarting evaluation... 🚀\n")
+        logger.info(f"  - {tok}")
+    logger.info("Starting evaluation...")
     
     main(args)
     
-    print("\n✅ Tokenizers evaluated successfully! 🎉")
+    logger.info("Tokenizers evaluated successfully!")

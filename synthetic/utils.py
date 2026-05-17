@@ -160,7 +160,7 @@ def load_model_and_tokenizer(
         cache_dir=cache_dir,
     )
 
-    # [`vllm.LLM`](https://docs.vllm.ai/en/latest/api/vllm/#vllm.LLM)
+    # See https://docs.vllm.ai/en/latest/api/vllm/#vllm.LLM
     model = LLM(
         model=model_name_or_path,
         dtype=torch.float16 if "AWQ" in model_name_or_path else torch.bfloat16,
@@ -183,7 +183,7 @@ def generate_rollouts(
     ) -> list[str]:
     """Generate text samples using the model."""
 
-    # [`apply_chat_template`](https://huggingface.co/docs/transformers/main/chat_templating#using-applychattemplate)
+    # See https://huggingface.co/docs/transformers/main/chat_templating#using-applychattemplate
     raw_text = tokenizer.apply_chat_template(
         [
             {"role": "system", "content": system},
@@ -213,7 +213,7 @@ def generate_rollouts(
 
 def get_logger(name: str) -> logging.Logger:
     """Create a simple logger."""
-    # [Logging facility for Python](https://docs.python.org/3/library/logging.html#)
+    # See https://docs.python.org/3/library/logging.html#
     logger = logging.getLogger(name)
 
     logging.basicConfig(

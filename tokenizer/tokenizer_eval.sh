@@ -35,7 +35,12 @@ err="$workdir/run_outputs/err-tok-eval.$SLURM_JOB_ID"
 # Environment Setup
 #############################################
 source $workdir/.modules.sh
-source $workdir/.venv_intel/bin/activate
+# python3 -m venv $workdir/.venv_tokenizer
+source $workdir/.venv_tokenizer/bin/activate
+
+# pip3 install --upgrade pip
+# git clone --depth 1 --branch main https://github.com/Polygl0t/llm-foundry.git
+# pip3 install -e "$workdir/llm-foundry/.[tokenizer]" --no-cache-dir
 
 export HF_TOKEN="<your-token-here>" # <-- Change to your Hugging Face token
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
@@ -53,25 +58,14 @@ echo "# Python executable: $(which python3)" >> "$out"
 #############################################
 # Main Job Execution
 #############################################
-python3 $workdir/tokenizer_eval.py \
-    --tokenizers_to_evaluate "TucanoBR/Tucano-1b1" \
-    "ClassiCC-Corpus/Curio-1.1b" \
-    "ibm-granite/granite-3.3-2b-base" \
+python3 $workdir/llm-foundry/tokenizer/tokenizer_eval.py \
+    --tokenizers_to_evaluate "ibm-granite/granite-3.3-2b-base" \
     "meta-llama/Llama-3.2-1B" \
     "Qwen/Qwen2.5-0.5B" \
     "allenai/OLMo-2-0425-1B" \
-    "NOVA-vision-language/GlorIA-1.3B" \
-    "PORTULAN/gervasio-7b-portuguese-ptbr-decoder" \
-    "neuralmind/bert-base-portuguese-cased" \
-    "pablocosta/bertabaporu-base-uncased" \
-    "sagui-nlp/debertinha-ptbr-xsmall" \
-    "PORTULAN/albertina-100m-portuguese-ptbr-encoder" \
-    "unicamp-dl/ptt5-base-portuguese-vocab" \
-    "eduagarcia/RoBERTaCrawlPT-base" \
-    "eduagarcia/RoBERTaLexPT-base" \
     "HuggingFaceTB/SmolLM3-3B-Base" \
-    --input_file "$workdir/portuguese/checkpoints/tokenizers/sample.txt" \
-    --output_file "$workdir/portuguese/checkpoints/tokenizers/eval-pt.json" \
+    --input_file "$workdir/sample.txt" \
+    --output_file "$workdir/results.json" \
     --cache_dir "$HF_DATASETS_CACHE" \
     --token "$HF_TOKEN" 1>>"$out" 2>>"$err"
 

@@ -416,7 +416,7 @@ if __name__ == "__main__":
     parser.add_argument("--adam_beta2", type=float, default=0.999)
     parser.add_argument("--adam_epsilon", type=float, default=1e-8)
     parser.add_argument("--max_grad_norm", type=float, default=1.0)
-    parser.add_argument("--lr_scheduler_type", type=str, default="linear", help="Type of learning rate scheduler to use. Options: 'linear', 'cosine', and all the other types listed [here](https://huggingface.co/docs/transformers/main/en/main_classes/optimizer_schedules#transformers.SchedulerType).")
+    parser.add_argument("--lr_scheduler_type", type=str, default="linear", help="Type of learning rate scheduler to use. Options: 'linear', 'cosine', and all the other types listed here: https://huggingface.co/docs/transformers/main/en/main_classes/optimizer_schedules#transformers.SchedulerType.")
     parser.add_argument("--warmup_ratio", type=float, default=0.0)
     parser.add_argument("--num_train_epochs", type=int, default=20)
     parser.add_argument("--save_total_limit", type=int, default=5)
@@ -433,7 +433,7 @@ if __name__ == "__main__":
     # Hub / reporting
     parser.add_argument("--hub_token", type=str, default=None)
     parser.add_argument("--hub_model_id", type=str, default=None)
-    parser.add_argument("--report_to", type=str, nargs="+", default=None , help="The list of integrations to report the results and logs to. Supported platforms are 'tensorboard', 'wandb', 'comet_ml', 'mlflow', 'clearml', 'wandb' etc. See [here](https://huggingface.co/docs/transformers/main/en/main_classes/trainer#transformers.TrainingArguments.report_to) for more details.")
+    parser.add_argument("--report_to", type=str, nargs="+", default=None , help="The list of integrations to report the results and logs to. Supported platforms are 'tensorboard', 'wandb', 'comet_ml', 'mlflow', 'clearml', 'wandb' etc. See here: https://huggingface.co/docs/transformers/main/en/main_classes/trainer#transformers.TrainingArguments.report_to for more details.")
     parser.add_argument("--wandb_project", type=str, default="Polyglot")
 
     args = parser.parse_args()

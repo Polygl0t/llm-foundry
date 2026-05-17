@@ -30,7 +30,6 @@ def main(args):
         repo_type=args.repo_type,
         cache_dir=args.cache_dir,
         token=args.token,
-        local_dir_use_symlinks=False,
         local_dir=args.output_dir,
         allow_patterns=args.allow_patterns
     )

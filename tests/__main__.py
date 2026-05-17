@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 
 TESTS_DIR = Path(__file__).parent
-SCRIPTS = glob.glob(str(TESTS_DIR / "tests_*.py"))
+SCRIPTS = sorted(glob.glob(str(TESTS_DIR / "tests_*.py")))
 
 # Redirect all .pyc compilation to a temp directory
 env = os.environ.copy()

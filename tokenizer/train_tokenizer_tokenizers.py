@@ -17,30 +17,28 @@ Example usage:
         --hub_repo_id username/my-tokenizer \
         --token hf_xxx
 
-BUG: Tokens like "<think>" or "<tool_call>" should not be special tokens in the tokenizer.
-        This is because, if they are special tokens, evals from the harness will not be able
-        to strip them from the input (bad for reasoning models). Also, the tokenizer will always
-        skip them when decoding, which means that they will not appear in the decoded output (bad for interpretability
-        and the probable reason why the eval harness is not parsing them correctly).
-        Only the BOS, EOS, UNK, and PAD tokens should be special tokens in the tokenizer. 
-        The rest of the tokens should just be normal tokens in the tokenizer.
-
-TODO: For now, I'm manually removing the special tokens from the tokenizer after training it. This is a very hacky, but it works. 
-        In the future, we should consider implementing the addition of special tokens in a different way.
-
-        - `special_tokens_map.json` should only contain the BOS, EOS, UNK, and PAD tokens.
-        - `special_tokens_map.json` should have no add_special_tokens field. Also, all the non special tokens should be set with `"special": false`.
-        - `tokenizer.json` all non special tokens should be set with `"special": false`. Only the BOS, EOS, UNK, and PAD tokens should be set with `"special": true`.
+Only BOS, EOS, UNK, and PAD are registered as special tokens. Chat/control markers
+such as "<think>" and "<tool_call>" are added to the vocabulary as regular tokens
+so they remain visible when decoding with skip_special_tokens=True.
 """
-from transformers import PreTrainedTokenizerFast, AutoTokenizer
-import datasets
-import json
-import glob
+from transformers import PreTrainedTokenizerFast
 import os
 import argparse
 import unicodedata
+from utils import (
+    get_logger,
+    EXTRA_TOKENS,
+    load_text_dataset,
+    update_tokenizer_config,
+    validate_saved_tokenizer,
+    write_special_tokens_map,
+    push_tokenizer_to_hub,
+)
+
+logger = get_logger("BPE-Tokenizer-Trainer")
 
 from tokenizers import (
+    AddedToken,
     decoders,
     models,
     normalizers,
@@ -50,117 +48,41 @@ from tokenizers import (
     Tokenizer,
 )
 
-# A general list of special tokens
-SPECIAL_TOKENS = [
-        "<|im_start|>",
-        "<|im_end|>",
-        "<|pad|>",
-        "<|unk|>",
-        "<tools>",
-        "</tools>",
-        "<tool_call>",
-        "</tool_call>",
-        "<tool_response>",
-        "</tool_response>",
-        "<think>",
-        "</think>",
-        "<answer>",
-        "</answer>",
-        "<context>",
-        "</context>",
-        "<|fim_prefix|>",
-        "<|fim_suffix|>",
-        "<|fim_middle|>",
-        "<|repo_name|>",
-        "<|image|>",
-        "<|image_pad|>",
-        "<|image_placeholder|>",
-        # The indented special tokens are a trick from the Olmo tokenizer.
-        # (note: I think Pythia or GPT-neoX also did something like this) 
-        # This helps make the tokenizer more efficient when dealing with code data.
-        "                        ",
-        "                       ",
-        "                      ",
-        "                     ",
-        "                    ",
-        "                   ",
-        "                  ",
-        "                 ",
-        "                ",
-        "               ",
-        "              ",
-        "             ",
-        "            ",
-        "           ",
-        "          ",
-        "         ",
-        "        ",
-        "       ",
-        "      ",
-        "     ",
-        "    ",
-        "   ",
-        "  ",
-    ]
 
 
 def main(args):
     
-    assert args.data_type in ['txt', 'jsonl', 'parquet', 'csv'], f"Invalid data type: {args.data_type}. Needs to be one of ['txt', 'jsonl', 'parquet', 'csv']"
-
-    # check if the path is a directory
-    if os.path.isdir(args.data_path):
-
-        # Get all files of a specific type in the data directory
-        data_files = glob.glob(os.path.join(args.data_path, f"*.{args.data_type}"))
-
-        if not data_files:
-            raise ValueError(f"No data files found in {args.data_path} with extension {args.data_type}")
-
-    elif os.path.isfile(args.data_path):
-        data_files = [args.data_path]
-
-    else:
-        raise ValueError(f"Invalid data path: {args.data_path}")
-
-    data_type = "text" if args.data_type == "txt" else "json" if args.data_type == "jsonl" else args.data_type
-
-    # Load your training data (supports txt, parquet, csv, and jsonl files.)
-    dataset = datasets.load_dataset(
-        data_type, 
-        data_files=data_files, 
-        split="train",
-        cache_dir=args.cache_dir,
-        num_proc=args.num_proc
-    )
+    dataset = load_text_dataset(args.data_path, args.data_type, cache_dir=args.cache_dir, num_proc=args.num_proc)
 
     # Pre-normalize the text to NFKC (helps to prevent mojibake issues)
     def normalize_to_nfkc(example):
         example[args.text_column] = unicodedata.normalize("NFKC", example[args.text_column])
         return example
 
-    dataset = dataset.map(
-         normalize_to_nfkc,
-         num_proc=args.num_proc
-    )
-
-    print(f"Loaded dataset with {len(dataset)} samples from {data_files}")
+    dataset = dataset.map(normalize_to_nfkc, num_proc=args.num_proc)
+    logger.info(f"Loaded dataset with {len(dataset):,} samples")
 
     # Define a Model
-    # [tokenizers.models.BPE](https://huggingface.co/docs/tokenizers/api/models#tokenizers.models.BPE)
+    # See https://huggingface.co/docs/tokenizers/api/models#tokenizers.models.BPE
     tokenizer = Tokenizer(models.BPE(byte_fallback=args.byte_fallback))
     
     # Define a normalizer.
-    # [tokenizers.normalizers.NFC](https://huggingface.co/docs/tokenizers/api/normalizers#tokenizers.normalizers.NFC)
+    # See https://huggingface.co/docs/tokenizers/api/normalizers#tokenizers.normalizers.NFC
     tokenizer.normalizer = normalizers.NFC()
 
     # Define a pre-tokenizer.
-    # [tokenizers.pre_tokenizers.ByteLevel](https://huggingface.co/docs/tokenizers/api/pre-tokenizers#tokenizers.pre_tokenizers.ByteLevel)
+    # See https://huggingface.co/docs/tokenizers/api/pre-tokenizers#tokenizers.pre_tokenizers.ByteLevel
     tokenizer.pre_tokenizer = pre_tokenizers.ByteLevel(add_prefix_space=False, trim_offsets=False, use_regex=False)
     
+    core_special_tokens = [args.bos_token, args.eos_token, args.pad_token, args.unk_token]
+
     # Define the model trainer
-    # [tokenizers.trainers.BpeTrainer](https://huggingface.co/docs/tokenizers/api/trainers#tokenizers.trainers.BpeTrainer)
-    trainer = trainers.BpeTrainer(vocab_size=args.vocab_size, special_tokens=SPECIAL_TOKENS, show_progress=True)
+    # See https://huggingface.co/docs/tokenizers/api/trainers#tokenizers.trainers.BpeTrainer
+    trainer = trainers.BpeTrainer(
+        vocab_size=args.vocab_size - len(EXTRA_TOKENS),
+        special_tokens=core_special_tokens,
+        show_progress=True,
+    )
 
     # Define a generator dor the BPE trainer
     def get_training_corpus(bs=args.batch_size):
@@ -170,8 +92,13 @@ def main(args):
         for i in range(0, len(dataset), bs):
             yield dataset[i : i + bs][args.text_column]
 
-    # Train !!! 🚀
+    # Train the tokenizer
     tokenizer.train_from_iterator(get_training_corpus(), trainer=trainer)
+
+    regular_added_tokens = [AddedToken(token, special=False, normalized=False) for token in EXTRA_TOKENS]
+    num_added_tokens = tokenizer.add_tokens(regular_added_tokens)
+    if num_added_tokens != len(EXTRA_TOKENS):
+        raise ValueError(f"Expected to add {len(EXTRA_TOKENS)} regular tokens, but added {num_added_tokens}.")
 
     # Get the token IDs for the main special tokens (will use them to hardcode them in the config)
     bos_token_id = tokenizer.token_to_id(args.bos_token)
@@ -183,23 +110,23 @@ def main(args):
     if args.add_bos_token:
         # Apparently, this is the "correct" way to add a BOS token using the `tokenizers` library.
         # See: https://github.com/huggingface/tokenizers/issues/1643
-        # [TemplateProcessing](https://huggingface.co/docs/tokenizers/en/api/post-processors#tokenizers.processors.TemplateProcessing)
+        # See https://huggingface.co/docs/tokenizers/en/api/post-processors#tokenizers.processors.TemplateProcessing
         tokenizer.post_processor = processors.TemplateProcessing(
             single=f"{args.bos_token} $A",
             special_tokens=[(args.bos_token, bos_token_id)],
         )
     
     else:
-        # [tokenizers.processors.ByteLevel](https://huggingface.co/docs/tokenizers/api/post-processors#tokenizers.processors.ByteLevel)
+        # See https://huggingface.co/docs/tokenizers/api/post-processors#tokenizers.processors.ByteLevel
         tokenizer.post_processor = processors.ByteLevel(add_prefix_space=False, trim_offsets=False, use_regex=False)
         
     # Define a decoder
-    # [tokenizers.decoders.ByteLevel](https://huggingface.co/docs/tokenizers/api/decoders#tokenizers.decoders.ByteLevel)
+    # See https://huggingface.co/docs/tokenizers/api/decoders#tokenizers.decoders.ByteLevel
     tokenizer.decoder = decoders.ByteLevel(add_prefix_space=False, trim_offsets=False, use_regex=False)
 
-    print("Wrapping the tokenizer with PreTrainedTokenizerFast")
+    logger.info("Wrapping the tokenizer with PreTrainedTokenizerFast")
     # Wrap the tokenizer
-    # [PreTrainedTokenizerFast](https://huggingface.co/docs/transformers/main/en/main_classes/tokenizer#transformers.PreTrainedTokenizerFast)
+    # See https://huggingface.co/docs/transformers/main/en/main_classes/tokenizer#transformers.PreTrainedTokenizerFast
     wrapped_tokenizer = PreTrainedTokenizerFast(
         tokenizer_object=tokenizer,
         bos_token=args.bos_token,
@@ -212,44 +139,37 @@ def main(args):
         clean_up_tokenization_spaces=False,
     )
 
-    wrapped_tokenizer.additional_special_tokens = [
-        token for token in SPECIAL_TOKENS if token not in 
-        [
-            args.bos_token, args.eos_token, args.pad_token, args.unk_token
-        ]
-    ]
-
     # Assert that the size of the tokenizer matches the expected vocabulary size
-    assert wrapped_tokenizer.vocab_size == args.vocab_size, f"Expected vocab size {args.vocab_size}, but got {wrapped_tokenizer.vocab_size}"
+    assert len(wrapped_tokenizer) == args.vocab_size, f"Expected vocab size {args.vocab_size}, but got {len(wrapped_tokenizer)}"
 
     # Save the tokenizer
     if not os.path.exists(args.output_dir):
          os.makedirs(args.output_dir)
     wrapped_tokenizer.save_pretrained(args.output_dir)
+    write_special_tokens_map(
+        args.output_dir,
+        bos_token=args.bos_token,
+        eos_token=args.eos_token,
+        unk_token=args.unk_token,
+        pad_token=args.pad_token,
+    )
 
-    # Add the special tokens to the config
-    with open(os.path.join(args.output_dir, "tokenizer_config.json"), "r") as f:
-            tokenizer_config = json.load(f)
+    update_tokenizer_config(
+        args.output_dir,
+        legacy=False,
+        bos_token_id=bos_token_id,
+        eos_token_id=eos_token_id,
+        pad_token_id=pad_token_id,
+        unk_token_id=unk_token_id,
+        add_bos_token=args.add_bos_token,
+        add_eos_token=args.add_eos_token,
+    )
 
-    tokenizer_config['legacy'] = False
-    tokenizer_config['bos_token_id'] = bos_token_id
-    tokenizer_config['eos_token_id'] = eos_token_id
-    tokenizer_config['pad_token_id'] = pad_token_id
-    tokenizer_config['unk_token_id'] = unk_token_id
-    tokenizer_config['add_bos_token'] = args.add_bos_token
-    tokenizer_config['add_eos_token'] = args.add_eos_token
-
-    with open(os.path.join(args.output_dir, "tokenizer_config.json"), "w") as f:
-            json.dump(tokenizer_config, f, indent=4)
-
-    # Make sure you can load the tokenizer in any setting.
-    assert AutoTokenizer.from_pretrained(args.output_dir, use_fast=False)
-    assert AutoTokenizer.from_pretrained(args.output_dir, use_fast=True)
+    validate_saved_tokenizer(args.output_dir)
 
     # Upload your new tokenizer to the Hub!
     if args.hub_repo_id is not None and args.token is not None:
-        print(f"Pushing tokenizer to Hugging Face Hub at {args.hub_repo_id}...")
-        wrapped_tokenizer.push_to_hub(args.hub_repo_id, token=args.token, private=args.private)
+        push_tokenizer_to_hub(args.output_dir, args.hub_repo_id, args.token, private=args.private)
 
 
 if __name__ == "__main__":
@@ -303,6 +223,6 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
 
-    print("Training a tokenizer! 🚀")
+    logger.info("Training a tokenizer!")
     main(args)
-    print("Tokenizer trained successfully! 🎉")
+    logger.info("Tokenizer trained successfully!")

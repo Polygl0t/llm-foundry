@@ -34,9 +34,13 @@ err="$workdir/run_outputs/err-train-sp-tok.$SLURM_JOB_ID"
 #############################################
 # Environment Setup
 #############################################
-source "$workdir/.modules.sh"
-source "$workdir/.venv_intel/bin/activate"
-# pip3 install sentencepiece==0.2.0 transformers --no-cache-dir
+source $workdir/.modules.sh
+# python3 -m venv $workdir/.venv_tokenizer
+source $workdir/.venv_tokenizer/bin/activate
+
+# pip3 install --upgrade pip
+# git clone --depth 1 --branch main https://github.com/Polygl0t/llm-foundry.git
+# pip3 install -e "$workdir/llm-foundry/.[tokenizer]" --no-cache-dir
 
 export HF_TOKEN="<your-token-here>" # <-- Change to your HF token
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
@@ -54,14 +58,14 @@ echo "# Python executable: $(which python3)" >> "$out"
 #############################################
 # Main Job Execution
 #############################################
-python3 "$workdir/train_tokenizer_sentencepiece.py" \
-    --dataset_file "$workdir/portuguese/tokenizers/portuguese/portuguese.txt" \
-    --train_dataset_dir "$workdir/portuguese/tokenizers/portuguese" \
+python3 "$workdir/llm-foundry/tokenizer/train_tokenizer_sentencepiece.py" \
+    --dataset_file "$workdir/data.txt" \
+    --train_dataset_dir "$workdir/path/to/data" \
     --dataset_type "parquet" \
     --text_column "text" \
-    --num_threads $SLURM_CPUS_PER_TASK \
+    --num_threads 42 \
     --model_type "bpe" \
-    --output_dir "$workdir/portuguese/checkpoints/tokenizers/sp-bpe" \
+    --output_dir "$workdir/MyTokenizer" \
     --seed 1337 \
     --cache_dir "$HF_DATASETS_CACHE" \
     --vocab_size 49152 1>>"$out" 2>>"$err"

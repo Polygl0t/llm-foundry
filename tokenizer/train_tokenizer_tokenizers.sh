@@ -34,9 +34,13 @@ err="$workdir/run_outputs/err-train-hf-tok.$SLURM_JOB_ID"
 #############################################
 # Environment Setup
 #############################################
-source "$workdir/.modules.sh"
-source "$workdir/.venv_intel/bin/activate"
-# pip3 install sentencepiece==0.2.0 transformers --no-cache-dir
+source $workdir/.modules.sh
+# python3 -m venv $workdir/.venv_tokenizer
+source $workdir/.venv_tokenizer/bin/activate
+
+# pip3 install --upgrade pip
+# git clone --depth 1 --branch main https://github.com/Polygl0t/llm-foundry.git
+# pip3 install -e "$workdir/llm-foundry/.[tokenizer]" --no-cache-dir
 
 export HF_TOKEN="<your-token-here>" # <-- Change to your HF token
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
@@ -54,11 +58,11 @@ echo "# Python executable: $(which python3)" >> "$out"
 #############################################
 # Main Job Execution
 #############################################
-python3 "$workdir/train_tokenizer_tokenizers.py" \
-    --data_path "$workdir/portuguese/tokenizers/portuguese" \
+python3 "$workdir/llm-foundry/tokenizer/train_tokenizer_tokenizers.py" \
+    --data_path "$workdir/path/to/data" \
     --data_type "parquet" \
     --cache_dir "$HF_DATASETS_CACHE" \
-    --num_proc $SLURM_CPUS_PER_TASK \
+    --num_proc 42 \
     --batch_size 10000 \
     --text_column "text" \
     --bos_token "<|im_start|>" \
@@ -68,7 +72,7 @@ python3 "$workdir/train_tokenizer_tokenizers.py" \
     --padding_side "right" \
     --truncation_side "right" \
     --vocab_size 49152 \
-    --output_dir "$workdir/portuguese/checkpoints/tokenizers/hf-bpe" \
+    --output_dir "$workdir/MyTokenizer" \
     --byte_fallback 1>>"$out" 2>>"$err"
 
 #############################################

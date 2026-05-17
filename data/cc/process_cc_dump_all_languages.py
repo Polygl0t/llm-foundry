@@ -85,11 +85,9 @@ def main(args):
     # Language filtering and extraction pipeline
     pipeline = LocalPipelineExecutor(
         pipeline=[
-            # [readers: HuggingFaceDatasetReader, JsonlReader, ParquetReader](https://github.com/huggingface/datatrove/tree/main/src/datatrove/pipeline/readers)
-            # [WarcReader](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/readers/warc.py)
-            # CommonCrawl data is available in two main formats: WARC and WET. 
-            # - WARC ([Web ARChive format](https://en.wikipedia.org/wiki/WARC_(file_format))) files contain the raw data from the crawl
-            # - WET (WARC Encapsulated Text) files provide a text only version of those websites.
+            # See https://github.com/huggingface/datatrove/tree/main/src/datatrove/pipeline/readers
+            # See https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/readers/warc.py
+            # CommonCrawl data is available in two main formats: WARC and WET.
             WarcReader(
                 data_folder=WARC_FILES_FOLDER,
                 glob_pattern="*.warc.gz",
@@ -97,22 +95,22 @@ def main(args):
                 limit=args.limit,
             ),
 
-            # [URLFilter](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/filters/url_filter.py)
+            # See https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/filters/url_filter.py
             # Example of blocklists: https://github.com/maravento/blackweb/tree/master 
             # We can also specify banned_words, banned_subwords, soft_banned_words
             URLFilter(exclusion_writer=None),
 
-            # [Trafilatura](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/extractors/trafilatura.py)
-            # [Original documentation](https://trafilatura.readthedocs.io/en/latest/usage-python.html)
+            # See https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/extractors/trafilatura.py
+            # Docs: https://trafilatura.readthedocs.io/en/latest/usage-python.html
             # Trafilatura provides a better extraction of text content from HTML pages then the default HTML parser CommonCrawl uses the WET format.
             # Ablation results available in https://huggingfacefw-blogpost-fineweb-v1.static.hf.space/index.html#starting_point:_text_extraction
             Trafilatura(favour_precision=True),
 
-            # [TokensCounter](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/tokens/counter.py#L7)
+            # See https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/tokens/counter.py#L7
             TokensCounter(tokenizer_name_or_path=TOKENIZER_NAME_OR_PATH),
 
-            # [LanguageFilter](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/filters/language_filter.py)
-            # Default option is [FT176](https://fasttext.cc/docs/en/language-identification.html)
+            # See https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/filters/language_filter.py
+            # Default option is FT176: https://fasttext.cc/docs/en/language-identification.html
             # FT176 gives support to ~176 languages.
             # GlotLID gives supports 1665 languages (2102 labels).
             LanguageFilter(
@@ -121,8 +119,8 @@ def main(args):
                 language_threshold=args.language_threshold,
             ),
 
-            # [writers: JsonlWriter, ParquetWriter, HuggingFaceDatasetWriter](https://github.com/huggingface/datatrove/tree/main/src/datatrove/pipeline/writers)
-            # [JsonlWriter](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/writers/jsonl.py)
+            # See https://github.com/huggingface/datatrove/tree/main/src/datatrove/pipeline/writers
+            # See https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/writers/jsonl.py
             # Write documents that passed the language filter
             JsonlWriter(
                 TEMP_OUTPUT_FOLDER,

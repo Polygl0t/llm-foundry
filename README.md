@@ -28,6 +28,7 @@ The code base is organized into the following main folders:
 - [`data/`](data/) — Scripts for working with text preprocessing (i.e., filtering, tokenization, etc.).
   - [`data/cc/`](data/cc/) — Scripts for working with Common Crawl data.
   - [`data/filters/`](data/filters/) — Dataset filtering and annotation pipelines for text corpus curation.
+  - [`data/parsers/`](data/parsers/) — Parsers for converting raw datasets into a standardized format or to perform stratification for evaluation.
   - [`data/tokenization/`](data/tokenization/) — Tokenization, packing, decontamination, and validation split utilities for pretraining and SFT datasets.
 - [`distributed/`](distributed/) — Scripts for training and evaluating language models with DDP and FSDP.
 - [`evals/`](evals/) — Scripts for evaluating language models via the `lm-evaluation-harness`.
@@ -49,7 +50,7 @@ Use [`utils/marvin_create_workspace.sh`](utils/marvin_create_workspace.sh) to al
 bash utils/marvin_create_workspace.sh
 ```
 
-The script also contains commented step-by-step instructions for creating the per-config virtual environments (`.venv_data,` `.venv_distributed`, `.venv_synth`, `.venv_trl`) and submitting the pip install jobs to the right partition.
+The script also contains commented step-by-step instructions for creating the per-config virtual environments and submitting the pip install jobs to the right partition.
 
 ### Module Stack Selection
 
@@ -76,11 +77,12 @@ Sourcing prints whose stack was selected, why, and the resulting module list, so
 
 Use the [`pyproject.toml`](https://github.com/Polygl0t/llm-foundry/blob/main/pyproject.toml) to install a specific set of dependencies. The available extras are:
 
-* `data` — For downloading and preprocessing datasets.  
-* `distributed` — For training language models with our DDP and FSDP implementations.  
-* `synth` — For generating synthetic samples with vLLM.  
-* `trl` — For post-training and alignment with TRL.  
-* `tests` — For running our test suite.  
+* `data` — For downloading and preprocessing datasets.
+* `tokenizer` — For training and evaluating tokenizers with the pinned SentencePiece-compatible stack.
+* `distributed` — For training language models with our DDP and FSDP implementations.
+* `synth` — For generating synthetic samples with vLLM.
+* `trl` — For post-training and alignment with TRL.
+* `tests` — For running our test suite.
 
 For example:
 

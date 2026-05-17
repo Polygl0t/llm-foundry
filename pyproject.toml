@@ -20,7 +20,19 @@ data = [
     "lxml[html_clean]",
     "stanza",
     "spacy",
-    "pyyaml",
+    "pyyaml"
+]
+tokenizer = [
+    "transformers==4.57.6",
+    "datasets>=2.0",
+    "tokenizers==0.22.2",
+    "sentencepiece==0.2.1",
+    "protobuf",
+    "pandas",
+    "tabulate",
+    "tqdm",
+    "ftfy",
+    "jinja2",
 ]
 # NOTE: flash_attn requires --no-build-isolation and must be installed separately:
 #   pip3 install flash_attn==2.8.3 --no-build-isolation
@@ -60,8 +72,14 @@ trl = [
 ]
 tests = [
     "torch>=2.0",
-    "transformers>=4.40",
+    "transformers==4.57.6",
     "datasets>=2.0",
+    "tokenizers==0.22.2",
+    "sentencepiece==0.2.1",
+    "protobuf",
+    "pandas",
+    "tabulate",
+    "tqdm",
     "numpy",
     "pyyaml",
     "nltk",

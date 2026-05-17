@@ -1,15 +1,16 @@
 # Tokenizer Training and Evaluation
 
-This folder contains the tokenizer training and evaluation stack for creating custom tokenizers and managing chat templates. Supports both `SentencePiece` and HuggingFace `tokenizers` library implementations.
+This folder contains the tokenizer training and evaluation stack for creating custom tokenizers and managing chat templates. Supports both [SentencePiece](https://github.com/google/sentencepiece) and HuggingFace [tokenizers](https://github.com/huggingface/tokenizers) library implementations.
 
 ## Contents
 
+- [`assets/`](assets/) — Directory containing Jinja2 chat template configurations for various use cases (reasoning, non-reasoning, text, hybrid).
+- [`chat_template.ipynb`](chat_template.ipynb) — Jupyter notebook for configuring and testing chat templates with different tokenizers.
+- [`tokenizer_eval.py`](tokenizer_eval.py) — Evaluation script for comparing and analyzing tokenizer performance, compression ratios, and token efficiency.
 - [`train_tokenizer_sentencepiece.py`](train_tokenizer_sentencepiece.py) — SentencePiece tokenizer training script for creating custom subword tokenizers with configurable vocabulary and merge operations.
 - [`train_tokenizer_tokenizers.py`](train_tokenizer_tokenizers.py) — HuggingFace `tokenizers` library-based tokenizer training for BPE, WordPiece, and other tokenization algorithms.
-- [`tokenizer_eval.py`](tokenizer_eval.py) — Evaluation script for comparing and analyzing tokenizer performance, compression ratios, and token efficiency.
-- [`chat_template.ipynb`](chat_template.ipynb) — Jupyter notebook for configuring and testing chat templates with different tokenizers.
-- [`chat_sample.json`](chat_sample.json) — Sample chat conversation data for testing chat templates.
-- [`assets/`](assets/) — Directory containing Jinja2 chat template configurations for various use cases (reasoning, non-reasoning, text, hybrid).
+- [`utils.py`](utils.py) — Utility functions for loading datasets, updating tokenizer configs, and validating saved tokenizers.
+
 
 ## Usage Summary
 

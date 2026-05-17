@@ -46,7 +46,7 @@ def main(args):
     )
 
     # Define sampling parameters.
-    # [`SamplingParams`](https://nm-vllm.readthedocs.io/en/latest/dev/sampling_params.html)
+    # See https://nm-vllm.readthedocs.io/en/latest/dev/sampling_params.html
     sampling_params = SamplingParams(
         max_tokens=args.max_length,
         stop=[tokenizer.eos_token],

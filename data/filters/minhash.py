@@ -116,9 +116,9 @@ def main(args):
         "de": "deu"
     }
 
-    # [MinhashConfig](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/dedup/minhash.py)
+    # See https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/dedup/minhash.py
     minhash_config = MinhashConfig(
-        # [HashConfig](https://github.com/huggingface/datatrove/blob/main/src/datatrove/utils/hashing.py)
+        # See https://github.com/huggingface/datatrove/blob/main/src/datatrove/utils/hashing.py
         hash_config=HashConfig(
             hash_fc="xxhash", 
             precision=64, # better precision -> fewer false positives (collisions)
@@ -142,13 +142,13 @@ def main(args):
     # Stage 1: Computes minhash signatures
     stage1 = LocalPipelineExecutor(
         [
-        # [readers: HuggingFaceDatasetReader, JsonlReader, ParquetReader](https://github.com/huggingface/datatrove/tree/main/src/datatrove/pipeline/readers)
-        # [JsonlWriter](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/writers/jsonl.py)
+        # See https://github.com/huggingface/datatrove/tree/main/src/datatrove/pipeline/readers
+        # See https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/writers/jsonl.py
         JsonlReader(
             data_folder=DATA_FOLDER
         ),
 
-        # [MinhashDedupSignature](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/dedup/minhash.py)
+        # See https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/dedup/minhash.py
         MinhashDedupSignature(
             output_folder=OUTPUT_FOLDER_MINHASH_SIGNATURES, 
             config=minhash_config, 
@@ -163,7 +163,7 @@ def main(args):
     # Stage 2: Computes matches between signatures
     stage2 = LocalPipelineExecutor(
         pipeline=[
-            # [MinhashDedupBuckets](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/dedup/minhash.py)
+            # See https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/dedup/minhash.py
             MinhashDedupBuckets(
                 input_folder=OUTPUT_FOLDER_MINHASH_SIGNATURES,
                 output_folder=OUTPUT_FOLDER_MINHASH_BUCKET,
@@ -179,7 +179,7 @@ def main(args):
     # Stage 3: Creates clusters of duplicates using the results from all buckets
     stage3 = LocalPipelineExecutor(
         pipeline=[
-            # [MinhashDedupCluster](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/dedup/minhash.py)
+            # See https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/dedup/minhash.py
             MinhashDedupCluster(
                 input_folder=OUTPUT_FOLDER_MINHASH_BUCKET,
                 output_folder=OUTPUT_FOLDER_REMOVED_IDS,
@@ -199,17 +199,17 @@ def main(args):
             JsonlReader(
             data_folder=DATA_FOLDER
             ),
-            # [MinhashDedupFilter](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/dedup/minhash.py)
+            # See https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/dedup/minhash.py
             MinhashDedupFilter(
                 input_folder=OUTPUT_FOLDER_REMOVED_IDS,
                 exclusion_writer=JsonlWriter(OUTPUT_FOLDER_DUPLICATED_SAMPLES, compression=None, expand_metadata=args.expand_metadata),
             ),
 
-            # [TokensCounter](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/tokens/counter.py#L7)
+            # See https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/tokens/counter.py#L7
             TokensCounter(tokenizer_name_or_path=TOKENIZER_NAME_OR_PATH),
 
-            # [writers: JsonlWriter, ParquetWriter, HuggingFaceDatasetWriter](https://github.com/huggingface/datatrove/tree/main/src/datatrove/pipeline/writers)
-            # [JsonlWriter](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/writers/jsonl.py)
+            # See https://github.com/huggingface/datatrove/tree/main/src/datatrove/pipeline/writers
+            # See https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/writers/jsonl.py
             JsonlWriter(output_folder=OUTPUT_DEDUPLICATION_FINAL, compression=None, expand_metadata=args.expand_metadata),
         ],
         tasks=TASKS,

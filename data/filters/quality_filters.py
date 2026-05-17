@@ -139,20 +139,20 @@ def main(args):
     # Run Quality Filters 
     quality_filters = LocalPipelineExecutor(
         pipeline=[
-            # [readers: HuggingFaceDatasetReader, JsonlReader, ParquetReader](https://github.com/huggingface/datatrove/tree/main/src/datatrove/pipeline/readers)
-            # [JsonlWriter](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/writers/jsonl.py)
+            # See https://github.com/huggingface/datatrove/tree/main/src/datatrove/pipeline/readers
+            # See https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/writers/jsonl.py
             JsonlReader(data_folder=DATA_FOLDER),
 
-            # [LanguageFilter](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/filters/language_filter.py)
-            # Default option is [FT176](https://fasttext.cc/docs/en/language-identification.html)
+            # See https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/filters/language_filter.py
+            # Default option is FT176: https://fasttext.cc/docs/en/language-identification.html
             # FT176 gives support to ~176 languages.
             LanguageFilter(
                 languages=args.languages if args.languages else None,
                 exclusion_writer=None,
             ),
 
-            # [LanguageFilter](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/filters/language_filter.py)
-            # Using [GlotLID](https://github.com/cisnlp/GlotLID)
+            # See https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/filters/language_filter.py
+            # GlotLID: https://github.com/cisnlp/GlotLI
             # GlotLID gives supports 1665 languages (2102 labels).
             # Paper: https://aclanthology.org/2023.findings-emnlp.410/
             # What is happening? ft176 must be above `threshold`, and the alternative labels (from GlotLID) must also be above `threshold` for a document to be kept.
@@ -162,14 +162,14 @@ def main(args):
                 keep_top_pairs_threshold=0.01, # keep a list of all language pairs with at least this score. -1 to disable
             ),
             
-            # [LambdaFilter](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/filters/lambda_filter.py#L8)
+            # See https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/filters/lambda_filter.py#L8
             LambdaFilter(
                 # Finaly, we only keep the documents that have a language score a language specific threshold
                 filter_function=partial(above_lang_threshold, threshold=filter_config["language_score"]),
                 exclusion_writer=None
             ),
 
-            # [GopherRepetitionFilter](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/filters/gopher_repetition_filter.py#L73)
+            # See https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/filters/gopher_repetition_filter.py#L73
             GopherRepetitionFilter(
                 language=lang_id_dict[LANGUAGE],  # We need this to know which word tokenizer to use to split into words and ngrams.
                 dup_para_frac=0,
@@ -181,7 +181,7 @@ def main(args):
                 exclusion_writer=None,
             ),
 
-            # [FineWebQualityFilter](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/filters/fineweb_quality_filter.py)
+            # See https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/filters/fineweb_quality_filter.py
             FineWebQualityFilter(
                 language=lang_id_dict[LANGUAGE],
                 short_line_thr=999,
@@ -191,7 +191,7 @@ def main(args):
                 exclusion_writer=None,
             ),
 
-            # [GopherQualityFilter](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/filters/gopher_quality_filter.py#L13)
+            # See https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/filters/gopher_quality_filter.py#L13
             GopherQualityFilter(
                 language=lang_id_dict[LANGUAGE],
                 max_avg_word_length=filter_config['max_avg_word_length'],
@@ -202,23 +202,23 @@ def main(args):
                 exclusion_writer=None,
             ),
 
-            ##[formatters: FTFYFormatter, PIIFormatter, SymbolLinesFormatter](https://github.com/huggingface/datatrove/tree/main/src/datatrove/pipeline/formatters)
-            # [FTFYFormatter](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/formatters/ftfy.py)
+            # See https://github.com/huggingface/datatrove/tree/main/src/datatrove/pipeline/formatters
+            # See https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/formatters/ftfy.py
             FTFYFormatter(),  # Fix encoding issues. Important in a multilingual setting!
 
-            # [PIIFormatter](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/formatters/pii.py#L42)
+            # See https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/formatters/pii.py#L42
             # This will remove PII from the dataset, but it will not remove the samples that contain PII.
             PIIFormatter(),
 
-            # [SymbolLinesFormatter](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/formatters/symbol_lines_remover.py)
+            # See https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/formatters/symbol_lines_remover.py
             # Removes lines that consist exclusively of symbols. Keeps lines that only have whitespace characters.
             SymbolLinesFormatter(symbols_to_remove=["|"], replace_char="\n"),
 
-            # [TokensCounter](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/tokens/counter.py#L7)
+            # See https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/tokens/counter.py#L7
             TokensCounter(tokenizer_name_or_path=TOKENIZER_NAME_OR_PATH),
 
-            # [writers: JsonlWriter, ParquetWriter, HuggingFaceDatasetWriter](https://github.com/huggingface/datatrove/tree/main/src/datatrove/pipeline/writers)
-            # [JsonlWriter](https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/writers/jsonl.py)
+            # See https://github.com/huggingface/datatrove/tree/main/src/datatrove/pipeline/writers
+            # See https://github.com/huggingface/datatrove/blob/main/src/datatrove/pipeline/writers/jsonl.py
             JsonlWriter(FINAL_OUTPUT_FOLDER, compression=None, expand_metadata=args.expand_metadata),
         ],
         tasks=TASKS,
