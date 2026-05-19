@@ -34,6 +34,7 @@ rope_scale_factor: null
 total_batch_size: 2097152
 micro_batch_size: 16
 eval_micro_batch_size: 8
+eval_only: false
 num_train_epochs: 1
 max_steps: 12000
 seed: 1337

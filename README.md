@@ -73,6 +73,8 @@ LLM_FOUNDRY_STACK=intel source "$workdir/.modules.sh"   # CPU/data stack
 
 Sourcing prints whose stack was selected, why, and the resulting module list, so your job logs always show the resolved environment.
 
+If you are working on JSC Jupiter, see [`utils/jupiter/README.md`](utils/jupiter/README.md) for JSC-specific module and installation scripts.
+
 ### Installing Dependencies
 
 Use the [`pyproject.toml`](https://github.com/Polygl0t/llm-foundry/blob/main/pyproject.toml) to install a specific set of dependencies. The available extras are:

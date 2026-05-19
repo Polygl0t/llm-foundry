@@ -28,6 +28,7 @@ from typing import Tuple
 PEAK_FLOPS_BY_HARDWARE = {
     "a100": 300e12,
     "a40": 150e12,
+    "h100": 1671e12,
     # Extend with more hardware as needed.
 }
 
