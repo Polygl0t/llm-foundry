@@ -193,6 +193,35 @@ def _finalize_training(*, tracker, wandb_token):
         wandb.finish()
 
 
+def _run_eval_only(*, args, model, validation_dataloader, resume_step, device, device_type, distributed_enabled, world_size, master_process, precision, logger, file_logger, tracker):
+    """Run one validation pass and exit without saving a checkpoint or training."""
+    completed_steps = resume_step if resume_step is not None else 0
+
+    if master_process:
+        logger.info("Running validation-only evaluation ...")
+
+    val_loss_accum, val_time = _run_validation_forward(
+        model, validation_dataloader, device, device_type, precision
+    )
+
+    if distributed_enabled:
+        dist.all_reduce(val_loss_accum, op=dist.ReduceOp.SUM)
+        val_loss_accum = val_loss_accum / world_size
+
+    if master_process:
+        _log_validation(
+            logger=logger, file_logger=file_logger,
+            completed_steps=completed_steps, val_loss_accum=val_loss_accum,
+            val_time=val_time, tracker=tracker,
+            stage_name=args.stage_name, wandb_token=args.wandb_token,
+        )
+        tracker.flush()
+        _finalize_training(tracker=tracker, wandb_token=args.wandb_token)
+
+    if distributed_enabled:
+        dist.barrier()
+
+
 class DDPTrainer:
     """Runs the training and validation loop."""
 
@@ -296,6 +325,24 @@ class DDPTrainer:
 
         # Set the model to training mode.
         model.train()
+
+        if args.eval_only:
+            _run_eval_only(
+                args=args,
+                model=model,
+                validation_dataloader=validation_dataloader,
+                resume_step=resume_step,
+                device=device,
+                device_type=device_type,
+                distributed_enabled=ddp,
+                world_size=world_size,
+                master_process=master_process,
+                precision=precision,
+                logger=logger,
+                file_logger=file_logger,
+                tracker=tracker,
+            )
+            return
 
         # Prepare a null context manager to use in combination with `model.no_sync()`
         # This is used to avoid synchronizing gradients during gradient accumulation steps.
@@ -616,6 +663,24 @@ class FSDPTrainer:
 
         # Set the model to training mode.
         model.train()
+
+        if args.eval_only:
+            _run_eval_only(
+                args=args,
+                model=model,
+                validation_dataloader=validation_dataloader,
+                resume_step=resume_step,
+                device=device,
+                device_type=device_type,
+                distributed_enabled=fsdp,
+                world_size=world_size,
+                master_process=master_process,
+                precision=precision,
+                logger=logger,
+                file_logger=file_logger,
+                tracker=tracker,
+            )
+            return
 
         # Create an iterator from the train dataloader.
         iter_train_dataloader = iter(train_dataloader)

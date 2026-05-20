@@ -112,6 +112,7 @@ def test_training_args_defaults():
     assert args.optimizer_type == "adamw"
     assert args.bf16 is False
     assert args.sanity_check is False
+    assert args.eval_only is False
     assert args.fsdp_mixed_precision is True
     assert args.dp_shard is None
     assert args.full_shard is True
@@ -128,6 +129,7 @@ def test_training_args_from_yaml():
         "total_batch_size": 1024,
         "seed": 99,
         "bf16": True,
+        "eval_only": True,
         "optimizer_type": "muon_adam",
         "lr_decay_type": "wsd",
     }
@@ -140,6 +142,7 @@ def test_training_args_from_yaml():
         assert args.total_batch_size == 1024
         assert args.seed == 99
         assert args.bf16 is True
+        assert args.eval_only is True
         assert args.optimizer_type == "muon_adam"
     finally:
         os.unlink(tmp_path)
@@ -1867,8 +1870,13 @@ class _MockTracker:
     class _Energy:
         kWh = 0.0
     _total_energy = _Energy()
-    def flush(self): pass
-    def stop(self): pass
+    def __init__(self):
+        self.flushed = False
+        self.stopped = False
+    def flush(self):
+        self.flushed = True
+    def stop(self):
+        self.stopped = True
 
 
 def test_ddp_trainer_cpu_two_steps():
@@ -2088,10 +2096,221 @@ def test_fsdp_trainer_cpu_two_steps():
         shutil.rmtree(tmpdir)
 
 
+def test_ddp_trainer_eval_only_does_not_train():
+    """DDPTrainer eval_only runs validation and exits without changing weights."""
+    import logging
+    tmpdir = tempfile.mkdtemp()
+    try:
+        config_dir = _create_tiny_model_config(tmpdir)
+        args = TrainingArguments(
+            path_to_model_config=config_dir,
+            tokenizer_name_or_path=_TINY_TOKENIZER_NAME,
+            attn_implementation="eager",
+            cache_dir=tmpdir,
+            torch_compile=False,
+            use_liger_kernel=False,
+            gradient_checkpointing=False,
+            mat_mul_precision="highest",
+            tf32=False,
+            bf16=False,
+            sanity_check=True,
+            sanity_check_num_samples=16,
+            micro_batch_size=2,
+            eval_micro_batch_size=2,
+            eval_only=True,
+            pin_memory=False,
+            num_workers_for_dataloader=0,
+            prefetch_factor=None,
+            shuffle_dataset=False,
+            optimizer_type="adamw",
+            max_learning_rate=1e-3,
+            weight_decay=0.01,
+            beta1=0.9,
+            beta2=0.95,
+            eps=1e-8,
+            max_grad_norm=1.0,
+            num_train_epochs=1,
+            total_batch_size=128,
+            checkpointing_steps=1,
+            stage_name="test",
+            checkpoint_dir=tmpdir,
+            wandb_token=None,
+            push_to_hub=False,
+            begin_new_stage=True,
+            lr_decay_type="cosine",
+        )
+
+        result = prepare_training_components(args=args, device="cpu", master_process=True)
+        model = result.model
+        args = result.args
+        optimizer, step_fn, _ = create_optimizer(model, args, device_type="cpu", master_process=True)
+        bundle = prepare_dataloaders(args=args, tokenizer=result.tokenizer, world_size=1, rank=0)
+        gradient_accumulation_steps, _, max_steps = compute_training_schedule(
+            args, len(bundle.train_dataloader), world_size=1,
+        )
+        lr_scheduler = create_lr_scheduler(args, max_steps)
+        log_file = os.path.join(tmpdir, "test.log")
+        file_logger = StructuredTrainingLogger(log_file)
+        logger = logging.getLogger("trainer-test-ddp-eval-only")
+        logger.setLevel(logging.WARNING)
+        mfu_context = create_mfu_context(args, "a100", num_parameters=result.trainable_params)
+        tracker = _MockTracker()
+
+        before = next(model.parameters()).data.clone()
+        trainer = DDPTrainer(
+            args=args,
+            model=model,
+            raw_model=model,
+            tokenizer=result.tokenizer,
+            optimizer=optimizer,
+            optimizer_step=step_fn,
+            lr_scheduler=lr_scheduler,
+            train_dataloader=bundle.train_dataloader,
+            validation_dataloader=bundle.val_dataloader,
+            train_sampler=bundle.train_sampler,
+            gradient_accumulation_steps=gradient_accumulation_steps,
+            max_steps=max_steps,
+            resume_step=7,
+            iter_count=0,
+            epoch=1,
+            device="cpu",
+            device_type="cpu",
+            ddp=False,
+            world_size=1,
+            master_process=True,
+            precision=torch.float32,
+            logger=logger,
+            file_logger=file_logger,
+            log_file=log_file,
+            slurm_job_id="test-000",
+            tracker=tracker,
+            mfu_context=mfu_context,
+        )
+        trainer.train()
+
+        after = next(model.parameters()).data
+        assert torch.equal(before, after), "Weights should not change during eval_only"
+        assert tracker.flushed is True
+        assert tracker.stopped is True
+        with open(log_file) as f:
+            content = f.read()
+        assert '"status": "validation"' in content
+        assert '"step": 7' in content
+        assert '"status": "training"' not in content
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+def test_fsdp_trainer_eval_only_does_not_train():
+    """FSDPTrainer eval_only runs validation and exits without changing weights."""
+    import logging
+    tmpdir = tempfile.mkdtemp()
+    try:
+        config_dir = _create_tiny_model_config(tmpdir)
+        args = TrainingArguments(
+            path_to_model_config=config_dir,
+            tokenizer_name_or_path=_TINY_TOKENIZER_NAME,
+            attn_implementation="eager",
+            cache_dir=tmpdir,
+            torch_compile=False,
+            use_liger_kernel=False,
+            gradient_checkpointing=False,
+            mat_mul_precision="highest",
+            tf32=False,
+            bf16=False,
+            sanity_check=True,
+            sanity_check_num_samples=16,
+            micro_batch_size=2,
+            eval_micro_batch_size=2,
+            eval_only=True,
+            pin_memory=False,
+            num_workers_for_dataloader=0,
+            prefetch_factor=None,
+            shuffle_dataset=False,
+            optimizer_type="adamw",
+            max_learning_rate=1e-3,
+            weight_decay=0.01,
+            beta1=0.9,
+            beta2=0.95,
+            eps=1e-8,
+            max_grad_norm=1.0,
+            num_train_epochs=1,
+            total_batch_size=128,
+            checkpointing_steps=1,
+            stage_name="test",
+            checkpoint_dir=tmpdir,
+            wandb_token=None,
+            push_to_hub=False,
+            begin_new_stage=True,
+            lr_decay_type="cosine",
+        )
+
+        result = prepare_training_components(args=args, device="cpu", master_process=True)
+        model = result.model
+        args = result.args
+        optimizer, step_fn, _ = create_optimizer(model, args, device_type="cpu", master_process=True)
+        bundle = prepare_dataloaders(args=args, tokenizer=result.tokenizer, world_size=1, rank=0)
+        gradient_accumulation_steps, _, max_steps = compute_training_schedule(
+            args, len(bundle.train_dataloader), world_size=1,
+        )
+        lr_scheduler = create_lr_scheduler(args, max_steps)
+        log_file = os.path.join(tmpdir, "test.log")
+        file_logger = StructuredTrainingLogger(log_file)
+        logger = logging.getLogger("trainer-test-fsdp-eval-only")
+        logger.setLevel(logging.WARNING)
+        mfu_context = create_mfu_context(args, "a100", num_parameters=result.trainable_params)
+        tracker = _MockTracker()
+
+        before = next(model.parameters()).data.clone()
+        trainer = FSDPTrainer(
+            args=args,
+            model=model,
+            tokenizer=result.tokenizer,
+            optimizer=optimizer,
+            optimizer_step=step_fn,
+            lr_scheduler=lr_scheduler,
+            train_dataloader=bundle.train_dataloader,
+            validation_dataloader=bundle.val_dataloader,
+            train_sampler=bundle.train_sampler,
+            gradient_accumulation_steps=gradient_accumulation_steps,
+            max_steps=max_steps,
+            resume_step=7,
+            iter_count=0,
+            epoch=1,
+            device="cpu",
+            device_type="cpu",
+            fsdp=False,
+            world_size=1,
+            master_process=True,
+            precision=torch.float32,
+            logger=logger,
+            file_logger=file_logger,
+            log_file=log_file,
+            slurm_job_id="test-000",
+            tracker=tracker,
+            mfu_context=mfu_context,
+        )
+        trainer.train()
+
+        after = next(model.parameters()).data
+        assert torch.equal(before, after), "Weights should not change during eval_only"
+        assert tracker.flushed is True
+        assert tracker.stopped is True
+        with open(log_file) as f:
+            content = f.read()
+        assert '"status": "validation"' in content
+        assert '"step": 7' in content
+        assert '"status": "training"' not in content
+    finally:
+        shutil.rmtree(tmpdir)
+
+
 if __name__ == "__main__":
     for _fn in [
         test_ddp_trainer_cpu_two_steps,
         test_fsdp_trainer_cpu_two_steps,
+        test_ddp_trainer_eval_only_does_not_train,
+        test_fsdp_trainer_eval_only_does_not_train,
     ]:
         run_test(_fn.__name__, _fn)
 

@@ -182,6 +182,10 @@ class TrainingArguments:
         default=32,
         metadata={"help": "The evaluation micro batch size."},
     )
+    eval_only: Optional[bool] = field(
+        default=False,
+        metadata={"help": "Whether to run a single validation pass and exit without training."},
+    )
     num_train_epochs: Optional[Union[float, int]] = field(
         default=1,
         metadata={"help": "The number of training epochs."},

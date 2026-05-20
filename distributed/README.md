@@ -56,6 +56,17 @@ sbatch distributed/train_fsdp.sh
 Main parameters:
 - See [specifications.py](specifications.py) files for detailed argument definitions and defaults.
 
+### Validation-only runs
+
+To submit a job that only evaluates a model on the validation split, set `eval_only: true` in `specifications.yaml` and launch the usual DDP or FSDP job script. When `resume_from_checkpoint` is set, the checkpoint is loaded first and the validation log uses the checkpoint's restored step; otherwise the initialized or base model is evaluated at step 0.
+
+```yaml
+eval_only: true
+resume_from_checkpoint: /path/to/checkpoint
+```
+
+Validation-only jobs run one validation pass, write validation stats, and exit without consuming training batches, running backward, taking optimizer steps, or saving a new checkpoint.
+
 ## SLURM Cluster Jobs
 
 The `.sh` scripts are configured for SLURM-based GPU clusters. Key configuration variables:
