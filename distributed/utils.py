@@ -130,7 +130,7 @@ class DistributedEnvironment:
                     backend="nccl",
                     world_size=self.world_size,
                     rank=self.rank,
-                    device_id=self.local_rank,
+                    device_id=torch.device("cuda", self.local_rank),
                 )
                 self.device = f"cuda:{self.local_rank}"
                 torch.cuda.set_device(self.device)

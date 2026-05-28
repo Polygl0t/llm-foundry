@@ -6,8 +6,8 @@
 # This script allocates a workspace on the Marvin HPC cluster,
 # clones the repository, and prepares the directory structure.
 #
-# Dual stack documentation:
-# https://wiki.hpc.uni-bonn.de/en/dualstacks
+# Learn about Marvin workspaces at:
+# https://wiki.hpc.uni-bonn.de/en/marvin/workspaces
 #############################################
 
 # ----------- User Customization Section -----------
@@ -45,32 +45,37 @@ echo "Workspace ready."
 #############################################
 # Stack Sourcing (.modules.sh)
 #############################################
-# Marvin has a dual software stack (AMD and Intel). Instead of two
+# Marvin|Bender has a dual software stack (AMD and Intel). Instead of two
 # separate module files, this repo ships a single auto-detecting
 # loader at the repository root: `.modules.sh`.
 #
-# How it picks a stack (first match wins):
+# The script first detects the cluster from SLURM_JOB_PARTITION (falling
+# back to SLURM_CLUSTER_NAME, then hostname), then selects the stack:
 #
-#   1. $LLM_FOUNDRY_STACK is set to "amd" or "intel"   -> use it
-#   2. SLURM_JOB_GRES contains "gpu"  (--gres=gpu:...) -> AMD
-#   3. SLURM_JOB_PARTITION contains "gpu"              -> AMD
-#   4. Any other SLURM partition                       -> Intel
-#   5. No SLURM context (e.g. login node)              -> Intel + warning
+#   Marvin:
+#     - Partition contains "gpu" (e.g. sgpu, mlgpu) -> AMD stack, CUDA 12.6
+#     - Any other partition                         -> Intel stack, no CUDA
 #
-# Inside a SLURM job, sbatch sets SLURM_JOB_GRES / SLURM_JOB_PARTITION
-# automatically from your #SBATCH directives, so the right stack is
-# selected without any extra configuration:
+#   Bender:
+#     - Partition "a100"                            -> AMD stack, CUDA 12.4
+#     - Partition "a40"                             -> Intel stack, CUDA 12.4
 #
-#   source $workdir/.modules.sh
+#   Unknown cluster                                 -> Intel stack + warning
 #
-# On a login node (no SLURM context) you must force the stack when
-# creating venvs or running interactive commands:
+# Override: set LLM_FOUNDRY_STACK=amd|intel before sourcing to bypass
+# auto-detection. Required on login nodes (no SLURM context):
 #
 #   LLM_FOUNDRY_STACK=amd   source $workdir/.modules.sh
 #   LLM_FOUNDRY_STACK=intel source $workdir/.modules.sh
 #
-# When sourced, the script logs the chosen stack, the reason, and a
-# `module list` so the resolved environment is visible in your job log.
+# Inside a SLURM job, SLURM_JOB_PARTITION is set automatically from your
+# #SBATCH --partition directive, so the right stack is selected without
+# any extra configuration:
+#
+#   source $workdir/.modules.sh
+#
+# When sourced, the script logs the chosen cluster, stack, module path,
+# and a `module list` so the resolved environment is visible in your job log.
 
 #############################################
 # Installing Dependencies
@@ -87,13 +92,6 @@ echo "Workspace ready."
 # correctly. The `.modules.sh` loader handles stack selection for you;
 # you just need to submit the install job to the correct partition.
 #
-#   Config        Stack       SLURM partition (recommended)
-#   ------        -----       ---------------
-#   data          intel       lm_short (Intel nodes)
-#   distributed   amd         mlgpu_short (AMD/GPU nodes)
-#   synth         amd         mlgpu_short (AMD/GPU nodes)
-#   trl           amd         mlgpu_short (AMD/GPU nodes)
-#
 # --- Step 1: Create a virtual environment (on the login node) ---
 #
 # On the login node there is no SLURM context, so force the stack
@@ -108,8 +106,8 @@ echo "Workspace ready."
 #
 # --- Step 2: Install packages (as a SLURM job on the correct node) ---
 #
-# Inside the job, sbatch has set SLURM_JOB_GRES / SLURM_JOB_PARTITION
-# from your #SBATCH directives, so `.modules.sh` resolves the stack
+# Inside the job, SLURM_JOB_PARTITION is set automatically from your
+# #SBATCH --partition directive, so `.modules.sh` resolves the stack
 # automatically -- no LLM_FOUNDRY_STACK override needed.
 #
 #   sbatch --export=ALL <<'EOF'
@@ -123,7 +121,6 @@ echo "Workspace ready."
 #   #SBATCH --ntasks-per-node=1
 #   #SBATCH --threads-per-core=1
 #   #SBATCH --mem=500G
-#   #SBATCH --gres=gpu:a40:1               # We only need a GPU for the "distributed", "synth", and "trl" configs to resolve hardware-specific packages. Omit for "data".
 #   #SBATCH --oversubscribe
 #
 #   source $workdir/.modules.sh        # auto-detects the stack inside the job
@@ -131,7 +128,7 @@ echo "Workspace ready."
 #   pip install -e /path/to/llm-foundry/.[<config>]
 #   EOF
 #
-# Example — installing the "distributed" config:
+# Example — installing the "distributed" config on Marvin:
 #
 #   LLM_FOUNDRY_STACK=amd source $workdir/.modules.sh
 #   python3 -m venv $workdir/.venv_distributed
@@ -142,21 +139,45 @@ echo "Workspace ready."
 #
 #   sbatch --export=ALL <<'EOF'
 #   #!/bin/bash -l
-#   #SBATCH --account=ag_cst_gabriel
+#   #SBATCH --account=<your-account>
 #   #SBATCH --partition=mlgpu_short
 #   #SBATCH --job-name=install-distributed
-#   #SBATCH --output=/lustre/mlnvme/data/nklugeco_hpc-polyglot/run_outputs/install-distributed-%j.out
+#   #SBATCH --output=$workdir/run_outputs/install-distributed-%j.out
 #   #SBATCH --time=01:00:00
 #   #SBATCH --nodes=1
 #   #SBATCH --ntasks-per-node=1
 #   #SBATCH --threads-per-core=1
 #   #SBATCH --mem=500G
-#   #SBATCH --gres=gpu:a40:1
 #   #SBATCH --oversubscribe
 #
-#   source /lustre/mlnvme/data/nklugeco_hpc-polyglot/.modules.sh
-#   source /lustre/mlnvme/data/nklugeco_hpc-polyglot/.venv_distributed/bin/activate
-#   pip install -e /lustre/mlnvme/data/nklugeco_hpc-polyglot/llm-foundry/.[distributed]
-#   pip install flash_attn==2.8.2 --no-build-isolation --no-cache-dir
+#   source $workdir/.modules.sh
+#   source $workdir/.venv_distributed/bin/activate
+#   pip install -e /path/to/llm-foundry/.[distributed]
 #   EOF
+#
+# Example — installing the "distributed" config on Bender:
+#
+#   LLM_FOUNDRY_STACK=amd source $workdir/.modules.sh
+#   python3 -m venv $workdir/.venv_distributed
+#   source $workdir/.venv_distributed/bin/activate
+#   pip install --upgrade pip
+#   deactivate
+#   module purge
+#
+#   sbatch --export=ALL <<'EOF'
+#   #!/bin/bash -l
+#   #SBATCH --partition=A100short
+#   #SBATCH --job-name=install-distributed
+#   #SBATCH --output=$workdir/run_outputs/install-distributed-%j.out
+#   #SBATCH --time=01:00:00
+#   #SBATCH --ntasks-per-node=1
+#   #SBATCH --gpus=1
+#
+#   source $workdir/.modules.sh
+#   source $workdir/.venv_distributed/bin/activate
+#   pip install -e /path/to/llm-foundry/.[distributed]
+#   EOF
+# - Note: Bender does not use some of the SLURM directives used on Marvin 
+#   (e.g., --account, --nodes, etc.) since it has a different resource 
+#   management setup.
 #############################################

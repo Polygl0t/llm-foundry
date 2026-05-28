@@ -3,8 +3,14 @@
 #############################################
 # SLURM Job Configuration
 #############################################
-# Learn more about SLURM options at:
+# Learn about SLURM sbatch options at:
 # - https://slurm.schedmd.com/sbatch.html
+#
+# Learn about job submissions (Marvin|Bender) at:
+# - https://wiki.hpc.uni-bonn.de/en/running_jobs
+#
+# Learn about Marvin|Bender dual software stacks at:
+# - https://wiki.hpc.uni-bonn.de/en/dualstacks
 #############################################
 #SBATCH --account=ag_bit_flek              # <-- Change to your SLURM account
 #SBATCH --partition=sgpu_long              # <-- Change to your partition
@@ -21,35 +27,65 @@
 # Working Directory Setup
 #############################################
 
-username="nklugeco_hpc"                    # <-- Change to the corresponding username that created the workspace
-file_system="mlnvme"                       # <-- Change to your filesystem
-workspace_name="polyglot"                  # <-- Change to your workspace/project name
-
-workdir="/lustre/$file_system/data/$username-$workspace_name"
+# Set this to your workspace root (where you have the .venv and .modules.sh files).
+workdir="/lustre/mlnvme/data/polyglot"
 mkdir -p "$workdir/run_outputs"
 cd "$workdir"
 ulimit -c 0
 
-out="$workdir/run_outputs/out.$SLURM_JOB_ID"
-err="$workdir/run_outputs/err.$SLURM_JOB_ID"
+out="$workdir/run_outputs/fsdp-out.$SLURM_JOB_ID"
+err="$workdir/run_outputs/fsdp-err.$SLURM_JOB_ID"
 
 #############################################
-# Working Build : )
-# Python 3.12, CUDA 12.6, PyTorch 2.8, and CXX11 ABI set to TRUE.
+# Modules & Libraries Setup
 #############################################
 
-source $workdir/.modules.sh
+source $workdir/.modules.sh > "$out" 2>&1
 # python3 -m venv $workdir/.venv_distributed
 source $workdir/.venv_distributed/bin/activate
 
+# ===== Upgrade PIP =====
 # pip3 install --upgrade pip
+
+# ===== LLM Foundry Install =====
 # git clone --depth 1 --branch main https://github.com/Polygl0t/llm-foundry.git
 # pip3 install -e "$workdir/llm-foundry/.[distributed]" --no-cache-dir
 
 # ===== ALL HAIL FLASH-ATTN! =====
-# Using the pre-built flash-attn wheel for CUDA 12.6 and PyTorch 2.8 with CXX11 ABI set to TRUE, which is compatible with our environment. 
-# If you have a different setup, please build flash-attn from source or find the appropriate wheel for your configuration.
-# pip3 install https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3%2Bcu12torch2.8cxx11abiTRUE-cp312-cp312-linux_x86_64.whl --no-cache-dir
+# Option A – Use a prebuilt wheel, no nvcc or compilation needed.
+#
+#   Step 1: Find the right wheel for your environment using the search tool:
+#           https://mjunya.com/flash-attention-prebuild-wheels/
+#           Filter by: flash_attn version, Python version, PyTorch version, CUDA version.
+#           The community repo (https://github.com/mjun0812/flash-attention-prebuild-wheels)
+#           covers many more CUDAxtorch combinations than the official releases.
+#
+#   Step 2: Copy the direct-install URL and replace the one below.
+#           Wheel name format: flash_attn-<FA>+cu<CUDA>torch<torch>-cp<py>-cp<py>-linux_x86_64.whl
+#
+#   FLASH_ATTENTION_SKIP_CUDA_BUILD=TRUE  fail fast if no matching wheel is found
+#                                         instead of silently falling back to a source build
+# Example:
+# FLASH_ATTENTION_SKIP_CUDA_BUILD=TRUE pip3 install \
+#    https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.7.16/flash_attn-2.8.3+cu126torch2.8-cp312-cp312-linux_x86_64.whl \
+#    --no-cache-dir
+#
+# Option B – Build from source.
+#            This takes time ... However, it can be the only option if no
+#            compatible wheel exists for your environment.    
+#            The build process requires a working nvcc setup and a compatible PyTorch installation.
+#            The following environment variables and pip options can help ensure a smooth build:
+#      
+#   FLASH_ATTENTION_FORCE_BUILD=TRUE  flash-attn's setup.py skips its wheel search
+#   --no-binary :flash-attn:          pip-level guard: never use a prebuilt wheel
+#   --no-build-isolation              keep the current venv active (avoids reinstalling torch)
+#   MAX_JOBS                          cap parallel C++ compilation to avoid OOM
+#   FLASH_ATTN_CUDA_ARCHS              specify your GPU architectures to speed up the build
+#
+# Example:
+# FLASH_ATTENTION_FORCE_BUILD=TRUE MAX_JOBS=4 FLASH_ATTN_CUDA_ARCHS="80;90" \
+#   pip3 install flash-attn==2.8.3 --no-binary :flash-attn: --no-build-isolation --no-cache-dir
+
 
 # ===== OPTIONAL: Specialized Attention Packages =====
 # These packages provide optimized CUDA kernels for specific attention mechanisms.
@@ -57,21 +93,25 @@ source $workdir/.venv_distributed/bin/activate
 
 # Flash Linear Attention (for fast linear attention implementations)
 # Causal Conv1D (for models using causal convolutional layers instead of standard attention)
+# - Note: flash-linear-attention requires PyTorch >= 2.7.0. However, on Bender, the latest CUDA
+#         available is CUDA 12.4, which is not compatible with the release versions of PyTorch 2.7.x.
 # pip3 install flash-linear-attention --no-cache-dir
 # pip3 install causal-conv1d --no-build-isolation --no-cache-dir
 
 #############################################
 # Environment Setup
 #############################################
-# References:
-# - PyTorch NCCL environment variables:
-# https://github.com/pytorch/pytorch/blob/main/docs/source/cuda_environment_variables.rst
-# - PyTorch Distributed Documentation:
-# https://github.com/pytorch/pytorch/blob/main/docs/source/distributed.md
-# - NCCL Documentation:
-# https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html
+# PyTorch NCCL environment variables:
+# - https://github.com/pytorch/pytorch/blob/main/docs/source/cuda_environment_variables.rst
+#
+# PyTorch Distributed Documentation:
+# - https://github.com/pytorch/pytorch/blob/main/docs/source/distributed.md
+# 
+# NCCL Documentation:
+# - https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html
 #############################################
 
+export SPECS_FILE="$workdir/distributed/specifications.yaml"                  # <-- Change to your specs file path
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export HF_DATASETS_CACHE="$workdir/.cache"
@@ -87,17 +127,26 @@ export TORCH_DISTRIBUTED_DEBUG=OFF
 export NCCL_IB_TIMEOUT=20
 export NCCL_IB_RETRY_CNT=7
 # export NCCL_DEBUG=INFO # Uncomment for NCCL debugging
-MASTER_ADDR="$(scontrol show hostnames "$SLURM_NODELIST" | head -n 1)"        # <-- Get the master node address
-export MASTER_ADDR="$(nslookup "$MASTER_ADDR" | grep -oP '(?<=Address: ).*')" # <-- Resolve to IP address
-export MASTER_PORT=12340                                                      # <-- Ensure this port is open in your SLURM cluster
-export SPECS_FILE="$workdir/distributed/specifications.yaml"                  # <-- Change to your specs file path
 
-echo "# [${SLURM_JOB_ID}] Job started at: $(date)" > "$out"
+# Slurm gives us the first allocated node name. On Marvin this is usually already
+# resolvable as returned, while on Bender Slurm may return a short hostname such
+# as "node-03". If the short name does not resolve, append the local DNS domain
+# so torch.distributed gets a valid MASTER_ADDR on both clusters.
+MASTER_ADDR="$(scontrol show hostnames "$SLURM_NODELIST" | head -n 1)"         # <-- Get the master node hostname
+if ! getent hosts "$MASTER_ADDR" >/dev/null 2>&1 && [[ "$MASTER_ADDR" != *.* ]]; then
+    MASTER_ADDR="${MASTER_ADDR}.$(hostname -d)"
+fi
+export MASTER_ADDR
+export MASTER_PORT=12340                                                       # <-- Ensure this port is open in your SLURM cluster
+
+echo "# [${SLURM_JOB_ID}] Job started at: $(date)" >> "$out"
 echo "# [${SLURM_JOB_ID}] Using $SLURM_NNODES node(s)" >> "$out"
 echo "# [${SLURM_JOB_ID}] Using $SLURM_NTASKS GPUs in total ($SLURM_NTASKS_PER_NODE per node)" >> "$out"
 echo "# [${SLURM_JOB_ID}] Running on nodes: $(scontrol show hostnames "$SLURM_NODELIST" | tr '\n' ' ')" >> "$out"
-echo "# Working directory: $workdir" >> "$out"
-echo "# Python executable: $(which python3)" >> "$out"
+echo "# [${SLURM_JOB_ID}] GLIBC version: $(ldd --version | head -n1)" >> "$out"
+echo "# MASTER_ADDR: $MASTER_ADDR" >> "$out"
+echo "# [${SLURM_JOB_ID}] Working directory: $workdir" >> "$out"
+echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --version) — $(python3 --version)" >> "$out"
 
 #############################################
 # Main Job Execution

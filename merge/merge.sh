@@ -2,8 +2,14 @@
 #############################################
 # SLURM Job Configuration
 #############################################
-# Learn more about SLURM options at:
+# Learn about SLURM sbatch options at:
 # - https://slurm.schedmd.com/sbatch.html
+#
+# Learn about job submissions (Marvin|Bender) at:
+# - https://wiki.hpc.uni-bonn.de/en/running_jobs
+#
+# Learn about Marvin|Bender dual software stacks at:
+# - https://wiki.hpc.uni-bonn.de/en/dualstacks
 #############################################
 #SBATCH --account=ag_cst_gabriel           # <-- Change to your SLURM account
 #SBATCH --partition=lm_short                # <-- Change to your partition
@@ -18,11 +24,9 @@
 #############################################
 # Working Directory Setup
 #############################################
-username="nklugeco_hpc"                    # <-- Change to the corresponding username that created the workspace
-file_system="mlnvme"                       # <-- Change to your filesystem
-workspace_name="nanotronics"               # <-- Change to your workspace/project name
 
-workdir="/lustre/$file_system/data/$username-$workspace_name"
+# Set this to your workspace root (where you have the .venv and .modules.sh files).
+workdir="/lustre/mlnvme/data/polyglot"
 mkdir -p "$workdir/run_outputs"
 cd "$workdir"
 ulimit -c 0
@@ -31,32 +35,36 @@ out="$workdir/run_outputs/out_merge.$SLURM_JOB_ID"
 err="$workdir/run_outputs/err_merge.$SLURM_JOB_ID"
 
 #############################################
-# Environment Setup
+# Modules & Libraries Setup
 #############################################
-source $workdir/.modules.sh
+
+source $workdir/.modules.sh > "$out" 2>&1
 # python3 -m venv $workdir/.venv_intel_merge
 source $workdir/.venv_intel_merge/bin/activate
+
+# ===== Upgrade PIP =====
+# pip3 install --upgrade pip
+
+# ===== Install Mergekit =====
+
+# git clone https://github.com/arcee-ai/mergekit.git
+# pip3 install -e "$workdir/mergekit" --no-cache-dir
+
+#############################################
+# Environment Setup
+#############################################
 
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export HF_DATASETS_CACHE="$workdir/.cache"
 export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE"
 
-echo "# [${SLURM_JOB_ID}] Job started at: $(date)" > "$out"
+echo "# [${SLURM_JOB_ID}] Job started at: $(date)" >> "$out"
 echo "# [${SLURM_JOB_ID}] Using $SLURM_NNODES nodes" >> "$out"
 echo "# [${SLURM_JOB_ID}] Using $SLURM_CPUS_PER_TASK CPUs per task" >> "$out"
 echo "# [${SLURM_JOB_ID}] Running on nodes: $(scontrol show hostnames "$SLURM_NODELIST" | tr '\n' ' ')" >> "$out"
-echo "# Working directory: $workdir" >> "$out"
-echo "# Python executable: $(which python3)" >> "$out"
-
-#############################################
-# Mergekit Installation (if needed)
-#############################################
-if [ ! -d "mergekit" ]; then
-    git clone https://github.com/arcee-ai/mergekit.git
-    cd mergekit
-    pip3 install -e .
-    cd ..
-fi
+echo "# [${SLURM_JOB_ID}] GLIBC version: $(ldd --version | head -n1)" >> "$out"
+echo "# [${SLURM_JOB_ID}] Working directory: $workdir" >> "$out"
+echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --version)" >> "$out"
 
 #############################################
 # Basic Mergekit Usage Information
@@ -105,7 +113,7 @@ fi
 #############################################
 output_model="./merged-model"               # <-- Change to the desired output path
 config_file="$workdir/mergekit_config.yml"  # <-- Change to the path of your mergekit YAML config file
-num_threads=$SLURM_CPUS_PER_TASK            # <-- Number of threads to use in CPU operations
+num_threads=32                              # <-- Number of threads to use in CPU operations
 
 #############################################
 # Main Job Execution

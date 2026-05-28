@@ -73,21 +73,71 @@ The `.sh` scripts are configured for SLURM-based GPU clusters. Key configuration
 
 ```bash
 # Example SLURM directives in train_ddp.sh / train_fsdp.sh
+# - Marvin:
 #SBATCH --account=your_account
 #SBATCH --partition=sgpu_devel
+#SBATCH --job-name=ddp-training
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=4
 #SBATCH --cpus-per-task=12
 #SBATCH --mem=480GB
 #SBATCH --time=01:00:00
+#
+# - Bender:
+#SBATCH --partition=A40short
+#SBATCH --job-name=ddp-training
+#SBATCH --ntasks-per-node=2
+#SBATCH --cpus-per-task=16
+#SBATCH --time=1:00:00
+#SBATCH --gpus=2
 ```
 
-Update the following in each shell script before submission:
+For Marvin update the following in each shell script before submission:
 - `--account` — Your SLURM account
 - `--partition` — Target partition/queue
 - `--nodes` — Number of compute nodes
 - `--ntasks-per-node` — Number of GPUs per node
 - `username`, `workspace_name` — Paths to your working directory and model checkpoint locations
+
+On Bender, set the `--partition`, `--gpus`, and `--cpus-per-task` directives according to your job requirements.
+
+## Bender Installation
+
+To run distributed training jobs on Bender, you need to set up your environment with a very specific set of package versions to ensure compatibility with the cluster's maximum CUDA version (12.4) and it's GLIBC version (2.28). The following `pip install` command will set up the necessary environment:
+
+```bash
+# ===== Upgrade PIP =====
+pip3 install --upgrade pip
+
+# ===== LLM Foundry Install (for Bender) =====
+pip3 install wheel==0.45.1 packaging==25.0 --no-cache-dir
+pip3 install \
+torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 \
+--index-url https://download.pytorch.org/whl/cu124 --no-cache-dir
+
+pip3 install \
+numpy==2.3.2 \
+transformers==5.6.2 \
+datasets==4.0.0 \
+sentencepiece==0.2.0 \
+accelerate==1.9.0 \
+codecarbon==3.0.6 \
+wandb==0.21.0 \
+pyyaml==6.0.2 \
+liger-kernel==0.8.0 \
+kernels==0.13.0 \
+--no-cache-dir
+
+# ===== ALL HAIL FLASH-ATTN! =====
+FLASH_ATTENTION_SKIP_CUDA_BUILD=TRUE pip3 install \
+https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.7.16/flash_attn-2.8.3+cu124torch2.6-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl \
+--no-cache-dir
+
+# ===== Specialized Attention Packages =====
+# - Note: flash-linear-attention requires PyTorch >= 2.7.0. However, on Bender, the lates Cuda
+# available is Cuda 12.4, which is not compatible with the release versions of PyTorch 2.7.x.
+# Hence, we cannot currently use flash-linear-attention on Bender with the official PyTorch releases.
+```
 
 ## Example Architecture Configs
 

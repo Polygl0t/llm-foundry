@@ -217,7 +217,7 @@ if __name__ == "__main__":
     parser.add_argument("--bf16", action="store_true", help="Use bfloat16 precision for training.")
     parser.add_argument("--tf32", action="store_true", help="Use TensorFloat-32 precision for training.")
     parser.add_argument("--gradient_checkpointing", action="store_true", help="Use gradient checkpointing to save memory.")
-    parser.add_argument("--attn_implementation", type=str, default="eager", help="Attention implementation to use. Options: 'eager', 'sdpa', and 'flash_attention_2'.")
+    parser.add_argument("--attn_implementation", type=str, default="eager", help="Attention implementation to use. Options: 'eager', 'sdpa', 'flash_attention_2', 'flash_attention_3', and 'flash_attention_4'.")
     parser.add_argument("--per_device_train_batch_size", type=int, default=8)
     parser.add_argument("--per_device_eval_batch_size", type=int, default=8)
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)

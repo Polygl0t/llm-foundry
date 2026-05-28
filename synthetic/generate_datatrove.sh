@@ -3,8 +3,14 @@
 #############################################
 # SLURM Job Configuration
 #############################################
-# Learn more about SLURM options at:
+# Learn about SLURM sbatch options at:
 # - https://slurm.schedmd.com/sbatch.html
+#
+# Learn about job submissions (Marvin|Bender) at:
+# - https://wiki.hpc.uni-bonn.de/en/running_jobs
+#
+# Learn about Marvin|Bender dual software stacks at:
+# - https://wiki.hpc.uni-bonn.de/en/dualstacks
 #############################################
 #SBATCH --account=ag_bit_flek              # <-- Change to your SLURM account
 #SBATCH --partition=mlgpu_short            # <-- Change to your partition
@@ -20,12 +26,10 @@
 #############################################
 # Working Directory Setup
 #############################################
-username="nklugeco_hpc"                    # <-- Change to the corresponding username that created the workspace
-file_system="scratch"                      # <-- Change to your filesystem
-workspace_name="poly_datasets"             # <-- Change to your workspace/project name
 
-workdir="/lustre/$file_system/data/$username-$workspace_name"
-mkdir -p "$workdir/synth/.logs"
+# Set this to your workspace root (where you have the .venv and .modules.sh files).
+workdir="/lustre/mlnvme/data/polyglot"
+mkdir -p "$workdir/run_outputs"
 cd "$workdir"
 ulimit -c 0
 
@@ -33,12 +37,14 @@ out="$workdir/synth/.logs/out.$SLURM_JOB_ID"
 err="$workdir/synth/.logs/err.$SLURM_JOB_ID"
 
 #############################################
-# Environment Setup
+# Modules & Libraries Setup
 #############################################
-source $workdir/.modules.sh                      # <-- Load necessary modules
-# python3 -m venv "$workdir/.venv_synth"             # <-- Create a clean virtual environment
-source "$workdir/.venv_synth/bin/activate"           # <-- Activate virtual environment
 
+source $workdir/.modules.sh > "$out" 2>&1
+# python3 -m venv $workdir/.venv_synth  
+source $workdir/.venv_synth/bin/activate
+
+# ===== Install for vLLM + Datatrove Pipeline =====
 # pip3 install --upgrade pip --no-cache-dir
 # pip3 install \
 #    "datatrove[io]" \
@@ -54,9 +60,12 @@ source "$workdir/.venv_synth/bin/activate"           # <-- Activate virtual envi
 #    "pyyaml" \
 #    "pandas" \
 #    --no-cache-dir
-# pip3 check
 
-export HF_TOKEN="<your-token-here>"                      # <-- Change to your Hugging Face token
+#############################################
+# Environment Setup
+#############################################
+
+export HF_TOKEN=""                                       # <-- Change to your Hugging Face token       
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export HF_DATASETS_CACHE="$workdir/.cache/$SLURM_JOB_ID"
 export PYTHONPYCACHEPREFIX="$HF_DATASETS_CACHE/.pycache"
@@ -91,18 +100,20 @@ if [[ -n "$HF_TOKEN" ]]; then
     hf auth login --token "$HF_TOKEN"
 fi
 
-echo "# [${SLURM_JOB_ID}] Job started at: $(date)" > "$out"
+echo "# [${SLURM_JOB_ID}] Job started at: $(date)" >> "$out"
 echo "# [${SLURM_JOB_ID}] Using $SLURM_NNODES node(s)" >> "$out"
 echo "# [${SLURM_JOB_ID}] Using $DP GPU(s) via data parallelism" >> "$out"
 echo "# [${SLURM_JOB_ID}] Using $TP GPU(s) via tensor parallelism" >> "$out"
 echo "# [${SLURM_JOB_ID}] Using $PP GPU(s) via pipeline parallelism" >> "$out"
 echo "# [${SLURM_JOB_ID}] Running on nodes: $(scontrol show hostnames "$SLURM_NODELIST" | tr '\n' ' ')" >> "$out"
-echo "# Working directory: $workdir" >> "$out"
-echo "# Python executable: $(which python3)" >> "$out"
+echo "# [${SLURM_JOB_ID}] GLIBC version: $(ldd --version | head -n1)" >> "$out"
+echo "# [${SLURM_JOB_ID}] Working directory: $workdir" >> "$out"
+echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --version) — $(python3 --version)" >> "$out"
 
 #############################################
 # Main Job Execution
 #############################################
+
 # Build optional arguments
 OPTIONAL_ARGS=""
 if [[ -n "$SYSTEM_PROMPT" ]]; then

@@ -3,8 +3,14 @@
 #############################################
 # SLURM Job Configuration
 #############################################
-# Learn more about SLURM options at:
+# Learn about SLURM sbatch options at:
 # - https://slurm.schedmd.com/sbatch.html
+#
+# Learn about job submissions (Marvin|Bender) at:
+# - https://wiki.hpc.uni-bonn.de/en/running_jobs
+#
+# Learn about Marvin|Bender dual software stacks at:
+# - https://wiki.hpc.uni-bonn.de/en/dualstacks
 #############################################
 #SBATCH --account=ag_bit_flek              # <-- Change to your SLURM account
 #SBATCH --partition=mlgpu_long             # <-- Change to your partition
@@ -20,14 +26,13 @@
 #############################################
 # Working Directory Setup
 #############################################
-username="nklugeco_hpc"                         # <-- Change to the corresponding username that created the workspace
-file_system="mlnvme"                            # <-- Change to your filesystem
-workspace_name="polyglot"                       # <-- Change to your workspace/project name
 
-workdir="/lustre/$file_system/data/$username-$workspace_name"
-mkdir -p "$workdir/run_filter"
+# Set this to your workspace root (where you have the .venv and .modules.sh files).
+workdir="/lustre/mlnvme/data/polyglot"
+mkdir -p "$workdir/run_outputs"
 cd "$workdir"
 ulimit -c 0
+
 
 for i in $(seq 0 $((SLURM_NTASKS_PER_NODE - 1))); do
     eval "out$i=\"\$workdir/run_filter/out$i.\$SLURM_JOB_ID\""
@@ -35,18 +40,24 @@ for i in $(seq 0 $((SLURM_NTASKS_PER_NODE - 1))); do
 done
 
 #############################################
-# Environment Setup
+# Modules & Libraries Setup
 #############################################
-source "$workdir/.modules.sh"
+
+source $workdir/.modules.sh
 # python3 -m venv "$workdir/.venv_amd"
 source "$workdir/.venv_amd/bin/activate"
 
-# pip3 install --upgrade pip
+# ==== For this script, you will also need PyTorch for GPU support ====
+# pip3 install torch --no-cache-dir
+
+# ===== LLM Foundry Install =====
+# pip3 install --upgrade pip --no-cache-dir
 # git clone --depth 1 --branch main https://github.com/Polygl0t/llm-foundry.git
 # pip3 install -e "$workdir/llm-foundry/.[data]" --no-cache-dir
 
-# ==== For this script, you will also need PyTorch for GPU support ====
-# pip3 install torch --no-cache-dir
+#############################################
+# Environment Setup
+#############################################
 
 export HF_TOKEN="<your-token-here>"
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
@@ -70,8 +81,9 @@ for i in $(seq 0 $((SLURM_NTASKS_PER_NODE - 1))); do
     echo "# [${SLURM_JOB_ID}] Using $SLURM_NNODES nodes" >> "$out_var"
     echo "# [${SLURM_JOB_ID}] Using $SLURM_NTASKS GPUs in total ($SLURM_NTASKS_PER_NODE per node)" >> "$out_var"
     echo "# [${SLURM_JOB_ID}] Running on nodes: $(scontrol show hostnames "$SLURM_NODELIST" | tr '\n' ' ')" >> "$out_var"
-    echo "# Working directory: $workdir" >> "$out_var"
-    echo "# Python executable: $(which python3)" >> "$out_var"
+    echo "# [${SLURM_JOB_ID}] GLIBC version: $(ldd --version | head -n1)" >> "$out_var"
+    echo "# [${SLURM_JOB_ID}] Working directory: $workdir" >> "$out_var"
+    echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --version) — $(python3 --version)" >> "$out_var"
 done
 
 #############################################

@@ -425,7 +425,7 @@ if __name__ == "__main__":
     parser.add_argument("--bf16", action="store_true", help="Use bfloat16 precision for training. Requires a GPU that supports bfloat16 (e.g., A100)")
     parser.add_argument("--tf32", action="store_true", help="Use TensorFloat-32 precision for training. Requires a GPU that supports TF32 (e.g., A100)")
     parser.add_argument("--gradient_checkpointing", action="store_true", help="Use gradient checkpointing to save memory. This will slow down training but reduce memory usage.")
-    parser.add_argument("--attn_implementation", type=str, default="eager", help="Attention implementation to use. Options: 'eager', 'sdpa', and 'flash_attention_2'.")
+    parser.add_argument("--attn_implementation", type=str, default="eager", help="Attention implementation to use. Options: 'eager', 'sdpa', 'flash_attention_2', 'flash_attention_3', and 'flash_attention_4'.")
     # Data loader / batch sizes
     parser.add_argument("--per_device_train_batch_size", type=int, default=256)
     parser.add_argument("--per_device_eval_batch_size", type=int, default=128)

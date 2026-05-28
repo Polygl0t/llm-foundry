@@ -33,12 +33,10 @@ def main (args):
         os.makedirs(output_folder, exist_ok=True)
 
     json_files = []
-    for entry in os.listdir(logs_dir):
-        path = os.path.join(logs_dir, entry)
-        if os.path.isdir(path):
-            json_files += [os.path.join(path, f) for f in os.listdir(path) if f.endswith(".json")]
-        elif entry.endswith(".json"):
-            json_files.append(path)
+    for root, _, files in os.walk(logs_dir):
+        for f in files:
+            if f.endswith(".json"):
+                json_files.append(os.path.join(root, f))
 
     if not json_files:
         print(f"No JSON files found in {logs_dir}")
@@ -95,7 +93,11 @@ def main (args):
                 print(f"Failed to write {path_to_save}: {e}")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Post-process JSON files.")
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    
     parser.add_argument(
         "--logs_dir",
         type=str,

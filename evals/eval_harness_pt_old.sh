@@ -6,12 +6,21 @@
 # It can evaluate either local checkpoints or HuggingFace models in parallel across GPUs.
 # Results are post-processed to YAML format for easy analysis.
 #
-# Learn more about SLURM options at: https://slurm.schedmd.com/sbatch.html
-# Learn more about lm-evaluation-harness at: https://github.com/EleutherAI/lm-evaluation-harness
+# Learn more about lm-evaluation-harness at: 
+# - https://github.com/EleutherAI/lm-evaluation-harness
 #############################################
 
 #############################################
 # SLURM Job Configuration
+#############################################
+# Learn about SLURM sbatch options at:
+# - https://slurm.schedmd.com/sbatch.html
+#
+# Learn about job submissions (Marvin|Bender) at:
+# - https://wiki.hpc.uni-bonn.de/en/running_jobs
+#
+# Learn about Marvin|Bender dual software stacks at:
+# - https://wiki.hpc.uni-bonn.de/en/dualstacks
 #############################################
 #SBATCH --account=ag_cst_gabriel           # <-- Change to your SLURM account
 #SBATCH --partition=mlgpu_short            # <-- Change to your partition
@@ -27,49 +36,51 @@
 #############################################
 # Working Directory Setup
 #############################################
-username="nklugeco_hpc"                    # <-- Change to your HPC username
-file_system="mlnvme"                       # <-- Change to your filesystem (mlnvme, scratch, etc.)
-workspace_name="nanotronics"               # <-- Change to your workspace/project name
 
-workdir="/lustre/$file_system/data/$username-$workspace_name"  # <-- Constructs the full workspace path
+# Set this to your workspace root (where you have the .venv and .modules.sh files).
+workdir="/lustre/mlnvme/data/polyglot"
 mkdir -p "$workdir"                        # <-- Create workspace directory if it doesn't exist
 cd "$workdir"                              # <-- Change to workspace directory
 ulimit -c 0                                # <-- Disable core dumps (saves disk space)
 
 #############################################
-# Environment Setup
+# Modules & Libraries Setup
 #############################################
-source $workdir/.modules.sh                  # <-- Load required modules (Python, CUDA, etc.)
+
+source $workdir/.modules.sh                      # <-- Load required modules (Python, CUDA, etc.)
 # python3 -m venv $workdir/.venv_eval_pt_old     # <-- UNCOMMENT on first run to create virtual environment
 source $workdir/.venv_eval_pt_old/bin/activate   # <-- Activate the virtual environment
 
-# UNCOMMENT the following lines on first run to set up lm-evaluation-harness-pt:
-# This is the legacy Portuguese evaluation harness
+# ===== Clone and Install lm-evaluation-harness (UNCOMMENT on first run) =====
+
 # git clone https://github.com/eduagarcia/lm-evaluation-harness-pt.git
 # mv $workdir/lm-evaluation-harness-pt $workdir/lm_evaluation_harness_pt
 # cd $workdir/lm_evaluation_harness_pt
-# This is the commit we used for all evaluations
-# git checkout e44c7e26cbface8b3a1b54cad7792b6431670a61
+# git checkout e44c7e26cbface8b3a1b54cad7792b6431670a61 # <-- Commit hash for the used version
 # pip3 install -e . --no-cache-dir
 # pip3 install -e ".[vllm]" --no-cache-dir
 # pip3 install transformers==4.53.2 --no-cache-dir
 # cd $workdir
 
-# Available Portuguese legacy evaluation tasks:
-# - assin2_rte, assin2_sts: ASSIN2 tasks (RTE and STS)
-# - bluex: BLUE-X benchmark
-# - enem_challenge: Brazilian National High School Exam questions
-# - faquad_nli: FaQuAD NLI task
-# - hatebr_offensive: HateBR offensive language detection
-# - oab_exams: Brazilian Bar Association exams
-# - portuguese_hate_speech: Portuguese hate speech detection
-# - tweetsentbr: Tweet sentiment analysis for Brazilian Portuguese
+#############################################
+# Available Portuguese evaluation tasks:
+#############################################
+# - assin2_rte
+# - assin2_sts
+# - bluex
+# - enem_challenge
+# - faquad_nli
+# - hatebr_offensive
+# - oab_exams
+# - portuguese_hate_speech
+# - tweetsentbr
 
 #############################################
-# Configuration Variables
+# Environment Setup
 #############################################
+
 export MAX_GPUS_PER_NODE=8                                                      # <-- Set to 8 for MLGPU nodes, 4 for SGPU nodes
-export HF_TOKEN="<your-token-here>"                         # <-- Add your Hugging Face token here (required for gated models)
+export HF_TOKEN="<your-token-here>"                                             # <-- Add your Hugging Face token here (required for gated models)
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK                                     # <-- Set OpenMP threads to match CPU allocation
 export HF_DATASETS_CACHE="$workdir/.eval_cache"                                 # <-- Cache directory for datasets
 export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE/models"                        # <-- Cache directory for models
@@ -240,8 +251,9 @@ for i in $(seq 0 $((NUM_TO_EVAL - 1))); do
     ERR_FILES+=("$workdir/job_outputs/err-eval-pt-old-auto-$((i+1)).$SLURM_JOB_ID")
     # Write job header to output file
     echo "# [${SLURM_JOB_ID}] Job started at: $(date)" > "${OUT_FILES[$i]}"
-    echo "# Working directory: $workdir" >> "${OUT_FILES[$i]}"
-    echo "# Python executable: $(which python3)" >> "${OUT_FILES[$i]}"
+    echo "# [${SLURM_JOB_ID}] GLIBC version: $(ldd --version | head -n1)" >> "${OUT_FILES[$i]}"
+    echo "# [${SLURM_JOB_ID}] Working directory: $workdir" >> "${OUT_FILES[$i]}"
+    echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --version)" >> "${OUT_FILES[$i]}"
 done
 
 #############################################
@@ -368,14 +380,15 @@ else
                 
                 # Extract and flatten results from JSON structure
                 jq -r '
+                    def fmt: if type == "string" then . else tostring end;
                     .results | 
                     to_entries[] | 
                     if .value | type == "object" then
                         .key as $parent | 
                         .value | to_entries[] | 
-                        "  " + $parent + "_" + (.key | sub(",none"; "")) + ": " + (.value | tostring)
+                        "  " + $parent + "_" + (.key | gsub(",none"; "")) + ": " + (.value | fmt)
                     else
-                        "  " + .key + ": " + (.value | tostring)
+                        "  " + .key + ": " + (.value | fmt)
                     end
                 ' "$file" 2>/dev/null || echo "  error: failed to parse results"
                 

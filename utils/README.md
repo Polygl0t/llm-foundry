@@ -7,6 +7,7 @@ This folder contains miscellaneous utility scripts and helpers for working with 
 - [`convert_dataset_to_hf.py`](./convert_dataset_to_hf.py) — Convert JSONL or Parquet dataset shards into a Hugging Face Dataset format and optionally upload it to the Hub.
 - [`count_tokens.py`](./count_tokens.py) — Create token count reports for a pretraining corpus.
 - [`download.py`](./download.py) — Download and cache Hugging Face repositories using patterns and authentication.
+- [`env_doctor.sh`](./env_doctor.sh) — SLURM batch script to diagnose GPU/CUDA/PyTorch environment issues using env-doctor.
 - [`inference_test.py`](./inference_test.py) — Run inference on a model using a sample dataset and save outputs.
 - [`inspect_model.py`](./inspect_model.py) — Analyze model configuration, parameter counts, and MoE routing statistics.
 - [`marvin_create_workspace.sh`](./marvin_create_workspace.sh) — Allocate a workspace and clone the repo on the Marvin HPC cluster.
@@ -79,6 +80,17 @@ Main parameters:
 - `--token`: Hugging Face authentication token.
 - `--repo_type`: repository type: `dataset`, `model`, or `space`.
 - `--allow_patterns`: glob patterns to filter downloaded files.
+
+### `env_doctor.sh`
+Diagnose GPU/CUDA/PyTorch environment issues using env-doctor.
+
+Example:
+```bash
+source "./.venv/bin/activate" # <-- Activate the same environment you want to diagnose with env-doctor
+env-doctor check
+# Or just run the full SLURM batch script to see environment details and run env-doctor:
+# sbatch utils/env_doctor.sh
+```
 
 ### `inference_test.py`
 Run inference on a model using sample inputs.
