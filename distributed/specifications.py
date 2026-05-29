@@ -133,7 +133,7 @@ class TrainingArguments:
     )
     attn_implementation: Optional[str] = field(
         default="eager",
-        metadata={"help": "The attention implementation to use. Options: `eager`, `sdpa`, `flash_attention_2`."},
+        metadata={"help": "The attention implementation to use. Options: `eager`, `sdpa`, `flash_attention_2`, `flash_attention_3`, and `flash_attention_4`."},
     )
     continual_pretraining: Optional[bool] = field(
         default=False,

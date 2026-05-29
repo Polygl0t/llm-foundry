@@ -3,8 +3,14 @@
 #############################################
 # SLURM Job Configuration
 #############################################
-# Learn more about SLURM options at:
+# Learn about SLURM sbatch options at:
 # - https://slurm.schedmd.com/sbatch.html
+#
+# Learn about job submissions (Marvin|Bender) at:
+# - https://wiki.hpc.uni-bonn.de/en/running_jobs
+#
+# Learn about Marvin|Bender dual software stacks at:
+# - https://wiki.hpc.uni-bonn.de/en/dualstacks
 #############################################
 #SBATCH --account=ag_cst_gabriel           # <-- Change to your SLURM account
 #SBATCH --partition=mlgpu_long             # <-- Change to your partition
@@ -20,12 +26,10 @@
 #############################################
 # Working Directory Setup
 #############################################
-username="nklugeco_hpc"                    # <-- Change to the corresponding username that created the workspace
-file_system="mlnvme"                       # <-- Change to your filesystem
-workspace_name="nanotronics"               # <-- Change to your workspace/project name
 
-workdir="/lustre/$file_system/data/$username-$workspace_name"
-mkdir -p "$workdir/synth/logs"
+# Set this to your workspace root (where you have the .venv and .modules.sh files).
+workdir="/lustre/mlnvme/data/polyglot"
+mkdir -p "$workdir/run_outputs"
 cd "$workdir"
 ulimit -c 0
 
@@ -35,15 +39,21 @@ for i in $(seq 0 $((SLURM_NTASKS_PER_NODE - 1))); do
 done
 
 #############################################
-# Environment Setup
+# Modules & Libraries Setup
 #############################################
-source $workdir/.modules.sh                       # <-- Load necessary modules
-# python3 -m venv $workdir/.venv_synth                # <-- Create virtual environment
-source $workdir/.venv_synth/bin/activate              # <-- Activate virtual environment
 
+source $workdir/.modules.sh
+# python3 -m venv $workdir/.venv_synth  
+source $workdir/.venv_synth/bin/activate
+
+# ===== LLM Foundry Install =====
 # pip3 install --upgrade pip
 # git clone --depth 1 --branch main https://github.com/Polygl0t/llm-foundry.git
 # pip3 install -e "$workdir/llm-foundry/.[synth]" --no-cache-dir
+
+#############################################
+# Environment Setup
+#############################################
 
 export HF_TOKEN=""                                            # <-- Change to your Hugging Face token       
 export HF_DATASETS_CACHE="$workdir/.cache/$SLURM_JOB_ID"      # <-- Use a unique cache directory for this job
@@ -81,8 +91,9 @@ for i in $(seq 0 $((SLURM_NTASKS_PER_NODE - 1))); do
     echo "# [${SLURM_JOB_ID}] Using $SLURM_NNODES nodes" >> "$out_var"
     echo "# [${SLURM_JOB_ID}] Using $SLURM_NTASKS GPUs in total ($SLURM_NTASKS_PER_NODE per node)" >> "$out_var"
     echo "# [${SLURM_JOB_ID}] Running on nodes: $(scontrol show hostnames "$SLURM_NODELIST" | tr '\n' ' ')" >> "$out_var"
-    echo "# Working directory: $workdir" >> "$out_var"
-    echo "# Python executable: $(which python3)" >> "$out_var"
+    echo "# [${SLURM_JOB_ID}] GLIBC version: $(ldd --version | head -n1)" >> "$out_var"
+    echo "# [${SLURM_JOB_ID}] Working directory: $workdir" >> "$out_var"
+    echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --version)" >> "$out_var"
 done
 
 #############################################
@@ -100,10 +111,10 @@ export UCX_NET_DEVICES=mlx5_0:1
 srun -n 1 -N 1 --gpus=1 --exclusive \
 python3 $workdir/generate.py \
     --model_name_or_path "$MODEL_NAME_OR_PATH" \
-    --dataset_path "$DATASET_PATH/chunk_0.jsonl" \
+    --dataset_path "$DATASET_PATH/00000.jsonl" \
     --text_column "$TEXT_COLUMN" \
     --output_dir $OUTPUT_DIR \
-    --output_file "chunk_0.jsonl" \
+    --output_file "00000.jsonl" \
     --max_length "$MAX_LENGTH" \
     --max_chunk_size "$MAX_CHUNK_SIZE" \
     --chunk_once \
@@ -123,10 +134,10 @@ export UCX_NET_DEVICES=mlx5_1:1
 srun -n 1 -N 1 --gpus=1 --exclusive \
 python3 $workdir/generate.py \
     --model_name_or_path "$MODEL_NAME_OR_PATH" \
-    --dataset_path "$DATASET_PATH/chunk_1.jsonl" \
+    --dataset_path "$DATASET_PATH/00001.jsonl" \
     --text_column "$TEXT_COLUMN" \
     --output_dir $OUTPUT_DIR \
-    --output_file "chunk_1.jsonl" \
+    --output_file "00001.jsonl" \
     --max_length "$MAX_LENGTH" \
     --max_chunk_size "$MAX_CHUNK_SIZE" \
     --chunk_once \
@@ -146,10 +157,10 @@ export UCX_NET_DEVICES=mlx5_2:1
 srun -n 1 -N 1 --gpus=1 --exclusive \
 python3 $workdir/generate.py \
     --model_name_or_path "$MODEL_NAME_OR_PATH" \
-    --dataset_path "$DATASET_PATH/chunk_2.jsonl" \
+    --dataset_path "$DATASET_PATH/00002.jsonl" \
     --text_column "$TEXT_COLUMN" \
     --output_dir $OUTPUT_DIR \
-    --output_file "chunk_2.jsonl" \
+    --output_file "00002.jsonl" \
     --max_length "$MAX_LENGTH" \
     --max_chunk_size "$MAX_CHUNK_SIZE" \
     --chunk_once \
@@ -169,10 +180,10 @@ export UCX_NET_DEVICES=mlx5_3:1
 srun -n 1 -N 1 --gpus=1 --exclusive \
 python3 $workdir/generate.py \
     --model_name_or_path "$MODEL_NAME_OR_PATH" \
-    --dataset_path "$DATASET_PATH/chunk_3.jsonl" \
+    --dataset_path "$DATASET_PATH/00003.jsonl" \
     --text_column "$TEXT_COLUMN" \
     --output_dir $OUTPUT_DIR \
-    --output_file "chunk_3.jsonl" \
+    --output_file "00003.jsonl" \
     --max_length "$MAX_LENGTH" \
     --max_chunk_size "$MAX_CHUNK_SIZE" \
     --chunk_once \
@@ -192,10 +203,10 @@ export UCX_NET_DEVICES=mlx5_4:1
 srun -n 1 -N 1 --gpus=1 --exclusive \
 python3 $workdir/generate.py \
     --model_name_or_path "$MODEL_NAME_OR_PATH" \
-    --dataset_path "$DATASET_PATH/chunk_4.jsonl" \
+    --dataset_path "$DATASET_PATH/00004.jsonl" \
     --text_column "$TEXT_COLUMN" \
     --output_dir $OUTPUT_DIR \
-    --output_file "chunk_4.jsonl" \
+    --output_file "00004.jsonl" \
     --max_length "$MAX_LENGTH" \
     --max_chunk_size "$MAX_CHUNK_SIZE" \
     --chunk_once \
@@ -215,10 +226,10 @@ export UCX_NET_DEVICES=mlx5_5:1
 srun -n 1 -N 1 --gpus=1 --exclusive \
 python3 $workdir/generate.py \
     --model_name_or_path "$MODEL_NAME_OR_PATH" \
-    --dataset_path "$DATASET_PATH/chunk_5.jsonl" \
+    --dataset_path "$DATASET_PATH/00005.jsonl" \
     --text_column "$TEXT_COLUMN" \
     --output_dir $OUTPUT_DIR \
-    --output_file "chunk_5.jsonl" \
+    --output_file "00005.jsonl" \
     --max_length "$MAX_LENGTH" \
     --max_chunk_size "$MAX_CHUNK_SIZE" \
     --chunk_once \
@@ -238,10 +249,10 @@ export UCX_NET_DEVICES=mlx5_6:1
 srun -n 1 -N 1 --gpus=1 --exclusive \
 python3 $workdir/generate.py \
     --model_name_or_path "$MODEL_NAME_OR_PATH" \
-    --dataset_path "$DATASET_PATH/chunk_6.jsonl" \
+    --dataset_path "$DATASET_PATH/00006.jsonl" \
     --text_column "$TEXT_COLUMN" \
     --output_dir $OUTPUT_DIR \
-    --output_file "chunk_6.jsonl" \
+    --output_file "00006.jsonl" \
     --max_length "$MAX_LENGTH" \
     --max_chunk_size "$MAX_CHUNK_SIZE" \
     --chunk_once \
@@ -261,10 +272,10 @@ export UCX_NET_DEVICES=mlx5_7:1
 srun -n 1 -N 1 --gpus=1 --exclusive \
 python3 $workdir/generate.py \
     --model_name_or_path "$MODEL_NAME_OR_PATH" \
-    --dataset_path "$DATASET_PATH/chunk_7.jsonl" \
+    --dataset_path "$DATASET_PATH/00007.jsonl" \
     --text_column "$TEXT_COLUMN" \
     --output_dir $OUTPUT_DIR \
-    --output_file "chunk_7.jsonl" \
+    --output_file "00007.jsonl" \
     --max_length "$MAX_LENGTH" \
     --max_chunk_size "$MAX_CHUNK_SIZE" \
     --chunk_once \

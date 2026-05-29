@@ -28,8 +28,14 @@
 #############################################
 # SLURM Job Configuration
 #############################################
-# Learn more about SLURM options at:
+# Learn about SLURM sbatch options at:
 # - https://slurm.schedmd.com/sbatch.html
+#
+# Learn about job submissions (Marvin|Bender) at:
+# - https://wiki.hpc.uni-bonn.de/en/running_jobs
+#
+# Learn about Marvin|Bender dual software stacks at:
+# - https://wiki.hpc.uni-bonn.de/en/dualstacks
 #############################################
 #SBATCH --account=ag_cst_gabriel           # <-- Change to your SLURM account
 #SBATCH --partition=mlgpu_long             # <-- Change to your partition
@@ -45,11 +51,9 @@
 #############################################
 # Working Directory Setup
 #############################################
-username="nklugeco_hpc"                    # <-- Change to the corresponding username that created the workspace
-file_system="mlnvme"                       # <-- Change to your filesystem
-workspace_name="polyglot_datasets"         # <-- Change to your workspace/project name
 
-workdir="/lustre/$file_system/data/$username-$workspace_name"
+# Set this to your workspace root (where you have the .venv and .modules.sh files).
+workdir="/lustre/mlnvme/data/polyglot"
 mkdir -p "$workdir/run_outputs"
 cd "$workdir"
 ulimit -c 0
@@ -58,12 +62,19 @@ out="$workdir/run_outputs/out-pdf-to-markdown.$SLURM_JOB_ID"
 err="$workdir/run_outputs/err-pdf-to-markdown.$SLURM_JOB_ID"
 
 #############################################
-# Environment Setup
+# Modules & Libraries Setup
 #############################################
-source "$workdir/.modules.sh"
+
+source "$workdir/.modules.sh" > "$out" 2>&1
 # python3 -m venv "$workdir/.venv_amd_pdf"
 source "$workdir/.venv_amd_pdf/bin/activate"
+
+# ===== Install PDF to Markdown Tool =====
 # pip3 install marker-pdf --no-cache-dir
+
+#############################################
+# Environment Setup
+#############################################
 
 export NUM_DEVICES=8                        # <-- Number of GPUs to use
 export NUM_WORKERS=8                        # <-- Same as NUM_DEVICES          
@@ -78,12 +89,13 @@ export OUTPUT_DIR="$workdir/markdown_files" # <-- Directory to save converted ma
 export CLEAN_CACHE="1"  # Set to "1" to clean cache after job completion
 mkdir -p "$OUTPUT_DIR"
 
-echo "# [${SLURM_JOB_ID}] Job started at: $(date)" > "$out"
+echo "# [${SLURM_JOB_ID}] Job started at: $(date)" >> "$out"
 echo "# [${SLURM_JOB_ID}] Using $SLURM_NNODES node(s)" >> "$out"
 echo "# [${SLURM_JOB_ID}] Using $SLURM_NTASKS GPUs in total ($SLURM_NTASKS_PER_NODE per node)" >> "$out"
 echo "# [${SLURM_JOB_ID}] Running on nodes: $(scontrol show hostnames "$SLURM_NODELIST" | tr '\n' ' ')" >> "$out"
-echo "# Working directory: $workdir" >> "$out"
-echo "# Python executable: $(which python3)" >> "$out"
+echo "# [${SLURM_JOB_ID}] GLIBC version: $(ldd --version | head -n1)" >> "$out"
+echo "# [${SLURM_JOB_ID}] Working directory: $workdir" >> "$out"
+echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --version) — $(python3 --version)" >> "$out"
 
 #############################################
 # Main Job Execution

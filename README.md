@@ -17,7 +17,7 @@ LLM Foundry is the source repository for the development of models, datasets, an
 
 ## Overview
 
-This repository contains all source code used for the development of the models, datasets, and all other accompanying artifacts tied to the Polyglot project at the University of Bonn. It is designed to run on the [Marvin cluster](https://www.hpc.uni-bonn.de/) (University of Bonn), which has a dual software stack (AMD and Intel) that the code base is aware of.
+This repository contains all source code used for the development of the models, datasets, and all other accompanying artifacts tied to the Polyglot project at the University of Bonn. It is designed to run on both the [Marvin cluster](https://www.hpc.uni-bonn.de/) and [Bender](https://www.hpc.uni-bonn.de/en/systems/bender) (University of Bonn), which have dual software stacks (AMD and Intel) that the code base is aware of.
 
 ## Repository Structure
 
@@ -40,9 +40,11 @@ The code base is organized into the following main folders:
 
 ## Installation
 
-All of our codebase is designed to run on the Marvin cluster (University of Bonn). You will only need to set things up on the cluster itself - not on your local machine. For your local machine, you can just clone the repository and work with the files (e.g., editing code, writing new scripts, etc.) without worrying too much about dual stack setups or module loading.
+All of our codebase is designed to run on Marvin or Bender, i.e., the University of Bonn HPC clusters. You will only need to set things up on the cluster itself - not on your local machine. For your local machine, you can just clone the repository and work with the files (e.g., editing code, writing new scripts, etc.) without worrying too much about dual stack setups or module loading.
 
-### Workspace Setup on Marvin
+### Workspace Setup
+
+On Marvin, we work with [workspaces](https://wiki.hpc.uni-bonn.de/en/marvin/workspaces) that are allocated with a specific [file system](https://wiki.hpc.uni-bonn.de/en/marvin/filesystems).
 
 Use [`utils/marvin_create_workspace.sh`](utils/marvin_create_workspace.sh) to allocate a workspace, clone the repository, and prepare the directory layout. Open the script first and edit the user customization section at the top (`username`, `file_system`, `work_group`, `email`, `workspace_name`) to match your account, then run it from a Marvin login node:
 
@@ -50,21 +52,24 @@ Use [`utils/marvin_create_workspace.sh`](utils/marvin_create_workspace.sh) to al
 bash utils/marvin_create_workspace.sh
 ```
 
-The script also contains commented step-by-step instructions for creating the per-config virtual environments and submitting the pip install jobs to the right partition.
+For Bender users, `/home/$USER` is the default workspace directory, so you can just clone the repository there and start working.
 
 ### Module Stack Selection
 
-Marvin has a dual software stack (AMD and Intel). The single [`.modules.sh`](.modules.sh) file at the repository root loads the right one for you. It auto-detects the stack from the SLURM environment, so most of the time you just source it and forget about it:
+Marvin and Bender have a dual software stack (AMD and Intel). The single [`.modules.sh`](.modules.sh) file at the repository root loads the right build for you. It auto-detects the stack from the SLURM environment, so most of the time you can just source it and forget about it:
 
 ```bash
-# Inside a SLURM job: auto-detected from #SBATCH directives
-#   - GPU job (--gres=gpu:...)             -> AMD
-#   - partition name contains "gpu"        -> AMD
-#   - any other partition                  -> Intel
+# Marvin:
+# - Partitions with "gpu" in the name (e.g. sgpu, mlgpu)  -> AMD stack
+# - All other partitions                                  -> Intel stack
+#
+# Bender:
+# - Partition "a100"                                      -> AMD stack
+# - Partition "a40"                                       -> Intel stack
 source "$workdir/.modules.sh"
 ```
 
-On a login node, there is no SLURM context, so you must force the stack explicitly when creating venvs or running ad-hoc commands:
+You can also force a specific stack by setting the `LLM_FOUNDRY_STACK` environment variable before sourcing:
 
 ```bash
 LLM_FOUNDRY_STACK=amd   source "$workdir/.modules.sh"   # GPU/training stack
@@ -124,5 +129,5 @@ This project is licensed under the Apache License 2.0. See [`LICENSE`](LICENSE) 
 
 Polyglot is a project funded by the Federal Ministry of Education and Research (BMBF) and the Ministry of Culture and Science of the State of North Rhine-Westphalia (MWK) as part of TRA Sustainable Futures (University of Bonn) and the Excellence Strategy of the federal and state governments.
 
-We also gratefully acknowledge access to the Marvin cluster, hosted by the University of Bonn, along with support from its High Performance Computing & Analytics Lab.
+We also gratefully acknowledge access to the Marvin and Bender clusters, hosted by the University of Bonn, and maintained by the university's High Performance Computing Team.
 

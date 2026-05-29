@@ -6,12 +6,21 @@
 # It can evaluate either local checkpoints or HuggingFace models in parallel across GPUs.
 # Results are post-processed to YAML format for easy analysis.
 #
-# Learn more about SLURM options at: https://slurm.schedmd.com/sbatch.html
-# Learn more about lm-evaluation-harness at: https://github.com/EleutherAI/lm-evaluation-harness
+# Learn more about lm-evaluation-harness at: 
+# - https://github.com/EleutherAI/lm-evaluation-harness
 #############################################
 
 #############################################
 # SLURM Job Configuration
+#############################################
+# Learn about SLURM sbatch options at:
+# - https://slurm.schedmd.com/sbatch.html
+#
+# Learn about job submissions (Marvin|Bender) at:
+# - https://wiki.hpc.uni-bonn.de/en/running_jobs
+#
+# Learn about Marvin|Bender dual software stacks at:
+# - https://wiki.hpc.uni-bonn.de/en/dualstacks
 #############################################
 #SBATCH --account=ag_cst_gabriel           # <-- Change to your SLURM account
 #SBATCH --partition=mlgpu_short            # <-- Change to your partition
@@ -23,15 +32,13 @@
 #SBATCH --time=08:00:00                    # <-- Time limit (days-hrs:min:sec)
 #SBATCH --gres=gpu:a40:1                   # <-- Request 1 GPU initially (script will use up to 8 based on items to evaluate)
 #SBATCH --exclusive                        # <-- Request exclusive node access (recommended for performance)
-#SBATCH --dependency=afterany:24006883     # <-- OPTIONAL: Wait for another job to finish (change job ID or comment out) 
+
 #############################################
 # Working Directory Setup
 #############################################
-username="nklugeco_hpc"                    # <-- Change to your HPC username
-file_system="mlnvme"                       # <-- Change to your filesystem (mlnvme, scratch, etc.)
-workspace_name="nanotronics"               # <-- Change to your workspace/project name
 
-workdir="/lustre/$file_system/data/$username-$workspace_name"  # <-- Constructs the full workspace path
+# Set this to your workspace root (where you have the .venv and .modules.sh files).
+workdir="/lustre/mlnvme/data/polyglot"
 mkdir -p "$workdir"                        # <-- Create workspace directory if it doesn't exist
 cd "$workdir"                              # <-- Change to workspace directory
 ulimit -c 0                                # <-- Disable core dumps (saves disk space)
@@ -39,36 +46,55 @@ ulimit -c 0                                # <-- Disable core dumps (saves disk 
 #############################################
 # Environment Setup
 #############################################
-source $workdir/.modules.sh            # <-- Load required modules (Python, CUDA, etc.)
+source $workdir/.modules.sh                # <-- Load required modules (Python, CUDA, etc.)
 # python3 -m venv $workdir/.venv_eval_pt   # <-- UNCOMMENT on first run to create virtual environment
-source $workdir/.venv_eval_pt/bin/activate  # <-- Activate the virtual environment
+source $workdir/.venv_eval_pt/bin/activate # <-- Activate the virtual environment
 
-# UNCOMMENT the following lines on first run to set up lm-evaluation-harness:
-# This is our fork of the lm-evaluation-harness with Portuguese tasks added
+# ===== Clone and Install lm-evaluation-harness (UNCOMMENT on first run) =====
+
 # git clone --branch polyglot_harness_portuguese https://github.com/Polygl0t/lm-evaluation-harness.git
 # mv $workdir/lm-evaluation-harness $workdir/lm_evaluation_harness
 # pip3 install -e $workdir/lm_evaluation_harness
 # pip3 install "lm_eval[hf,vllm]"          # <-- Install lm-eval with HuggingFace and vLLM support
-# Required for IFEval:
+
+# ===== Optional: Required for IFEval =====
 # pip3 install langdetect --no-cache-dir
 # pip3 install immutabledict --no-cache-dir
 
+#############################################
 # Available Portuguese evaluation tasks:
-# - General Benchmarks: arc_challenge_poly_pt, mmlu_poly_pt, hellaswag_poly_pt, lambada_poly_pt
-#                       calame_pt, global_piqa_completions_por_latn_braz, assin_paraphrase, assin_entailment, belebele_por_Latn
-# - Instruction Following and Math: gsm8k_pt, ifeval_pt
-# - Long context: ruler_pt
+#############################################
+# - General Benchmarks: 
+#   - arc_challenge_poly_pt
+#   - mmlu_poly_pt
+#   - global_mmlu_full_pt | global_mmlu_pt 
+#   - hellaswag_poly_pt
+#   - lambada_poly_pt
+#   - calame_pt
+#   - global_piqa_completions_por_latn_braz
+#   - assin_paraphrase
+#   - assin_entailment
+#   - belebele_por_Latn
+#   - xwinograd_pt
+#
+# - Instruction Following and Math: 
+#   - gsm8k_pt
+#   - ifeval_pt
+#   - mmlu_pro_pt | mmlu_prox_lite_pt
+#   - global_piqa_prompted_por_latn_braz
+#
+# - Long context
+#   - ruler_pt
 
 #############################################
 # Configuration Variables
 #############################################
 export MAX_GPUS_PER_NODE=8                                                      # <-- Set to 8 for MLGPU nodes, 4 for SGPU nodes
-export HF_TOKEN="<your-token-here>"                         # <-- Add your Hugging Face token here (required for gated models)
+export HF_TOKEN="<your-token-here>"                                             # <-- Add your Hugging Face token here (required for gated models)
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK                                     # <-- Set OpenMP threads to match CPU allocation
 export HF_DATASETS_CACHE="$workdir/.eval_cache"                                 # <-- Cache directory for datasets
 export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE/models"                        # <-- Cache directory for models
 export CLEAN_CACHE="0"                                                          # <-- Set to "1" to clean cache after job completion, "0" to keep cache
-# General Benchmarks for Portuguese LLMs
 export TASKS="\
 arc_challenge_poly_pt,\
 mmlu_poly_pt,\
@@ -79,10 +105,6 @@ global_piqa_completions_por_latn_braz,\
 assin_paraphrase,\
 assin_entailment,\
 belebele_por_Latn"
-# Evals for Instruction Following and Math
-# export TASKS="gsm8k_pt,ifeval_pt"
-# Evals for long context
-# export TASKS="ruler_pt"
 export NUM_FEWSHOT=5                                                            # <-- Number of few-shot examples (0 for zero-shot)
 export EVAL_MODE="checkpoints"                                                  # <-- Options: "checkpoints" or "models"
 export CHECKPOINT_DIR="$workdir/checkpoints"                                    # <-- Path to checkpoint directory
@@ -240,8 +262,9 @@ for i in $(seq 0 $((NUM_TO_EVAL - 1))); do
     ERR_FILES+=("$workdir/job_outputs/err-eval-portuguese-auto-$((i+1)).$SLURM_JOB_ID")
     # Write job header to output file
     echo "# [${SLURM_JOB_ID}] Job started at: $(date)" > "${OUT_FILES[$i]}"
-    echo "# Working directory: $workdir" >> "${OUT_FILES[$i]}"
-    echo "# Python executable: $(which python3)" >> "${OUT_FILES[$i]}"
+    echo "# [${SLURM_JOB_ID}] GLIBC version: $(ldd --version | head -n1)" >> "${OUT_FILES[$i]}"
+    echo "# [${SLURM_JOB_ID}] Working directory: $workdir" >> "${OUT_FILES[$i]}"
+    echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --version)" >> "${OUT_FILES[$i]}"
 done
 
 #############################################

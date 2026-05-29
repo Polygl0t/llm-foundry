@@ -18,6 +18,7 @@ Usage:
         --logs_dir pt_eval_logs/ \
         --output_folder pt_results/
 """
+import os
 import yaml
 import json
 import argparse
@@ -25,7 +26,7 @@ import argparse
 def main (args):
     output_folder = args.output_folder
     logs_dir = args.logs_dir
-    eval_files = os.listdir(logs_dir)
+    eval_files = [f for f in os.listdir(logs_dir) if f.endswith(".json")]
     for eval_file in eval_files:
         
         path = os.path.join(logs_dir, eval_file)
@@ -53,7 +54,11 @@ def main (args):
                 yaml.dump(flat_data, f, default_flow_style=False)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Post-process JSON files.")
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    
     parser.add_argument(
         "--logs_dir",
         type=str,

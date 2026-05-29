@@ -1,5 +1,6 @@
 # Specifies the method to use for merging models.
-# See [Merge Methods](https://github.com/arcee-ai/mergekit#merge-methods) for a list.
+# See: https://github.com/arcee-ai/mergekit#merge-methods
+
 merge_method: linear
 base_model: ./checkpoints/models/Tucano2-qwen-0.5B-Instruct
 models:

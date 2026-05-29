@@ -16,11 +16,10 @@ Or run a single script directly:
 python tests/tests_distributed.py
 ```
 
-### Module Loading on Marvin
+### Module Loading
 
-To run tests regarding the module loading logic on Marvin's dual stack (Intel|AMD CPU and NVIDIA GPU), use the following scripts:
+To run tests regarding the module loading logic on Marvin|Bender dual stack, use the following script:
 
 ```bash
-bash tests/test_modules_cpu.sh
-bash tests/test_modules_gpu.sh
+bash tests/test_modules.sh
 ```

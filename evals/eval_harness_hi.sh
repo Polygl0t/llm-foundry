@@ -4,14 +4,21 @@
 # 
 # This script automates the evaluation of Hindi language models using the lm-evaluation-harness framework.
 # It can evaluate either local checkpoints or HuggingFace models in parallel across GPUs.
-# Results are post-processed to YAML format for easy analysis.
-#
-# Learn more about SLURM options at: https://slurm.schedmd.com/sbatch.html
-# Learn more about lm-evaluation-harness at: https://github.com/EleutherAI/lm-evaluation-harness
+# Learn more about lm-evaluation-harness at: 
+# - https://github.com/EleutherAI/lm-evaluation-harness
 #############################################
 
 #############################################
 # SLURM Job Configuration
+#############################################
+# Learn about SLURM sbatch options at:
+# - https://slurm.schedmd.com/sbatch.html
+#
+# Learn about job submissions (Marvin|Bender) at:
+# - https://wiki.hpc.uni-bonn.de/en/running_jobs
+#
+# Learn about Marvin|Bender dual software stacks at:
+# - https://wiki.hpc.uni-bonn.de/en/dualstacks
 #############################################
 #SBATCH --account=<your_slurm_account>     # <-- Change to your SLURM account
 #SBATCH --partition=mlgpu_medium           # <-- Change to your partition
@@ -27,32 +34,31 @@
 #############################################
 # Working Directory Setup
 #############################################
-username="<your_hpc_username>"                       # <-- Change to your HPC username
-file_system="mlnvme"                                 # <-- Change to your filesystem (mlnvme, scratch, etc.)
-workspace_name="<your_workspace_name>"               # <-- Change to your workspace/project name
 
-workdir="/lustre/$file_system/data/$username-$workspace_name"  # <-- Constructs the full workspace path
+# Set this to your workspace root (where you have the .venv and .modules.sh files).
+workdir="/lustre/mlnvme/data/polyglot"
 mkdir -p "$workdir"                        # <-- Create workspace directory if it doesn't exist
 cd "$workdir"                              # <-- Change to workspace directory
 ulimit -c 0                                # <-- Disable core dumps (saves disk space)
 
 #############################################
-# Environment Setup
+# Modules & Libraries Setup
 #############################################
-source $workdir/.modules.sh                  # <-- Load required modules (Python, CUDA, etc.)
-#python3 -m venv $workdir/.venv_eval_hindi       # <-- UNCOMMENT on first run to create virtual environment
+
+source $workdir/.modules.sh                      # <-- Load required modules (Python, CUDA, etc.)
+# python3 -m venv $workdir/.venv_eval_hindi      # <-- UNCOMMENT on first run to create virtual environment
 source $workdir/.venv_eval_hindi/bin/activate    # <-- Activate the virtual environment
 
-# UNCOMMENT the following lines on first run to set up lm-evaluation-harness:
-# This is our fork of the lm-evaluation-harness with Hindi tasks added
-#git clone --branch polyglot_harness_hindi https://github.com/Polygl0t/lm-evaluation-harness.git
-#git checkout polyglot_harness_hindi
-#mv $workdir/lm-evaluation-harness $workdir/lm_evaluation_harness_hindi
-#pip3 install -e $workdir/lm_evaluation_harness_hindi
-#pip3 install "lm_eval[hf,vllm]"          # <-- Install lm-eval with HuggingFace and vLLM support
+# ===== Clone and Install lm-evaluation-harness (UNCOMMENT on first run) =====
 
+# git clone --branch polyglot_harness_hindi https://github.com/Polygl0t/lm-evaluation-harness.git
+# mv $workdir/lm-evaluation-harness $workdir/lm_evaluation_harness_hindi
+# pip3 install --upgrade pip
+# pip3 install -e $workdir/lm_evaluation_harness_hindi
 
+#############################################
 # Available Hindi evaluation tasks:
+#############################################
 # - arc_challenge_poly_hi
 # - mmlu_poly_hi
 # - hellaswag_poly_hi
@@ -64,10 +70,11 @@ source $workdir/.venv_eval_hindi/bin/activate    # <-- Activate the virtual envi
 # - milu_hi
 
 #############################################
-# Configuration Variables
+# Environment Setup
 #############################################
+
 export MAX_GPUS_PER_NODE=8                                                      # <-- Set to 8 for MLGPU nodes, 4 for SGPU nodes
-export HF_TOKEN="<your_hf_token>"                         # <-- Add your Hugging Face token here (required for gated models)
+export HF_TOKEN="<your_hf_token>"                                               # <-- Add your Hugging Face token here (required for gated models)
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK                                     # <-- Set OpenMP threads to match CPU allocation
 export HF_DATASETS_CACHE="$workdir/.cache"                                      # <-- Cache directory for datasets
 export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE/models"                        # <-- Cache directory for models
@@ -83,11 +90,11 @@ arc_challenge_poly_hi,\
 mmlu_poly_hi,\
 hellaswag_poly_hi"
 export NUM_FEWSHOT=5                                                            # <-- Number of few-shot examples (0 for zero-shot)
-export EVAL_MODE="models"                                                  # <-- Options: "checkpoints" or "models"
+export EVAL_MODE="models"                                                       # <-- Options: "checkpoints" or "models"
 export CHECKPOINT_DIR="$workdir/checkpoints"                                    # <-- Path to checkpoint directory
 export MODELS_TO_EVAL="Polygl0t/LilMoo-v0.1 Polygl0t/LilMoo-v0.2"               # <-- HuggingFace model IDs to evaluate
-export EVAL_OUTPUT_DIR="$workdir/.evals_hindi"                                # <-- Directory for evaluation results (YAML files)
-export LOGS_FOLDER="$workdir/.eval_logs_hindi"                                # <-- Directory for evaluation logs and JSON results
+export EVAL_OUTPUT_DIR="$workdir/.evals_hindi"                                  # <-- Directory for evaluation results (YAML files)
+export LOGS_FOLDER="$workdir/.eval_logs_hindi"                                  # <-- Directory for evaluation logs and JSON results
 mkdir -p "$EVAL_OUTPUT_DIR"                                                     # <-- Create output directory
 mkdir -p "$LOGS_FOLDER"                                                         # <-- Create logs directory
 
@@ -239,8 +246,9 @@ for i in $(seq 0 $((NUM_TO_EVAL - 1))); do
     ERR_FILES+=("$workdir/job_outputs/err-eval-hindi-auto-$((i+1)).$SLURM_JOB_ID")
     # Write job header to output file
     echo "# [${SLURM_JOB_ID}] Job started at: $(date)" > "${OUT_FILES[$i]}"
-    echo "# Working directory: $workdir" >> "${OUT_FILES[$i]}"
-    echo "# Python executable: $(which python3)" >> "${OUT_FILES[$i]}"
+    echo "# [${SLURM_JOB_ID}] GLIBC version: $(ldd --version | head -n1)" >> "${OUT_FILES[$i]}"
+    echo "# [${SLURM_JOB_ID}] Working directory: $workdir" >> "${OUT_FILES[$i]}"
+    echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --version)" >> "${OUT_FILES[$i]}"
 done
 
 #############################################
