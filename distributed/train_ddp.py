@@ -69,7 +69,7 @@ def main(specs, slurm_job_id, hardware):
     # - world_size: the total number of processes across all nodes (int).
     # - master_process: a boolean indicating if this is the master process (rank 0).
     # - ddp: a boolean indicating if Distributed Data Parallel (DDP) is being used.
-    env = DistributedEnvironment(logger)
+    env = DistributedEnvironment(logger, mode="DDP")
     rank = env.rank
     device = env.device
     device_type = env.device_type

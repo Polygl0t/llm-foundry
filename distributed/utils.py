@@ -94,7 +94,9 @@ class DistributedEnvironment:
         3. Local fallback: use available GPUs or CPU
     """
 
-    def __init__(self, logger):
+    def __init__(self, logger, mode="Distributed"):
+
+        self.mode = mode
 
         if "SLURM_NTASKS" in os.environ and "SLURM_PROCID" in os.environ:
             # SLURM cluster
@@ -145,7 +147,7 @@ class DistributedEnvironment:
             self.master_process = self.rank == 0
             self.ddp = True
             if self.master_process:
-                logger.info(f"Running DDP via '{dist.get_backend()}' backend. Logging process: {self.rank}. World size: {self.world_size}.")
+                logger.info(f"Running {self.mode} via '{dist.get_backend()}' backend. Logging process: {self.rank}. World size: {self.world_size}.")
 
         else:
             # Single-process training (1 GPU or CPU).
@@ -159,6 +161,7 @@ class DistributedEnvironment:
             self.ddp = False
             logger.info(f"Running single process training on {self.device}.")
 
+        self.fsdp = self.ddp
         self.device_type = "cuda" if self.device.startswith("cuda") else "cpu"
 
     @staticmethod
