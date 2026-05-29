@@ -83,7 +83,7 @@ for i in $(seq 0 $((SLURM_NTASKS_PER_NODE - 1))); do
     echo "# [${SLURM_JOB_ID}] Running on nodes: $(scontrol show hostnames "$SLURM_NODELIST" | tr '\n' ' ')" >> "$out_var"
     echo "# [${SLURM_JOB_ID}] GLIBC version: $(ldd --version | head -n1)" >> "$out_var"
     echo "# [${SLURM_JOB_ID}] Working directory: $workdir" >> "$out_var"
-    echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --version) — $(python3 --version)" >> "$out_var"
+    echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --version)" >> "$out_var"
 done
 
 #############################################

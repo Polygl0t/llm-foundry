@@ -146,7 +146,7 @@ echo "# [${SLURM_JOB_ID}] Running on nodes: $(scontrol show hostnames "$SLURM_NO
 echo "# [${SLURM_JOB_ID}] GLIBC version: $(ldd --version | head -n1)" >> "$out"
 echo "# [${SLURM_JOB_ID}] MASTER_ADDR: $MASTER_ADDR ($MASTER_PORT)" >> "$out"
 echo "# [${SLURM_JOB_ID}] Working directory: $workdir" >> "$out"
-echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --version) — $(python3 --version)" >> "$out"
+echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --version)" >> "$out"
 
 #############################################
 # Main Job Execution

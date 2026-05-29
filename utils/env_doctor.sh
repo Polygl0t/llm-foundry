@@ -54,7 +54,7 @@ echo "# [${SLURM_JOB_ID}] Using $SLURM_NTASKS GPUs in total ($SLURM_NTASKS_PER_N
 echo "# [${SLURM_JOB_ID}] Running on nodes: $(scontrol show hostnames "$SLURM_NODELIST" | tr '\n' ' ')"
 echo "# [${SLURM_JOB_ID}] GLIBC version: $(ldd --version | head -n1)"
 echo "# [${SLURM_JOB_ID}] Working directory: $workdir"
-echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --version) — $(python3 --version)"
+echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --version)"
 
 #############################################
 # Main Job Execution
