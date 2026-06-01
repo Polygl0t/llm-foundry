@@ -483,3 +483,19 @@ Every 4th layer is full attention, the rest use Gated-DeltaNet linear attention;
 
 </details>
 
+## Benchmarks
+
+Training throughput measured on 2-GPU nodes (seq len 4096, bfloat16). TPS and dt are per-GPU figures for a single optimization step.
+
+| Model Class                              | GPU          | Context Length | Batch Size          | Total Params | Active Params | VRAM     | MFU     | TPS / GPU | Step dt  |
+|------------------------------------------|--------------|----------------|---------------------|--------------|---------------|----------|---------|-----------|----------|
+| `LlamaForCausalLM`                       | A100 2×80 GB | 4096           | 256 total (128/GPU) | 52.4 M       | 52.4 M        | 71.64 GB | 62.15 % | 361,389   | 1,451 ms |
+| `LlamaForCausalLM`                       | A40 2×48 GB  | 4096           | 128 total (64/GPU)  | 52.4 M       | 52.4 M        | 36.05 GB | 56.21 % | 164,473   | 1,594 ms |
+| `Qwen3_5ForCausalLM` (full attention)    | A100 2×80 GB | 4096           | 128 total (64/GPU)  | 52.4 M       | 52.4 M        | 52.16 GB | 45.30 % | 263,734   | 994 ms   |
+| `Qwen3_5ForCausalLM` (full attention)    | A40 2×48 GB  | 4096           | 64 total (32/GPU)   | 52.4 M       | 52.4 M        | 26.31 GB | 40.00 % | 116,379   | 1,123 ms |
+| `Qwen3_5MoeForCausalLM` (full attention) | A100 2×80 GB | 4096           | 128 total (64/GPU)  | 76.1 M       | 47.8 M        | 63.05 GB | 34.52 % | 211,553   | 1,233 ms |
+| `Qwen3_5MoeForCausalLM` (full attention) | A40 2×48 GB  | 4096           | 64 total (32/GPU)   | 76.1 M       | 47.8 M        | 31.84 GB | 31.81 % | 98,053    | 1,348 ms |
+| `Qwen3MoeForCausalLM`   (full attention) | A100 2×80 GB | 4096           | 128 total (64/GPU)  | 79.7 M       | 51.4 M        | 70.84 GB | 42.46 % | 178,870   | 1,466 ms |
+| `Qwen3MoeForCausalLM`   (full attention) | A40 2×48 GB  | 4096           | 64 total (32/GPU)   | 79.7 M       | 51.4 M        | 35.75 GB | 37.97 % | 80,074    | 1,637 ms |
+
+> **Note:** The table values are rounded from the raw benchmark logs. `LlamaForCausalLM` was benchmarked at 2× the total batch size of the other models. Active params equal total params for dense models; MoE models activate 2 of 8 experts per token.
