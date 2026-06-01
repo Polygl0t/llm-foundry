@@ -140,28 +140,52 @@ https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0
 ```
 ### MoE Error on Bender
 
-If your training a MoE model on Bender and encounter the error: `ValueError: atomic_add does not support bf16`, 
+If your training a MoE model on Bender and encounter this error: 
 
-this is probably because Liger-Kernel uses tl.atomic_add to accumulate gradients ([Source](https://github.com/linkedin/Liger-Kernel/blob/v0.8.0/src/liger_kernel/ops/fused_moe.py)), but Triton's atomic_add does not support bfloat16 (with current version _Triton 3.2.0_ ). 
-Since the model trains in bf16, it crashes on the first backward pass.  
-Support for bf16 in atomic_add is added in _Triton 3.4.0_ ([Source](https://github.com/triton-lang/triton/releases/tag/v3.4.0) and [Source](https://github.com/triton-lang/triton/pull/6519)).
+```
+ValueError: atomic_add does not support bf16
+```
 
-#### Possible Solution 1: 
-Upgrade Triton to 3.4.0 or later to get bf16 support in atomic_add.  
-**But** Current installed version of PyTorch (2.6.0) only supports up to Triton 3.2.0 ([Source](https://github.com/triton-lang/triton-windows)), so we cannot upgrade Triton without upgrading PyTorch. 
+This happens because Liger-Kernel uses `tl.atomic_add` to accumulate gradients ([source](https://github.com/linkedin/Liger-Kernel/blob/v0.8.0/src/liger_kernel/ops/fused_moe.py)), but Triton's `atomic_add` does not support bfloat16 with the version of Triton we use in this stack (3.2.0). Since we train our models in bf16 precision, the training crashes on the first backward pass.
 
-#### Possible Solution 2:
+- **Note:** Support for bf16 in `atomic_add` is added in Triton 3.4.0 ([source](https://github.com/triton-lang/triton/releases/tag/v3.4.0)).
+
+**Possible Solution 1:**
+
+Upgrade Triton to 3.4.0 or later to get bf16 support in `atomic_add`. However, this may require upgrading PyTorch to a version that supports Triton 3.4.0, which may not be possible on Bender because of CUDA version constraints (max is 12.4 in Bender), the old GLIBC version that Bender is running (2.28), and flash attention's pickyness.
+
+**Possible Solution 2:**
+
 Disable swiglu when applying the liger kernel to MoE models.
 
-in _model_setup.py_:
+in [`model_setup.py`](./model_setup.py):
 
 ```python
-model_type = str(getattr(model.config, "model_type", "") or "")
-is_moe = "moe" in model_type
-.....
-....
-....
-"swiglu": not is_moe,
+...
+
+def _apply_liger_kernels(model, args):
+    """
+    Apply Liger kernels to the model for optimized performance.
+
+    Liger's RoPE replacement is only valid for HF rotary embedding modules
+    with the standard interface (Llama / Qwen3 / Qwen2.5 ...). Qwen3.5 uses
+    a customized rotary embedding (partial rotation, per-layer shapes) that
+    is not compatible with Liger's RoPE kernel, so we disable it there.
+    """
+    liger_transformers = importlib.import_module("liger_kernel.transformers")
+    apply_liger_kernel = getattr(liger_transformers, "_apply_liger_kernel_to_instance")
+    model_type = str(getattr(model.config, "model_type", "") or "")
+    rope_compatible = not model_type.startswith("qwen3_5")
+    liger_kwargs = {
+        "rope": rope_compatible,
+        "cross_entropy": False,
+        "fused_linear_cross_entropy": True,
+        "rms_norm": True,
+        "swiglu": False,  # Set to False to avoid atomic_add bf16 error in MoE models on Bender
+    }
+    apply_liger_kernel(model=model, **liger_kwargs)
+
+...
 ```
 
 ## Example Architecture Configs
