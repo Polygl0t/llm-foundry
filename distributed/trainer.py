@@ -94,7 +94,8 @@ def _save_checkpoint(*, output_dir, model_to_save, tokenizer, completed_steps, i
         model_to_save.save_pretrained(output_dir, **model_save_kwargs)
     else:
         model_to_save.save_pretrained(output_dir)
-    tokenizer.save_pretrained(output_dir)
+    if tokenizer is not None:
+        tokenizer.save_pretrained(output_dir)
 
     # Save the optimizer state and other metadata.
     torch.save(
@@ -113,7 +114,8 @@ def _push_to_hub(*, model_to_push, tokenizer, hub_model_id, hub_token, stage_nam
     """Push model and tokenizer to the Hugging Face Hub."""
     hub_id = f"{hub_model_id}-{stage_name}-{completed_steps}"
     model_to_push.push_to_hub(hub_id, token=hub_token, private=True)
-    tokenizer.push_to_hub(hub_id, token=hub_token)
+    if tokenizer is not None:
+        tokenizer.push_to_hub(hub_id, token=hub_token)
 
 
 def _log_training_step(

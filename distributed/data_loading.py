@@ -263,9 +263,10 @@ def prepare_dataloaders(args, tokenizer, world_size, rank, logger=None, file_log
     if collate_fn is None:
         # Always mask pad, eos, and bos tokens when they are defined in the tokenizer.
         mask_token_ids = set()
-        for token_id in (tokenizer.pad_token_id, tokenizer.eos_token_id, tokenizer.bos_token_id):
-            if token_id is not None:
-                mask_token_ids.add(token_id)
+        if tokenizer is not None:
+            for token_id in (tokenizer.pad_token_id, tokenizer.eos_token_id, tokenizer.bos_token_id):
+                if token_id is not None:
+                    mask_token_ids.add(token_id)
 
         # Add any user-specified additional token IDs to mask.
         if args.additional_mask_token_ids:

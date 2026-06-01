@@ -695,6 +695,26 @@ def test_prepare_dataloaders_sanity():
     assert val_batch["input_ids"].shape[1] == 32
 
 
+def test_prepare_dataloaders_sanity_without_tokenizer_uses_additional_mask_ids():
+    """When tokenizer is None, prepare_dataloaders still applies additional_mask_token_ids."""
+    probe_args = _make_sanity_args()
+    train_ds, _ = _load_sanity_check_datasets(probe_args)
+    token_to_mask = int(train_ds[0]["input_ids"][0].item())
+
+    args = _make_sanity_args(additional_mask_token_ids=[token_to_mask])
+    bundle = prepare_dataloaders(
+        args=args,
+        tokenizer=None,
+        world_size=1,
+        rank=0,
+    )
+
+    train_batch = next(iter(bundle.train_dataloader))
+    masked_positions = train_batch["input_ids"] == token_to_mask
+    assert masked_positions.any(), "Expected at least one occurrence of the extra masked token ID"
+    assert torch.all(train_batch["labels"][masked_positions] == -100)
+
+
 def test_dataloader_custom_collate():
     """Custom collate function is respected when passed to prepare_dataloaders."""
     args = _make_sanity_args()
@@ -717,6 +737,7 @@ if __name__ == "__main__":
     for _fn in [
         test_load_sanity_check_datasets,
         test_prepare_dataloaders_sanity,
+        test_prepare_dataloaders_sanity_without_tokenizer_uses_additional_mask_ids,
         test_dataloader_custom_collate,
     ]:
         run_test(_fn.__name__, _fn)
@@ -866,15 +887,102 @@ def test_prepare_training_components_bf16():
         shutil.rmtree(tmpdir)
 
 
-def test_create_tokenizer_no_source_raises():
-    """Neither tokenizer_name_or_path nor base_model → ValueError."""
-    args = TrainingArguments()
+def test_create_tokenizer_no_source_from_scratch_returns_none():
+    """Scratch training without tokenizer_name_or_path or base_model returns None."""
+    args = TrainingArguments(continual_pretraining=False)
+    tokenizer = _create_tokenizer(args, master_process=True)
+    assert tokenizer is None
+
+
+def test_create_tokenizer_no_source_continual_raises():
+    """Continual pretraining still requires tokenizer_name_or_path or base_model."""
+    args = TrainingArguments(continual_pretraining=True)
     raised = False
     try:
         _create_tokenizer(args, master_process=True)
     except ValueError:
         raised = True
     assert raised
+
+
+def test_prepare_training_components_cpu_without_tokenizer():
+    """Scratch training from config works with a null tokenizer and preserves config vocab size."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        config_dir = _create_tiny_model_config(tmpdir)
+        args = TrainingArguments(
+            path_to_model_config=config_dir,
+            tokenizer_name_or_path=None,
+            base_model=None,
+            continual_pretraining=False,
+            attn_implementation="eager",
+            cache_dir=tmpdir,
+            checkpoint_dir=tmpdir,
+            stage_name="test",
+            torch_compile=False,
+            use_liger_kernel=False,
+            gradient_checkpointing=False,
+            mat_mul_precision="highest",
+            tf32=False,
+            bf16=False,
+        )
+        result = prepare_training_components(
+            args=args,
+            device="cpu",
+            master_process=True,
+        )
+        assert isinstance(result, ModelInitializationResult)
+        assert result.tokenizer is None
+        assert result.args.vocab_size == 1000
+        assert result.model.config.vocab_size == 1000
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+def test_prepare_training_components_continual_resizes_embeddings_to_tokenizer():
+    """Continual pretraining resizes embeddings upward when tokenizer is larger than the base model."""
+    from transformers import AutoModelForCausalLM
+
+    tmpdir = tempfile.mkdtemp()
+    try:
+        base_model_dir = os.path.join(tmpdir, "base_model")
+        os.makedirs(base_model_dir, exist_ok=True)
+        config_dir = _create_tiny_model_config(base_model_dir)
+        base_config = AutoConfig.from_pretrained(config_dir)
+        base_model = AutoModelForCausalLM.from_config(base_config, attn_implementation="eager")
+        base_model.save_pretrained(base_model_dir)
+
+        tokenizer_dir = os.path.join(tmpdir, "tokenizer")
+        tokenizer = AutoTokenizer.from_pretrained(_TINY_TOKENIZER_NAME)
+        tokenizer.add_special_tokens({"additional_special_tokens": ["<extra_test_token>"]})
+        tokenizer.save_pretrained(tokenizer_dir)
+
+        args = TrainingArguments(
+            base_model=base_model_dir,
+            tokenizer_name_or_path=tokenizer_dir,
+            continual_pretraining=True,
+            attn_implementation="eager",
+            cache_dir=tmpdir,
+            checkpoint_dir=tmpdir,
+            stage_name="test",
+            torch_compile=False,
+            use_liger_kernel=False,
+            gradient_checkpointing=False,
+            mat_mul_precision="highest",
+            tf32=False,
+            bf16=False,
+        )
+        result = prepare_training_components(
+            args=args,
+            device="cpu",
+            master_process=True,
+        )
+
+        assert result.tokenizer is not None
+        assert result.model.get_input_embeddings().num_embeddings == len(result.tokenizer)
+        assert result.args.vocab_size == len(result.tokenizer)
+    finally:
+        shutil.rmtree(tmpdir)
 
 
 def _make_mock_config(**kwargs):
@@ -1031,7 +1139,10 @@ if __name__ == "__main__":
         test_build_model_no_config_raises,
         test_prepare_training_components_cpu,
         test_prepare_training_components_bf16,
-        test_create_tokenizer_no_source_raises,
+        test_create_tokenizer_no_source_from_scratch_returns_none,
+        test_create_tokenizer_no_source_continual_raises,
+        test_prepare_training_components_cpu_without_tokenizer,
+        test_prepare_training_components_continual_resizes_embeddings_to_tokenizer,
         test_active_params_dense_and_single_expert_models,
         test_active_params_qwen_moe,
         test_active_params_granite_moe,

@@ -122,7 +122,12 @@ class TrainingArguments:
     )
     tokenizer_name_or_path: Optional[str] = field(
         default=None,
-        metadata={"help": "The name or path of the tokenizer to use."},
+        metadata={"help": (
+            "The name or path of the tokenizer to use. "
+            "Optional for training from scratch when your datasets are already tokenized; "
+            "in that case the trainer skips tokenizer-dependent masking and does not save a tokenizer. "
+            "For continual pretraining, the tokenizer is still required and defaults to `base_model` when omitted."
+        )},
     )
     chat_template_path: Optional[str] = field(
         default=None,

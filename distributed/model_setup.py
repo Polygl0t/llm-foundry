@@ -98,12 +98,20 @@ def _create_tokenizer(args, master_process, logger=None, file_logger=None):
             args.base_model,
             **tokenizer_kwargs,
         )
+    elif not args.continual_pretraining:
+        _log_message(
+            master_process,
+            logger,
+            file_logger,
+            "No tokenizer specified. Continuing without a tokenizer because training is configured from scratch.",
+        )
+        tokenizer = None
     else:
         raise ValueError(
-            "Either `tokenizer_name_or_path` or `base_model` must be set to load a tokenizer."
+            "Either `tokenizer_name_or_path` or `base_model` must be set to load a tokenizer for continual pretraining."
         )
 
-    if args.chat_template_path is not None:
+    if tokenizer is not None and args.chat_template_path is not None:
         with open(args.chat_template_path, "r") as handle:
             tokenizer.chat_template = handle.read()
         _log_message(
@@ -111,6 +119,13 @@ def _create_tokenizer(args, master_process, logger=None, file_logger=None):
             logger,
             file_logger,
             f"Loaded chat template from {args.chat_template_path}. Chat template added to the tokenizer.",
+        )
+    elif tokenizer is None and args.chat_template_path is not None:
+        _log_message(
+            master_process,
+            logger,
+            file_logger,
+            f"WARNING: chat_template_path={args.chat_template_path} was provided but no tokenizer was loaded. Skipping chat template setup.",
         )
 
     return tokenizer
@@ -138,12 +153,17 @@ def _build_model_from_config(args, tokenizer, precision, master_process, distrib
 
     runtime_kwargs = {
         "token": args.hub_token,
-        "bos_token_id": tokenizer.bos_token_id,
-        "eos_token_id": tokenizer.eos_token_id,
-        "pad_token_id": tokenizer.pad_token_id,
-        "unk_token_id": tokenizer.unk_token_id,
         "dtype": precision,
     }
+    if tokenizer is not None:
+        runtime_kwargs.update(
+            {
+                "bos_token_id": tokenizer.bos_token_id,
+                "eos_token_id": tokenizer.eos_token_id,
+                "pad_token_id": tokenizer.pad_token_id,
+                "unk_token_id": tokenizer.unk_token_id,
+            }
+        )
 
     config = AutoConfig.from_pretrained(
         pretrained_model_name_or_path=args.path_to_model_config,
@@ -151,8 +171,9 @@ def _build_model_from_config(args, tokenizer, precision, master_process, distrib
         **runtime_kwargs,
     )
 
-    # Ensure vocab_size is at least as large as the tokenizer
-    config.vocab_size = max(config.vocab_size, len(tokenizer))
+    # When a tokenizer is available, keep the config large enough to host it.
+    if tokenizer is not None:
+        config.vocab_size = max(config.vocab_size, len(tokenizer))
 
     # Bootstrap checkpoint path. Leading `.` keeps it invisible to the resume logic
     # in `_resolve_checkpoint_path` (which filters dirs by `startswith("step_")`).
@@ -267,6 +288,28 @@ def _load_model(args, tokenizer, precision, master_process, logger=None, file_lo
         **({"use_kernels": True} if use_kernels else {}),
     )
     return model, None
+
+
+def _resize_embeddings_for_tokenizer(model, tokenizer, master_process, logger=None, file_logger=None):
+    """Ensure pretrained models can represent every tokenizer token."""
+    if tokenizer is None:
+        return model
+
+    tokenizer_vocab_size = len(tokenizer)
+    current_vocab_size = model.get_input_embeddings().num_embeddings
+    target_vocab_size = max(current_vocab_size, tokenizer_vocab_size)
+
+    if target_vocab_size == current_vocab_size:
+        return model
+
+    model.resize_token_embeddings(target_vocab_size)
+    _log_message(
+        master_process,
+        logger,
+        file_logger,
+        f"Resized token embeddings from {current_vocab_size:,} to {target_vocab_size:,} to cover the tokenizer vocabulary.",
+    )
+    return model
 
 
 def _apply_liger_kernels(model, args):
@@ -438,6 +481,11 @@ def prepare_training_components(args, device, master_process, logger=None, file_
         use_kernels=use_kernels,
     )
 
+    if args.continual_pretraining:
+        model = _resize_embeddings_for_tokenizer(
+            model, tokenizer, master_process, logger, file_logger,
+        )
+
     # Backfill runtime architecture fields declared in TrainingArguments
     # (consumed by mfu.py, data_loading.py, utils.py, train_ddp.py)
     args.max_position_embeddings = model.config.max_position_embeddings
@@ -510,7 +558,8 @@ def prepare_training_components(args, device, master_process, logger=None, file_
         args.moe_intermediate_size = 0
         args.shared_intermediate_size = 0
 
-    tokenizer.model_max_length = model.config.max_position_embeddings
+    if tokenizer is not None:
+        tokenizer.model_max_length = model.config.max_position_embeddings
 
     # Warn if training a hybrid (used linear-attention) model without the
     # fast-path kernels. E.g., the Qwen3.5 modeling code only takes the optimized
