@@ -138,6 +138,31 @@ https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0
 # available is Cuda 12.4, which is not compatible with the release versions of PyTorch 2.7.x.
 # Hence, we cannot currently use flash-linear-attention on Bender with the official PyTorch releases.
 ```
+### MoE Error on Bender
+
+If your training a MoE model on Bender and encounter the error: `ValueError: atomic_add does not support bf16`, 
+
+this is probably because Liger-Kernel uses tl.atomic_add to accumulate gradients ([Source](https://github.com/linkedin/Liger-Kernel/blob/v0.8.0/src/liger_kernel/ops/fused_moe.py)), but Triton's atomic_add does not support bfloat16 (with current version _Triton 3.2.0_ ). 
+Since the model trains in bf16, it crashes on the first backward pass.  
+Support for bf16 in atomic_add is added in _Triton 3.4.0_ ([Source](https://github.com/triton-lang/triton/releases/tag/v3.4.0) and [Source](https://github.com/triton-lang/triton/pull/6519)).
+
+#### Possible Solution 1: 
+Upgrade Triton to 3.4.0 or later to get bf16 support in atomic_add.  
+**But** Current installed version of PyTorch (2.6.0) only supports up to Triton 3.2.0 ([Source](https://github.com/triton-lang/triton-windows)), so we cannot upgrade Triton without upgrading PyTorch. 
+
+#### Possible Solution 2:
+Disable swiglu when applying the liger kernel to MoE models.
+
+in _model_setup.py_:
+
+```python
+model_type = str(getattr(model.config, "model_type", "") or "")
+is_moe = "moe" in model_type
+.....
+....
+....
+"swiglu": not is_moe,
+```
 
 ## Example Architecture Configs
 
