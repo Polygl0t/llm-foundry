@@ -13,13 +13,13 @@
 # - https://wiki.hpc.uni-bonn.de/en/dualstacks
 #############################################
 #SBATCH --account=ag_bit_flek              # <-- Change to your SLURM account
-#SBATCH --partition=lm_medium              # <-- Change to your partition
-#SBATCH --job-name=unicode-filter
+#SBATCH --partition=intelsr_short          # <-- Change to your partition
+#SBATCH --job-name=lang-filter
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=96
-#SBATCH --time=1-00:00:00
-#SBATCH --mem=1900G
+#SBATCH --cpus-per-task=64
+#SBATCH --time=08:00:00
+#SBATCH --mem=500G
 #SBATCH --exclusive
 
 #############################################
@@ -32,8 +32,8 @@ mkdir -p "$workdir/run_outputs"
 cd "$workdir"
 ulimit -c 0
 
-out="$workdir/run_outputs/out-unicode-filter.$SLURM_JOB_ID"
-err="$workdir/run_outputs/err-unicode-filter.$SLURM_JOB_ID"
+out="$workdir/run_outputs/out-lang-filter.$SLURM_JOB_ID"
+err="$workdir/run_outputs/err-lang-filter.$SLURM_JOB_ID"
 
 #############################################
 # Modules & Libraries Setup
@@ -67,16 +67,37 @@ echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --ve
 
 #############################################
 # Main Job Execution
+#
+# Choose one of the two backends below.
+#
+# langdetect  — probabilistic, more accurate on short/ambiguous text, slower.
+# unicode     — heuristic character-range matching, fast and deterministic.
+#               Use --unicode_threshold (0.0–1.0) to tune strictness.
 #############################################
 
-python3 "$workdir/llm-foundry/data/filters/unicode_language_filter.py" \
+# ----- langdetect backend -----
+python3 "$workdir/llm-foundry/data/filters/language_filter.py" \
+    --backend langdetect \
     --input_dir "$workdir/data" \
     --output_dir "$workdir/data-filtered" \
     --input_type "jsonl" \
     --output_type "jsonl" \
-    --text_column "text" \
-    --languages english portuguese \
+    --text_column "messages" \
+    --languages portuguese \
+    --save_excluded \
     --num_proc $SLURM_CPUS_PER_TASK 1>>"$out" 2>>"$err"
+
+# ----- unicode backend (uncomment to use instead) -----
+# python3 "$workdir/llm-foundry/data/filters/language_filter.py" \
+#     --backend unicode \
+#     --input_dir "$workdir/data" \
+#     --output_dir "$workdir/data-filtered" \
+#     --input_type "jsonl" \
+#     --output_type "jsonl" \
+#     --text_column "text" \
+#     --languages english portuguese \
+#     --unicode_threshold 0.85 \
+#     --num_proc $SLURM_CPUS_PER_TASK 1>>"$out" 2>>"$err"
 
 #############################################
 # End of Script
