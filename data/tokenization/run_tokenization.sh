@@ -68,7 +68,7 @@ echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --ve
 # Main Job Execution
 #############################################
 
-python3 $workdir/llm-foundry/data/tokenization/tokenize.py \
+python3 $workdir/llm-foundry/data/tokenization/run_tokenization.py \
     --input_path "$workdir/data/raw" \
     --output_dir "$workdir/data/tokenized" \
     --tokenizer_name "Qwen/Qwen3-0.6B" \
