@@ -25,10 +25,11 @@ from dataclasses import dataclass
 from typing import Tuple
 
 
+# Peak FLOPs (BF16) for supported hardware (Bender|Marvin|Jupiter).
 PEAK_FLOPS_BY_HARDWARE = {
-    "a100": 300e12,
-    "a40": 150e12,
-    "h100": 1671e12,
+    "a100": 312e12,       # --> https://www.nvidia.com/en-us/data-center/a100/
+    "a40": 150e12,        # --> https://www.nvidia.com/en-us/data-center/a40/
+    "gh200": 990e12,      # --> https://www.nvidia.com/en-eu/data-center/grace-hopper-superchip/
     # Extend with more hardware as needed.
 }
 
