@@ -18,9 +18,9 @@ Packs a pre-tokenized dataset into fixed-length chunks using one of two strategi
 Both strategies detect and pack the following columns when present in the dataset:
   input_ids, labels, attention_mask, assistant_masks
 
-The output always contains a `seq_lengths` column whose value equals `block_size`
-for every row (since every packed chunk is exactly `block_size` tokens long after
-padding/discarding).
+When `--return_seq_lengths` is set, the output also includes a `seq_lengths`
+column whose value equals `block_size` for every row (since every packed chunk
+is exactly `block_size` tokens long after padding/discarding).
 
 Padding values used by the BFD strategy:
   input_ids      -> --pad_token_id  (required for bfd)
@@ -234,6 +234,10 @@ def main(args):
         sample_count = max_rows
         token_count = actual_tokens
 
+    # Drop seq_lengths from output if not requested by the user.
+    if not args.return_seq_lengths:
+        dataset = dataset.remove_columns("seq_lengths")
+
     # Save
     n_chunks = save_dataset(
         dataset, args.output_dir, args.output_type, args.tokens_per_chunk, token_count
@@ -289,6 +293,10 @@ if __name__ == "__main__":
     pack.add_argument(
         "--pad_token_id", type=int, default=None,
         help="Token ID used to pad partial chunks. Required for the 'bfd' strategy.",
+    )
+    pack.add_argument(
+        "--return_seq_lengths", action="store_true",
+        help="Include the 'seq_lengths' column in the saved dataset.",
     )
 
     # Limits
