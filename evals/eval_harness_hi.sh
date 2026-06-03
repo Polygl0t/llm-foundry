@@ -62,7 +62,7 @@ source $workdir/.venv_eval_hindi/bin/activate    # <-- Activate the virtual envi
 # - arc_challenge_poly_hi
 # - mmlu_poly_hi
 # - hellaswag_poly_hi
-# - global_piqa_hi
+# - global_piqa_nonparallel_cloze_hin_deva (global_piqa_nonparallel_generation_hin_deva for chat models)
 # - csqa_hi
 # - copa_hi
 # - iitp_mr_hi
@@ -85,7 +85,7 @@ copa_hi,\
 indicxnli,\
 iitp_mr_hi,\
 milu_hi,\
-global_piqa_completions_hin_deva,\
+global_piqa_nonparallel_cloze_hin_deva,\
 arc_challenge_poly_hi,\
 mmlu_poly_hi,\
 hellaswag_poly_hi"

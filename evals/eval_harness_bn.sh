@@ -69,6 +69,8 @@ source $workdir/.venv_eval_bengali/bin/activate  # <-- Activate the virtual envi
 # - commonsenseqa_bn
 # - piqa_bn
 # - openbookqa_bn
+# - global_piqa_nonparallel_cloze_ben_beng (global_piqa_nonparallel_generation_ben_beng for chat models)
+# - global_piqa_parallel_cloze_ben_beng (global_piqa_parallel_generation_ben_beng for chat models)
 
 #############################################
 # Environment Setup

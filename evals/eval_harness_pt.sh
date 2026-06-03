@@ -76,6 +76,8 @@ source $workdir/.venv_eval_pt/bin/activate # <-- Activate the virtual environmen
 #   - assin_entailment
 #   - belebele_por_Latn
 #   - xwinograd_pt
+#   - global_piqa_nonparallel_cloze_por_latn_braz (global_piqa_nonparallel_generation_por_latn_braz for chat models)
+#   - global_piqa_parallel_cloze_por_latn_braz (global_piqa_parallel_generation_por_latn_braz for chat models)
 #
 # - Instruction Following and Math: 
 #   - gsm8k_pt
