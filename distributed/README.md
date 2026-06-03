@@ -491,10 +491,14 @@ Training throughput measured on 2-GPU nodes (seq len 4096, bfloat16). TPS and dt
 |------------------------------------------|--------------|----------------|---------------------|--------------|---------------|----------|---------|-----------|----------|
 | `LlamaForCausalLM`                       | A100 2×80 GB | 4096           | 256 total (128/GPU) | 52.4 M       | 52.4 M        | 71.64 GB | 62.15 % | 361,389   | 1,451 ms |
 | `LlamaForCausalLM`                       | A40 2×48 GB  | 4096           | 128 total (64/GPU)  | 52.4 M       | 52.4 M        | 36.05 GB | 56.21 % | 164,473   | 1,594 ms |
-| `Qwen3_5ForCausalLM` (full attention)    | A100 2×80 GB | 4096           | 128 total (64/GPU)  | 52.4 M       | 52.4 M        | 52.16 GB | 45.30 % | 263,734   | 994 ms   |
+| `Qwen3_5ForCausalLM` (full attention)    | A100 2×80 GB | 4096           | 128 total (64/GPU)  | 52.4 M       | 52.4 M        | 52.16 GB | 45.30 % | 263,734   |   994 ms |
 | `Qwen3_5ForCausalLM` (full attention)    | A40 2×48 GB  | 4096           | 64 total (32/GPU)   | 52.4 M       | 52.4 M        | 26.31 GB | 40.00 % | 116,379   | 1,123 ms |
+| `Qwen3_5ForCausalLM` (hybrid 3:1)        | A100 2×80 GB | 4096           | 128 total (64/GPU)  | 58.8 M       | 58.8 M        | 61.69 GB | 37.12 % | 278,797   |   940 ms |
+| `Qwen3_5ForCausalLM` (hybrid 3:1)        | A40 2×48 GB  | 4096           | 64 total (32/GPU)   | 58.8 M       | 58.8 M        | 31.10 GB | 31.30 % | 113,735   | 1,152 ms |
 | `Qwen3_5MoeForCausalLM` (full attention) | A100 2×80 GB | 4096           | 128 total (64/GPU)  | 76.1 M       | 47.8 M        | 63.05 GB | 34.52 % | 211,553   | 1,233 ms |
 | `Qwen3_5MoeForCausalLM` (full attention) | A40 2×48 GB  | 4096           | 64 total (32/GPU)   | 76.1 M       | 47.8 M        | 31.84 GB | 31.81 % | 98,053    | 1,348 ms |
+| `Qwen3_5MoeForCausalLM` (hybrid 3:1)     | A100 2×80 GB | 4096           | 128 total (64/GPU)  | 82.5 M       | 54.1 M        | 57.43 GB | 31.89%  | 255,690   | 1,018 ms |
+| `Qwen3_5MoeForCausalLM` (hybrid 3:1)     | A40 2×48 GB  | 4096           | 64 total (32/GPU)   | 82.5 M       | 54.1 M        | 29.06 GB | 27.10 % | 105,812   | 1,251 ms |
 | `Qwen3MoeForCausalLM`   (full attention) | A100 2×80 GB | 4096           | 128 total (64/GPU)  | 79.7 M       | 51.4 M        | 70.84 GB | 42.46 % | 178,870   | 1,466 ms |
 | `Qwen3MoeForCausalLM`   (full attention) | A40 2×48 GB  | 4096           | 64 total (32/GPU)   | 79.7 M       | 51.4 M        | 35.75 GB | 37.97 % | 80,074    | 1,637 ms |
 
