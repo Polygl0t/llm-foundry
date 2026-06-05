@@ -19,19 +19,33 @@ import torch
 from transformers import AutoModelForCausalLM
 
 
-SUPPORTED_MODEL_TYPES = {"llama", "qwen3_5"}
-RMSNORM_CLASS_NAMES = {"LlamaRMSNorm", "Qwen3_5RMSNorm"}
+SUPPORTED_MODEL_TYPES = {"llama", "qwen2", "qwen3", "qwen3_moe", "qwen3_5_text", "qwen3_5_moe_text"}
+# RMSNorm classes whose `_init_weights` is a no-op and whose weight should be
+# reset to 1.0 (forward computes `x * weight`, weight stored as ones).
+# Qwen3_5RMSNorm / Qwen3_5MoeRMSNorm are intentionally excluded: their forward
+# computes `x * (1.0 + weight)` with weight stored as zeros, and their model's
+# `_init_weights` already handles them via `init.zeros_(module.weight)`.
+RMSNORM_CLASS_NAMES = {"LlamaRMSNorm", "Qwen2RMSNorm", "Qwen3RMSNorm", "Qwen3MoeRMSNorm"}
 ATTENTION_CLASS_NAMES = {
 	"llama": {
 		"LlamaAttention",
-		"LlamaFlashAttention2",
-		"LlamaSdpaAttention",
 	},
-	"qwen3_5": {
+	"qwen2": {
+		"Qwen2Attention"
+	},
+	"qwen3": {
+		"Qwen3Attention"
+	},
+	"qwen3_moe": {
+		"Qwen3MoeAttention"
+	},
+	"qwen3_5_text": {
 		"Qwen3_5Attention",
-		"Qwen3_5FlashAttention2",
-		"Qwen3_5SdpaAttention",
 		"Qwen3_5GatedDeltaNet",
+	},
+	"qwen3_5_moe_text": {
+		"Qwen3_5MoeAttention",
+		"Qwen3_5MoeGatedDeltaNet",
 	},
 }
 
@@ -52,8 +66,10 @@ def detect_model_type(model: AutoModelForCausalLM) -> str:
 	architecture_names = set(getattr(model.config, "architectures", []) or [])
 	if any("Llama" in name for name in architecture_names):
 		return "llama"
+	if any("Qwen3_5Moe" in name for name in architecture_names):
+		return "qwen3_5_moe_text"
 	if any("Qwen3_5" in name for name in architecture_names):
-		return "qwen3_5"
+		return "qwen3_5_text"
 
 	raise ValueError(
 		f"Unsupported model_type={model_type!r}. Expected one of {sorted(SUPPORTED_MODEL_TYPES)}."
@@ -111,7 +127,9 @@ def reset_non_attention_weights(
 				print(f"[Info]    Skipping tied module: {name}")
 				continue
 			model._init_weights(module)
-			# _init_weights skips RMSNorm; reset explicitly
+			# Llama/Qwen2/Qwen3(_Moe) _init_weights skips RMSNorm; reset explicitly.
+			# Qwen3_5(_Moe)RMSNorm is handled by their _init_weights (zeros_), and
+			# its forward uses `(1 + weight)`, so we must NOT override here.
 			if type(module).__name__ in RMSNORM_CLASS_NAMES:
 				module.weight.data.fill_(1.0)
 				if getattr(module, "bias", None) is not None:
