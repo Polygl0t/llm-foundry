@@ -4,6 +4,7 @@ This folder contains miscellaneous utility scripts and helpers for working with 
 
 ## Contents
 
+- [`compute_hyperparams.py`](./compute_hyperparams.py) — Compute training hyperparameters like learning rate, batch size, and steps based on model size and training configuration (uses the heuristics from the [DeepSeek LLM scaling laws paper](https://arxiv.org/abs/2401.02954)).
 - [`convert_dataset_to_hf.py`](./convert_dataset_to_hf.py) — Convert JSONL or Parquet dataset shards into a Hugging Face Dataset format and optionally upload it to the Hub.
 - [`count_tokens.py`](./count_tokens.py) — Create token count reports for a pretraining corpus.
 - [`download.py`](./download.py) — Download and cache Hugging Face repositories using patterns and authentication.
@@ -20,6 +21,26 @@ This folder contains miscellaneous utility scripts and helpers for working with 
 - [`upload.py`](./upload.py) — Upload a local directory to the Hugging Face Hub with optional repo creation.
 
 ## Usage Summary
+
+### `compute_hyperparams.py`
+Compute training hyperparameters based on model size and training configuration.
+
+Example:
+```bash
+python utils/compute_hyperparams.py \
+  --n-layer 28 \
+  --d-model 1536 \
+  --l-seq 4096 \
+  --params 670e6 \
+  --tokens 408e9
+```
+
+Main parameters:
+- `--n-layer`: number of transformer layers.
+- `--d-model`: model hidden dimension.
+- `--l-seq`: sequence length.
+- `--params`: total model parameters (can be computed from other args).
+- `--tokens`: total training tokens.
 
 ### `convert_dataset_to_hf.py`
 Convert a dataset directory to HF format.
