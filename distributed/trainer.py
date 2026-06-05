@@ -394,75 +394,7 @@ class DDPTrainer:
                     if master_process:
                         logger.info(f"Epoch {epoch} of {math.ceil(args.num_train_epochs)}")
                         file_logger.log_metadata(f"Epoch {epoch} of {math.ceil(args.num_train_epochs)}")
-             
-            # Evaluate the model when:
-            # - We have completed `args.checkpointing_steps` steps (excluding step 0).
-            # - The learning rate stage has changed.
-            # - We are at the last step.
-            if (
-                completed_steps % args.checkpointing_steps == 0
-                or lr_stage_change
-                or completed_steps == max_steps
-            ):
-                # Check if this checkpoint has already been validated (to avoid re-validation on resume)
-                already_validated = checkpoint_already_validated(
-                    args.checkpoint_dir, 
-                    args.stage_name, 
-                    completed_steps, 
-                    log_file if master_process else os.path.join(args.checkpoint_dir, f"{slurm_job_id}.log")
-                )
-                
-                # Skip validation if checkpoint already exists and has been validated
-                if already_validated:
-                    if master_process:
-                        logger.info(f"Skipping validation for step {completed_steps} - checkpoint already validated.")
-                    pass
-                else:
-                    if master_process:
-                        logger.info("Running validation ...")
 
-                    val_loss_accum, val_time = _run_validation_forward(
-                        model, validation_dataloader, device, device_type, precision
-                    )
-
-                    if ddp:
-                        dist.all_reduce(val_loss_accum, op=dist.ReduceOp.SUM)
-                        val_loss_accum = val_loss_accum / world_size
-
-                    if master_process:
-                        _log_validation(
-                            logger=logger, file_logger=file_logger,
-                            completed_steps=completed_steps, val_loss_accum=val_loss_accum,
-                            val_time=val_time, tracker=tracker,
-                            stage_name=args.stage_name, wandb_token=args.wandb_token,
-                        )
-
-                        # Create the checkpoint directory.
-                        checkpoint_name = f"step_{completed_steps:05d}"
-                        output_dir = os.path.join(args.checkpoint_dir, args.stage_name, checkpoint_name)
-                        _save_checkpoint(
-                            output_dir=output_dir, model_to_save=raw_model,
-                            tokenizer=tokenizer, completed_steps=completed_steps,
-                            iter_count=iter_count, epoch=epoch,
-                            config=raw_model.config,
-                            optimizer_state=optimizer.state_dict(),
-                        )
-                    
-                        # Push it to the hub.
-                        if args.push_to_hub and args.hub_token is not None and args.hub_model_id is not None:
-                            _push_to_hub(
-                                model_to_push=raw_model, tokenizer=tokenizer,
-                                hub_model_id=args.hub_model_id, hub_token=args.hub_token,
-                                stage_name=args.stage_name, completed_steps=completed_steps,
-                            )
-
-                        # Flush the codecarbon tracker at the end of the validation step.
-                        tracker.flush()
-                    
-                    # Set barrier to ensure that all processes have finished the validation step before continuing.
-                    if ddp:
-                        dist.barrier()
-            
             # We are timing the training loop to measure the MFU.
             # Reset peak memory stats so max_memory_allocated captures only this step.
             if device_type == "cuda":
@@ -561,7 +493,78 @@ class DDPTrainer:
                     world_size=world_size, device=device,
                     stage_name=args.stage_name, wandb_token=args.wandb_token,
                 )
-        
+
+            # Evaluate the model AFTER the training step when:
+            # - We have completed `args.checkpointing_steps` steps.
+            # - The learning rate stage has changed during this step.
+            # - We are at the last step.
+            # Running validation after the training step ensures that the
+            # checkpoint we save reflects the model state at the end of step N
+            # (i.e., post-optimizer-update), not the state at the start of it.
+            if (
+                completed_steps % args.checkpointing_steps == 0
+                or lr_stage_change
+                or completed_steps == max_steps
+            ):
+                # Check if this checkpoint has already been validated (to avoid re-validation on resume)
+                already_validated = checkpoint_already_validated(
+                    args.checkpoint_dir,
+                    args.stage_name,
+                    completed_steps,
+                    log_file if master_process else os.path.join(args.checkpoint_dir, f"{slurm_job_id}.log")
+                )
+
+                # Skip validation if checkpoint already exists and has been validated
+                if already_validated:
+                    if master_process:
+                        logger.info(f"Skipping validation for step {completed_steps} - checkpoint already validated.")
+                    pass
+                else:
+                    if master_process:
+                        logger.info("Running validation ...")
+
+                    val_loss_accum, val_time = _run_validation_forward(
+                        model, validation_dataloader, device, device_type, precision
+                    )
+
+                    if ddp:
+                        dist.all_reduce(val_loss_accum, op=dist.ReduceOp.SUM)
+                        val_loss_accum = val_loss_accum / world_size
+
+                    if master_process:
+                        _log_validation(
+                            logger=logger, file_logger=file_logger,
+                            completed_steps=completed_steps, val_loss_accum=val_loss_accum,
+                            val_time=val_time, tracker=tracker,
+                            stage_name=args.stage_name, wandb_token=args.wandb_token,
+                        )
+
+                        # Create the checkpoint directory.
+                        checkpoint_name = f"step_{completed_steps:05d}"
+                        output_dir = os.path.join(args.checkpoint_dir, args.stage_name, checkpoint_name)
+                        _save_checkpoint(
+                            output_dir=output_dir, model_to_save=raw_model,
+                            tokenizer=tokenizer, completed_steps=completed_steps,
+                            iter_count=iter_count, epoch=epoch,
+                            config=raw_model.config,
+                            optimizer_state=optimizer.state_dict(),
+                        )
+
+                        # Push it to the hub.
+                        if args.push_to_hub and args.hub_token is not None and args.hub_model_id is not None:
+                            _push_to_hub(
+                                model_to_push=raw_model, tokenizer=tokenizer,
+                                hub_model_id=args.hub_model_id, hub_token=args.hub_token,
+                                stage_name=args.stage_name, completed_steps=completed_steps,
+                            )
+
+                        # Flush the codecarbon tracker at the end of the validation step.
+                        tracker.flush()
+
+                    # Set barrier to ensure that all processes have finished the validation step before continuing.
+                    if ddp:
+                        dist.barrier()
+
         # Terminate the W&B tracker and the CodeCarbon tracker at the end of the training loop.
         if master_process:
             _finalize_training(tracker=tracker, wandb_token=args.wandb_token)
@@ -727,81 +730,7 @@ class FSDPTrainer:
                     if master_process:
                         logger.info(f"Epoch {epoch} of {math.ceil(args.num_train_epochs)}")
                         file_logger.log_metadata(f"Epoch {epoch} of {math.ceil(args.num_train_epochs)}")
-             
-            # Evaluate the model when:
-            # - We have completed `args.checkpointing_steps` steps (excluding step 0).
-            # - The learning rate stage has changed.
-            # - We are at the last step.
-            if (
-                completed_steps % args.checkpointing_steps == 0
-                or lr_stage_change
-                or completed_steps == max_steps
-            ):
-                # Check if this checkpoint has already been validated (to avoid re-validation on resume)
-                already_validated = checkpoint_already_validated(
-                    args.checkpoint_dir, 
-                    args.stage_name, 
-                    completed_steps, 
-                    log_file if master_process else os.path.join(args.checkpoint_dir, f"{slurm_job_id}.log")
-                )
-                
-                # Skip validation if checkpoint already exists and has been validated
-                if already_validated:
-                    if master_process:
-                        logger.info(f"Skipping validation for step {completed_steps} - checkpoint already validated.")
-                    pass
-                else:
-                    if master_process:
-                        logger.info("Running validation ...")
 
-                    val_loss_accum, val_time = _run_validation_forward(
-                        model, validation_dataloader, device, device_type, precision
-                    )
-
-                    if fsdp:
-                        dist.all_reduce(val_loss_accum, op=dist.ReduceOp.SUM)
-                        val_loss_accum = val_loss_accum / world_size
-
-                    # Retrieve full model and optimizer state dicts from all FSDP ranks.
-                    # These calls must happen on ALL processes (they trigger all-gather internally).
-                    model_state_dict = get_full_model_state_dict(model) if fsdp else None
-                    opt_state_dict = get_full_optimizer_state_dict(model, optimizer) if fsdp else None
-
-                    if master_process:
-                        _log_validation(
-                            logger=logger, file_logger=file_logger,
-                            completed_steps=completed_steps, val_loss_accum=val_loss_accum,
-                            val_time=val_time, tracker=tracker,
-                            stage_name=args.stage_name, wandb_token=args.wandb_token,
-                        )
-
-                        # Create the checkpoint directory.
-                        checkpoint_name = f"step_{completed_steps:05d}"
-                        output_dir = os.path.join(args.checkpoint_dir, args.stage_name, checkpoint_name)
-                        _save_checkpoint(
-                            output_dir=output_dir, model_to_save=model,
-                            tokenizer=tokenizer, completed_steps=completed_steps,
-                            iter_count=iter_count, epoch=epoch,
-                            config=model.config,
-                            optimizer_state=opt_state_dict if fsdp else optimizer.state_dict(),
-                            model_save_kwargs={"state_dict": model_state_dict} if fsdp else None,
-                        )
-                    
-                        # Push it to the hub.
-                        if args.push_to_hub and args.hub_token is not None and args.hub_model_id is not None:
-                            _push_to_hub(
-                                model_to_push=model, tokenizer=tokenizer,
-                                hub_model_id=args.hub_model_id, hub_token=args.hub_token,
-                                stage_name=args.stage_name, completed_steps=completed_steps,
-                            )
-
-                        # Flush the codecarbon tracker at the end of the validation step.
-                        tracker.flush()
-                    
-                    # Set barrier to ensure that all processes have finished the validation step before continuing.
-                    if fsdp:
-                        dist.barrier()
-            
             # We are timing the training loop to measure the MFU.
             # Reset peak memory stats so max_memory_allocated captures only this step.
             if device_type == "cuda":
@@ -905,7 +834,84 @@ class FSDPTrainer:
                     world_size=world_size, device=device,
                     stage_name=args.stage_name, wandb_token=args.wandb_token,
                 )
-        
+
+            # Evaluate the model AFTER the training step when:
+            # - We have completed `args.checkpointing_steps` steps.
+            # - The learning rate stage has changed during this step.
+            # - We are at the last step.
+            # Running validation after the training step ensures that the
+            # checkpoint we save reflects the model state at the end of step N
+            # (i.e., post-optimizer-update), not the state at the start of it.
+            if (
+                completed_steps % args.checkpointing_steps == 0
+                or lr_stage_change
+                or completed_steps == max_steps
+            ):
+                # Check if this checkpoint has already been validated (to avoid re-validation on resume)
+                already_validated = checkpoint_already_validated(
+                    args.checkpoint_dir,
+                    args.stage_name,
+                    completed_steps,
+                    log_file if master_process else os.path.join(args.checkpoint_dir, f"{slurm_job_id}.log")
+                )
+
+                # Skip validation if checkpoint already exists and has been validated
+                if already_validated:
+                    if master_process:
+                        logger.info(f"Skipping validation for step {completed_steps} - checkpoint already validated.")
+                    pass
+                else:
+                    if master_process:
+                        logger.info("Running validation ...")
+
+                    val_loss_accum, val_time = _run_validation_forward(
+                        model, validation_dataloader, device, device_type, precision
+                    )
+
+                    if fsdp:
+                        dist.all_reduce(val_loss_accum, op=dist.ReduceOp.SUM)
+                        val_loss_accum = val_loss_accum / world_size
+
+                    # Retrieve full model and optimizer state dicts from all FSDP ranks.
+                    # These calls must happen on ALL processes (they trigger all-gather internally).
+                    model_state_dict = get_full_model_state_dict(model) if fsdp else None
+                    opt_state_dict = get_full_optimizer_state_dict(model, optimizer) if fsdp else None
+
+                    if master_process:
+                        _log_validation(
+                            logger=logger, file_logger=file_logger,
+                            completed_steps=completed_steps, val_loss_accum=val_loss_accum,
+                            val_time=val_time, tracker=tracker,
+                            stage_name=args.stage_name, wandb_token=args.wandb_token,
+                        )
+
+                        # Create the checkpoint directory.
+                        checkpoint_name = f"step_{completed_steps:05d}"
+                        output_dir = os.path.join(args.checkpoint_dir, args.stage_name, checkpoint_name)
+                        _save_checkpoint(
+                            output_dir=output_dir, model_to_save=model,
+                            tokenizer=tokenizer, completed_steps=completed_steps,
+                            iter_count=iter_count, epoch=epoch,
+                            config=model.config,
+                            optimizer_state=opt_state_dict if fsdp else optimizer.state_dict(),
+                            model_save_kwargs={"state_dict": model_state_dict} if fsdp else None,
+                        )
+
+                        # Push it to the hub.
+                        if args.push_to_hub and args.hub_token is not None and args.hub_model_id is not None:
+                            _push_to_hub(
+                                model_to_push=model, tokenizer=tokenizer,
+                                hub_model_id=args.hub_model_id, hub_token=args.hub_token,
+                                stage_name=args.stage_name, completed_steps=completed_steps,
+                            )
+
+                        # Flush the codecarbon tracker at the end of the validation step.
+                        tracker.flush()
+
+                    # Set barrier to ensure that all processes have finished the validation step before continuing.
+                    if fsdp:
+                        dist.barrier()
+
         # Terminate the W&B tracker and the CodeCarbon tracker at the end of the training loop.
         if master_process:
             _finalize_training(tracker=tracker, wandb_token=args.wandb_token)

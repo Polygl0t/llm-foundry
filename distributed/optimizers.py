@@ -378,10 +378,16 @@ def create_optimizer(model, args, device_type, master_process, logger=None):
     no_decay = ["bias", "layer_norm.weight", "embed_tokens.weight"]
 
     if args.optimizer_type == "muon_adam":
-        hidden_matrix_params = [p for n, p in model.named_parameters() if p.ndim >= 2 and "embed_tokens.weight" not in n]
-        embed_params = [p for n, p in model.named_parameters() if "embed_tokens.weight" in n]
-        scalar_params_with_decay = [p for n, p in model.named_parameters() if p.ndim < 2 and not any(nd in n for nd in no_decay)]
-        scalar_params_no_decay = [p for n, p in model.named_parameters() if p.ndim < 2 and any(nd in n for nd in no_decay)]
+        # Only include trainable parameters. When non-attention is frozen for
+        # context-extension fine-tuning (see `_freeze_non_attention_blocks` in
+        # `model_setup.py`), this prevents AdamW from allocating m/v buffers
+        # for frozen weights and stops `MuonWithAuxAdam` from forcing a
+        # synchronization pass on frozen params (it allocates zero-grads for
+        # any param with `grad is None`).
+        hidden_matrix_params = [p for n, p in model.named_parameters() if p.requires_grad and p.ndim >= 2 and "embed_tokens.weight" not in n]
+        embed_params = [p for n, p in model.named_parameters() if p.requires_grad and "embed_tokens.weight" in n]
+        scalar_params_with_decay = [p for n, p in model.named_parameters() if p.requires_grad and p.ndim < 2 and not any(nd in n for nd in no_decay)]
+        scalar_params_no_decay = [p for n, p in model.named_parameters() if p.requires_grad and p.ndim < 2 and any(nd in n for nd in no_decay)]
 
         optimizer_grouped_parameters = [
             {
@@ -442,13 +448,16 @@ def create_optimizer(model, args, device_type, master_process, logger=None):
                         param_group["lr"] = adam_lr
                 optimizer.step()
     else:
+        # Only include trainable parameters. See the comment in the
+        # `muon_adam` branch above for why this matters during
+        # context-extension fine-tuning.
         optimizer_grouped_parameters = [
             {
-                "params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
+                "params": [p for n, p in model.named_parameters() if p.requires_grad and not any(nd in n for nd in no_decay)],
                 "weight_decay": args.weight_decay,
             },
             {
-                "params": [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)],
+                "params": [p for n, p in model.named_parameters() if p.requires_grad and any(nd in n for nd in no_decay)],
                 "weight_decay": 0.0,
             },
         ]

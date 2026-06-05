@@ -20,6 +20,24 @@ import torch
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 
+# Attention (and attention-like) module class names per supported model family.
+# Anything listed here is treated as an "attention block" whose parameters 
+# remain trainable during context-extension fine-tuning, while everything else 
+# (embeddings, norms, MLPs / MoE experts, lm_head) is frozen.
+#
+# Qwen3.5 hybrids list both the regular attention AND the linear-attention
+# variant (GatedDeltaNet), because both implement positional / sequence mixing
+# and should be trained when extending the context window.
+ATTENTION_CLASS_NAMES = {
+    "llama": {"LlamaAttention"},
+    "qwen2": {"Qwen2Attention"},
+    "qwen3": {"Qwen3Attention"},
+    "qwen3_moe": {"Qwen3MoeAttention"},
+    "qwen3_5_text": {"Qwen3_5Attention", "Qwen3_5GatedDeltaNet"},
+    "qwen3_5_moe_text": {"Qwen3_5MoeAttention", "Qwen3_5MoeGatedDeltaNet"},
+}
+
+
 @dataclass
 class ModelInitializationResult:
     """Explicit state returned by the tokenizer/model setup pipeline."""
@@ -31,6 +49,7 @@ class ModelInitializationResult:
     checkpoint_path: Optional[str]
     trainable_params: int
     active_trainable_params: int
+    non_attention_frozen: bool = False
 
 
 def _log_message(master_process, logger, file_logger, message):
@@ -206,9 +225,78 @@ def _build_model_from_config(args, tokenizer, precision, master_process, distrib
     )
 
 
+def _freeze_non_attention_blocks(model, master_process, logger=None, file_logger=None):
+    """
+    Freeze every parameter that does not live inside an attention block.
+
+    Used for context-extension fine-tuning: we only want to spend VRAM /
+    optimizer state on the modules that actually need to adapt to the new
+    sequence length (the attention blocks and, for Qwen3.5 hybrids, the
+    linear-attention `GatedDeltaNet` blocks). Embeddings, RMSNorms, MLPs /
+    MoE experts, and `lm_head` are all set to `requires_grad=False`.
+
+    Returns the number of trainable / frozen parameters after the operation
+    for logging convenience.
+    """
+    model_type = str(getattr(model.config, "model_type", "") or "")
+    attention_class_names = ATTENTION_CLASS_NAMES.get(model_type)
+    if attention_class_names is None:
+        raise ValueError(
+            f"Cannot freeze non-attention blocks: unsupported model_type={model_type!r}. "
+            f"Expected one of {sorted(ATTENTION_CLASS_NAMES)}. Add the model's attention "
+            f"class name(s) to `ATTENTION_CLASS_NAMES` to support context-extension freezing."
+        )
+
+    # Collect module-name prefixes of attention blocks; anything that matches
+    # one of these prefixes (or is nested under one) stays trainable.
+    attention_prefixes = set()
+    for module_name, module in model.named_modules():
+        if type(module).__name__ in attention_class_names:
+            attention_prefixes.add(module_name)
+
+    if not attention_prefixes:
+        raise ValueError(
+            f"Could not find any attention blocks for model_type={model_type!r}; "
+            f"refusing to freeze the entire model."
+        )
+
+    def _is_inside_attention(param_name: str) -> bool:
+        return any(
+            param_name.startswith(prefix + ".") or param_name == prefix
+            for prefix in attention_prefixes
+        )
+
+    trainable_after = 0
+    frozen_after = 0
+    for param_name, parameter in model.named_parameters():
+        if _is_inside_attention(param_name):
+            # Leave attention params trainable (do not flip to True if the
+            # user already disabled them elsewhere).
+            if parameter.requires_grad:
+                trainable_after += parameter.numel()
+            else:
+                frozen_after += parameter.numel()
+        else:
+            parameter.requires_grad = False
+            frozen_after += parameter.numel()
+
+    _log_message(
+        master_process, logger, file_logger,
+        f"Context extension: froze non-attention parameters. "
+        f"Trainable (attention only): {trainable_after:,} | Frozen: {frozen_after:,}.",
+    )
+    return trainable_after, frozen_after
+
+
 def _load_model(args, tokenizer, precision, master_process, logger=None, file_logger=None, distributed_config=None, use_kernels=False):
     """
     Load a model from a checkpoint or initialize a new model based on the provided arguments.
+
+    Returns a 3-tuple `(model, checkpoint_path, non_attention_frozen)`. The
+    `non_attention_frozen` flag is True when `_freeze_non_attention_blocks`
+    was applied (only happens during continual pretraining with context
+    extension); downstream code uses it to skip the MoE active-params
+    adjustment, since all remaining trainable params are dense attention.
     """
     checkpoint_path = _resolve_checkpoint_path(args.resume_from_checkpoint)
 
@@ -227,14 +315,14 @@ def _load_model(args, tokenizer, precision, master_process, logger=None, file_lo
             file_logger,
             f"Resumed model from checkpoint: {checkpoint_path}",
         )
-        return model, checkpoint_path
+        return model, checkpoint_path, False
 
     if not args.continual_pretraining:
         _log_message(master_process, logger, file_logger, "Initializing model from `AutoConfig`.")
         return _build_model_from_config(
             args, tokenizer, precision, master_process,
             distributed_config=distributed_config, use_kernels=use_kernels,
-        ), None
+        ), None, False
 
     _log_message(
         master_process,
@@ -287,7 +375,16 @@ def _load_model(args, tokenizer, precision, master_process, logger=None, file_lo
         **({"distributed_config": distributed_config} if distributed_config is not None else {}),
         **({"use_kernels": True} if use_kernels else {}),
     )
-    return model, None
+
+    # Context-extension fine-tuning: freeze everything outside the attention
+    # blocks so VRAM / optimizer state goes entirely to the modules that need
+    # to adapt to the new sequence length.
+    non_attention_frozen = False
+    if needs_context_extension:
+        _freeze_non_attention_blocks(model, master_process, logger, file_logger)
+        non_attention_frozen = True
+
+    return model, None, non_attention_frozen
 
 
 def _resize_embeddings_for_tokenizer(model, tokenizer, master_process, logger=None, file_logger=None):
@@ -411,7 +508,7 @@ def _check_kernels_available(use_kernels, master_process, logger=None, file_logg
     return True
 
 
-def _compute_active_trainable_params(config, trainable_params):
+def _compute_active_trainable_params(config, trainable_params, non_attention_frozen=False):
     """
     Compute the number of active trainable parameters.
 
@@ -420,10 +517,20 @@ def _compute_active_trainable_params(config, trainable_params):
     (num_experts_per_tok) are counted, since the remaining experts
     are inactive during each forward pass.
 
+    When `non_attention_frozen` is True (context-extension fine-tuning),
+    the MoE experts have already been frozen and are therefore excluded
+    from `trainable_params` entirely. Subtracting inactive-expert params
+    again would over-count (and could even go negative), so we short-circuit
+    and return `trainable_params` as-is — all remaining trainable params live
+    in dense attention blocks and are fully active per forward pass.
+
     - Note: Handles some naming conventions for MoE-related config fields, 
             but you might need to adjust this function if your model uses 
             different field names or MoE architecture.
     """
+    if non_attention_frozen:
+        return trainable_params
+
     # Detect MoE: try both naming conventions for the total expert count.
     num_experts = getattr(config, 'num_experts', None) or getattr(config, 'num_local_experts', None)
     if num_experts is None or num_experts <= 1:
@@ -475,7 +582,7 @@ def prepare_training_components(args, device, master_process, logger=None, file_
         args.use_kernels, master_process, logger, file_logger,
     )
 
-    model, checkpoint_path = _load_model(
+    model, checkpoint_path, non_attention_frozen = _load_model(
         args, tokenizer, precision, master_process, logger, file_logger,
         distributed_config=distributed_config,
         use_kernels=use_kernels,
@@ -594,7 +701,9 @@ def prepare_training_components(args, device, master_process, logger=None, file_
     model.config.name_or_path = args.hub_model_id
 
     trainable_params = sum(parameter.numel() for parameter in model.parameters() if parameter.requires_grad)
-    active_trainable_params = _compute_active_trainable_params(model.config, trainable_params)
+    active_trainable_params = _compute_active_trainable_params(
+        model.config, trainable_params, non_attention_frozen=non_attention_frozen,
+    )
     _log_message(
         master_process,
         logger,
@@ -647,6 +756,7 @@ def prepare_training_components(args, device, master_process, logger=None, file_
         checkpoint_path=checkpoint_path,
         trainable_params=trainable_params,
         active_trainable_params=active_trainable_params,
+        non_attention_frozen=non_attention_frozen,
     )
 
 # FSDP wrapping and state-dict utilities
