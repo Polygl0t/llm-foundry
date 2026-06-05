@@ -119,6 +119,10 @@ def _full_attention_macs_per_token(ctx):
     """
     Per-token MACs for a full causal-attention layer with grouped-query
     attention (GQA) support.
+
+    We use the non-causal attention cost (`2 * d * s`) so that the
+    structural path matches the standard `6N + 12·L·H·d_head·S`
+    approximation used by `_dense_transformer_flops`.
     """
     d = ctx.hidden_size
     s = ctx.sequence_length
@@ -126,8 +130,8 @@ def _full_attention_macs_per_token(ctx):
     kv_h = ctx.num_key_value_heads if ctx.num_key_value_heads > 0 else h
     q_dim = h * ctx.head_dim
     kv_dim = kv_h * ctx.head_dim
-    projections = 2 * d * q_dim + 2 * d * kv_dim  # Q, O full; K, V scaled by GQA
-    attention = d * s                              # QK^T + attn.V (causal avg)
+    projections = 2 * d * q_dim + 2 * d * kv_dim
+    attention = 2 * d * s
     return projections + attention + _mlp_macs_per_token(ctx)
 
 
@@ -136,24 +140,60 @@ def _linear_attention_macs_per_token(ctx):
     Per-token MACs for a Gated-DeltaNet linear-attention layer
     (training, chunkwise parallel).
 
-    Combines the sequence-independent terms (in-/out- projections, conv,
-    gating) with the chunk-parallel overheads (intra-chunk kernel mixing and
-    inter-chunk state passing).
+    Counts every projection, the depthwise causal conv1d, the pre-chunk
+    element-wise transforms, the intra- and inter-chunk kernel operations,
+    the output gated-RMSNorm, and the final out-projection.
+
+    After `query` / `key` are repeated to match `num_value_heads`
+    (see `transformers.Qwen3_5GatedDeltaNet`), all chunk-level
+    work uses the *value*-head count, not the key-head count.
 
     Reference: https://arxiv.org/abs/2604.03444 (Eqs. 8 and 10)
     """
     d = ctx.hidden_size
-    k = ctx.linear_num_key_heads * ctx.linear_key_head_dim
-    v = ctx.linear_num_value_heads * ctx.linear_value_head_dim
-    h = ctx.linear_num_key_heads
+    nk = ctx.linear_num_key_heads
+    nv = ctx.linear_num_value_heads
+    dk = ctx.linear_key_head_dim
+    dv = ctx.linear_value_head_dim
+    k = nk * dk          # total key dimension (before repeat)
+    v = nv * dv          # total value dimension
     L = ctx.linear_chunk_size
+    K = ctx.linear_conv_kernel_dim
 
-    projections = d * (2 * k + v + 2 * h)
-    conv = ctx.linear_conv_kernel_dim * (2 * k + v)
-    gate_out = 2 * d * v
-    intra_chunk = L * (3 * k + 2 * v)
-    inter_chunk = 3 * k * v // h if h > 0 else 0
-    return projections + conv + gate_out + intra_chunk + inter_chunk + _mlp_macs_per_token(ctx)
+    #  1. Input projections 
+    # in_proj_qkv : d → (k + k + v)      = 2k + v
+    # in_proj_z   : d → v
+    # in_proj_b   : d → nv
+    # in_proj_a   : d → nv
+    projections = d * (2 * k + 2 * v + 2 * nv)
+
+    #  2. Causal depthwise conv1d -
+    conv = K * (2 * k + v)
+
+    #  3. Chunked gated-delta-rule kernel
+    # Intra-chunk: per-chunk kernel mixing, triangular solve, value aggregation.
+    #   - k_beta @ keyᵀ  (L×L matmul)         →  nv·L·dk  / token
+    #   - triangular recurrence                →  nv·2L²/3  / token
+    #   - attn @ v_beta                        →  nv·L·dv  / token
+    #   - attn @ (k_beta ⊙ g)                  →  nv·L·dk  / token
+    intra = nv * (2 * L * dk + L * dv + (2 * L * L) // 3)
+
+    # Inter-chunk: state-passing between consecutive chunks.
+    #   - q_i @ k_iᵀ (causal average)          →  nv·L·dk/2 / token
+    #   - k_cumdecay @ last_state              →  nv·dk·dv  / token
+    #   - (q_i ⊙ g_exp) @ last_state           →  nv·dk·dv  / token
+    #   - attn @ v_new (causal average)        →  nv·L·dv/2 / token
+    #   - (k_i ⊙ decay)ᵀ @ v_new (state upd)   →  nv·dk·dv  / token
+    inter = nv * ((L * dk) // 2 + (L * dv) // 2 + 3 * dk * dv)
+
+    #  4. Pre- / post-chunk element-wise ops 
+    # Q/K L2-norm, beta / g discretisation, output gated-RMSNorm.
+    elem_ops = nv * (6 * dk + 5 * dv)
+
+    #  5. Output projection
+    out_proj = d * v
+
+    return projections + conv + intra + inter + elem_ops + out_proj + _mlp_macs_per_token(ctx)
 
 
 _LAYER_MAC_FNS = {

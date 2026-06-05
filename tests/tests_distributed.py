@@ -351,7 +351,7 @@ def test_full_attention_macs_formula():
     )
     d, s, h, head_dim = 1536, 1024, 12, 128
     q_dim = h * head_dim
-    expected = 2 * d * q_dim + 2 * d * q_dim + d * s + 3 * d * 512
+    expected = 2 * d * q_dim + 2 * d * q_dim + 2 * d * s + 3 * d * 512
     assert _full_attention_macs_per_token(ctx) == expected
 
 
@@ -367,7 +367,7 @@ def test_full_attention_macs_gqa():
     d, s, head_dim = 1536, 1024, 128
     q_dim = 12 * head_dim
     kv_dim = 4 * head_dim
-    expected = 2 * d * q_dim + 2 * d * kv_dim + d * s + 3 * d * 512
+    expected = 2 * d * q_dim + 2 * d * kv_dim + 2 * d * s + 3 * d * 512
     assert _full_attention_macs_per_token(ctx) == expected
     mha_ctx = MFUContext(num_key_value_heads=12, **base)
     assert _full_attention_macs_per_token(ctx) < _full_attention_macs_per_token(mha_ctx)
@@ -377,17 +377,24 @@ def test_linear_attention_macs_formula():
     """Verify _linear_attention_macs_per_token matches a hand-derived reference."""
     ctx = _make_qwen3_5_hybrid_context()
     d = 3840
-    k = 30 * 96    # 2880
-    v = 30 * 192   # 5760
-    h = 30
+    nk = 30
+    nv = 30
+    dk = 96
+    dv = 192
+    k = nk * dk    # 2880
+    v = nv * dv    # 5760
     L = 256
+    K = 4
+
+    # Replicate the source-of-truth formula in the module under test.
     expected = (
-        d * (2 * k + v + 2 * h)
-        + 4 * (2 * k + v)
-        + 2 * d * v
-        + L * (3 * k + 2 * v)
-        + 3 * k * v // h
-        + 3 * d * 11008
+        d * (2 * k + 2 * v + 2 * nv)                          # projections
+        + K * (2 * k + v)                                     # conv
+        + nv * (2 * L * dk + L * dv + (2 * L * L) // 3)       # intra
+        + nv * ((L * dk) // 2 + (L * dv) // 2 + 3 * dk * dv)  # inter
+        + nv * (6 * dk + 5 * dv)                              # elem_ops
+        + d * v                                               # out_proj
+        + 3 * d * 11008                                       # MLP
     )
     assert _linear_attention_macs_per_token(ctx) == expected
 
