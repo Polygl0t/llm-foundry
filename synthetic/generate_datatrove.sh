@@ -109,6 +109,8 @@ echo "# [${SLURM_JOB_ID}] Running on nodes: $(scontrol show hostnames "$SLURM_NO
 echo "# [${SLURM_JOB_ID}] GLIBC version: $(ldd --version | head -n1)" >> "$out"
 echo "# [${SLURM_JOB_ID}] Working directory: $workdir" >> "$out"
 echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --version)" >> "$out"
+echo "# [${SLURM_JOB_ID}] Model: $MODEL_NAME_OR_PATH" >> "$out"
+echo "# [${SLURM_JOB_ID}] Dataset path: $DATASET_PATH" >> "$out"
 
 #############################################
 # Main Job Execution

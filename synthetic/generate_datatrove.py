@@ -262,7 +262,13 @@ def main(args):
         generate: Callable[[dict[str, Any]], Awaitable[InferenceResult]],
     ):
         """Send a single request per document and return the result."""
-        messages = [] if system_prompt is None else [{"role": "system", "content": system_prompt}]
+
+        # Per-document system prompt override: if the document has a non-empty
+        # "system" metadata field, use it instead of the global --system-prompt.
+        doc_system = (document.metadata or {}).get("system", "").strip()
+        effective_system_prompt = doc_system if doc_system else system_prompt
+
+        messages = [] if effective_system_prompt is None else [{"role": "system", "content": effective_system_prompt}]
 
         if isinstance(document.text, list) and all(isinstance(msg, dict) for msg in document.text):
             if prompt_template:
