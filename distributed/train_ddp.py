@@ -54,6 +54,15 @@ from utils import (
 
 def main(specs, slurm_job_id, hardware):
 
+    # Silence noisy third-party loggers.
+    # huggingface_hub emits warnings on every HTTP request; bump to ERROR.
+    # httpx logs every single HTTP request at INFO; bump to WARNING.
+    # liger_kernel logs monkey-patch details at INFO; bump to WARNING.
+    import logging as _logging
+    _logging.getLogger("huggingface_hub").setLevel(_logging.ERROR)
+    _logging.getLogger("httpx").setLevel(_logging.WARNING)
+    _logging.getLogger("liger_kernel").setLevel(_logging.WARNING)
+
     # Load the training arguments from the specifications.yaml file.
     args = TrainingArguments.from_yaml(specs)
 
