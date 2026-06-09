@@ -54,13 +54,13 @@ def parse_metadata_lines(lines):
     result = {}
 
     # segments[0] is the preamble (text before first ===)
-    preamble = [l.strip() for l in segments[0] if l.strip()]
+    preamble = [line.strip() for line in segments[0] if line.strip()]
     if preamble:
         result["initialization_notes"] = preamble
 
     # Middle segments are key-value blocks, possibly with a section header
     for seg in segments[1:-1]:
-        non_empty = [l for l in seg if l.strip()]
+        non_empty = [line for line in seg if line.strip()]
         if not non_empty:
             continue
 
@@ -79,7 +79,7 @@ def parse_metadata_lines(lines):
                 key, value = key.strip(), value.strip()
                 if key == "Model config" and os.path.isfile(value):
                     try:
-                        with open(value, "r", encoding="utf-8") as cfg_fh:
+                        with open(value, encoding="utf-8") as cfg_fh:
                             value = json.load(cfg_fh)
                     except (json.JSONDecodeError, OSError):
                         pass  # fall back to keeping the path string
@@ -89,7 +89,7 @@ def parse_metadata_lines(lines):
 
     # Last segment is trailing text
     if len(segments) > 1:
-        trailing = [l.strip() for l in segments[-1] if l.strip()]
+        trailing = [line.strip() for line in segments[-1] if line.strip()]
         if trailing:
             result["notes"] = trailing
 
@@ -139,7 +139,7 @@ def parse_log_file(log_path):
                 except json.JSONDecodeError:
                     pass
 
-    with open(log_path, "r", encoding="utf-8") as fh:
+    with open(log_path, encoding="utf-8") as fh:
         for line in fh:
             line = line.rstrip("\n")
             stripped = line.strip()
@@ -224,12 +224,12 @@ def plot_stats(entries, split_name, plots_dir):
     """
     try:
         import matplotlib
+
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
     except ImportError:
         print(
-            "ERROR: matplotlib is required for --plot. "
-            "Install it with: pip install matplotlib",
+            "ERROR: matplotlib is required for --plot. Install it with: pip install matplotlib",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -242,9 +242,9 @@ def plot_stats(entries, split_name, plots_dir):
 
     # Collect all numeric fields (excluding step and skip list)
     numeric_fields = [
-        k for k in entries[0]
-        if k != "step" and k not in _SKIP_PLOT_FIELDS
-        and isinstance(entries[0][k], (int, float))
+        k
+        for k in entries[0]
+        if k != "step" and k not in _SKIP_PLOT_FIELDS and isinstance(entries[0][k], int | float)
     ]
 
     steps = [e["step"] for e in entries]
@@ -252,10 +252,10 @@ def plot_stats(entries, split_name, plots_dir):
     for field in numeric_fields:
         values = [e.get(field) for e in entries]
         # Drop entries where the field is missing or non-numeric
-        pairs = [(s, v) for s, v in zip(steps, values) if isinstance(v, (int, float))]
+        pairs = [(s, v) for s, v in zip(steps, values, strict=False) if isinstance(v, int | float)]
         if not pairs:
             continue
-        xs, ys = zip(*pairs)
+        xs, ys = zip(*pairs, strict=False)
 
         fig, ax = plt.subplots(figsize=(10, 4))
         ax.plot(xs, ys, linewidth=0.9)
@@ -315,7 +315,6 @@ def compute_emissions(emissions_path, num_nodes):
 
 
 def main(args):
-
     if not args.log and not args.emissions:
         parser.error("At least one of --log or --emissions must be provided.")
 
@@ -338,10 +337,7 @@ def main(args):
         metadata, stats_by_status = parse_log_file(args.log)
 
     # Parse emissions
-    if args.emissions:
-        emissions_info = compute_emissions(args.emissions, num_nodes)
-    else:
-        emissions_info = None
+    emissions_info = compute_emissions(args.emissions, num_nodes) if args.emissions else None
 
     metadata["emissions"] = emissions_info
 
@@ -396,12 +392,11 @@ def main(args):
 
 
 if __name__ == "__main__":
-    
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    
+
     parser.add_argument("--log", metavar="PATH", help="Path to training log file.")
     parser.add_argument("--emissions", metavar="PATH", help="Path to emissions CSV file.")
     parser.add_argument(

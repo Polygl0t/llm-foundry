@@ -26,83 +26,92 @@ Only BOS, EOS, UNK, and PAD are registered as special tokens. Chat/control marke
 such as "<think>" and "<tool_call>" are added to the vocabulary as regular tokens
 so they remain visible when decoding with skip_special_tokens=True.
 """
-import os
+
 import argparse
-from tqdm import tqdm
+import os
+
 import sentencepiece as spm
 from tokenizers import AddedToken
-from transformers import LlamaTokenizerFast, LlamaTokenizer
+from tqdm import tqdm
+from transformers import LlamaTokenizer, LlamaTokenizerFast
+
 from utils import (
-    get_logger,
     EXTRA_TOKENS,
+    get_logger,
     load_text_dataset,
+    push_tokenizer_to_hub,
     update_tokenizer_config,
     validate_saved_tokenizer,
     write_special_tokens_map,
-    push_tokenizer_to_hub,
 )
 
 logger = get_logger("SentencePiece-Tokenizer-Trainer")
 
 
-
 def main(args):
-
     # Check if the dataset file exists. Path to the dataset file. The SentencePieceTrainer requires a .txt file as input.
     if not os.path.exists(args.dataset_file):
-
         # Load the dataset from the huggingface Hub and prepare it for training.
         if args.train_dataset_dir is not None:
-
             # Load the datasets from disk
-            dataset = load_text_dataset(args.train_dataset_dir, args.dataset_type, cache_dir=args.cache_dir)
+            dataset = load_text_dataset(
+                args.train_dataset_dir, args.dataset_type, cache_dir=args.cache_dir
+            )
             logger.info(f"Loaded {len(dataset):,} examples")
         else:
-            raise ValueError("No dataset directory provided. Please provide a dataset directory to train the tokenizer.")
+            raise ValueError(
+                "No dataset directory provided. Please provide a dataset directory to train the tokenizer."
+            )
 
-        dataset = dataset.remove_columns([col for col in dataset.column_names if col != args.text_column])
+        dataset = dataset.remove_columns(
+            [col for col in dataset.column_names if col != args.text_column]
+        )
 
         dataset = dataset.shuffle(seed=args.seed)
         if args.num_samples is not None:
             dataset = dataset.select(range(args.num_samples))
-        
+
         logger.info(f"Number of samples selected from the dataset: {len(dataset)}")
 
         with open(args.dataset_file, "w", encoding="utf-8") as f:
             for example in tqdm(dataset):
                 f.write(example["text"] + "\n")
         logger.info(f"Dataset file created: {args.dataset_file}")
-        
+
     else:
         logger.info("Dataset file already exists. Skipping the dataset preparation step.")
-    
+
     os.makedirs(args.output_dir, exist_ok=True)
     logger.info("Training the tokenizer...")
 
     # Learn more about the arguments of `SentencePieceTrainer` in here: https://github.com/google/sentencepiece/blob/master/doc/options.md.
     spm.SentencePieceTrainer.Train(
         input=args.dataset_file,
-        input_format="text",                                    # This script is designed to work with plain text files. However, the SentencePieceTrainer also supports other formats, like `tsv`
-        num_threads=args.num_threads,                           # Speed up your training by using more threads.
-        model_prefix=f'{args.output_dir}/spm_tokenizer',        # You can use `model_prefix` to specify where the model files will be saved.
-        vocab_size=args.vocab_size - (len(EXTRA_TOKENS) + 1), # Reserve room for regular added tokens plus the "<|pad|>" special token.
-        unk_id=0,                                               # ID for unknown token
-        unk_piece=args.unk_token,                               # Unknown token
-        bos_id=1,                                               # ID for beginning-of-sentence token
-        bos_piece=args.bos_token,                               # Beginning-of-sentence token
-        eos_id=2,                                               # ID for end-of-sentence token
-        eos_piece=args.eos_token,                               # End-of-sentence token
-        model_type=args.model_type,                             # The type of the tokenizer model. You can choose between `bpe`, `unigram`, `word`, and `char`.
-        normalization_rule_name="nmt_nfkc",                     # Learn more about the normalization options here: https://github.com/google/sentencepiece/blob/master/doc/normalization.md
-        byte_fallback=True,                                     # decompose unknown pieces into UTF-8 byte pieces
-        split_by_unicode_script=True,                           # Use Unicode script to split sentence pieces
-        split_by_number=True,                                   # Split tokens by numbers (0-9)
-        split_digits=True,                                      # Split all digits (0-9) into separate pieces
-        split_by_whitespace=True,                               # Use a white space to split sentence pieces
-        add_dummy_prefix=True,                                  # Whether to add a space to the first word if there isn't already one. This lets us treat "hello" exactly like "say hello".
-        allow_whitespace_only_pieces=False,                     # We are setting this to false because we have already manually handled whitespace with our `EXTRA_TOKENS`
-        remove_extra_whitespaces=True,                          # Removes leading, trailing, and duplicate internal whitespace
-        train_extremely_large_corpus=True if args.model_type == "unigram" else False, # Set this to True when training a unigram tokenizer on a large corpus to avoid SEGFAULTs
+        input_format="text",  # This script is designed to work with plain text files. However, the SentencePieceTrainer also supports other formats, like `tsv`
+        num_threads=args.num_threads,  # Speed up your training by using more threads.
+        model_prefix=f"{args.output_dir}/spm_tokenizer",  # You can use `model_prefix` to specify where the model files will be saved.
+        vocab_size=args.vocab_size
+        - (
+            len(EXTRA_TOKENS) + 1
+        ),  # Reserve room for regular added tokens plus the "<|pad|>" special token.
+        unk_id=0,  # ID for unknown token
+        unk_piece=args.unk_token,  # Unknown token
+        bos_id=1,  # ID for beginning-of-sentence token
+        bos_piece=args.bos_token,  # Beginning-of-sentence token
+        eos_id=2,  # ID for end-of-sentence token
+        eos_piece=args.eos_token,  # End-of-sentence token
+        model_type=args.model_type,  # The type of the tokenizer model. You can choose between `bpe`, `unigram`, `word`, and `char`.
+        normalization_rule_name="nmt_nfkc",  # Learn more about the normalization options here: https://github.com/google/sentencepiece/blob/master/doc/normalization.md
+        byte_fallback=True,  # decompose unknown pieces into UTF-8 byte pieces
+        split_by_unicode_script=True,  # Use Unicode script to split sentence pieces
+        split_by_number=True,  # Split tokens by numbers (0-9)
+        split_digits=True,  # Split all digits (0-9) into separate pieces
+        split_by_whitespace=True,  # Use a white space to split sentence pieces
+        add_dummy_prefix=True,  # Whether to add a space to the first word if there isn't already one. This lets us treat "hello" exactly like "say hello".
+        allow_whitespace_only_pieces=False,  # We are setting this to false because we have already manually handled whitespace with our `EXTRA_TOKENS`
+        remove_extra_whitespaces=True,  # Removes leading, trailing, and duplicate internal whitespace
+        train_extremely_large_corpus=args.model_type
+        == "unigram",  # Set this to True when training a unigram tokenizer on a large corpus to avoid SEGFAULTs
     )
 
     # Get a slow Llama tokenizer
@@ -112,7 +121,7 @@ def main(args):
         unk_token=args.unk_token,
         eos_token=args.eos_token,
         # Chosing padding and truncation sides dependes on your use case.
-        # For example, padding from the left means that the model will see the end of the sequence 
+        # For example, padding from the left means that the model will see the end of the sequence
         # while the beginning is padded. This is useful for causal language modeling tasks. On the other hand,
         # padding from the right means that the model will see the beginning of the sequence while the end is padded.
         # This is useful for sequence classification tasks. In terms of truncation, a similar logic applies.
@@ -126,16 +135,22 @@ def main(args):
         legacy=False,
     )
 
-    regular_added_tokens = [AddedToken(token, special=False, normalized=False) for token in EXTRA_TOKENS]
+    regular_added_tokens = [
+        AddedToken(token, special=False, normalized=False) for token in EXTRA_TOKENS
+    ]
 
     # Add the "<|pad|>" token. Why? Read here: https://huggingface.co/docs/transformers/main/model_doc/llama2#usage-tips.
-    tokenizer.add_special_tokens({"pad_token":args.pad_token})
+    tokenizer.add_special_tokens({"pad_token": args.pad_token})
     num_added_tokens = tokenizer.add_tokens(regular_added_tokens)
     if num_added_tokens != len(EXTRA_TOKENS):
-        raise ValueError(f"Expected to add {len(EXTRA_TOKENS)} regular tokens, but added {num_added_tokens}.")
+        raise ValueError(
+            f"Expected to add {len(EXTRA_TOKENS)} regular tokens, but added {num_added_tokens}."
+        )
 
     logger.info(f"LlamaTokenizer vocab size: {len(tokenizer)}")
-    assert len(tokenizer) == args.vocab_size, f"Tokenizer vocab size {len(tokenizer)} does not match the expected vocab size {args.vocab_size}."
+    assert len(tokenizer) == args.vocab_size, (
+        f"Tokenizer vocab size {len(tokenizer)} does not match the expected vocab size {args.vocab_size}."
+    )
 
     tokenizer.save_pretrained(args.output_dir)
 
@@ -153,12 +168,16 @@ def main(args):
         add_prefix_space=args.add_prefix_space,
         legacy=False,
     )
-    tokenizer.add_special_tokens({"pad_token":args.pad_token})
+    tokenizer.add_special_tokens({"pad_token": args.pad_token})
     num_added_tokens = tokenizer.add_tokens(regular_added_tokens)
     if num_added_tokens != len(EXTRA_TOKENS):
-        raise ValueError(f"Expected to add {len(EXTRA_TOKENS)} regular tokens, but added {num_added_tokens}.")
+        raise ValueError(
+            f"Expected to add {len(EXTRA_TOKENS)} regular tokens, but added {num_added_tokens}."
+        )
     logger.info(f"LlamaTokenizerFast vocab size: {len(tokenizer)}")
-    assert len(tokenizer) == args.vocab_size, f"Tokenizer vocab size {len(tokenizer)} does not match the expected vocab size {args.vocab_size}."
+    assert len(tokenizer) == args.vocab_size, (
+        f"Tokenizer vocab size {len(tokenizer)} does not match the expected vocab size {args.vocab_size}."
+    )
 
     tokenizer.save_pretrained(args.output_dir)
     write_special_tokens_map(
@@ -189,35 +208,123 @@ def main(args):
     if args.tokenizer_name is not None and args.token is not None:
         push_tokenizer_to_hub(args.output_dir, args.tokenizer_name, args.token)
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train a Llama tokenizer using SentencePiece")
-    parser.add_argument("--dataset_file", type=str, default=None, help="The path to the dataset file")
-    parser.add_argument("--train_dataset_dir", type=str, default=None, help="The path to the dataset directory")
-    parser.add_argument("--dataset_type", type=str, default="jsonl", help="The type of the dataset files (e.g., 'jsonl', 'parquet', 'csv', 'txt')")
-    parser.add_argument("--text_column", type=str, default=None, help="The name of the text column in the dataset")
-    parser.add_argument("--num_threads", type=int, default=16, help="The number of threads to use for training the tokenizer")
-    parser.add_argument("--output_dir", type=str, default=None, help="The output directory to save the tokenizer")
-    parser.add_argument("--seed", type=int, default=None, help="The random seed used when shuffling the dataset")
-    parser.add_argument("--token", type=str, default=None, help="The token to access the dataset on the hub")
-    parser.add_argument("--cache_dir", type=str, default=None, help="The directory to cache the dataset")
-    parser.add_argument("--num_samples", type=int, default=None, help="Number of samples to use from the dataset. You might run into memory issues if you use too many samples.")
-    parser.add_argument("--vocab_size", type=int, default=32000, help="Vocabulary size to use for the tokenizer")
-    parser.add_argument("--model_type", type=str, default="bpe", choices=["bpe", "unigram", "word", "char"], help="The type of the tokenizer model to use")
-    parser.add_argument("--tokenizer_name", type=str, default=None, help="Name of the tokenizer to be uploaded to the hub")
-    parser.add_argument("--unk_token", type=str, default="<|unk|>", help="The unknown token to use for the tokenizer")
-    parser.add_argument("--bos_token", type=str, default="<|im_start|>", help="The beginning of sentence token to use for the tokenizer")
-    parser.add_argument("--eos_token", type=str, default="<|im_end|>", help="The end of sentence token to use for the tokenizer")
-    parser.add_argument("--pad_token", type=str, default="<|pad|>", help="The padding token to use for the tokenizer")
-    parser.add_argument("--add_bos_token", action='store_true', help="Whether to add a BOS token during tokenization")
-    parser.add_argument("--add_eos_token", action='store_true', help="Whether to add an EOS token during tokenization")
-    parser.add_argument("--clean_up_tokenization_spaces", action='store_true', help="Whether to clean up tokenization spaces")
-    parser.add_argument("--add_prefix_space", action='store_true', help="Whether to add a prefix space to the input")
-    parser.add_argument("--padding_side", type=str, default="right", choices=["left", "right"], help="The side to use for padding")
-    parser.add_argument("--truncation_side", type=str, default="right", choices=["left", "right"], help="The side to use for truncation")
-    
+    parser.add_argument(
+        "--dataset_file", type=str, default=None, help="The path to the dataset file"
+    )
+    parser.add_argument(
+        "--train_dataset_dir", type=str, default=None, help="The path to the dataset directory"
+    )
+    parser.add_argument(
+        "--dataset_type",
+        type=str,
+        default="jsonl",
+        help="The type of the dataset files (e.g., 'jsonl', 'parquet', 'csv', 'txt')",
+    )
+    parser.add_argument(
+        "--text_column", type=str, default=None, help="The name of the text column in the dataset"
+    )
+    parser.add_argument(
+        "--num_threads",
+        type=int,
+        default=16,
+        help="The number of threads to use for training the tokenizer",
+    )
+    parser.add_argument(
+        "--output_dir", type=str, default=None, help="The output directory to save the tokenizer"
+    )
+    parser.add_argument(
+        "--seed", type=int, default=None, help="The random seed used when shuffling the dataset"
+    )
+    parser.add_argument(
+        "--token", type=str, default=None, help="The token to access the dataset on the hub"
+    )
+    parser.add_argument(
+        "--cache_dir", type=str, default=None, help="The directory to cache the dataset"
+    )
+    parser.add_argument(
+        "--num_samples",
+        type=int,
+        default=None,
+        help="Number of samples to use from the dataset. You might run into memory issues if you use too many samples.",
+    )
+    parser.add_argument(
+        "--vocab_size", type=int, default=32000, help="Vocabulary size to use for the tokenizer"
+    )
+    parser.add_argument(
+        "--model_type",
+        type=str,
+        default="bpe",
+        choices=["bpe", "unigram", "word", "char"],
+        help="The type of the tokenizer model to use",
+    )
+    parser.add_argument(
+        "--tokenizer_name",
+        type=str,
+        default=None,
+        help="Name of the tokenizer to be uploaded to the hub",
+    )
+    parser.add_argument(
+        "--unk_token",
+        type=str,
+        default="<|unk|>",
+        help="The unknown token to use for the tokenizer",
+    )
+    parser.add_argument(
+        "--bos_token",
+        type=str,
+        default="<|im_start|>",
+        help="The beginning of sentence token to use for the tokenizer",
+    )
+    parser.add_argument(
+        "--eos_token",
+        type=str,
+        default="<|im_end|>",
+        help="The end of sentence token to use for the tokenizer",
+    )
+    parser.add_argument(
+        "--pad_token",
+        type=str,
+        default="<|pad|>",
+        help="The padding token to use for the tokenizer",
+    )
+    parser.add_argument(
+        "--add_bos_token",
+        action="store_true",
+        help="Whether to add a BOS token during tokenization",
+    )
+    parser.add_argument(
+        "--add_eos_token",
+        action="store_true",
+        help="Whether to add an EOS token during tokenization",
+    )
+    parser.add_argument(
+        "--clean_up_tokenization_spaces",
+        action="store_true",
+        help="Whether to clean up tokenization spaces",
+    )
+    parser.add_argument(
+        "--add_prefix_space", action="store_true", help="Whether to add a prefix space to the input"
+    )
+    parser.add_argument(
+        "--padding_side",
+        type=str,
+        default="right",
+        choices=["left", "right"],
+        help="The side to use for padding",
+    )
+    parser.add_argument(
+        "--truncation_side",
+        type=str,
+        default="right",
+        choices=["left", "right"],
+        help="The side to use for truncation",
+    )
+
     args = parser.parse_args()
 
     logger.info("Training a tokenizer!")
     main(args)
     logger.info("Tokenizer trained successfully!")
-    

@@ -20,7 +20,6 @@ Usage:
 """
 
 import json
-import re
 
 try:
     from .verifiers import (
@@ -195,8 +194,7 @@ class Verifier:
             caught regardless of this flag.
     """
 
-    def __init__(self, verifier_id_list, kwargs, completion,
-                 enable_thinking=False, strict=True):
+    def __init__(self, verifier_id_list, kwargs, completion, enable_thinking=False, strict=True):
         self.verifier_id_list = verifier_id_list
         self.kwargs = kwargs
         self.completion = completion
@@ -205,9 +203,7 @@ class Verifier:
         # When thinking is enabled, non-thinking verifiers should only see
         # the text that follows the closing </think> tag so that reasoning
         # traces do not distort word/sentence/keyword counts.
-        self._eval_completion = (
-            self._strip_thinking(completion) if enable_thinking else completion
-        )
+        self._eval_completion = self._strip_thinking(completion) if enable_thinking else completion
 
     def verify(self):
         """
@@ -221,9 +217,7 @@ class Verifier:
         results = []
         if self.enable_thinking:
             # Pass the full completion so the thinking block itself is visible.
-            results.append(
-                self._verify_one("reasoning:thinking_format", {}, self.completion)
-            )
+            results.append(self._verify_one("reasoning:thinking_format", {}, self.completion))
         for i, verifier_id in enumerate(self.verifier_id_list):
             passed = self._verify_one(verifier_id, self.kwargs[i], self._eval_completion)
             results.append(passed)
@@ -239,7 +233,7 @@ class Verifier:
         end = completion.rfind("</think>")
         if end == -1:
             return completion
-        return completion[end + len("</think>"):].lstrip("\n")
+        return completion[end + len("</think>") :].lstrip("\n")
 
     @staticmethod
     def _parse_kwargs(raw_kwargs):
@@ -266,4 +260,3 @@ class Verifier:
             return checker.check_following(completion)
         # Soft mode: prefer check_following_soft when the checker overrides it.
         return checker.check_following_soft(completion)
-

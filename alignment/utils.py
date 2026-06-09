@@ -1,12 +1,14 @@
 """
 Shared utilities for alignment training scripts.
 """
-import os
+
 import glob
 import logging
+import os
+
+import accelerate
 import datasets
 import transformers
-import accelerate
 
 
 def get_logger(name: str) -> logging.Logger:
@@ -21,7 +23,9 @@ def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
     if not logger.handlers:
         handler = logging.StreamHandler()
-        handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        )
         logger.addHandler(handler)
         logger.setLevel(logging.INFO)
     return logger
@@ -58,8 +62,9 @@ def load_training_dataset(train_dirs, dataset_type, num_proc, cache_dir, state):
     Returns:
         A datasets.Dataset loaded from the discovered files.
     """
-    assert dataset_type in ["jsonl", "parquet"], \
+    assert dataset_type in ["jsonl", "parquet"], (
         f"Dataset type must be either 'jsonl' or 'parquet', got {dataset_type}."
+    )
 
     if isinstance(train_dirs, str):
         train_dirs = [train_dirs]
@@ -120,7 +125,9 @@ def split_dataset(dataset, test_size, seed, checkpoint_dir, save_test_set, maste
     return dataset
 
 
-def load_tokenizer(model_name_or_path, max_length, cache_dir, chat_template_path=None, allow_eos_pad_token=False):
+def load_tokenizer(
+    model_name_or_path, max_length, cache_dir, chat_template_path=None, allow_eos_pad_token=False
+):
     """Load a tokenizer, optionally apply a custom chat template, and validate it.
 
     By default, asserts that the tokenizer has a pad token distinct from the EOS
@@ -147,19 +154,22 @@ def load_tokenizer(model_name_or_path, max_length, cache_dir, chat_template_path
     )
 
     if tokenizer.chat_template is None:
-        assert chat_template_path is not None, \
+        assert chat_template_path is not None, (
             "Tokenizer does not have a chat template. Please provide a chat template path."
-        with open(chat_template_path, "r") as f:
+        )
+        with open(chat_template_path) as f:
             tokenizer.chat_template = f.read()
 
     if tokenizer.pad_token is None:
-        assert allow_eos_pad_token and tokenizer.eos_token is not None, \
+        assert allow_eos_pad_token and tokenizer.eos_token is not None, (
             "The tokenizer does not have a pad token. Please set a pad token before training."
+        )
         tokenizer.pad_token = tokenizer.eos_token
 
     if not allow_eos_pad_token:
-        assert tokenizer.pad_token != tokenizer.eos_token, \
+        assert tokenizer.pad_token != tokenizer.eos_token, (
             "The tokenizer's pad token is the same as the eos token. Please set a different pad token before training."
+        )
 
     return tokenizer
 
@@ -199,7 +209,9 @@ def resolve_checkpoint_path(resume_from_checkpoint, master_process, logger: logg
     return checkpoint_path
 
 
-def run_training(trainer, resume_from_checkpoint, checkpoint_dir, master_process, logger: logging.Logger):
+def run_training(
+    trainer, resume_from_checkpoint, checkpoint_dir, master_process, logger: logging.Logger
+):
     """Run trainer.train() with a fallback save on error.
 
     On success the final model is saved to `<checkpoint_dir>/final`.

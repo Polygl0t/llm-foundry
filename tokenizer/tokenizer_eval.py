@@ -7,14 +7,14 @@ Metrics Computed:
 1. Subword Fertility (SF): Average tokens per word
    Formula: SF = Total Tokens / Total Words
    Lower is better (less splitting = more efficient)
-   
+
 2. Proportion of Continued Words (PCW): Fraction of words split into 2+ tokens
    Formula: PCW = Words Split into ≥2 Tokens / Total Words
    Lower is better (less fragmentation)
-   
+
 3. Characters per Token: Average character count per token
    Higher values suggest more efficient encoding
-   
+
 4. Unknown Token Count: Number of <unk> tokens
    Lower is better (better vocabulary coverage)
 
@@ -25,18 +25,22 @@ python tokenizer_eval.py \\
     --output_file tokenizer_comparison.json \\
     --cache_dir ./.cache
 """
+
 import argparse
 import json
-from transformers import AutoTokenizer
+
 import pandas as pd
+from transformers import AutoTokenizer
+
 from utils import get_logger
 
 logger = get_logger("Tokenizer-Eval")
 
+
 def main(args):
     """
     Main evaluation function that processes tokenizers and computes metrics.
-    
+
     The evaluation workflow:
     1. Load reference text and split into words (whitespace-separated)
     2. For each tokenizer:
@@ -47,10 +51,10 @@ def main(args):
     3. Sort results by fertility (most efficient first)
     4. Save to JSON and display as formatted table
     """
-    
+
     # Load the reference text
     # We read the entire file as a single string for full-text tokenization
-    with open(args.input_file, "r") as file:
+    with open(args.input_file) as file:
         text = "".join(file.readlines())
 
     # Split into words using whitespace
@@ -62,24 +66,35 @@ def main(args):
     cache_dir = args.cache_dir
 
     # Define column names for the output table
-    columns = ["Tokenizer", "Total Words", f"Number of Generated Tokens", "Vocabulary size", "Fertility", "PCW", "Chars/Token", "UNK count"]
+    columns = [
+        "Tokenizer",
+        "Total Words",
+        "Number of Generated Tokens",
+        "Vocabulary size",
+        "Fertility",
+        "PCW",
+        "Chars/Token",
+        "UNK count",
+    ]
     results = []
 
     # Evaluate each tokenizer in the list
     for tokenizer_name in args.tokenizers_to_evaluate:
         logger.info(f"Evaluating tokenizer: {tokenizer_name}")
-        
+
         # Extract a short name for display purposes
-        name = tokenizer_name.split('/')[-1]
+        name = tokenizer_name.split("/")[-1]
 
         # Load the tokenizer from Hugging Face Hub or local path
         # use_fast=True enables the Rust-based fast tokenizer implementation
-        tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, token=token, cache_dir=cache_dir, use_fast=True)
-        
+        tokenizer = AutoTokenizer.from_pretrained(
+            tokenizer_name, token=token, cache_dir=cache_dir, use_fast=True
+        )
+
         # Set to a very large value to avoid truncation warnings
         # We want to tokenize the full text without length limits
         tokenizer.model_max_length = int(1000e9)
-        
+
         # Tokenize the entire text at once
         # This gives us the total number of tokens the tokenizer produces
         # add_special_tokens=False ensures we only count content tokens, not [CLS], [SEP], etc.
@@ -87,10 +102,10 @@ def main(args):
             text,
             return_attention_mask=False,  # We don't need attention masks for evaluation
             return_token_type_ids=False,  # We don't need token type IDs
-            add_special_tokens=False      # Exclude special tokens like [CLS], [SEP]
+            add_special_tokens=False,  # Exclude special tokens like [CLS], [SEP]
         )
 
-        total_tokens = len(tokens['input_ids'])
+        total_tokens = len(tokens["input_ids"])
         vocab_size = len(tokenizer.get_vocab())
 
         # ===================================================================
@@ -99,17 +114,17 @@ def main(args):
         # Count how many times the tokenizer had to use <unk> (unknown token)
         # This indicates vocabulary coverage - fewer unknowns = better coverage
         unk_token_count = None
-        
+
         # Some tokenizers use unk_token, others might not have it defined
         # In that case, we fall back to eos_token as a proxy
-        if hasattr(tokenizer, 'unk_token') and tokenizer.unk_token is not None:
+        if hasattr(tokenizer, "unk_token") and tokenizer.unk_token is not None:
             unk_token_id = tokenizer.convert_tokens_to_ids(tokenizer.unk_token)
         else:
             unk_token_id = tokenizer.convert_tokens_to_ids(tokenizer.eos_token)
 
         # Count occurrences of the unknown token ID
         if unk_token_id is not None:
-            input_ids = tokens['input_ids']
+            input_ids = tokens["input_ids"]
             if isinstance(input_ids, list):
                 unk_token_count = input_ids.count(unk_token_id)
             else:
@@ -119,7 +134,7 @@ def main(args):
         # METRIC 2: Subword Fertility (SF)
         # ===================================================================
         # Formula: SF = Total Tokens / Total Words
-        # 
+        #
         # Interpretation:
         # - SF = 1.0: Perfect efficiency, each word = one token
         # - SF = 2.0: On average, each word is split into 2 tokens
@@ -144,33 +159,37 @@ def main(args):
         # - Lower is generally better (less fragmentation)
         continued_words = 0
         chars_per_token_list = []
-        
+
         for word in words:
             # Tokenize this individual word
             word_tokens = tokenizer(
                 word,
                 return_attention_mask=False,
                 return_token_type_ids=False,
-                add_special_tokens=False
+                add_special_tokens=False,
             )
-            
+
             # Check if this word was split into 2 or more tokens
-            if len(word_tokens['input_ids']) >= 2:
+            if len(word_tokens["input_ids"]) >= 2:
                 continued_words += 1
-            
+
             # Calculate characters per token for this word
             # This helps us understand token granularity
-            token_strings = tokenizer.convert_ids_to_tokens(word_tokens['input_ids'])
+            token_strings = tokenizer.convert_ids_to_tokens(word_tokens["input_ids"])
             for token_str in token_strings:
                 chars_per_token_list.append(len(token_str))
-        
-        # Calculate final metrics
-        pcw = continued_words / total_num_words if total_num_words != 0 else 0
-        mean_chars_per_token = sum(chars_per_token_list) / len(chars_per_token_list) if chars_per_token_list else 0
 
         # Calculate final metrics
         pcw = continued_words / total_num_words if total_num_words != 0 else 0
-        mean_chars_per_token = sum(chars_per_token_list) / len(chars_per_token_list) if chars_per_token_list else 0
+        mean_chars_per_token = (
+            sum(chars_per_token_list) / len(chars_per_token_list) if chars_per_token_list else 0
+        )
+
+        # Calculate final metrics
+        pcw = continued_words / total_num_words if total_num_words != 0 else 0
+        mean_chars_per_token = (
+            sum(chars_per_token_list) / len(chars_per_token_list) if chars_per_token_list else 0
+        )
 
         # Store all results for this tokenizer
         d = {
@@ -184,18 +203,20 @@ def main(args):
             "unk_token_count": unk_token_count,
         }
         results.append(d)
-        
+
         # Print summary for this tokenizer
-        logger.info(f"Fertility: {fertility:.3f} | PCW: {pcw:.3f} | Chars/Token: {mean_chars_per_token:.2f}")
+        logger.info(
+            f"Fertility: {fertility:.3f} | PCW: {pcw:.3f} | Chars/Token: {mean_chars_per_token:.2f}"
+        )
 
     # Sort results by fertility (most efficient tokenizers first)
     # Lower fertility = fewer tokens = more efficient
     results = sorted(results, key=lambda x: x["fertility"])
-    
+
     # Save detailed results to JSON for further analysis
     with open(args.output_file, "w") as f:
         json.dump(results, f, indent=2)
-    
+
     # Create a formatted table for easy comparison
     table = pd.DataFrame(results)
     table.columns = columns
@@ -218,51 +239,50 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description=__doc__,
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    
+
     parser.add_argument(
-        "--tokenizers_to_evaluate", 
-        type=str, 
-        nargs='+', 
-        required=True, 
+        "--tokenizers_to_evaluate",
+        type=str,
+        nargs="+",
+        required=True,
         help="List of tokenizer names (HF Hub IDs) or local paths to evaluate. "
-             "Example: gpt2 bert-base-uncased meta-llama/Llama-2-7b-hf"
+        "Example: gpt2 bert-base-uncased meta-llama/Llama-2-7b-hf",
     )
     parser.add_argument(
-        "--input_file", 
-        type=str, 
-        required=True, 
+        "--input_file",
+        type=str,
+        required=True,
         help="Path to the input text file for evaluation. Should be plain text, "
-             "representative of your target domain/language."
+        "representative of your target domain/language.",
     )
     parser.add_argument(
-        "--output_file", 
-        type=str, 
-        required=True, 
+        "--output_file",
+        type=str,
+        required=True,
         help="Path to save the evaluation results as JSON. "
-             "Contains detailed metrics for each tokenizer."
+        "Contains detailed metrics for each tokenizer.",
     )
     parser.add_argument(
-        "--cache_dir", 
-        type=str, 
-        required=False, 
-        default=None, 
+        "--cache_dir",
+        type=str,
+        required=False,
+        default=None,
         help="Directory to cache downloaded tokenizers. "
-             "Speeds up repeated evaluations. Default: None (uses HF default cache)"
+        "Speeds up repeated evaluations. Default: None (uses HF default cache)",
     )
     parser.add_argument(
-        "--token", 
-        type=str, 
-        required=False, 
-        default=None, 
+        "--token",
+        type=str,
+        required=False,
+        default=None,
         help="Hugging Face authentication token for accessing private/gated models. "
-             "Get yours at https://huggingface.co/settings/tokens"
+        "Get yours at https://huggingface.co/settings/tokens",
     )
 
     args = parser.parse_args()
-    
+
     logger.info("=" * 80)
     logger.info("TOKENIZER EVALUATION TOOL")
     logger.info("=" * 80)
@@ -272,7 +292,7 @@ if __name__ == "__main__":
     for tok in args.tokenizers_to_evaluate:
         logger.info(f"  - {tok}")
     logger.info("Starting evaluation...")
-    
+
     main(args)
-    
+
     logger.info("Tokenizers evaluated successfully!")

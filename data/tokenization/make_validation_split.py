@@ -26,11 +26,13 @@ Usage:
         --input_type parquet \\
         --n_samples 20000
 """
-import os
-import datasets
-import math
+
 import argparse
+import math
+import os
 import random
+
+import datasets
 
 from utils import get_logger, list_matching_files
 
@@ -41,7 +43,7 @@ def read_metadata(metadata_path):
     """Read metadata file and return a dictionary of key-value pairs."""
     metadata = {}
     if os.path.exists(metadata_path):
-        with open(metadata_path, "r") as f:
+        with open(metadata_path) as f:
             for line in f:
                 if ":" in line:
                     key, value = line.split(":", 1)
@@ -74,13 +76,15 @@ def main(input_dirs, output_dir, input_type, output_file, n_samples, n_files=Non
     """
     # Get files from all input folders
     files = get_files_from_dirs(input_dirs, input_type, n_files)
-    logger.info(f"Selected {len(files)} files for sampling from {len(input_dirs)} director{'y' if len(input_dirs) == 1 else 'ies'}")
+    logger.info(
+        f"Selected {len(files)} files for sampling from {len(input_dirs)} director{'y' if len(input_dirs) == 1 else 'ies'}"
+    )
 
     # Read tokenizer name from the first source folder metadata
     source_metadata_path = os.path.join(input_dirs[0], ".metadata")
     source_metadata = read_metadata(source_metadata_path)
     tokenizer_name = source_metadata.get("Tokenizer", "")
-    
+
     # Read existing metadata from output dir if it exists
     output_metadata_path = os.path.join(output_dir, ".metadata")
     existing_metadata = read_metadata(output_metadata_path)
@@ -89,9 +93,7 @@ def main(input_dirs, output_dir, input_type, output_file, n_samples, n_files=Non
     os.makedirs(output_dir, exist_ok=True)
 
     # Load all datasets using datasets.load_dataset
-    datasets_list = [
-        datasets.load_dataset(input_type, data_files=f, split="train") for f in files
-    ]
+    datasets_list = [datasets.load_dataset(input_type, data_files=f, split="train") for f in files]
     lengths = [len(ds) for ds in datasets_list]
     total_rows = sum(lengths)
 
@@ -101,19 +103,21 @@ def main(input_dirs, output_dir, input_type, output_file, n_samples, n_files=Non
     # Compute how many samples to remove from each file (as even as possible)
     samples_to_remove = []
     remaining = n_samples
-    for i, l in enumerate(lengths):
+    for i, length in enumerate(lengths):
         # For the last file, take all remaining samples needed (but not more than available)
         if i == len(lengths) - 1:
-            take = min(remaining, l)
+            take = min(remaining, length)
         else:
             # Proportionally assign samples to remove, but not more than available or needed
-            take = min(math.floor(n_samples * l / total_rows), l, remaining)
+            take = min(math.floor(n_samples * length / total_rows), length, remaining)
         samples_to_remove.append(take)
         remaining -= take
 
     # Remove samples and collect them for validation split
     removed_tables = []
-    for i, (ds, n_remove, path) in enumerate(zip(datasets_list, samples_to_remove, files)):
+    for _i, (ds, n_remove, path) in enumerate(
+        zip(datasets_list, samples_to_remove, files, strict=False)
+    ):
         if n_remove == 0:
             # If nothing to remove, just save the dataset back to its original file
             if input_type == "parquet":
@@ -134,7 +138,9 @@ def main(input_dirs, output_dir, input_type, output_file, n_samples, n_files=Non
         removed_tables.append(removed)
 
     # Get the block size from the first dataset. Calculate the length of the first entry in 'input_ids'
-    block_size = len(datasets_list[0][0]['input_ids']) if 'input_ids' in datasets_list[0].features else 0
+    block_size = (
+        len(datasets_list[0][0]["input_ids"]) if "input_ids" in datasets_list[0].features else 0
+    )
     # Concatenate all removed rows and save to a single file
     if removed_tables:
         concat = datasets.concatenate_datasets(removed_tables)
@@ -170,18 +176,51 @@ def main(input_dirs, output_dir, input_type, output_file, n_samples, n_files=Non
             meta_file.write(f"Chunks: {total_chunks}\n")
             meta_file.write(f"Tokenizer: {tokenizer_name}\n")
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
-    parser.add_argument("--input_dirs", type=str, nargs="+", required=True, help="One or more directories containing input files to sample from.")
-    parser.add_argument("--output_dir", type=str, default="./", help="Directory to save the validation split and metadata.")
-    parser.add_argument("--input_type", type=str, default="parquet", choices=["parquet", "json"], help="Input file type.")
-    parser.add_argument("--output_file", type=str, default="validation_split", help="Filename for the validation split file.")
-    parser.add_argument("--n_samples", type=int, default=20000, help="Total number of samples to remove for validation split.")
-    parser.add_argument("--n_files", type=int, default=None, help="Total number of files to randomly select across all input directories (default: use all files).")
+    parser.add_argument(
+        "--input_dirs",
+        type=str,
+        nargs="+",
+        required=True,
+        help="One or more directories containing input files to sample from.",
+    )
+    parser.add_argument(
+        "--output_dir",
+        type=str,
+        default="./",
+        help="Directory to save the validation split and metadata.",
+    )
+    parser.add_argument(
+        "--input_type",
+        type=str,
+        default="parquet",
+        choices=["parquet", "json"],
+        help="Input file type.",
+    )
+    parser.add_argument(
+        "--output_file",
+        type=str,
+        default="validation_split",
+        help="Filename for the validation split file.",
+    )
+    parser.add_argument(
+        "--n_samples",
+        type=int,
+        default=20000,
+        help="Total number of samples to remove for validation split.",
+    )
+    parser.add_argument(
+        "--n_files",
+        type=int,
+        default=None,
+        help="Total number of files to randomly select across all input directories (default: use all files).",
+    )
     parser.add_argument("--seed", type=int, default=42, help="Random seed for file selection.")
     args = parser.parse_args()
 

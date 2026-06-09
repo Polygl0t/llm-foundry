@@ -2,23 +2,22 @@
 
 from __future__ import annotations
 
-import os
-import re
-import sys
 import glob
-import time
 import json
 import logging
+import os
+import re
 import subprocess
+import sys
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import torch
 import datasets
+import torch
+from datatrove.utils.logging import logger
 from transformers import AutoTokenizer
 from vllm import LLM, SamplingParams
-
-from datatrove.utils.logging import logger
 
 if TYPE_CHECKING:
     from transformers import AutoConfig
@@ -52,6 +51,7 @@ QUANTIZATION_METHODS = ("bitsandbytes",)
 # Valid KV cache dtype options
 KV_CACHE_DTYPE_OPTIONS = ("auto", "fp8_e4m3", "fp8_e5m2")
 
+
 class DatasetLoader:
     """Loads datasets from a local file, local directory, or HuggingFace Hub.
 
@@ -63,8 +63,14 @@ class DatasetLoader:
 
     _FILE_FORMATS = {".jsonl": "json", ".json": "json", ".parquet": "parquet"}
 
-    def __init__(self, path: str, cache_dir: str | None = None, seed: int | None = None,
-                 split: str = "train", subset: str | None = None) -> None:
+    def __init__(
+        self,
+        path: str,
+        cache_dir: str | None = None,
+        seed: int | None = None,
+        split: str = "train",
+        subset: str | None = None,
+    ) -> None:
         self.path = path
         self.cache_dir = cache_dir
         self.seed = seed
@@ -85,15 +91,20 @@ class DatasetLoader:
         fmt = self._FILE_FORMATS.get(ext)
         if fmt is None:
             raise ValueError(f"Unsupported file format '{ext}'. Expected .jsonl or .parquet.")
-        return datasets.load_dataset(fmt, data_files=self.path, split="train", cache_dir=self.cache_dir)
+        return datasets.load_dataset(
+            fmt, data_files=self.path, split="train", cache_dir=self.cache_dir
+        )
 
     def _from_directory(self):
         for ext, fmt in (("*.jsonl", "json"), ("*.parquet", "parquet")):
             files = sorted(glob.glob(os.path.join(self.path, ext)))
             if files:
                 return datasets.load_dataset(
-                    fmt, data_files=files, split="train",
-                    num_proc=len(files), cache_dir=self.cache_dir,
+                    fmt,
+                    data_files=files,
+                    split="train",
+                    num_proc=len(files),
+                    cache_dir=self.cache_dir,
                 )
         raise ValueError(f"No .jsonl or .parquet files found in '{self.path}'.")
 
@@ -108,18 +119,18 @@ def setup_triton_cache() -> None:
     """
     Setup Triton cache directory with proper permissions and cleanup.
 
-    -   This helps to avoid conflicts where different processes 
+    -   This helps to avoid conflicts where different processes
         might try to access cache files that have been modified
         or deleted.
     """
-    cache_dir = os.environ.get('TRITON_CACHE_DIR', './.cache/triton_cache')
-    slurm_job_id = os.environ.get('SLURM_JOB_ID', 'local')
-    cuda_visible_device = os.environ.get('CUDA_VISIBLE_DEVICES', '0').replace(',', '-')
+    cache_dir = os.environ.get("TRITON_CACHE_DIR", "./.cache/triton_cache")
+    slurm_job_id = os.environ.get("SLURM_JOB_ID", "local")
+    cuda_visible_device = os.environ.get("CUDA_VISIBLE_DEVICES", "0").replace(",", "-")
     rank_cache_dir = f"{cache_dir}/{slurm_job_id}/rank_{cuda_visible_device}"
 
     logger.info(rank_cache_dir)
     os.makedirs(rank_cache_dir, exist_ok=True)
-    os.environ['TRITON_CACHE_DIR'] = rank_cache_dir
+    os.environ["TRITON_CACHE_DIR"] = rank_cache_dir
 
     # Clean up stale cache files
     try:
@@ -130,10 +141,11 @@ def setup_triton_cache() -> None:
                 try:
                     if os.path.getmtime(file_path) < current_time - TRITON_CACHE_CLEANUP_AGE:
                         os.remove(file_path)
-                except (OSError, IOError):
+                except OSError:
                     pass  # Ignore errors when cleaning up
     except Exception:
         pass
+
 
 def get_nvidia_smi_vram() -> list[float]:
     """Get the current VRAM usage of NVIDIA GPUs in GB."""
@@ -148,11 +160,11 @@ def get_nvidia_smi_vram() -> list[float]:
 
 
 def load_model_and_tokenizer(
-        model_name_or_path: str,
-        cache_dir: str,
-        tensor_parallel_size: int,
-        gpu_memory_utilization: float,
-    ) -> tuple[AutoTokenizer, LLM]:
+    model_name_or_path: str,
+    cache_dir: str,
+    tensor_parallel_size: int,
+    gpu_memory_utilization: float,
+) -> tuple[AutoTokenizer, LLM]:
     """Load the model and tokenizer from Hugging Face."""
     tokenizer = AutoTokenizer.from_pretrained(
         model_name_or_path,
@@ -173,25 +185,22 @@ def load_model_and_tokenizer(
 
 
 def generate_rollouts(
-        model: LLM,
-        tokenizer: AutoTokenizer,
-        input_string: str,
-        system: str,
-        sampling_params: SamplingParams,
-        track_vram: bool = False,
-        enable_thinking: bool = False,
-    ) -> list[str]:
+    model: LLM,
+    tokenizer: AutoTokenizer,
+    input_string: str,
+    system: str,
+    sampling_params: SamplingParams,
+    track_vram: bool = False,
+    enable_thinking: bool = False,
+) -> list[str]:
     """Generate text samples using the model."""
 
     # See https://huggingface.co/docs/transformers/main/chat_templating#using-applychattemplate
     raw_text = tokenizer.apply_chat_template(
-        [
-            {"role": "system", "content": system},
-            {"role": "user", "content": input_string}
-        ],
+        [{"role": "system", "content": system}, {"role": "user", "content": input_string}],
         tokenize=False,
         add_generation_prompt=True,
-        enable_thinking=enable_thinking
+        enable_thinking=enable_thinking,
     )
 
     t0 = time.time()
@@ -200,7 +209,7 @@ def generate_rollouts(
 
     nvidia_smi_vram = None
     if track_vram:
-        nvidia_smi_vram = f'VRAM: {get_nvidia_smi_vram()[0]:.2f} GB'
+        nvidia_smi_vram = f"VRAM: {get_nvidia_smi_vram()[0]:.2f} GB"
     tokens_generated = len(tokenizer(outputs[0].outputs[0].text).input_ids)
 
     log_message = f"Time taken: {elapsed_time:.2f}s | Tokens: {tokens_generated}"
@@ -226,19 +235,16 @@ def get_logger(name: str) -> logging.Logger:
 
 
 def chunk_text(
-        text: str, 
-        tokenizer: AutoTokenizer, 
-        max_chunk_size: int, 
-        chunk_once: bool
-    ) -> list[str]:
+    text: str, tokenizer: AutoTokenizer, max_chunk_size: int, chunk_once: bool
+) -> list[str]:
     """Chunk text into smaller pieces if it exceeds max_chunk_size"""
     tokenized_text = tokenizer(text).input_ids
     chunks = [
-        tokenized_text[i:i + max_chunk_size] 
+        tokenized_text[i : i + max_chunk_size]
         for i in range(0, len(tokenized_text), max_chunk_size)
     ]
     decoded_chunks = [tokenizer.decode(chunk, skip_special_tokens=True) for chunk in chunks]
-    
+
     return [decoded_chunks[0]] if chunk_once else decoded_chunks
 
 
@@ -258,7 +264,7 @@ def get_starting_row(file_path: str, row_start: int | None) -> int:
         return 0
 
     max_row = -1
-    with open(file_path, "r") as f:
+    with open(file_path) as f:
         for line in f:
             try:
                 max_row = max(max_row, int(json.loads(line)["row"]))
@@ -269,13 +275,13 @@ def get_starting_row(file_path: str, row_start: int | None) -> int:
 
 
 def save_samples(
-        output_file: str,
-        row: int,
-        seed_text: str,
-        rollouts: list[str],
-        metadata: dict,
-        chunk: int | None = None,
-    ) -> None:
+    output_file: str,
+    row: int,
+    seed_text: str,
+    rollouts: list[str],
+    metadata: dict,
+    chunk: int | None = None,
+) -> None:
     """
     Save generated samples to a file.
     Saved files look like this:
@@ -286,13 +292,13 @@ def save_samples(
     """
 
     record: dict = {
-        "row": row, 
-        "seed_text": seed_text, 
-        "rollouts": rollouts, 
-        "chunk": chunk, 
-        "metadata": metadata
+        "row": row,
+        "seed_text": seed_text,
+        "rollouts": rollouts,
+        "chunk": chunk,
+        "metadata": metadata,
     }
-    
+
     if chunk is not None:
         record["chunk"] = chunk
     if metadata:
@@ -302,26 +308,25 @@ def save_samples(
 
 
 def run_rollouts(
-        sample: dict,
-        counter: int,
-        text_column: str,
-        metadata_columns: list[str],
-        model: LLM,
-        tokenizer: AutoTokenizer,
-        sampling_params: SamplingParams,
-        file_path: str,
-        system: str,
-        prompt_prefix: str,
-        prompt_suffix: str,
-        max_chunk_size: int,
-        chunk_once: bool,
-        track_vram: bool = False,
-        enable_thinking: bool = False,
-        
-    ) -> None:
+    sample: dict,
+    counter: int,
+    text_column: str,
+    metadata_columns: list[str],
+    model: LLM,
+    tokenizer: AutoTokenizer,
+    sampling_params: SamplingParams,
+    file_path: str,
+    system: str,
+    prompt_prefix: str,
+    prompt_suffix: str,
+    max_chunk_size: int,
+    chunk_once: bool,
+    track_vram: bool = False,
+    enable_thinking: bool = False,
+) -> None:
     """
-    Process a single dataset sample: 
-    
+    Process a single dataset sample:
+
         1. Chunk if needed;
         2. Generate rollouts;
         3. Save the results.
@@ -331,7 +336,9 @@ def run_rollouts(
     token_count = len(tokenizer(text_content).input_ids)
 
     if token_count > max_chunk_size:
-        logger.info(f"Chunking row {counter} ({token_count} tokens) into {max_chunk_size}-token chunks...")
+        logger.info(
+            f"Chunking row {counter} ({token_count} tokens) into {max_chunk_size}-token chunks..."
+        )
         text_samples = chunk_text(text_content, tokenizer, max_chunk_size, chunk_once)
     else:
         text_samples = [text_content]
@@ -348,7 +355,7 @@ def run_rollouts(
             system=system,
             sampling_params=sampling_params,
             track_vram=track_vram,
-            enable_thinking=enable_thinking
+            enable_thinking=enable_thinking,
         )
 
         save_samples(
@@ -362,14 +369,14 @@ def run_rollouts(
 
 
 def critique_response(
-        model: LLM,
-        tokenizer: AutoTokenizer,
-        user_prompt: str,
-        responses: list[str],
-        system: str,
-        sampling_params: SamplingParams,
-        enable_thinking: bool = False,
-    ) -> list[str]:
+    model: LLM,
+    tokenizer: AutoTokenizer,
+    user_prompt: str,
+    responses: list[str],
+    system: str,
+    sampling_params: SamplingParams,
+    enable_thinking: bool = False,
+) -> list[str]:
     """Critique each of the n responses in a single batched call. Returns one critique per response."""
     raw_prompts = []
     for response in responses:
@@ -381,29 +388,34 @@ Response to critique:
 {response}
 
 Provide specific suggestions for improvement based on the constitution's guidelines for clarity, helpfulness, safety, and honesty. Be concise."""
-        raw_prompts.append(tokenizer.apply_chat_template(
-            [{"role": "system", "content": system}, {"role": "user", "content": critique_prompt}],
-            tokenize=False,
-            add_generation_prompt=True,
-            enable_thinking=enable_thinking,
-        ))
+        raw_prompts.append(
+            tokenizer.apply_chat_template(
+                [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": critique_prompt},
+                ],
+                tokenize=False,
+                add_generation_prompt=True,
+                enable_thinking=enable_thinking,
+            )
+        )
     outputs = model.generate(raw_prompts, sampling_params, use_tqdm=False)
     return [o.outputs[0].text for o in outputs]
 
 
 def revise_response(
-        model: LLM,
-        tokenizer: AutoTokenizer,
-        user_prompt: str,
-        original_responses: list[str],
-        critiques: list[str],
-        system: str,
-        sampling_params: SamplingParams,
-        enable_thinking: bool = False,
-    ) -> list[str]:
+    model: LLM,
+    tokenizer: AutoTokenizer,
+    user_prompt: str,
+    original_responses: list[str],
+    critiques: list[str],
+    system: str,
+    sampling_params: SamplingParams,
+    enable_thinking: bool = False,
+) -> list[str]:
     """Revise each of the n responses based on its critique in a single batched call."""
     raw_prompts = []
-    for original_response, critique in zip(original_responses, critiques):
+    for original_response, critique in zip(original_responses, critiques, strict=False):
         revision_prompt = f"""Based on the following critique, provide an improved response to the original user request.
 
 Original user request: {user_prompt}
@@ -415,27 +427,32 @@ Critique:
 {critique}
 
 Provide the revised response that addresses the critique while following all constitutional principles:"""
-        raw_prompts.append(tokenizer.apply_chat_template(
-            [{"role": "system", "content": system}, {"role": "user", "content": revision_prompt}],
-            tokenize=False,
-            add_generation_prompt=True,
-            enable_thinking=enable_thinking,
-        ))
+        raw_prompts.append(
+            tokenizer.apply_chat_template(
+                [
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": revision_prompt},
+                ],
+                tokenize=False,
+                add_generation_prompt=True,
+                enable_thinking=enable_thinking,
+            )
+        )
     outputs = model.generate(raw_prompts, sampling_params, use_tqdm=False)
     return [o.outputs[0].text for o in outputs]
 
 
 def constitutional_generation(
-        model: LLM,
-        tokenizer: AutoTokenizer,
-        user_prompt: str,
-        system: str,
-        sampling_params: SamplingParams,
-        enable_thinking: bool = False,
-        enable_critique: bool = True,
-        max_revisions: int = 1,
-        track_vram: bool = False,
-    ) -> dict:
+    model: LLM,
+    tokenizer: AutoTokenizer,
+    user_prompt: str,
+    system: str,
+    sampling_params: SamplingParams,
+    enable_thinking: bool = False,
+    enable_critique: bool = True,
+    max_revisions: int = 1,
+    track_vram: bool = False,
+) -> dict:
     """Perform Constitutional AI generation with optional critique and revision.
 
     Each step generates num_return_sequences responses, running n parallel trajectories.
@@ -502,12 +519,12 @@ def constitutional_generation(
 
 
 def save_cai_sample(
-        output_file: str,
-        row: int,
-        instruction: str,
-        cai_result: dict,
-        metadata: dict,
-    ) -> None:
+    output_file: str,
+    row: int,
+    instruction: str,
+    cai_result: dict,
+    metadata: dict,
+) -> None:
     """Save Constitutional AI generation results to the output file."""
     record = {
         "row": row,
@@ -523,30 +540,32 @@ def save_cai_sample(
 
 
 def run_cai_rollouts(
-        sample: dict,
-        counter: int,
-        prompt_column: str,
-        metadata_columns: list[str],
-        model: LLM,
-        tokenizer: AutoTokenizer,
-        sampling_params: SamplingParams,
-        file_path: str,
-        system: str,
-        prompt_prefix: str,
-        prompt_suffix: str,
-        max_chunk_size: int,
-        enable_thinking: bool = False,
-        enable_critique: bool = True,
-        max_revisions: int = 1,
-        track_vram: bool = False,
-    ) -> None:
+    sample: dict,
+    counter: int,
+    prompt_column: str,
+    metadata_columns: list[str],
+    model: LLM,
+    tokenizer: AutoTokenizer,
+    sampling_params: SamplingParams,
+    file_path: str,
+    system: str,
+    prompt_prefix: str,
+    prompt_suffix: str,
+    max_chunk_size: int,
+    enable_thinking: bool = False,
+    enable_critique: bool = True,
+    max_revisions: int = 1,
+    track_vram: bool = False,
+) -> None:
     """Process a single CAI dataset sample: run constitutional generation and save."""
     text_content = sample[prompt_column]
     metadata = {col: sample[col] for col in metadata_columns if col in sample}
     token_count = len(tokenizer(text_content).input_ids)
 
     if token_count > max_chunk_size:
-        logger.info(f"Skipping row {counter} with {token_count} tokens (exceeds max chunk size of {max_chunk_size} tokens).")
+        logger.info(
+            f"Skipping row {counter} with {token_count} tokens (exceeds max chunk size of {max_chunk_size} tokens)."
+        )
         return
 
     full_prompt = f"{prompt_prefix}{text_content}{prompt_suffix}"
@@ -712,7 +731,9 @@ def validate_config(
 
     # Check if tp is valid for vLLM
     # Handle multi-modal configs (e.g., Gemma3) where num_attention_heads is in text_config
-    num_heads = int(getattr(config, "num_attention_heads", None) or config.text_config.num_attention_heads)
+    num_heads = int(
+        getattr(config, "num_attention_heads", None) or config.text_config.num_attention_heads
+    )
     if num_heads % tp != 0:
         raise ValueError(
             f"num_attention_heads ({num_heads}) must be divisible by tensor parallel size (tp={tp})."

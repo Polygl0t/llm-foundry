@@ -65,7 +65,7 @@ Main parameters:
 
 Packs a pre-tokenized dataset into fixed-length chunks using either concatenation or Best-Fit Decreasing (BFD) strategies.
 
-Examples: 
+Examples:
 ```bash
 # Concatenation
 python pack.py \
@@ -154,4 +154,3 @@ sbatch run_tokenization.sh
 ## Notes
 
 - Decontamination operates at the **token level** — both training and reference datasets must be pre-tokenized with `input_ids`.
-

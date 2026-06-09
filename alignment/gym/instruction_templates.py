@@ -12,7 +12,7 @@ Template structure:
 """
 
 TEMPLATES = [
-    #  Blog / Article 
+    #  Blog / Article
     {
         "id": "blog_topic",
         "prompts": [
@@ -35,7 +35,7 @@ TEMPLATES = [
             ],
         },
     },
-    #  Email (professional) 
+    #  Email (professional)
     {
         "id": "email_professional",
         "prompts": [
@@ -61,7 +61,7 @@ TEMPLATES = [
             ],
         },
     },
-    #  Email (invitation) 
+    #  Email (invitation)
     {
         "id": "email_invitation",
         "prompts": [
@@ -86,7 +86,7 @@ TEMPLATES = [
             ],
         },
     },
-    #  Letter (informal) 
+    #  Letter (informal)
     {
         "id": "letter_informal",
         "prompts": [
@@ -112,7 +112,7 @@ TEMPLATES = [
             ],
         },
     },
-    #  Resume / CV 
+    #  Resume / CV
     {
         "id": "resume",
         "prompts": [
@@ -133,7 +133,7 @@ TEMPLATES = [
             ],
         },
     },
-    #  Story / Narrative 
+    #  Story / Narrative
     {
         "id": "story",
         "prompts": [
@@ -154,7 +154,7 @@ TEMPLATES = [
             ],
         },
     },
-    #  Poem 
+    #  Poem
     {
         "id": "poem",
         "prompts": [
@@ -175,7 +175,7 @@ TEMPLATES = [
             ],
         },
     },
-    #  Song Lyrics 
+    #  Song Lyrics
     {
         "id": "song_lyrics",
         "prompts": [
@@ -204,7 +204,7 @@ TEMPLATES = [
             ],
         },
     },
-    #  Dialogue 
+    #  Dialogue
     {
         "id": "dialogue",
         "prompts": [
@@ -231,7 +231,7 @@ TEMPLATES = [
             ],
         },
     },
-    #  Advertisement / Marketing 
+    #  Advertisement / Marketing
     {
         "id": "advertisement",
         "prompts": [
@@ -252,7 +252,7 @@ TEMPLATES = [
             ],
         },
     },
-    #  Review / Critique 
+    #  Review / Critique
     {
         "id": "review",
         "prompts": [
@@ -272,7 +272,7 @@ TEMPLATES = [
             ],
         },
     },
-    #  Travel Itinerary 
+    #  Travel Itinerary
     {
         "id": "travel_itinerary",
         "prompts": [
@@ -295,7 +295,7 @@ TEMPLATES = [
             ],
         },
     },
-    #  Explanation 
+    #  Explanation
     {
         "id": "explanation",
         "prompts": [
@@ -316,7 +316,7 @@ TEMPLATES = [
             ],
         },
     },
-    #  Summary 
+    #  Summary
     {
         "id": "summary",
         "prompts": [
@@ -337,7 +337,7 @@ TEMPLATES = [
             ],
         },
     },
-    #  Speech 
+    #  Speech
     {
         "id": "speech",
         "prompts": [
@@ -356,7 +356,7 @@ TEMPLATES = [
             ],
         },
     },
-    #  Social Media 
+    #  Social Media
     {
         "id": "social_media",
         "prompts": [
@@ -382,7 +382,7 @@ TEMPLATES = [
             ],
         },
     },
-    #  Pitch 
+    #  Pitch
     {
         "id": "pitch",
         "prompts": [
@@ -401,7 +401,7 @@ TEMPLATES = [
             ],
         },
     },
-    #  Tutorial / Instructions 
+    #  Tutorial / Instructions
     {
         "id": "tutorial",
         "prompts": [
@@ -422,7 +422,7 @@ TEMPLATES = [
             ],
         },
     },
-    #  List 
+    #  List
     {
         "id": "list",
         "prompts": [
@@ -442,7 +442,7 @@ TEMPLATES = [
             ],
         },
     },
-    #  Quiz 
+    #  Quiz
     {
         "id": "quiz",
         "prompts": [
@@ -469,7 +469,7 @@ TEMPLATES = [
             ],
         },
     },
-    #  Recipe 
+    #  Recipe
     {
         "id": "recipe",
         "prompts": [
@@ -490,13 +490,13 @@ TEMPLATES = [
             ],
         },
     },
-    #  Rewrite (formal) 
+    #  Rewrite (formal)
     {
         "id": "rewrite",
         "prompts": [
-            "Reescreva a seguinte declaração para que soe mais formal: \"{statement}\"",
-            "Reformule o seguinte texto em um tom mais formal: \"{statement}\"",
-            "Torne a seguinte frase mais formal e profissional: \"{statement}\"",
+            'Reescreva a seguinte declaração para que soe mais formal: "{statement}"',
+            'Reformule o seguinte texto em um tom mais formal: "{statement}"',
+            'Torne a seguinte frase mais formal e profissional: "{statement}"',
         ],
         "slots": {
             "statement": [
@@ -508,13 +508,13 @@ TEMPLATES = [
             ],
         },
     },
-    #  Sentiment Analysis 
+    #  Sentiment Analysis
     {
         "id": "sentiment",
         "prompts": [
-            "Dada a frase \"{phrase}\", o sentimento é positivo ou negativo?",
-            "Analise o sentimento da seguinte frase: \"{phrase}\"",
-            "Classifique como positivo ou negativo o sentimento expresso em: \"{phrase}\"",
+            'Dada a frase "{phrase}", o sentimento é positivo ou negativo?',
+            'Analise o sentimento da seguinte frase: "{phrase}"',
+            'Classifique como positivo ou negativo o sentimento expresso em: "{phrase}"',
         ],
         "slots": {
             "phrase": [
@@ -527,7 +527,7 @@ TEMPLATES = [
             ],
         },
     },
-    #  Joke 
+    #  Joke
     {
         "id": "joke",
         "prompts": [
@@ -548,7 +548,7 @@ TEMPLATES = [
             ],
         },
     },
-    #  Haiku 
+    #  Haiku
     {
         "id": "haiku",
         "prompts": [
@@ -569,7 +569,7 @@ TEMPLATES = [
             ],
         },
     },
-    #  Report 
+    #  Report
     {
         "id": "report",
         "prompts": [
@@ -588,7 +588,7 @@ TEMPLATES = [
             ],
         },
     },
-    #  Comparison 
+    #  Comparison
     {
         "id": "comparison",
         "prompts": [
@@ -607,7 +607,7 @@ TEMPLATES = [
             ],
         },
     },
-    #  Opinion / Essay 
+    #  Opinion / Essay
     {
         "id": "opinion",
         "prompts": [
@@ -626,7 +626,7 @@ TEMPLATES = [
             ],
         },
     },
-    #  Children's Story 
+    #  Children's Story
     {
         "id": "children_story",
         "prompts": [
@@ -645,7 +645,7 @@ TEMPLATES = [
             ],
         },
     },
-    #  Person Description 
+    #  Person Description
     {
         "id": "person_description",
         "prompts": [

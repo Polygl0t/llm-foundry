@@ -13,12 +13,14 @@ Usage:
         --num_workers 8 \\
         --private
 """
-from huggingface_hub import HfApi
+
 import argparse
 import time
 
-def main(args):
+from huggingface_hub import HfApi
 
+
+def main(args):
     api = HfApi(token=args.token)
 
     api.create_repo(
@@ -43,19 +45,25 @@ def main(args):
             print("Retrying in 60 seconds...")
             time.sleep(60)
 
+
 if __name__ == "__main__":
-    
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
     parser.add_argument("--main_dir", type=str, default=None, help="Directory to upload")
-    parser.add_argument("--new_repo_id", type=str, default=None, help="New repository ID on the Hugging Face Hub")
-    parser.add_argument("--private", action='store_true', help="Make the repository private")
+    parser.add_argument(
+        "--new_repo_id", type=str, default=None, help="New repository ID on the Hugging Face Hub"
+    )
+    parser.add_argument("--private", action="store_true", help="Make the repository private")
     parser.add_argument("--token", type=str, default=None, help="Hugging Face API token")
-    parser.add_argument("--num_workers", type=int, default=8, help="Number of workers for uploading")
-    parser.add_argument("--repo_type", type=str, default="dataset", help="Type of repository (dataset/model)")
+    parser.add_argument(
+        "--num_workers", type=int, default=8, help="Number of workers for uploading"
+    )
+    parser.add_argument(
+        "--repo_type", type=str, default="dataset", help="Type of repository (dataset/model)"
+    )
 
     args = parser.parse_args()
     main(args)

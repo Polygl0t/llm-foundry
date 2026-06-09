@@ -84,7 +84,7 @@ If you choose to train your own tokenizer, you can use the scripts and tools ava
 
 ### I have a tokenizer, now what?
 
-After you have a tokenizer (either a pre-trained one, or one that you trained yourself), you can use it to tokenize your data and prepare it for training. Tokenizing is nothing more than applying the tokenizer to your data (i.e., converting the raw text data into sequences of token IDs) and packing it into the appropriate context windows for training. In the foundry, we perform all of this **offline** for pretraining. This means that we tokenize the data and pack it into the appropriate context windows before training the model, and then we save the tokenized and packed data on disk, so that it can be efficiently loaded during training. This introduces an extra step in the process, but it allows us to simplify the data loading process during training, which can be very beneficial when working with large datasets and large models 
+After you have a tokenizer (either a pre-trained one, or one that you trained yourself), you can use it to tokenize your data and prepare it for training. Tokenizing is nothing more than applying the tokenizer to your data (i.e., converting the raw text data into sequences of token IDs) and packing it into the appropriate context windows for training. In the foundry, we perform all of this **offline** for pretraining. This means that we tokenize the data and pack it into the appropriate context windows before training the model, and then we save the tokenized and packed data on disk, so that it can be efficiently loaded during training. This introduces an extra step in the process, but it allows us to simplify the data loading process during training, which can be very beneficial when working with large datasets and large models.
 
 > ***"Whatever can be done offline, should be done offline."*** Not always true, but a good principle to follow in general if you are aiming for simplicity and efficiency.
 
@@ -133,9 +133,9 @@ After you have pretrained your model, if you want to go further than having just
 
 ## FAQ (Frequently Asked Questions)
 
-1. **How long does it take to train a model?** 
+1. **How long does it take to train a model?**
 
 - The time it takes to train a model depends on several factors, such as the size of the model, the size of the dataset, the computational resources available, and the training hyperparameters. For example, training a 7B parameter model on a dataset of 1 trillion tokens with 256 A100 GPUs can take around 2 weeks. However, these numbers can vary significantly depending on the specific circumstances.
 
-2. **Are the SLURM bash scripts ready to use?** 
+2. **Are the SLURM bash scripts ready to use?**
 - No, the SLURM bash scripts provided in the LLM Foundry are templates and not ready-to-use scripts. You will need to modify them according to your specifications (e.g., cluster partition, number of nodes, all paths, etc.) before running them. Paths are the most common thing you will need to change, since the directory structure of your cluster/workspace will probably be different from the one we set in the bash script templates.

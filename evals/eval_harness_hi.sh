@@ -1,10 +1,10 @@
 #!/bin/bash -l
 #############################################
 # LM Evaluation Harness - Hindi Language Models
-# 
+#
 # This script automates the evaluation of Hindi language models using the lm-evaluation-harness framework.
 # It can evaluate either local checkpoints or HuggingFace models in parallel across GPUs.
-# Learn more about lm-evaluation-harness at: 
+# Learn more about lm-evaluation-harness at:
 # - https://github.com/EleutherAI/lm-evaluation-harness
 #############################################
 
@@ -114,10 +114,10 @@ if [ "$EVAL_MODE" == "models" ]; then
     echo "====================================="
     echo "Downloading HuggingFace models to cache"
     echo "====================================="
-    
+
     # Convert space-separated string to array for download
     read -ra MODEL_DOWNLOAD_LIST <<< "$MODELS_TO_EVAL"
-    
+
     for model in "${MODEL_DOWNLOAD_LIST[@]}"; do
         model_name=$(basename "$model")        # <-- Extract model name from HuggingFace ID
         # If the model path is already an existing local directory, skip download
@@ -148,7 +148,7 @@ fi
 
 #############################################
 # Discover What Needs Evaluation
-# 
+#
 # This section checks which models/checkpoints have already been evaluated (by looking for YAML files)
 # and creates a list of items that still need evaluation.
 #############################################
@@ -161,19 +161,19 @@ declare -a MODEL_NAMES=()                  # <-- Array to store model names (for
 
 if [ "$EVAL_MODE" == "checkpoints" ]; then
     echo "Discovering checkpoints in: $CHECKPOINT_DIR"
-    
+
     if [ ! -d "$CHECKPOINT_DIR" ]; then
         echo "ERROR: Checkpoint directory does not exist: $CHECKPOINT_DIR"
         exit 1
     fi
-    
+
     # Find all step_* directories
     for checkpoint in "$CHECKPOINT_DIR"/step_*; do
         if [ -d "$checkpoint" ]; then
             checkpoint_name=$(basename "$checkpoint")
             # Check if evaluation already exists (look for results file with checkpoint name)
             eval_file="$EVAL_OUTPUT_DIR/${checkpoint_name}.yaml"
-            
+
             # Check if evaluation already exists
             if [ -f "$eval_file" ]; then
                 echo "✓ $checkpoint_name already evaluated (found $eval_file)"  # <-- Skip this checkpoint
@@ -187,15 +187,15 @@ if [ "$EVAL_MODE" == "checkpoints" ]; then
 
 elif [ "$EVAL_MODE" == "models" ]; then
     echo "Evaluating HuggingFace models from cache"
-    
+
     # Convert space-separated string to array
     read -ra MODEL_LIST <<< "$MODELS_TO_EVAL"
-    
+
     for model in "${MODEL_LIST[@]}"; do
         # Extract model name for filename (get string after last /)
         model_name=$(basename "$model")
         eval_file="$EVAL_OUTPUT_DIR/${model_name}.yaml"  # <-- Check if YAML result exists
-        
+
         # Check if evaluation already exists
         if [ -f "$eval_file" ]; then
             echo "✓ $model already evaluated (found $eval_file)"  # <-- Skip this model
@@ -234,7 +234,7 @@ echo "====================================="
 
 #############################################
 # Setup Output Files
-# 
+#
 # Create separate output and error files for each evaluation job.
 # This allows for debugging individual model evaluations.
 #############################################
@@ -255,7 +255,7 @@ done
 
 #############################################
 # Main Job Execution
-# 
+#
 # This section launches evaluation jobs in parallel, one per model/checkpoint.
 # Each evaluation runs on a separate GPU.
 # Jobs run in the background (&) and we track their process IDs.
@@ -268,15 +268,15 @@ for i in $(seq 0 $((NUM_TO_EVAL - 1))); do
     model_name="${MODEL_NAMES[$i]}"         # <-- Model name for file naming
     gpu_id=$((i % NUM_GPUS_NEEDED))         # <-- Assign GPU in round-robin fashion
     ucx_device=$gpu_id                      # <-- Network device ID (matches GPU ID)
-    
+
     out_file="${OUT_FILES[$i]}"
     err_file="${ERR_FILES[$i]}"
-    
+
     echo "Launching evaluation for $model_name on GPU $gpu_id"
-    
+
     export CUDA_VISIBLE_DEVICES=$gpu_id                     # <-- Make only this GPU visible to the process
     export UCX_NET_DEVICES=mlx5_${ucx_device}:1             # <-- Set network device for GPU communication
-    
+
     # Set MODEL_PATH based on evaluation mode
     if [ "$EVAL_MODE" == "checkpoints" ]; then
         export MODEL_PATH="$model"                          # <-- Use checkpoint directory directly
@@ -285,7 +285,7 @@ for i in $(seq 0 $((NUM_TO_EVAL - 1))); do
     else
         export MODEL_PATH="$HUGGINGFACE_HUB_CACHE/$model_name"  # <-- Path to locally cached model
     fi
-    
+
     # Launch evaluation in background
     # For more details on available arguments, check the user guide:
     # https://github.com/EleutherAI/lm-evaluation-harness/blob/main/docs/interface.md
@@ -305,10 +305,10 @@ for i in $(seq 0 $((NUM_TO_EVAL - 1))); do
         --num_fewshot $NUM_FEWSHOT \
         --device "cuda" \
         --output_path "$LOGS_FOLDER" 1>"$out_file" 2>"$err_file" &  # <-- Run in background
-    
+
     # Store the PID for tracking
     PIDS[$i]=$!                             # <-- Save process ID to wait for it later
-    
+
     # Small delay to stagger launches
     sleep 2                                 # <-- Prevents overwhelming the system with simultaneous starts
 done
@@ -320,7 +320,7 @@ for i in $(seq 0 $((NUM_TO_EVAL - 1))); do
     wait ${PIDS[$i]}                        # <-- Block until this process completes
     exit_code=$?                            # <-- Capture exit code
     model_name="${MODEL_NAMES[$i]}"
-    
+
     if [ $exit_code -eq 0 ]; then
         echo "✓ Evaluation completed successfully for $model_name"
     else
@@ -330,7 +330,7 @@ done
 
 #############################################
 # Post-processing (JSON to YAML Conversion)
-# 
+#
 # Converts JSON evaluation results to YAML format for easier analysis.
 # Flattens nested result structures and extracts model metadata.
 # Uses embedded Python (requires PyYAML in the active virtual environment).
@@ -442,14 +442,14 @@ echo "====================================="
 
 #############################################
 # Cleanup and Validation
-# 
+#
 # Check if all evaluations completed successfully and optionally clean up cache.
 #############################################
 ALL_SUCCESS=true
 for i in $(seq 0 $((NUM_TO_EVAL - 1))); do
     model_name="${MODEL_NAMES[$i]}"
     eval_file="$EVAL_OUTPUT_DIR/${model_name}.yaml"
-    
+
     # Check if the evaluation file was created (indicates success)
     if [ ! -f "$eval_file" ]; then
         ALL_SUCCESS=false

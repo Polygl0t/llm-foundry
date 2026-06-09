@@ -1,4 +1,4 @@
-# Alignment 
+# Alignment
 
 Alignment-related training scripts and utilities for the post-training phase and fine-tuning of large language models. This folder includes trainers for Direct Preference Optimization (DPO), Group Relative Policy Optimization (GRPO), reward model training, and supervised fine-tuning (SFT), along with shared utilities and a subfolder for gym generation and verification used in GRPO.
 
@@ -168,7 +168,7 @@ Expected chat-formatted messages or pre-tokenized input:
 If the dataset is pre-tokenized, it may include:
 
 ```json
-{"input_ids": [...], "seq_lengths": [...], "assistant_tokens_mask": [...]} 
+{"input_ids": [...], "seq_lengths": [...], "assistant_tokens_mask": [...]}
 ```
 
 ### `dpo_trainer.py` and `reward_trainer.py`

@@ -15,7 +15,6 @@ Usage:
 
 import argparse
 import math
-from typing import Optional
 
 
 def nearest_power_of_two(x: float) -> int:
@@ -43,18 +42,19 @@ def estimate_params(n_layer: int, d_model: int) -> float:
       - FFN (4x expansion, up + down): 8 * d_model^2
       - Layer norms: negligible (2 * d_model)
     """
-    return 12 * n_layer * d_model ** 2
+    return 12 * n_layer * d_model**2
 
 
-def compute_hyperparams(n_layer: int, d_model: int, l_seq: int, tokens: float,
-                       params: Optional[float] = None):
+def compute_hyperparams(
+    n_layer: int, d_model: int, l_seq: int, tokens: float, params: float | None = None
+):
     """Compute compute budget C, then derive learning rate and batch size."""
     # Compute budget (FLOPs)
-    C = (72 * n_layer * d_model ** 2 + 12 * n_layer * d_model * l_seq) * tokens
+    C = (72 * n_layer * d_model**2 + 12 * n_layer * d_model * l_seq) * tokens
 
     # DeepSeek scaling heuristics
-    lr = 0.3118 * (C ** -0.125)
-    batch_size = 0.2920 * (C ** 0.3271)
+    lr = 0.3118 * (C**-0.125)
+    batch_size = 0.2920 * (C**0.3271)
     batch_size_pow2 = nearest_power_of_two(batch_size)
 
     # Parameter & data ratio (Chinchilla optimal: 20 tokens per param)
@@ -95,7 +95,6 @@ def fmt(x: float) -> str:
 
 
 def main(args):
-
     result = compute_hyperparams(
         n_layer=args.n_layer,
         d_model=args.d_model,
@@ -110,27 +109,25 @@ def main(args):
     print("=" * 56)
     print("  Hyperparameter Scaling (DeepSeek Heuristics)")
     print("=" * 56)
-    print(f"  Architecture:")
+    print("  Architecture:")
     print(f"    n_layer  = {args.n_layer}")
     print(f"    d_model  = {args.d_model}")
     print(f"    l_seq    = {args.l_seq}")
     print(f"    tokens   = {fmt(args.tokens)} ({args.tokens:.4e})")
-    print(f"  =========================================")
+    print("  =========================================")
     print(f"  Compute budget C  = {fmt(result['C'])} ({result['C']:.4e} FLOPs)")
-    print(f"  =========================================")
+    print("  =========================================")
     print(f"  {params_label:16s} = {fmt(result['n_params'])}{params_note}")
-    print(f"  Tokens / param    = {result['tokens_per_param']:.2f}  "
-          f"(Chinchilla optimal: 20:1)")
-    if result['tokens_per_param'] < 20:
-        print(f"                       ⚠️ Below optimal — consider more tokens "
-              f"or a smaller model")
-    print(f"  =========================================")
+    print(f"  Tokens / param    = {result['tokens_per_param']:.2f}  (Chinchilla optimal: 20:1)")
+    if result["tokens_per_param"] < 20:
+        print("                       ⚠️ Below optimal — consider more tokens or a smaller model")
+    print("  =========================================")
     print(f"  Max Learning Rate = {result['lr']:.6e}")
     if not args.no_pow2:
         print(f"  Batch Size        = {result['batch_size']:,.0f} tokens")
         print(f"    -> rounded to   = {result['batch_size_pow2']:>13,} tokens")
         print(f"      (2^{int(math.log2(result['batch_size_pow2']))})")
-        print(f"    -> per step (GAS micro-batches):")
+        print("    -> per step (GAS micro-batches):")
         print(f"      GAS x micro_batch_size x l_seq = {result['batch_size_pow2']:,}")
         # Suggest some breakdowns
         for gas in [1, 2, 4, 8, 16, 32, 64, 128]:
@@ -141,47 +138,47 @@ def main(args):
         # Training steps
         tokens_per_step = result["batch_size_pow2"]
         steps = args.tokens / tokens_per_step
-        print(f"  =========================================")
-        print(f"  Training Run:")
+        print("  =========================================")
+        print("  Training Run:")
         print(f"    Tokens / step     = {tokens_per_step:>13,}")
         print(f"    Total steps       = {steps:>13,.0f}")
-        print(f"      ({steps:,.0f} steps × {tokens_per_step:,} tokens/step = "
-              f"{fmt(tokens_per_step * steps)})")
+        print(
+            f"      ({steps:,.0f} steps × {tokens_per_step:,} tokens/step = "
+            f"{fmt(tokens_per_step * steps)})"
+        )
     else:
         print(f"  Batch Size        = {result['batch_size']:,.0f} tokens")
     print("=" * 56)
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(
-        description=__doc__,
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument(
-        "--n-layer", type=int, required=True,
-        help="Number of transformer layers (e.g. 28)"
+        "--n-layer", type=int, required=True, help="Number of transformer layers (e.g. 28)"
     )
     parser.add_argument(
-        "--d-model", type=int, required=True,
-        help="Model hidden dimension (e.g. 1536)"
+        "--d-model", type=int, required=True, help="Model hidden dimension (e.g. 1536)"
     )
     parser.add_argument(
-        "--l-seq", type=int, default=4096,
-        help="Sequence length / context window (default: 4096)"
+        "--l-seq", type=int, default=4096, help="Sequence length / context window (default: 4096)"
     )
     parser.add_argument(
-        "--tokens", type=float, required=True,
-        help="Total training tokens. Can use scientific notation, e.g. 408e9"
+        "--tokens",
+        type=float,
+        required=True,
+        help="Total training tokens. Can use scientific notation, e.g. 408e9",
     )
     parser.add_argument(
-        "--params", type=float, default=None,
+        "--params",
+        type=float,
+        default=None,
         help="Actual parameter count (e.g. 7e9 for a 7B model). If omitted, "
-             "estimated from n_layer and d_model."
+        "estimated from n_layer and d_model.",
     )
     parser.add_argument(
-        "--no-pow2", action="store_true",
-        help="Skip rounding batch size to nearest power of two"
+        "--no-pow2", action="store_true", help="Skip rounding batch size to nearest power of two"
     )
     args = parser.parse_args()
     main(args)

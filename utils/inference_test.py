@@ -59,46 +59,48 @@ Output:
     - JSON file with results
     - Markdown report
 """
-import json
-import torch
+
 import argparse
-from pathlib import Path
-from typing import Dict, Any, List
+import json
 from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+import torch
 from transformers import (
-    AutoTokenizer,
     AutoModelForCausalLM,
+    AutoTokenizer,
     GenerationConfig,
 )
 
 
-def load_samples(samples_file: str) -> List[Dict[str, Any]]:
+def load_samples(samples_file: str) -> list[dict[str, Any]]:
     """Load samples from a JSON file."""
-    
+
     # Try relative to script directory first, then absolute path
     samples_path = Path(__file__).parent / samples_file
     if not samples_path.exists():
         samples_path = Path(samples_file)
-    
+
     if not samples_path.exists():
         raise FileNotFoundError(f"Samples file not found: {samples_file}")
-    
+
     print(f"Loading samples from: {samples_path}")
-    with open(samples_path, "r", encoding="utf-8") as f:
+    with open(samples_path, encoding="utf-8") as f:
         samples = json.load(f)
-    
+
     if not isinstance(samples, list):
         raise ValueError("Samples file must contain a JSON array of sample objects.")
-    
+
     print(f"Loaded {len(samples)} samples.")
     return samples
 
 
 def indent_text(text: str, spaces: int = 4) -> str:
     """Indent text to create a code block in markdown without using backticks."""
-    indent = ' ' * spaces
-    lines = text.split('\n')
-    return '\n'.join(indent + line for line in lines)
+    indent = " " * spaces
+    lines = text.split("\n")
+    return "\n".join(indent + line for line in lines)
 
 
 def generate_markdown_report(samples: list, output_path: str):
@@ -111,62 +113,63 @@ def generate_markdown_report(samples: list, output_path: str):
 
     # Summary statistics
     md_lines.append("## Summary Statistics\n")
-    total_tokens = sum(s.get('num_generated_tokens', 0) for s in samples)
-    has_eos_count = sum(1 for s in samples if s.get('has_eos', False))
+    total_tokens = sum(s.get("num_generated_tokens", 0) for s in samples)
+    has_eos_count = sum(1 for s in samples if s.get("has_eos", False))
     md_lines.append(f"- **Total Samples:** {len(samples)}")
     md_lines.append(f"- **Total Generated Tokens:** {total_tokens}")
     md_lines.append(f"- **Average Tokens per Sample:** {total_tokens / len(samples):.2f}")
-    if has_eos_count > 0 or any('has_eos' in s for s in samples):
-        md_lines.append(f"- **Samples with EOS:** {has_eos_count} ({has_eos_count/len(samples)*100:.1f}%)")
+    if has_eos_count > 0 or any("has_eos" in s for s in samples):
+        md_lines.append(
+            f"- **Samples with EOS:** {has_eos_count} ({has_eos_count / len(samples) * 100:.1f}%)"
+        )
     md_lines.append("\n---\n")
 
     md_lines.append("## Samples\n")
 
     for sample in samples:
-        task_type = sample.get('task_type', 'Unknown')
-        num_tokens = sample.get('num_generated_tokens', 0)
+        task_type = sample.get("task_type", "Unknown")
+        num_tokens = sample.get("num_generated_tokens", 0)
 
         md_lines.append(f"### {task_type}\n")
-        if 'has_eos' in sample:
-            eos_status = "✅ EOS" if sample['has_eos'] else "❌ No EOS"
+        if "has_eos" in sample:
+            eos_status = "✅ EOS" if sample["has_eos"] else "❌ No EOS"
             md_lines.append(f"**Status:** {eos_status} | **Tokens:** {num_tokens}\n")
         else:
             md_lines.append(f"**Tokens:** {num_tokens}\n")
 
-        prompt = sample.get('prompt', '').replace('#', r'\#').strip()
+        prompt = sample.get("prompt", "").replace("#", r"\#").strip()
         md_lines.append("**Prompt:**\n")
         md_lines.append(indent_text(prompt))
         md_lines.append("\n")
 
         md_lines.append("**Response:**\n")
-        md_lines.append(indent_text(sample.get('generated_text', '').strip()))
+        md_lines.append(indent_text(sample.get("generated_text", "").strip()))
         md_lines.append("\n")
 
         md_lines.append("\n---\n")
 
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_path, 'w', encoding='utf-8') as f:
-        f.write('\n'.join(md_lines))
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(md_lines))
 
     return output_path
-
 
 
 def main(args):
     # Load samples
     samples = load_samples(args.samples_file)
-    
+
     # Load model and tokenizer
     print(f"\nLoading model: {args.model_path}")
     print(f"Mode: {args.mode}")
     tokenizer = AutoTokenizer.from_pretrained(args.model_path)
-    
+
     # Load external chat template if provided (ensures train-inference consistency)
     if args.mode == "chat":
         if args.chat_template_path is not None:
             print(f"Loading chat template from: {args.chat_template_path}")
-            with open(args.chat_template_path, "r") as f:
+            with open(args.chat_template_path) as f:
                 tokenizer.chat_template = f.read()
         elif tokenizer.chat_template is None:
             print("WARNING: Tokenizer has no chat_template! This may cause inference issues.")
@@ -195,23 +198,20 @@ def main(args):
     )
 
     # Helper functions
-    def format_chat(messages: List[Dict[str, str]], tools: List[Dict[str, Any]] = None) -> str:
+    def format_chat(messages: list[dict[str, str]], tools: list[dict[str, Any]] = None) -> str:
         """Apply the model chat template safely."""
         kwargs = {
             "tokenize": False,
             "add_generation_prompt": True,
             "enable_thinking": args.enable_thinking,
         }
-        
+
         if tools:
             kwargs["tools"] = tools
-        
-        return tokenizer.apply_chat_template(
-            messages,
-            **kwargs
-        )
 
-    def generate_one(prompt: str) -> Dict[str, Any]:
+        return tokenizer.apply_chat_template(messages, **kwargs)
+
+    def generate_one(prompt: str) -> dict[str, Any]:
         """Run a single generation and return text + metadata."""
         inputs = tokenizer(prompt, return_tensors="pt").to(device)
 
@@ -224,7 +224,7 @@ def main(args):
             )
 
         full_sequence = outputs.sequences[0]
-        generated_ids = full_sequence[len(inputs.input_ids[0]):]
+        generated_ids = full_sequence[len(inputs.input_ids[0]) :]
 
         text = tokenizer.decode(
             generated_ids,
@@ -276,12 +276,12 @@ def main(args):
         json.dump(results, f, ensure_ascii=False, indent=2)
 
     print("\nAll tasks completed.")
-    
+
     # Generate markdown report
     print("\nGenerating markdown analysis report...")
     output_path = Path(args.output_file)
     markdown_path = output_path.parent / f"{output_path.stem}.md"
-    
+
     try:
         generate_markdown_report(results, str(markdown_path))
         print(f"✅ Markdown report saved to: {markdown_path}")
@@ -290,59 +290,53 @@ def main(args):
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    
+
     parser.add_argument(
         "--model_path",
         type=str,
         required=True,
-        help="Path or identifier for the model to load (e.g., 'Polygl0t/Tucano2-qwen-0.5B-Instruct')"
+        help="Path or identifier for the model to load (e.g., 'Polygl0t/Tucano2-qwen-0.5B-Instruct')",
     )
     parser.add_argument(
         "--samples_file",
         type=str,
         required=True,
-        help="Path to a JSON file containing test samples."
+        help="Path to a JSON file containing test samples.",
     )
     parser.add_argument(
         "--output_file",
         type=str,
         default="model_task_outputs.json",
-        help="Path to save the output results JSON file (default: model_task_outputs.json)"
+        help="Path to save the output results JSON file (default: model_task_outputs.json)",
     )
     parser.add_argument(
         "--max_new_tokens",
         type=int,
         default=1024,
-        help="Maximum number of tokens to generate (default: 1024)"
+        help="Maximum number of tokens to generate (default: 1024)",
     )
     parser.add_argument(
-        "--temperature",
-        type=float,
-        default=0.1,
-        help="Sampling temperature (default: 0.1)"
+        "--temperature", type=float, default=0.1, help="Sampling temperature (default: 0.1)"
     )
     parser.add_argument(
-        "--enable_thinking",
-        action="store_true",
-        help="Enable 'thinking' mode in chat template."
+        "--enable_thinking", action="store_true", help="Enable 'thinking' mode in chat template."
     )
     parser.add_argument(
         "--chat_template_path",
         type=str,
         default=None,
-        help="Path to a jinja chat template file. If provided, overrides the tokenizer's chat template."
+        help="Path to a jinja chat template file. If provided, overrides the tokenizer's chat template.",
     )
     parser.add_argument(
         "--mode",
         type=str,
         choices=["chat", "completion"],
         default="chat",
-        help="Inference mode: 'chat' applies the chat template (default), 'completion' feeds the prompt directly to the model (for base models)."
+        help="Inference mode: 'chat' applies the chat template (default), 'completion' feeds the prompt directly to the model (for base models).",
     )
     args = parser.parse_args()
 

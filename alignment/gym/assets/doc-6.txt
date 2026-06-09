@@ -472,9 +472,9 @@ Av. General Afonso Albuquerque Lima, S/N – Cambeba
 | 7       | 06:05:47     | 06:05:47       | 832     | 34            |
 | 7       | 06:06:25     | 06:06:25       | 841     | 35            |
 
-**ARCE**  
-SEDE DA AGENCIA REGULADORA DO ESTADO DO CEARÁ  
-AV. General Afonso Albuquerque Lima, S/N – Cambeba  
+**ARCE**
+SEDE DA AGENCIA REGULADORA DO ESTADO DO CEARÁ
+AV. General Afonso Albuquerque Lima, S/N – Cambeba
 Fortaleza/CE CEP: 60.822-325 * Telefone: 0800.275.3838
 
 | trip_id | arrival_time | departure_time | stop_id | stop_sequence |
@@ -1504,8 +1504,8 @@ AV. General Afonso Albuquerque Lima, S/N – Cambeba
 
 ---
 
-**ARCE**  
-AGÊNCIA REGULADORA DO MERCADO DO ESTADO DO CEARÁ  
+**ARCE**
+AGÊNCIA REGULADORA DO MERCADO DO ESTADO DO CEARÁ
 AV. General Afonso Albuquerque Lima, S/N – Cambeba
 
 | trip_id | arrival_time | departure_time | stop_id | stop_sequence |
@@ -1896,7 +1896,7 @@ AV. General Afonso Albuquerque Lima, S/N – Cambeba
 
 ---
 
-Sede da Agência Reguladora do Estado do Ceará  
+Sede da Agência Reguladora do Estado do Ceará
 Av. General Afonso Albuquerque Lima, S/N – Cambeba
 
 | trip_id | arrival_time | departure_time | stop_id | stop_sequence |

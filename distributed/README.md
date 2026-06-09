@@ -140,7 +140,7 @@ https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0
 ```
 ### MoE Error on Bender
 
-If your training a MoE model on Bender and encounter this error: 
+If your training a MoE model on Bender and encounter this error:
 
 ```
 ValueError: atomic_add does not support bf16
@@ -493,13 +493,21 @@ Training throughput measured on 2-GPU nodes (seq len 4096, bfloat16). TPS and dt
 | `LlamaForCausalLM`                       | A40 2×48 GB  | 4096           | 128 total (64/GPU)  | 52.4 M       | 52.4 M        | 36.05 GB | 56.21 % | 164,473   | 1,594 ms |
 | `Qwen3_5ForCausalLM` (full attention)    | A100 2×80 GB | 4096           | 128 total (64/GPU)  | 52.4 M       | 52.4 M        | 52.16 GB | 45.30 % | 263,734   |   994 ms |
 | `Qwen3_5ForCausalLM` (full attention)    | A40 2×48 GB  | 4096           | 64 total (32/GPU)   | 52.4 M       | 52.4 M        | 26.31 GB | 40.00 % | 116,379   | 1,123 ms |
-| `Qwen3_5ForCausalLM` (hybrid 3:1)        | A100 2×80 GB | 4096           | 128 total (64/GPU)  | 58.8 M       | 58.8 M        | 61.69 GB | 37.12 % | 278,797   |   940 ms |
-| `Qwen3_5ForCausalLM` (hybrid 3:1)        | A40 2×48 GB  | 4096           | 64 total (32/GPU)   | 58.8 M       | 58.8 M        | 31.10 GB | 31.30 % | 113,735   | 1,152 ms |
+| `Qwen3_5ForCausalLM` (hybrid 3:1)        | A100 2×80 GB | 4096           | 128 total (64/GPU)  | 58.8 M       | 58.8 M        | 61.69 GB | 42.19 % | 279,797   |   937 ms |
+| `Qwen3_5ForCausalLM` (hybrid 3:1)        | A40 2×48 GB  | 4096           | 64 total (32/GPU)   | 58.8 M       | 58.8 M        | 31.10 GB | 36.25 % | 115,735   | 1,134 ms |
+| `Qwen3_5ForCausalLM` (full linear)       | A100 2×80 GB | 4096           | 128 total (64/GPU)  | 61 M         | 61 M          | 65.88 GB | 42.20 % | 286,253   |   915 ms |
+| `Qwen3_5ForCausalLM` (full linear)       | A40 2×48 GB  | 4096           | 64 total (32/GPU)   | 61 M         | 61 M          | 33.20 GB | 34.50 % | 112,514   | 1,164 ms |
 | `Qwen3_5MoeForCausalLM` (full attention) | A100 2×80 GB | 4096           | 128 total (64/GPU)  | 76.1 M       | 47.8 M        | 63.05 GB | 34.52 % | 211,553   | 1,233 ms |
-| `Qwen3_5MoeForCausalLM` (full attention) | A40 2×48 GB  | 4096           | 64 total (32/GPU)   | 76.1 M       | 47.8 M        | 31.84 GB | 31.81 % | 98,053    | 1,348 ms |
-| `Qwen3_5MoeForCausalLM` (hybrid 3:1)     | A100 2×80 GB | 4096           | 128 total (64/GPU)  | 82.5 M       | 54.1 M        | 57.43 GB | 31.89%  | 255,690   | 1,018 ms |
-| `Qwen3_5MoeForCausalLM` (hybrid 3:1)     | A40 2×48 GB  | 4096           | 64 total (32/GPU)   | 82.5 M       | 54.1 M        | 29.06 GB | 27.10 % | 105,812   | 1,251 ms |
-| `Qwen3MoeForCausalLM`   (full attention) | A100 2×80 GB | 4096           | 128 total (64/GPU)  | 79.7 M       | 51.4 M        | 70.84 GB | 42.46 % | 178,870   | 1,466 ms |
-| `Qwen3MoeForCausalLM`   (full attention) | A40 2×48 GB  | 4096           | 64 total (32/GPU)   | 79.7 M       | 51.4 M        | 35.75 GB | 37.97 % | 80,074    | 1,637 ms |
+| `Qwen3_5MoeForCausalLM` (full attention) | A40 2×48 GB  | 4096           | 64 total (32/GPU)   | 76.1 M       | 47.8 M        | 24.26 GB | 33.75 % | 103,772   | 1,263 ms |
+| `Qwen3_5MoeForCausalLM` (hybrid 3:1)     | A100 2×80 GB | 4096           | 128 total (64/GPU)  | 82.5 M       | 54.1 M        | 57.43 GB | 34.18 % | 241,045   | 1,087 ms |
+| `Qwen3_5MoeForCausalLM` (hybrid 3:1)     | A40 2×48 GB  | 4096           | 64 total (32/GPU)   | 82.5 M       | 54.1 M        | 29.06 GB | 31.66 % | 107,326   | 1,221 ms |
+| `Qwen3_5MoeForCausalLM` (full linear)    | A40 2×48 GB  | 4096           | 64 total (32/GPU)   | 84.6 M       | 56.3 M        | 61.40 GB | 35.28 % | 257,200   | 1,011 ms |
+| `Qwen3_5MoeForCausalLM` (full linear)    | A40 2×48 GB  | 4096           | 64 total (32/GPU)   | 84.6 M       | 56.3 M        | 31.05 GB | 30.34 % | 105,426   | 1,243 ms |
+| `Qwen3MoeForCausalLM`   (full attention) | A100 2×80 GB | 4096           | 128 total (64/GPU)  | 79.7 M       | 51.4 M        | 70.84 GB | 43.10 % | 189,089   | 1,386 ms |
+| `Qwen3MoeForCausalLM`   (full attention) | A40 2×48 GB  | 4096           | 64 total (32/GPU)   | 79.7 M       | 51.4 M        | 35.75 GB | 39.54 % | 83,385    | 1,571 ms |
 
-> **Note:** The table values are rounded from the raw benchmark logs. `LlamaForCausalLM` was benchmarked at 2× the total batch size of the other models. Active params equal total params for dense models; MoE models activate 2 of 8 experts per token.
+
+
+> - **Note:** The table values are rounded from the raw benchmark logs. `LlamaForCausalLM` was benchmarked at 2× the total batch size of the other models. Active params equal total params for dense models; MoE models activate 2 of 8 experts per token.
+>
+> - **Bug:** For reasons of divine mystery, when we set `Qwen3_5ForCausalLM` or `Qwen3MoeForCausalLM` to use linear attention on ALL layers, on some seeds, the loss becomes `NaN` after the first step. This is very strange, since the same config with 7 linear layers + 1 full-attention layer works fine, and the linear attention implementation is identical in both cases. I suspect there is an issue with the liger + conv1d kernels when all layers are linear, but I haven't had time to investigate yet.

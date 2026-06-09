@@ -18,11 +18,12 @@ Run with:
 #######################################
 # 1. Imports & Setup
 #######################################
+import json
 import os
 import sys
-import json
 import tempfile
-import argparse
+
+import datasets
 
 sys.pycache_prefix = os.path.join(tempfile.gettempdir(), "pycache")
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -31,19 +32,18 @@ FILTERS_DIR = os.path.join(REPO_ROOT, "data", "filters")
 if FILTERS_DIR not in sys.path:
     sys.path.insert(0, FILTERS_DIR)
 
-import datasets
-from utils import (
-    DatasetLoader,
-    save_dataset,
-    is_messages_column,
-    flatten_messages,
-)
-from language_filter import (
+from language_filter import (  # noqa: E402
     LANGDETECT_CODES,
-    UNICODE_RANGES,
     SUPPORTED_LANGUAGES,
-    _BACKEND_FACTORIES,
+    UNICODE_RANGES,
     _create_unicode_filter,
+)
+
+from utils import (  # noqa: E402
+    DatasetLoader,
+    flatten_messages,
+    is_messages_column,
+    save_dataset,
 )
 
 print("All imports OK ✅")
@@ -53,6 +53,7 @@ print("All imports OK ✅")
 #######################################
 # Section 1 — is_messages_column
 #######################################
+
 
 def test_01_is_messages_column_missing_column_returns_false():
     # 1. is_messages_column — returns False when the column is not in the dataset
@@ -70,9 +71,11 @@ def test_02_is_messages_column_empty_dataset_returns_false():
 
 def test_03_is_messages_column_detects_messages_format():
     # 3. is_messages_column — returns True when column holds a list of dicts with 'content'
-    ds = datasets.Dataset.from_list([
-        {"messages": [{"role": "user", "content": "hello"}]},
-    ])
+    ds = datasets.Dataset.from_list(
+        [
+            {"messages": [{"role": "user", "content": "hello"}]},
+        ]
+    )
     assert is_messages_column(ds, "messages")
     print("Test 03 — is_messages_column (messages format): OK ✅")
 
@@ -89,10 +92,11 @@ def test_04_is_messages_column_plain_text_returns_false():
 # Section 2 — flatten_messages
 #######################################
 
+
 def test_05_flatten_messages_concatenates_content_fields():
     # 5. flatten_messages — joins 'content' values with newlines in order
     messages = [
-        {"role": "user",      "content": "hello"},
+        {"role": "user", "content": "hello"},
         {"role": "assistant", "content": "world"},
     ]
     result = flatten_messages(messages)
@@ -123,6 +127,7 @@ def test_07_flatten_messages_skips_entries_without_content():
 # Section 3 — save_dataset
 #######################################
 
+
 def test_08_save_dataset_empty_returns_zero():
     # 8. save_dataset — returns 0 and writes nothing for an empty dataset
     ds = datasets.Dataset.from_list([])
@@ -135,13 +140,17 @@ def test_08_save_dataset_empty_returns_zero():
 
 def test_09_save_dataset_writes_parquet_files():
     # 9. save_dataset — produces .parquet files readable by datasets
-    ds = datasets.Dataset.from_list([{"text": f"sample {i}", "token_count": 100} for i in range(10)])
+    ds = datasets.Dataset.from_list(
+        [{"text": f"sample {i}", "token_count": 100} for i in range(10)]
+    )
     with tempfile.TemporaryDirectory() as tmpdir:
         n = save_dataset(ds, tmpdir, "parquet", 3_000_000, token_count=1000)
         files = sorted(os.listdir(tmpdir))
         assert all(f.endswith(".parquet") for f in files)
         assert len(files) == n
-        reloaded = datasets.load_dataset("parquet", data_files=[os.path.join(tmpdir, f) for f in files], split="train")
+        reloaded = datasets.load_dataset(
+            "parquet", data_files=[os.path.join(tmpdir, f) for f in files], split="train"
+        )
         assert len(reloaded) == 10
     print("Test 09 — save_dataset (parquet output): OK ✅")
 
@@ -154,7 +163,7 @@ def test_10_save_dataset_writes_jsonl_files():
         files = [f for f in os.listdir(tmpdir) if f.endswith(".jsonl")]
         assert len(files) == 1
         with open(os.path.join(tmpdir, files[0])) as fh:
-            lines = [l for l in fh if l.strip()]
+            lines = [line for line in fh if line.strip()]
         assert len(lines) == 5
     print("Test 10 — save_dataset (jsonl output): OK ✅")
 
@@ -174,6 +183,7 @@ def test_11_save_dataset_chunks_by_token_count():
 #######################################
 # Section 4 — DatasetLoader
 #######################################
+
 
 def test_12_datasetloader_loads_from_jsonl_file():
     # 12. DatasetLoader — loads a single .jsonl file correctly
@@ -209,6 +219,7 @@ def test_13_datasetloader_loads_from_directory():
 # Section 5 — Language definitions
 #######################################
 
+
 def test_14_langdetect_codes_and_unicode_ranges_have_same_keys():
     # 14. LANGDETECT_CODES and UNICODE_RANGES must cover exactly the same languages
     assert set(LANGDETECT_CODES.keys()) == set(UNICODE_RANGES.keys()), (
@@ -221,7 +232,7 @@ def test_14_langdetect_codes_and_unicode_ranges_have_same_keys():
 def test_15_supported_languages_is_sorted_union():
     # 15. SUPPORTED_LANGUAGES is the sorted union of both dicts' keys
     expected = sorted(set(LANGDETECT_CODES) | set(UNICODE_RANGES))
-    assert SUPPORTED_LANGUAGES == expected
+    assert expected == SUPPORTED_LANGUAGES
     print("Test 15 — SUPPORTED_LANGUAGES (sorted union): OK ✅")
 
 
@@ -229,6 +240,7 @@ def test_15_supported_languages_is_sorted_union():
 #######################################
 # Section 6 — Unicode backend
 #######################################
+
 
 def test_16_unicode_filter_keeps_latin_text():
     # 16. _create_unicode_filter — accepts a clean Portuguese/Latin text
@@ -268,7 +280,7 @@ def test_20_unicode_filter_raises_for_unknown_language():
     # 20. _create_unicode_filter — raises ValueError when no valid language is given
     try:
         _create_unicode_filter(["klingon"])
-        assert False, "Expected ValueError was not raised"
+        raise AssertionError("Expected ValueError was not raised")
     except ValueError:
         pass
     print("Test 20 — unicode filter (raises for unknown language): OK ✅")

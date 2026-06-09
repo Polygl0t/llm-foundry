@@ -1,12 +1,14 @@
 """
 Shared utilities for filtering and annotation scripts.
 """
+
 import glob
+import logging
 import os
 import sys
-import numpy as np
+
 import datasets
-import logging
+import numpy as np
 
 
 def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
@@ -83,7 +85,9 @@ class DatasetLoader:
         fmt = self._FILE_FORMATS.get(ext)
         if fmt is None:
             raise ValueError(f"Unsupported file format '{ext}'. Expected .jsonl or .parquet.")
-        return datasets.load_dataset(fmt, data_files=self.path, split="train", cache_dir=self.cache_dir)
+        return datasets.load_dataset(
+            fmt, data_files=self.path, split="train", cache_dir=self.cache_dir
+        )
 
     def _from_directory(self):
         for ext, fmt in (("*.jsonl", "json"), ("*.parquet", "parquet")):
@@ -148,7 +152,7 @@ def is_messages_column(dataset, column_name):
         return False
     value = dataset[0].get(column_name)
     if isinstance(value, list) and len(value) > 0:
-        return isinstance(value[0], dict) and 'content' in value[0]
+        return isinstance(value[0], dict) and "content" in value[0]
     return False
 
 
@@ -158,8 +162,8 @@ def flatten_messages(messages):
         return ""
     contents = []
     for msg in messages:
-        if isinstance(msg, dict) and 'content' in msg:
-            content = msg['content']
+        if isinstance(msg, dict) and "content" in msg:
+            content = msg["content"]
             if content:
                 contents.append(str(content))
-    return '\n'.join(contents)
+    return "\n".join(contents)

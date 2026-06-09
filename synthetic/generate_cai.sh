@@ -41,7 +41,7 @@ err="$workdir/synth/logs/err-synthetic-cai.$SLURM_JOB_ID"
 #############################################
 
 source $workdir/.modules.sh > "$out" 2>&1
-# python3 -m venv $workdir/.venv_synth  
+# python3 -m venv $workdir/.venv_synth
 source $workdir/.venv_synth/bin/activate
 
 # ===== LLM Foundry Install =====

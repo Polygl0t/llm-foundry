@@ -24,10 +24,10 @@ Usage:
         --seed 42 --verbose
 """
 
+import argparse
+import hashlib
 import json
 import random
-import hashlib
-import argparse
 from pathlib import Path
 
 from tasks_metadata import (
@@ -73,10 +73,7 @@ _SYSTEM_PREAMBLES = [
         "## Funções\n\nAs seguintes funções estão à sua disposição para "
         "responder às solicitações do usuário."
     ),
-    (
-        "Estão disponíveis as seguintes funções, que você pode invocar "
-        "para responder ao usuário."
-    ),
+    ("Estão disponíveis as seguintes funções, que você pode invocar para responder ao usuário."),
     (
         "# Ferramentas\n\nVocê pode usar as ferramentas listadas abaixo "
         "para auxiliar na consulta do usuário."
@@ -248,7 +245,6 @@ def load_tool_call_data(path):
     return load_tools(path)
 
 
-
 # Prompt formatting (turns tool definitions into the string format expected in the prompt)
 def _format_tools_block(tools):
     """
@@ -315,9 +311,7 @@ def _sample_args_from_inputs(tool, rng):
         if rng.random() < 0.4:
             if name in input_samples:
                 samples = input_samples[name]
-                args[name] = (
-                    rng.choice(samples) if isinstance(samples, list) else samples
-                )
+                args[name] = rng.choice(samples) if isinstance(samples, list) else samples
             else:
                 args[name] = _fallback_arg_value(schema, rng)
 
@@ -329,7 +323,6 @@ def get_tool_arg_types(tool):
     params = tool["function"].get("parameters", {})
     properties = params.get("properties", {})
     return {name: schema.get("type", "string") for name, schema in properties.items()}
-
 
 
 # User request construction
@@ -444,11 +437,7 @@ def build_refusal_prompt(distractor_tools, rng):
 def build_valid_completion(tool_name, args):
     """Return the expected `<tool_call>…</tool_call>` completion string."""
     call_obj = {"name": tool_name, "arguments": args}
-    return (
-        "<tool_call>\n"
-        + json.dumps(call_obj, ensure_ascii=False)
-        + "\n</tool_call>"
-    )
+    return "<tool_call>\n" + json.dumps(call_obj, ensure_ascii=False) + "\n</tool_call>"
 
 
 # Sample construction
@@ -486,9 +475,7 @@ def build_tool_call_sample(
         # name-based exclusion is sufficient here.
         num_extra = rng.randint(max(0, min_tools - 1), max(0, max_tools - 1))
         target_name = tool["function"]["name"]
-        other_tools = [
-            t for t in all_tools if t["function"]["name"] != target_name
-        ]
+        other_tools = [t for t in all_tools if t["function"]["name"] != target_name]
         extra = rng.sample(other_tools, min(num_extra, len(other_tools)))
 
         prompt, _ = build_valid_prompt(tool, user_query, rng, extra)
@@ -534,7 +521,6 @@ def build_tool_call_sample(
     }
 
 
-
 # Validation
 def validate_tool_call_sample(sample):
     """Return a list of validation issue strings (empty list = valid)."""
@@ -543,9 +529,7 @@ def validate_tool_call_sample(sample):
     n_ids = len(sample.get("verifier_id_list", []))
     n_kw = len(sample.get("kwargs", []))
     if n_ids != n_kw:
-        issues.append(
-            f"verifier_id_list length ({n_ids}) != kwargs length ({n_kw})"
-        )
+        issues.append(f"verifier_id_list length ({n_ids}) != kwargs length ({n_kw})")
 
     for iid in sample.get("verifier_id_list", []):
         if iid not in TOOL_CALL_TASK_IDS:
@@ -613,7 +597,7 @@ def main(args):
                 break
             retries_used += 1
         if sample is None:
-            print(f"  Warning: could not produce unique valid sample #{i+1}")
+            print(f"  Warning: could not produce unique valid sample #{i + 1}")
             continue
         samples.append(sample)
 
@@ -638,7 +622,7 @@ def main(args):
                 break
             retries_used += 1
         if sample is None:
-            print(f"  Warning: could not produce unique refusal sample #{i+1}")
+            print(f"  Warning: could not produce unique refusal sample #{i + 1}")
             continue
         samples.append(sample)
 
@@ -654,13 +638,12 @@ def main(args):
                 print(f"  ID {s['id']}: {issues}")
 
     n_valid = sum(
-        1 for s in samples
-        if any(json.loads(kw).get("expect_call") is True for kw in s["kwargs"])
+        1 for s in samples if any(json.loads(kw).get("expect_call") is True for kw in s["kwargs"])
     )
     n_refusal = len(samples) - n_valid
     unique_ids = len({s["id"] for s in samples})
 
-    print(f"\nResults:")
+    print("\nResults:")
     print(f"  Generated samples:  {len(samples)}")
     print(f"  Valid tool-calls:   {n_valid}")
     print(f"  Refusals:           {n_refusal}")
@@ -672,9 +655,7 @@ def main(args):
     if retries_used:
         print(f"  Uniqueness retries: {retries_used}")
 
-    assert unique_ids == len(samples), (
-        f"FAIL: {len(samples) - unique_ids} duplicate samples"
-    )
+    assert unique_ids == len(samples), f"FAIL: {len(samples) - unique_ids} duplicate samples"
     assert total_issues == 0, f"FAIL: {total_issues} validation issues found"
 
     use_jsonl = output_path.suffix.lower() == ".jsonl"
@@ -694,7 +675,7 @@ if __name__ == "__main__":
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    
+
     parser.add_argument(
         "--output_file",
         type=str,

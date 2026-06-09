@@ -20,26 +20,26 @@ fsdp_config:
   # WARNING: Cannot be enabled simultaneously with gradient_checkpointing in TrainingArguments
   # Set one or the other, not both.
   fsdp_activation_checkpointing: false
-  
+
   # Auto-wrap Policy: Determines how model layers are wrapped for sharding
   # TRANSFORMER_BASED_WRAP: Automatically wraps transformer layers
   fsdp_auto_wrap_policy: TRANSFORMER_BASED_WRAP
-  
+
   # Reduces CPU memory usage during model initialization
   fsdp_cpu_ram_efficient_loading: true
-  
+
   # Parameter Offloading: Offload parameters to CPU when not in use
   # Significantly reduces GPU memory but slows training
   fsdp_offload_params: false
-  
+
   # Reshard After Forward: Free full parameters after forward pass
   # Maximizes memory efficiency at the cost of some communication overhead (equivalent to a Zero Redundancy Optimizer stage 3 setup)
   fsdp_reshard_after_forward: true
-  
+
   # State Dict Type: How model checkpoints are saved
   # FULL_STATE_DICT: Gather full model on rank 0 (easy to load, high memory on rank 0)
   fsdp_state_dict_type: FULL_STATE_DICT
-  
+
   # FSDP Version: Use FSDP2 for better performance and features (2 is recommended)
   fsdp_version: 2
 
@@ -65,7 +65,7 @@ mixed_precision: bf16               # Mixed precision training mode
                                     # Options: "no" (fp32), "fp16", "bf16" (recommended for A100/H100)
                                     # bf16 provides better numerical stability than fp16
                                     # Reduces memory usage and speeds up training
-downcast_bf16: 'no'                 # Whether when using bf16 precision on TPUs if both float and double 
+downcast_bf16: 'no'                 # Whether when using bf16 precision on TPUs if both float and double
                                     # tensors are cast to bfloat16 or if double tensors remain as float32.
 
 # TPU Configuration

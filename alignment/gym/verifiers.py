@@ -1,4 +1,5 @@
 """A collection of verifiers for procedurally generated tasks."""
+
 import collections
 import json
 import logging
@@ -6,7 +7,9 @@ import random
 import re
 import string
 from decimal import Decimal, InvalidOperation
+
 import langdetect
+
 import utils
 
 logger = logging.getLogger(__name__)
@@ -199,15 +202,13 @@ class NumberOfSentences(TaskVerifier):
             self._comparison_relation = random.choice(_COMPARISON_RELATION)
         elif relation not in _COMPARISON_RELATION:
             raise ValueError(
-                "Os tipos de relação suportados para comparação devem estar em " \
+                "Os tipos de relação suportados para comparação devem estar em "
                 "{_COMPARISON_RELATION}, mas {relation} foi fornecida."
             )
         else:
             self._comparison_relation = relation
 
-        self._description_pattern = (
-            "Sua resposta deve conter {relation} {num_sentences} sentenças."
-        )
+        self._description_pattern = "Sua resposta deve conter {relation} {num_sentences} sentenças."
         return self._description_pattern.format(
             relation=self._comparison_relation,
             num_sentences=self._num_sentences_threshold,
@@ -322,9 +323,7 @@ class BulletListChecker(TaskVerifier):
             self._num_bullets = random.randint(1, _NUM_BULLETS)
         self._description_pattern = (
             "Sua resposta deve conter exatamente {num_bullets} itens. "
-            "Use os marcadores markdown, como:\n"
-            + "* Este é o ponto 1. \n"
-            + "* Este é o ponto 2"
+            "Use os marcadores markdown, como:\n" + "* Este é o ponto 1. \n" + "* Este é o ponto 2"
         )
         return self._description_pattern.format(num_bullets=self._num_bullets)
 
@@ -360,12 +359,8 @@ class ConstrainedResponseChecker(TaskVerifier):
         """Build the instruction description."""
         # A sequence of string(s) representing the options of the expected response.
         self._constrained_responses = _CONSTRAINED_RESPONSE_OPTIONS
-        self._description_pattern = (
-            "Responda com uma das seguintes opções: {response_options}"
-        )
-        return self._description_pattern.format(
-            response_options=self._constrained_responses
-        )
+        self._description_pattern = "Responda com uma das seguintes opções: {response_options}"
+        return self._description_pattern.format(response_options=self._constrained_responses)
 
     def get_instruction_args(self):
         """Returns the keyword args of `build_description`."""
@@ -409,8 +404,7 @@ class ConstrainedStartChecker(TaskVerifier):
         if self._starter is None:
             self._starter = random.choice(_STARTER_OPTIONS)
         self._description_pattern = (
-            "Durante a conversa, quando for sua vez, "
-            + "por favor, comece sempre com {starter}"
+            "Durante a conversa, quando for sua vez, " + "por favor, comece sempre com {starter}"
         )
         return self._description_pattern.format(starter=self._starter)
 
@@ -433,10 +427,8 @@ class ConstrainedStartChecker(TaskVerifier):
           contained in `instruction_args`; otherwise, False.
         """
         response_pattern = r"^\s*" + self._starter + r".*$"
-        response_with_constrained_start = re.search(
-            response_pattern, value, flags=re.MULTILINE
-        )
-        return True if response_with_constrained_start else False
+        response_with_constrained_start = re.search(response_pattern, value, flags=re.MULTILINE)
+        return bool(response_with_constrained_start)
 
 
 class HighlightSectionChecker(TaskVerifier):
@@ -510,9 +502,7 @@ class SectionChecker(TaskVerifier):
           A string representing the instruction description.
         """
         self._section_spliter = (
-            section_spliter.strip()
-            if isinstance(section_spliter, str)
-            else section_spliter
+            section_spliter.strip() if isinstance(section_spliter, str) else section_spliter
         )
         if self._section_spliter is None:
             self._section_spliter = random.choice(_SECTION_SPLITER)
@@ -633,9 +623,7 @@ class PostscriptChecker(TaskVerifier):
           A string representing the instruction description.
         """
         self._postscript_marker = (
-            postscript_marker.strip()
-            if isinstance(postscript_marker, str)
-            else postscript_marker
+            postscript_marker.strip() if isinstance(postscript_marker, str) else postscript_marker
         )
         if self._postscript_marker is None:
             self._postscript_marker = random.choice(_POSTSCRIPT_MARKER)
@@ -674,7 +662,7 @@ class PostscriptChecker(TaskVerifier):
         else:
             postscript_pattern = r"\s*" + self._postscript_marker.lower() + r".*$"
         postscript = re.findall(postscript_pattern, value, flags=re.MULTILINE)
-        return True if postscript else False
+        return bool(postscript)
 
 
 class RephraseChecker(TaskVerifier):
@@ -694,8 +682,7 @@ class RephraseChecker(TaskVerifier):
         """
         if not self.is_change(original_message):
             raise ValueError(
-                f"Mensagem {original_message} não contém alterações "
-                "na forma de *mude-me*."
+                f"Mensagem {original_message} não contém alterações na forma de *mude-me*."
             )
 
         self._reference_without_change = original_message
@@ -727,9 +714,7 @@ class RephraseChecker(TaskVerifier):
         """
 
         if not self.is_change(value):
-            raise ValueError(
-                f"valor {value} não contém alterações na forma de *mude-me*."
-            )
+            raise ValueError(f"valor {value} não contém alterações na forma de *mude-me*.")
 
         response_without_changes = self.strip_changes(value)
         reference_without_changes = self.strip_changes(self._reference_without_change)
@@ -760,13 +745,11 @@ class KeywordChecker(TaskVerifier):
         """
 
         if not keywords:
-            self._keywords = utils.generate_keywords(
-                num_keywords=_NUM_KEYWORDS
-            )
+            self._keywords = utils.generate_keywords(num_keywords=_NUM_KEYWORDS)
         else:
             self._keywords = keywords
         self._keywords = sorted(self._keywords)
-                                    
+
         self._description_pattern = "Inclua as palavras-chave {keywords} na resposta."
 
         return self._description_pattern.format(keywords=self._keywords)
@@ -781,10 +764,7 @@ class KeywordChecker(TaskVerifier):
 
     def check_following(self, value):
         """Check if the response contain the expected keywords."""
-        for keyword in self._keywords:
-            if not re.search(keyword, value, flags=re.IGNORECASE):
-                return False
-        return True
+        return all(re.search(keyword, value, flags=re.IGNORECASE) for keyword in self._keywords)
 
 
 class KeywordFrequencyChecker(TaskVerifier):
@@ -826,8 +806,7 @@ class KeywordFrequencyChecker(TaskVerifier):
             self._comparison_relation = relation
 
         self._description_pattern = (
-            "Na sua resposta, a palavra {keyword} deve aparecer {relation} "
-            + "{frequency} vezes."
+            "Na sua resposta, a palavra {keyword} deve aparecer {relation} " + "{frequency} vezes."
         )
 
         return self._description_pattern.format(
@@ -890,9 +869,7 @@ class NumberOfWords(TaskVerifier):
 
         self._num_words = num_words
         if self._num_words is None or self._num_words < 0:
-            self._num_words = random.randint(
-                _NUM_WORDS_LOWER_LIMIT, _NUM_WORDS_UPPER_LIMIT
-            )
+            self._num_words = random.randint(_NUM_WORDS_LOWER_LIMIT, _NUM_WORDS_UPPER_LIMIT)
 
         if relation is None:
             self._comparison_relation = random.choice(_COMPARISON_RELATION)
@@ -945,8 +922,7 @@ class JsonFormat(TaskVerifier):
 
     def build_description(self):
         self._description_pattern = (
-            "Todo o output deve estar em formato JSON. Você pode usar "
-            "marcadores markdown como ```."
+            "Todo o output deve estar em formato JSON. Você pode usar marcadores markdown como ```."
         )
         return self._description_pattern
 
@@ -978,9 +954,7 @@ class JsonFormat(TaskVerifier):
 class ParagraphFirstWordCheck(TaskVerifier):
     """Check the paragraph and the first word of the nth paragraph."""
 
-    def build_description(
-        self, num_paragraphs=None, nth_paragraph=None, first_word=None
-    ):
+    def build_description(self, num_paragraphs=None, nth_paragraph=None, first_word=None):
         r"""Build the instruction description.
 
         Args:
@@ -1013,7 +987,7 @@ class ParagraphFirstWordCheck(TaskVerifier):
 
         self._description_pattern = (
             "Deve haver {num_paragraphs} parágrafos. "
-            +  "Parágrafos e apenas parágrafos são separados entre si por duas "
+            + "Parágrafos e apenas parágrafos são separados entre si por duas "
             + " quebras de linha como se fosse '\\n\\n' em python. "
             + "O parágrafo {nth_paragraph} deve começar com a palavra {first_word}."
         )
@@ -1058,7 +1032,9 @@ class ParagraphFirstWordCheck(TaskVerifier):
 
         # check that index doesn't go out of bounds
         if self._nth_paragraph <= num_paragraphs:
-            paragraph = paragraphs[int(self._nth_paragraph) - 1].strip() # cast to int in case of float (5.0 -> 5)
+            paragraph = paragraphs[
+                int(self._nth_paragraph) - 1
+            ].strip()  # cast to int in case of float (5.0 -> 5)
             if not paragraph:
                 return False
         else:
@@ -1119,6 +1095,7 @@ class ParagraphFirstWordCheck(TaskVerifier):
 
         return first_word == self._first_word
 
+
 class KeySentenceChecker(TaskVerifier):
     """Check the existence of certain key sentences."""
 
@@ -1137,7 +1114,7 @@ class KeySentenceChecker(TaskVerifier):
 
         if not key_sentences:
             # TODO(jeffrey) make a generate sentences function? wonderwords package
-            self._key_sentences = set(["Por enquanto, isso é o bastante."])
+            self._key_sentences = {"Por enquanto, isso é o bastante."}
         else:
             self._key_sentences = key_sentences
 
@@ -1146,9 +1123,7 @@ class KeySentenceChecker(TaskVerifier):
         else:
             self._num_sentences = num_sentences
 
-        self._description_pattern = (
-            "Inclua {num_sentences} das seguintes frases {key_sentences}"
-        )
+        self._description_pattern = "Inclua {num_sentences} das seguintes frases {key_sentences}"
 
         return self._description_pattern.format(
             num_sentences=self._num_sentences, key_sentences=self._key_sentences
@@ -1191,15 +1166,11 @@ class ForbiddenWords(TaskVerifier):
         """
 
         if not forbidden_words:
-            self._forbidden_words = utils.generate_keywords(
-                num_keywords=_NUM_KEYWORDS
-            )
+            self._forbidden_words = utils.generate_keywords(num_keywords=_NUM_KEYWORDS)
         else:
             self._forbidden_words = list(set(forbidden_words))
         self._forbidden_words = sorted(self._forbidden_words)
-        self._description_pattern = (
-            "Não inclua as palavras-chave {forbidden_words} na resposta."
-        )
+        self._description_pattern = "Não inclua as palavras-chave {forbidden_words} na resposta."
 
         return self._description_pattern.format(forbidden_words=self._forbidden_words)
 
@@ -1307,7 +1278,7 @@ class TwoResponsesChecker(TaskVerifier):
         Returns:
           True if two responses are detected and false otherwise.
         """
-        valid_responses = list()
+        valid_responses = []
         responses = value.split("******")
         for index, response in enumerate(responses):
             if not response.strip():
@@ -1316,8 +1287,7 @@ class TwoResponsesChecker(TaskVerifier):
             else:
                 valid_responses.append(response)
         return (
-            len(valid_responses) == 2
-            and valid_responses[0].strip() != valid_responses[1].strip()
+            len(valid_responses) == 2 and valid_responses[0].strip() != valid_responses[1].strip()
         )
 
 
@@ -1353,9 +1323,7 @@ class RepeatPromptThenAnswer(TaskVerifier):
         return ["prompt_to_repeat"]
 
     def check_following(self, value):
-        if value.strip().lower().startswith(self._prompt_to_repeat.strip().lower()):
-            return True
-        return False
+        return value.strip().lower().startswith(self._prompt_to_repeat.strip().lower())
 
 
 class EndChecker(TaskVerifier):
@@ -1370,9 +1338,7 @@ class EndChecker(TaskVerifier):
         Returns:
           A string representing the instruction description.
         """
-        self._end_phrase = (
-            end_phrase.strip() if isinstance(end_phrase, str) else end_phrase
-        )
+        self._end_phrase = end_phrase.strip() if isinstance(end_phrase, str) else end_phrase
         if self._end_phrase is None:
             self._end_phrase = random.choice(_ENDING_OPTIONS)
         self._description_pattern = (
@@ -1419,10 +1385,7 @@ class TitleChecker(TaskVerifier):
         re_pattern = re.compile(pattern)
         titles = re.findall(re_pattern, value)
 
-        for title in titles:
-            if title.lstrip("<").rstrip(">").strip():
-                return True
-        return False
+        return any(title.lstrip("<").rstrip(">").strip() for title in titles)
 
 
 class LetterFrequencyChecker(TaskVerifier):
@@ -1444,12 +1407,7 @@ class LetterFrequencyChecker(TaskVerifier):
         Returns:
           A string representing the instruction description.
         """
-        if (
-            not letter
-            or len(letter) > 1
-            or ord(letter.lower()) < 97
-            or ord(letter.lower()) > 122
-        ):
+        if not letter or len(letter) > 1 or ord(letter.lower()) < 97 or ord(letter.lower()) > 122:
             self._letter = random.choice(list(string.ascii_letters))
         else:
             self._letter = letter.strip()
@@ -1470,8 +1428,7 @@ class LetterFrequencyChecker(TaskVerifier):
             self._comparison_relation = let_relation
 
         self._description_pattern = (
-            "Em sua resposta, a letra {letter} deve aparecer {let_relation}"
-            " {let_frequency} vezes."
+            "Em sua resposta, a letra {letter} deve aparecer {let_relation} {let_frequency} vezes."
         )
 
         return self._description_pattern.format(
@@ -1584,9 +1541,7 @@ class CommaChecker(TaskVerifier):
 
     def build_description(self):
         """Build the instruction description."""
-        self._description_pattern = (
-            "Em sua resposta, evite o uso de vírgulas."
-        )
+        self._description_pattern = "Em sua resposta, evite o uso de vírgulas."
         return self._description_pattern
 
     def get_instruction_args(self):
@@ -1672,9 +1627,7 @@ class QuotationChecker(TaskVerifier):
 
     def build_description(self):
         """Build the instruction description."""
-        self._description_pattern = (
-            "Envolva toda a sua resposta com aspas duplas."
-        )
+        self._description_pattern = "Envolva toda a sua resposta com aspas duplas."
         return self._description_pattern
 
     def get_instruction_args(self):
@@ -1696,9 +1649,7 @@ class CommonWordsChecker(TaskVerifier):
 
     def build_description(self, *, expected_words=None):
         self._expected_words = expected_words or []
-        self._description_pattern = (
-            "Identifique as {n} palavras mais frequentes na lista."
-        )
+        self._description_pattern = "Identifique as {n} palavras mais frequentes na lista."
         return self._description_pattern.format(n=len(self._expected_words))
 
     def get_instruction_args(self):
@@ -1721,9 +1672,7 @@ class RareWordsChecker(TaskVerifier):
 
     def build_description(self, *, expected_words=None):
         self._expected_words = expected_words or []
-        self._description_pattern = (
-            "Identifique as {n} palavras menos frequentes na lista."
-        )
+        self._description_pattern = "Identifique as {n} palavras menos frequentes na lista."
         return self._description_pattern.format(n=len(self._expected_words))
 
     def get_instruction_args(self):
@@ -1747,9 +1696,7 @@ class CountWordChecker(TaskVerifier):
     def build_description(self, *, target_word=None, expected_count=None):
         self._target_word = target_word or ""
         self._expected_count = int(expected_count) if expected_count is not None else 0
-        self._description_pattern = (
-            "Conte quantas vezes a palavra \"{word}\" aparece na lista."
-        )
+        self._description_pattern = 'Conte quantas vezes a palavra "{word}" aparece na lista.'
         return self._description_pattern.format(word=self._target_word)
 
     def get_instruction_args(self):
@@ -1790,10 +1737,7 @@ class CountWordChecker(TaskVerifier):
         }
         words = pt_number_words.get(n, [])
         value_lower = value.lower()
-        for w in words:
-            if re.search(rf"\b{re.escape(w)}\b", value_lower):
-                return True
-        return False
+        return any(re.search(rf"\b{re.escape(w)}\b", value_lower) for w in words)
 
 
 class WordAtPositionChecker(TaskVerifier):
@@ -1802,9 +1746,7 @@ class WordAtPositionChecker(TaskVerifier):
     def build_description(self, *, position=None, expected_word=None):
         self._position = int(position) if position is not None else 0
         self._expected_word = expected_word or ""
-        self._description_pattern = (
-            "Identifique a palavra na posição {pos} da lista."
-        )
+        self._description_pattern = "Identifique a palavra na posição {pos} da lista."
         return self._description_pattern.format(pos=self._position)
 
     def get_instruction_args(self):
@@ -1828,9 +1770,7 @@ class FrequencyComparisonChecker(TaskVerifier):
         self._word_a = word_a or ""
         self._word_b = word_b or ""
         self._expected_winner = expected_winner or ""
-        self._description_pattern = (
-            "Compare a frequência de \"{a}\" e \"{b}\" na lista."
-        )
+        self._description_pattern = 'Compare a frequência de "{a}" e "{b}" na lista.'
         return self._description_pattern.format(a=self._word_a, b=self._word_b)
 
     def get_instruction_args(self):
@@ -1854,9 +1794,7 @@ class NeedleSingleNumberChecker(TaskVerifier):
     def build_description(self, *, key=None, expected_values=None):
         self._key = key or ""
         self._expected_values = expected_values or {}
-        self._description_pattern = (
-            "Encontre o número especial para {key} no texto."
-        )
+        self._description_pattern = "Encontre o número especial para {key} no texto."
         return self._description_pattern.format(key=self._key)
 
     def get_instruction_args(self):
@@ -1880,9 +1818,7 @@ class NeedleMultiNumberSameKeyChecker(TaskVerifier):
     def build_description(self, *, key=None, expected_values=None):
         self._key = key or ""
         self._expected_values = expected_values or {}
-        self._description_pattern = (
-            "Liste todos os números especiais para {key} no texto."
-        )
+        self._description_pattern = "Liste todos os números especiais para {key} no texto."
         return self._description_pattern.format(key=self._key)
 
     def get_instruction_args(self):
@@ -1908,9 +1844,7 @@ class NeedleMultiNumberDiffKeysChecker(TaskVerifier):
     def build_description(self, *, expected_values=None):
         self._expected_values = expected_values or {}
         keys_str = ", ".join(self._expected_values.keys()) if self._expected_values else ""
-        self._description_pattern = (
-            "Liste os números especiais para {keys} no texto."
-        )
+        self._description_pattern = "Liste os números especiais para {keys} no texto."
         return self._description_pattern.format(keys=keys_str)
 
     def get_instruction_args(self):
@@ -1936,9 +1870,7 @@ class NeedleUUIDChecker(TaskVerifier):
     def build_description(self, *, query_key=None, expected_values=None):
         self._query_key = query_key or ""
         self._expected_values = expected_values or {}
-        self._description_pattern = (
-            "Encontre o código UUID para {key} no texto."
-        )
+        self._description_pattern = "Encontre o código UUID para {key} no texto."
         return self._description_pattern.format(key=self._query_key)
 
     def get_instruction_args(self):
@@ -1971,9 +1903,7 @@ class MathAnswerChecker(TaskVerifier):
     def build_description(self, *, expected_answer=None, relaxed=False):
         self._expected_answer = str(expected_answer) if expected_answer is not None else ""
         self._relaxed = bool(relaxed)
-        self._description_pattern = (
-            "Resolva o problema matemático e forneça a resposta correta."
-        )
+        self._description_pattern = "Resolva o problema matemático e forneça a resposta correta."
         return self._description_pattern
 
     def get_instruction_args(self):
@@ -2002,9 +1932,7 @@ class MathAnswerChecker(TaskVerifier):
             # Remove commas and periods only when they are used as thousands
             # separators: one to three leading digits followed by groups of
             # exactly three digits, e.g. 12.880, 167.673.195, 380,438.
-            grouped_number = re.compile(
-                r"(?<!\d)([+-]?\d{1,3})([,.]\d{3})+(?![\d,.])"
-            )
+            grouped_number = re.compile(r"(?<!\d)([+-]?\d{1,3})([,.]\d{3})+(?![\d,.])")
 
             def _ungroup(match):
                 return match.group(0).replace(",", "").replace(".", "")
@@ -2055,21 +1983,15 @@ class MathAnswerChecker(TaskVerifier):
                 candidates.append(prefix + sign * repeat / denominator)
 
             number = r"[+-]?\d[\d.,_\u00a0\u202f ]*"
-            latex_fraction_re = re.compile(
-                r"\\(?:d?frac)\s*\{([^{}]+)\}\s*\{([^{}]+)\}"
-            )
+            latex_fraction_re = re.compile(r"\\(?:d?frac)\s*\{([^{}]+)\}\s*\{([^{}]+)\}")
             for match in latex_fraction_re.finditer(s):
                 _add_fraction(match.group(1), match.group(2))
 
-            overline_re = re.compile(
-                rf"({number})[\.,]\s*\\overline\{{(\d+)\}}"
-            )
+            overline_re = re.compile(rf"({number})[\.,]\s*\\overline\{{(\d+)\}}")
             for match in overline_re.finditer(s):
                 _add_repeating_decimal(match.group(1), match.group(2))
 
-            mixed_fraction_re = re.compile(
-                rf"(?<!\d)({number})\s+(\d+)\s*/\s*(\d+)(?!\d)"
-            )
+            mixed_fraction_re = re.compile(rf"(?<!\d)({number})\s+(\d+)\s*/\s*(\d+)(?!\d)")
             consumed = []
             for match in mixed_fraction_re.finditer(s):
                 whole = _parse_number(match.group(1))
@@ -2083,9 +2005,7 @@ class MathAnswerChecker(TaskVerifier):
             def _inside_consumed(start, end):
                 return any(start >= cstart and end <= cend for cstart, cend in consumed)
 
-            simple_fraction_re = re.compile(
-                rf"(?<![\d/])({number})\s*/\s*({number})(?![\d/])"
-            )
+            simple_fraction_re = re.compile(rf"(?<![\d/])({number})\s*/\s*({number})(?![\d/])")
             for match in simple_fraction_re.finditer(s):
                 if _inside_consumed(*match.span()):
                     continue
@@ -2238,12 +2158,8 @@ class EmailFieldValueChecker(TaskVerifier):
             val_str = "true" if self._expected_value else "false"
         else:
             val_str = str(self._expected_value)
-        self._description_pattern = (
-            "O campo \"{field}\" deve ter o valor: {value}."
-        )
-        return self._description_pattern.format(
-            field=self._field_name, value=val_str
-        )
+        self._description_pattern = 'O campo "{field}" deve ter o valor: {value}.'
+        return self._description_pattern.format(field=self._field_name, value=val_str)
 
     def get_instruction_args(self):
         return {
@@ -2288,7 +2204,7 @@ def _extract_tool_call_json(text):
     end = text.find(_TOOL_CALL_CLOSE)
     if start == -1 or end == -1 or end <= start:
         return None
-    inner = text[start + len(_TOOL_CALL_OPEN):end].strip()
+    inner = text[start + len(_TOOL_CALL_OPEN) : end].strip()
     try:
         return json.loads(inner)
     except (json.JSONDecodeError, ValueError):
@@ -2336,9 +2252,7 @@ class ToolCallNameChecker(TaskVerifier):
 
     def build_description(self, *, expected_name=None):
         self._expected_name = expected_name or ""
-        return (
-            f"A chamada de ferramenta deve invocar a função \"{self._expected_name}\"."
-        )
+        return f'A chamada de ferramenta deve invocar a função "{self._expected_name}".'
 
     def get_instruction_args(self):
         return {"expected_name": self._expected_name}
@@ -2359,9 +2273,7 @@ class ToolCallArgsKeysChecker(TaskVerifier):
     def build_description(self, *, required_arg_keys=None):
         self._required_keys = sorted(required_arg_keys or [])
         keys_str = ", ".join(self._required_keys)
-        return (
-            f"Os argumentos da chamada devem conter as chaves: {keys_str}."
-        )
+        return f"Os argumentos da chamada devem conter as chaves: {keys_str}."
 
     def get_instruction_args(self):
         return {"required_arg_keys": self._required_keys}
@@ -2399,10 +2311,7 @@ class ToolCallArgsTypesChecker(TaskVerifier):
     def build_description(self, *, expected_arg_types=None):
         self._expected_types = expected_arg_types or {}
         parts = [f"{k}: {v}" for k, v in sorted(self._expected_types.items())]
-        return (
-            "Os tipos dos argumentos devem ser: "
-            + ", ".join(parts) + "."
-        )
+        return "Os tipos dos argumentos devem ser: " + ", ".join(parts) + "."
 
     def get_instruction_args(self):
         return {"expected_arg_types": self._expected_types}
@@ -2425,7 +2334,7 @@ class ToolCallArgsTypesChecker(TaskVerifier):
                 continue
             if not isinstance(args[key], py_type):
                 # Allow int where number is expected
-                if expected_type_str == "number" and isinstance(args[key], (int, float)):
+                if expected_type_str == "number" and isinstance(args[key], int | float):
                     continue
                 return False
         return True

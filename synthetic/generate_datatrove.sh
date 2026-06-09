@@ -41,7 +41,7 @@ err="$workdir/synth/.logs/err.$SLURM_JOB_ID"
 #############################################
 
 source $workdir/.modules.sh > "$out" 2>&1
-# python3 -m venv $workdir/.venv_synth  
+# python3 -m venv $workdir/.venv_synth
 source $workdir/.venv_synth/bin/activate
 
 # ===== Install for vLLM + Datatrove Pipeline =====
@@ -65,7 +65,7 @@ source $workdir/.venv_synth/bin/activate
 # Environment Setup
 #############################################
 
-export HF_TOKEN=""                                       # <-- Change to your Hugging Face token       
+export HF_TOKEN=""                                       # <-- Change to your Hugging Face token
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export HF_DATASETS_CACHE="$workdir/.cache/$SLURM_JOB_ID"
 export PYTHONPYCACHEPREFIX="$HF_DATASETS_CACHE/.pycache"

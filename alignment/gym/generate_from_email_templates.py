@@ -31,20 +31,19 @@ Usage:
         --seed 42 --verbose
 """
 
+import argparse
+import hashlib
 import json
 import random
-import hashlib
-import argparse
 from pathlib import Path
 
 from tasks_metadata import (
     EMAIL_ALL_FIELDS,
-    EMAIL_INJECTED_FIELDS,
-    EMAIL_FIELD_LABELS,
-    EMAIL_TASK_IDS,
     EMAIL_DEFAULTS,
+    EMAIL_FIELD_LABELS,
+    EMAIL_INJECTED_FIELDS,
+    EMAIL_TASK_IDS,
 )
-
 
 # Prompt templates
 _PROMPT_PREAMBLES = [
@@ -84,19 +83,64 @@ _EMAIL_DOMAINS = [
 ]
 
 _FIRST_NAMES = [
-    "carlos", "ana", "pedro", "maria", "joao", "julia",
-    "lucas", "fernanda", "rafael", "camila", "bruno", "mariana",
-    "rodrigo", "patricia", "gustavo", "larissa", "felipe", "sophia",
-    "nicholas", "isabela", "diego", "carolina", "vinicius", "amanda",
-    "gabriel", "bianca", "matheus", "juliana", "ricardo", "marina"
+    "carlos",
+    "ana",
+    "pedro",
+    "maria",
+    "joao",
+    "julia",
+    "lucas",
+    "fernanda",
+    "rafael",
+    "camila",
+    "bruno",
+    "mariana",
+    "rodrigo",
+    "patricia",
+    "gustavo",
+    "larissa",
+    "felipe",
+    "sophia",
+    "nicholas",
+    "isabela",
+    "diego",
+    "carolina",
+    "vinicius",
+    "amanda",
+    "gabriel",
+    "bianca",
+    "matheus",
+    "juliana",
+    "ricardo",
+    "marina",
 ]
 
 _LAST_NAMES = [
-    "silva", "souza", "oliveira", "santos", "lima",
-    "pereira", "costa", "rodrigues", "alves", "martins",
-    "ferreira", "gomes", "ribeiro", "carvalho", "almeida",
-    "nascimento", "lopes", "machado", "barbosa", "rocha", 
-    "dias", "freitas", "araujo", "melo", "cardoso"
+    "silva",
+    "souza",
+    "oliveira",
+    "santos",
+    "lima",
+    "pereira",
+    "costa",
+    "rodrigues",
+    "alves",
+    "martins",
+    "ferreira",
+    "gomes",
+    "ribeiro",
+    "carvalho",
+    "almeida",
+    "nascimento",
+    "lopes",
+    "machado",
+    "barbosa",
+    "rocha",
+    "dias",
+    "freitas",
+    "araujo",
+    "melo",
+    "cardoso",
 ]
 
 
@@ -126,12 +170,14 @@ def _random_phone(rng):
     prefix = rng.choice(["98", "99", "97", "96"])
     part1 = f"{rng.randint(1000, 9999)}"
     part2 = f"{rng.randint(1000, 9999)}"
-    fmt = rng.choice([
-        f"({ddd}) {prefix}{part1}-{part2}",
-        f"+55 {ddd} {prefix}{part1}-{part2}",
-        f"+55 ({ddd}) {prefix}{part1}-{part2}",
-        f"{ddd} {prefix}{part1}-{part2}",
-    ])
+    fmt = rng.choice(
+        [
+            f"({ddd}) {prefix}{part1}-{part2}",
+            f"+55 {ddd} {prefix}{part1}-{part2}",
+            f"+55 ({ddd}) {prefix}{part1}-{part2}",
+            f"{ddd} {prefix}{part1}-{part2}",
+        ]
+    )
     return fmt
 
 
@@ -148,7 +194,6 @@ def generate_injected_values(rng):
         "sender_email": _random_sender_email(rng),
         "telephone_number": _random_phone(rng),
     }
-
 
 
 # Email context construction
@@ -196,9 +241,7 @@ def build_email_sample(email_text, fields, injected_values, rng):
     email_with_meta = build_email_context(email_text, injected_values)
 
     # Describe requested fields
-    field_details = "\n".join(
-        f"  - {EMAIL_FIELD_LABELS[f]}" for f in fields
-    )
+    field_details = "\n".join(f"  - {EMAIL_FIELD_LABELS[f]}" for f in fields)
     fields_str = ", ".join(fields)
 
     preamble = rng.choice(_PROMPT_PREAMBLES)
@@ -213,18 +256,20 @@ def build_email_sample(email_text, fields, injected_values, rng):
     # Always include the two format verifiers
     verifier_id_list = ["email:json_format", "email:schema_keys"]
     kwargs_list = [
-        {},                                        # email:json_format — no kwargs
-        {"required_keys": sorted(fields)},         # email:schema_keys
+        {},  # email:json_format — no kwargs
+        {"required_keys": sorted(fields)},  # email:schema_keys
     ]
 
     # Exact-match verifiers for every injected field that was requested
     for field in fields:
         if field in EMAIL_INJECTED_FIELDS:
             verifier_id_list.append("email:field_value")
-            kwargs_list.append({
-                "field_name": field,
-                "expected_value": injected_values[field],
-            })
+            kwargs_list.append(
+                {
+                    "field_name": field,
+                    "expected_value": injected_values[field],
+                }
+            )
 
     sample_id = hashlib.md5(prompt.encode()).hexdigest()
     return {
@@ -243,9 +288,7 @@ def validate_email_sample(sample):
     n_ids = len(sample.get("verifier_id_list", []))
     n_kw = len(sample.get("kwargs", []))
     if n_ids != n_kw:
-        issues.append(
-            f"verifier_id_list length ({n_ids}) != kwargs length ({n_kw})"
-        )
+        issues.append(f"verifier_id_list length ({n_ids}) != kwargs length ({n_kw})")
 
     for iid in sample.get("verifier_id_list", []):
         if iid not in EMAIL_TASK_IDS:
@@ -306,13 +349,9 @@ def load_emails(emails_file):
             try:
                 obj = json.loads(line)
             except json.JSONDecodeError as exc:
-                raise ValueError(
-                    f"Invalid JSON on line {line_no} of {emails_file}"
-                ) from exc
+                raise ValueError(f"Invalid JSON on line {line_no} of {emails_file}") from exc
             if "email" not in obj:
-                raise ValueError(
-                    f"Line {line_no} in {emails_file} has no 'email' key"
-                )
+                raise ValueError(f"Line {line_no} in {emails_file} has no 'email' key")
             text = obj["email"].strip()
             if text:
                 emails.append(text)
@@ -331,9 +370,7 @@ def main(args):
     min_fields = max(1, args.min_fields)
     max_fields = min(args.max_fields, len(EMAIL_ALL_FIELDS))
     if min_fields > max_fields:
-        raise ValueError(
-            f"--min_fields ({min_fields}) > --max_fields ({max_fields})"
-        )
+        raise ValueError(f"--min_fields ({min_fields}) > --max_fields ({max_fields})")
 
     print(
         f"Loaded {len(emails)} emails. "
@@ -388,9 +425,9 @@ def main(args):
             if args.verbose:
                 print(f"  ID {s['id']}: {issues}")
 
-    unique_ids = len({s['id'] for s in samples})
+    unique_ids = len({s["id"] for s in samples})
 
-    print(f"\nResults:")
+    print("\nResults:")
     print(f"  Generated samples:  {len(samples)}")
     print(
         f"  Unique:             {unique_ids}/{len(samples)}"
@@ -401,9 +438,7 @@ def main(args):
         print(f"  Retries used:       {retries_used}")
 
     assert total_issues == 0, f"FAIL: {total_issues} validation issues found"
-    assert unique_ids == len(samples), (
-        f"FAIL: {len(samples) - unique_ids} duplicate samples"
-    )
+    assert unique_ids == len(samples), f"FAIL: {len(samples) - unique_ids} duplicate samples"
 
     use_jsonl = output_path.suffix.lower() == ".jsonl"
     with open(output_path, "w", encoding="utf-8") as f:
@@ -422,7 +457,7 @@ if __name__ == "__main__":
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    
+
     parser.add_argument(
         "--emails_file",
         type=str,
@@ -446,14 +481,14 @@ if __name__ == "__main__":
         type=int,
         default=EMAIL_DEFAULTS["min_fields"],
         help=f"Minimum number of JSON fields to request per sample "
-             f"(default: {EMAIL_DEFAULTS['min_fields']}).",
+        f"(default: {EMAIL_DEFAULTS['min_fields']}).",
     )
     parser.add_argument(
         "--max_fields",
         type=int,
         default=EMAIL_DEFAULTS["max_fields"],
         help=f"Maximum number of JSON fields to request per sample "
-             f"(default: {EMAIL_DEFAULTS['max_fields']}).",
+        f"(default: {EMAIL_DEFAULTS['max_fields']}).",
     )
     parser.add_argument(
         "--seed",

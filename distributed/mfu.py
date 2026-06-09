@@ -21,15 +21,14 @@ Provides:
     - `create_mfu_context()` to build a context from training args.
     - `calculate_training_metrics()` to compute MFU + throughput per step.
 """
-from dataclasses import dataclass
-from typing import Tuple
 
+from dataclasses import dataclass
 
 # Peak FLOPs (BF16) for supported hardware (Bender|Marvin|Jupiter).
 PEAK_FLOPS_BY_HARDWARE = {
-    "a100": 312e12,       # --> https://www.nvidia.com/en-us/data-center/a100/
-    "a40": 150e12,        # --> https://www.nvidia.com/en-us/data-center/a40/
-    "gh200": 990e12,      # --> https://www.nvidia.com/en-eu/data-center/grace-hopper-superchip/
+    "a100": 312e12,  # --> https://www.nvidia.com/en-us/data-center/a100/
+    "a40": 150e12,  # --> https://www.nvidia.com/en-us/data-center/a40/
+    "gh200": 990e12,  # --> https://www.nvidia.com/en-eu/data-center/grace-hopper-superchip/
     # Extend with more hardware as needed.
 }
 
@@ -51,7 +50,7 @@ class MFUContext:
     vocab_size: int = 0
     intermediate_size: int = 0
     num_key_value_heads: int = 0
-    layer_types: Tuple[str, ...] = ()
+    layer_types: tuple[str, ...] = ()
 
     # Linear attention (Gated DeltaNet) parameters.
     linear_num_key_heads: int = 0
@@ -95,7 +94,9 @@ def _dense_transformer_flops(ctx, micro_batch_size, gradient_accumulation_steps,
         6 * ctx.num_parameters
         + 12 * ctx.num_hidden_layers * ctx.num_attention_heads * ctx.head_dim * ctx.sequence_length
     )
-    flops_per_iter = flops_per_token * ctx.sequence_length * micro_batch_size * gradient_accumulation_steps
+    flops_per_iter = (
+        flops_per_token * ctx.sequence_length * micro_batch_size * gradient_accumulation_steps
+    )
     return flops_per_iter / dt
 
 
@@ -155,12 +156,12 @@ def _linear_attention_macs_per_token(ctx):
     nv = ctx.linear_num_value_heads
     dk = ctx.linear_key_head_dim
     dv = ctx.linear_value_head_dim
-    k = nk * dk          # total key dimension (before repeat)
-    v = nv * dv          # total value dimension
+    k = nk * dk  # total key dimension (before repeat)
+    v = nv * dv  # total value dimension
     L = ctx.linear_chunk_size
     K = ctx.linear_conv_kernel_dim
 
-    #  1. Input projections 
+    #  1. Input projections
     # in_proj_qkv : d → (k + k + v)      = 2k + v
     # in_proj_z   : d → v
     # in_proj_b   : d → nv
@@ -186,7 +187,7 @@ def _linear_attention_macs_per_token(ctx):
     #   - (k_i ⊙ decay)ᵀ @ v_new (state upd)   →  nv·dk·dv  / token
     inter = nv * ((L * dk) // 2 + (L * dv) // 2 + 3 * dk * dv)
 
-    #  4. Pre- / post-chunk element-wise ops 
+    #  4. Pre- / post-chunk element-wise ops
     # Q/K L2-norm, beta / g discretisation, output gated-RMSNorm.
     elem_ops = nv * (6 * dk + 5 * dv)
 
@@ -197,8 +198,8 @@ def _linear_attention_macs_per_token(ctx):
 
 
 _LAYER_MAC_FNS = {
-    "full_attention":   _full_attention_macs_per_token,
-    "attention":        _full_attention_macs_per_token,  # alias
+    "full_attention": _full_attention_macs_per_token,
+    "attention": _full_attention_macs_per_token,  # alias
     "linear_attention": _linear_attention_macs_per_token,
 }
 
@@ -211,8 +212,8 @@ def _hybrid_attention_flops(ctx, micro_batch_size, gradient_accumulation_steps, 
     """
     lm_head_macs = ctx.hidden_size * ctx.vocab_size
     total_layer_macs = sum(_LAYER_MAC_FNS[lt](ctx) for lt in ctx.layer_types)
-    flops_per_token = 2 * (lm_head_macs + total_layer_macs)         # FLOPs = 2 * MACs
-    flops_per_fwdbwd = 3 * flops_per_token * ctx.sequence_length    # fwd + bwd ~= 3 * fwd
+    flops_per_token = 2 * (lm_head_macs + total_layer_macs)  # FLOPs = 2 * MACs
+    flops_per_fwdbwd = 3 * flops_per_token * ctx.sequence_length  # fwd + bwd ~= 3 * fwd
     flops_per_iter = flops_per_fwdbwd * micro_batch_size * gradient_accumulation_steps
     return flops_per_iter / dt
 
@@ -251,7 +252,9 @@ def create_mfu_context(args, hardware, num_parameters):
     )
 
 
-def calculate_training_metrics(mfu_context, micro_batch_size, gradient_accumulation_steps, world_size, dt):
+def calculate_training_metrics(
+    mfu_context, micro_batch_size, gradient_accumulation_steps, world_size, dt
+):
     """Compute throughput + MFU for the current step."""
     if dt <= 0:
         raise ValueError("Step duration must be positive for MFU calculation.")
@@ -264,11 +267,17 @@ def calculate_training_metrics(mfu_context, micro_batch_size, gradient_accumulat
 
     if _has_linear_attention(mfu_context.layer_types):
         flops_achieved = _hybrid_attention_flops(
-            mfu_context, micro_batch_size, gradient_accumulation_steps, dt,
+            mfu_context,
+            micro_batch_size,
+            gradient_accumulation_steps,
+            dt,
         )
     else:
         flops_achieved = _dense_transformer_flops(
-            mfu_context, micro_batch_size, gradient_accumulation_steps, dt,
+            mfu_context,
+            micro_batch_size,
+            gradient_accumulation_steps,
+            dt,
         )
     mfu = (flops_achieved / mfu_context.peak_flops) * 100
 

@@ -24,7 +24,7 @@ Usage:
         --checkpoint_dir checkpoints/ --max_length 512 \\
         --per_device_train_batch_size 32 --num_train_epochs 20 \\
         --learning_rate 3e-4 --bf16
-    
+
     # Train with frozen layers (faster)
     python train_classifier.py --train_dataset_dir data.jsonl \\
         --dataset_type jsonl \\
@@ -33,24 +33,26 @@ Usage:
         --checkpoint_dir ckpt/ --gradient_checkpointing \\
         --hub_token TOKEN --hub_model_id username/my-classifier
 """
-from transformers import (
-    AutoTokenizer,
-    AutoConfig,
-    DataCollatorWithPadding,
-    TrainingArguments,
-    Trainer,
-    AutoModelForSequenceClassification,
-)
 
-from sklearn.metrics import classification_report, confusion_matrix
-import accelerate
-import datasets
-import numpy as np
-import evaluate
 import argparse
-import torch
 import glob
 import os
+
+import accelerate
+import datasets
+import evaluate
+import numpy as np
+import torch
+from sklearn.metrics import classification_report, confusion_matrix
+from transformers import (
+    AutoConfig,
+    AutoModelForSequenceClassification,
+    AutoTokenizer,
+    DataCollatorWithPadding,
+    Trainer,
+    TrainingArguments,
+)
+
 
 def compute_metrics(eval_pred):
     """Compute metrics for the evaluation step"""
@@ -61,10 +63,14 @@ def compute_metrics(eval_pred):
     accuracy_metric = evaluate.load("accuracy")
 
     logits, labels = eval_pred
-    preds = np.round(logits.squeeze()).clip(0, 4).astype(int) # Clip the predictions to the range [0, 4]
+    preds = (
+        np.round(logits.squeeze()).clip(0, 4).astype(int)
+    )  # Clip the predictions to the range [0, 4]
     labels = np.round(labels.squeeze()).astype(int)
 
-    precision = precision_metric.compute(predictions=preds, references=labels, average="macro")["precision"]
+    precision = precision_metric.compute(predictions=preds, references=labels, average="macro")[
+        "precision"
+    ]
     recall = recall_metric.compute(predictions=preds, references=labels, average="macro")["recall"]
     f1 = f1_metric.compute(predictions=preds, references=labels, average="macro")["f1"]
     accuracy = accuracy_metric.compute(predictions=preds, references=labels)["accuracy"]
@@ -84,8 +90,8 @@ def compute_metrics(eval_pred):
         "accuracy": accuracy,
     }
 
-def main(args):
 
+def main(args):
     # Initialize the partial state for distributed training
     state = accelerate.PartialState()
     # print the state of every process
@@ -95,7 +101,9 @@ def main(args):
 
     # Load our training dataset.
     # We expect the dataset to be in a specific format: jsonl or parquet.
-    assert args.dataset_type in ["jsonl", "parquet"], f"Dataset type must be either 'jsonl' or 'parquet', got {args.dataset_type}."
+    assert args.dataset_type in ["jsonl", "parquet"], (
+        f"Dataset type must be either 'jsonl' or 'parquet', got {args.dataset_type}."
+    )
 
     train_dataset_files = []
     train_dirs = args.train_dataset_dir
@@ -119,7 +127,7 @@ def main(args):
     dataset = datasets.load_dataset(
         "json" if args.dataset_type == "jsonl" else args.dataset_type,
         data_files=train_dataset_files,
-        split='train',
+        split="train",
         num_proc=min(len(train_dataset_files), args.num_proc),
         cache_dir=args.cache_dir,
     )
@@ -127,10 +135,10 @@ def main(args):
     if args.shuffle_dataset:
         dataset = dataset.shuffle(seed=args.seed)
 
-    # Given that the scores we generated in `llm_filter.py` are in the range [1, 5], 
+    # Given that the scores we generated in `llm_filter.py` are in the range [1, 5],
     # we need to convert them to the range [0, 4] for training.
     dataset = dataset.map(
-        lambda x: {args.target_column: np.clip(int(x[args.target_column])-1, 0, 4)},
+        lambda x: {args.target_column: np.clip(int(x[args.target_column]) - 1, 0, 4)},
         num_proc=args.num_proc,
     )
     # Cast the target column to ClassLabel.
@@ -139,9 +147,11 @@ def main(args):
     )
     # Split the dataset into train and test sets.
     dataset = dataset.train_test_split(
-        test_size=min(args.test_size, len(dataset) * 0.1),  # Ensure test_size doesn't exceed dataset size
-        seed=args.seed, 
-        stratify_by_column=args.target_column
+        test_size=min(
+            args.test_size, len(dataset) * 0.1
+        ),  # Ensure test_size doesn't exceed dataset size
+        seed=args.seed,
+        stratify_by_column=args.target_column,
     )
 
     # We use the AutoConfig to infer what is the model type and how to configure the model.
@@ -160,11 +170,11 @@ def main(args):
         "id2label": {0: args.id_label},
         "label2id": {args.id_label: 0},
         "trust_remote_code": True,
-        "use_cache": True if not args.gradient_checkpointing else False,
+        "use_cache": bool(not args.gradient_checkpointing),
         "dtype": torch.bfloat16 if args.bf16 else torch.float32,
-        "device_map":{'':state.process_index},
+        "device_map": {"": state.process_index},
     }
-    
+
     # Add classifier_dropout for non-DeBERTa models (will be ignored by DeBERTa)
     if "deberta" not in config.model_type:
         model_args["classifier_dropout"] = 0.0
@@ -179,9 +189,7 @@ def main(args):
     # We use the AutoModelForSequenceClassification to load the model.
     # See https://huggingface.co/docs/transformers/model_doc/auto#transformers.AutoModelForSequenceClassification
     model = AutoModelForSequenceClassification.from_pretrained(
-        args.model_name,
-        attn_implementation=args.attn_implementation,
-        **model_args
+        args.model_name, attn_implementation=args.attn_implementation, **model_args
     )
 
     # We use the AutoTokenizer to load the tokenizer.
@@ -204,22 +212,25 @@ def main(args):
 
     if args.chat_template_path is not None:
         # Load a Jinja template for the chat model
-        with open(args.chat_template_path, "r") as f:
+        with open(args.chat_template_path) as f:
             tokenizer.chat_template = f.read()
 
     # Preprocess the dataset.
-    if args.text_column not in dataset['train'].column_names:
-        raise ValueError(f"Text column '{args.text_column}' not found in the dataset. Available columns: {dataset['train'].column_names}")
-    
+    if args.text_column not in dataset["train"].column_names:
+        raise ValueError(
+            f"Text column '{args.text_column}' not found in the dataset. Available columns: {dataset['train'].column_names}"
+        )
+
     # Only main process runs the preprocessing and mapping
     if master_process:
+
         def preprocess(examples):
             batch = tokenizer(examples[args.text_column], truncation=True)
             batch["labels"] = np.float32(examples[args.target_column])
             return batch
 
         dataset = dataset.map(
-            preprocess, 
+            preprocess,
             batched=True,
             num_proc=args.num_proc,
             load_from_cache_file=True,
@@ -248,13 +259,13 @@ def main(args):
                 param.requires_grad = False
             for param in model.electra.encoder.parameters():
                 param.requires_grad = False
-        
+
         elif config.model_type == "bert":
             for param in model.bert.embeddings.parameters():
                 param.requires_grad = False
             for param in model.bert.encoder.parameters():
                 param.requires_grad = False
-        
+
         elif "deberta" in config.model_type:
             for param in model.deberta.embeddings.parameters():
                 param.requires_grad = False
@@ -273,12 +284,14 @@ def main(args):
                 if hasattr(model.model, "embed_tokens"):
                     for param in model.model.embed_tokens.parameters():
                         param.requires_grad = False
-                #if hasattr(model.model, "layers"):
+                # if hasattr(model.model, "layers"):
                 #    for param in model.model.layers.parameters():
                 #        param.requires_grad = False
             else:
-                print(f"Warning: model.model not found in {type(model)}. No encoder/embedding frozen.")
-            
+                print(
+                    f"Warning: model.model not found in {type(model)}. No encoder/embedding frozen."
+                )
+
         else:
             raise ValueError(f"Model type {model.config.model_type} not supported")
 
@@ -312,17 +325,19 @@ def main(args):
         bf16=args.bf16,
         tf32=args.tf32,
         gradient_checkpointing=args.gradient_checkpointing,
-        gradient_checkpointing_kwargs={"use_reentrant": False} if torch.cuda.device_count() > 1 and args.gradient_checkpointing else None,
-        push_to_hub=True if args.hub_token is not None and args.hub_model_id is not None else False,
+        gradient_checkpointing_kwargs={"use_reentrant": False}
+        if torch.cuda.device_count() > 1 and args.gradient_checkpointing
+        else None,
+        push_to_hub=bool(args.hub_token is not None and args.hub_model_id is not None),
         hub_token=args.hub_token,
         hub_model_id=args.hub_model_id,
         report_to=args.report_to,
         save_total_limit=args.save_total_limit,
-        eval_on_start=args.eval_on_start, # Do not evaluate on the first epoch
-        load_best_model_at_end=True, # Load the best model at the end of training
-        metric_for_best_model="f1_macro", # Use F1 macro as the metric for the best model
-        greater_is_better=True, # Higher F1 macro is better
-        hub_private_repo=True, # Push to a private repository if the user has provided a token
+        eval_on_start=args.eval_on_start,  # Do not evaluate on the first epoch
+        load_best_model_at_end=True,  # Load the best model at the end of training
+        metric_for_best_model="f1_macro",  # Use F1 macro as the metric for the best model
+        greater_is_better=True,  # Higher F1 macro is better
+        hub_private_repo=True,  # Push to a private repository if the user has provided a token
         run_name=f"{args.model_name.split('/')[-1]}-jobid-{jobid}-bs-{args.per_device_train_batch_size}-acumulation-{args.gradient_accumulation_steps}-ngpu-{torch.cuda.device_count()}-epochs-{args.num_train_epochs}",
     )
 
@@ -341,9 +356,8 @@ def main(args):
     state.wait_for_everyone()
     if torch.distributed.is_initialized():
         torch.distributed.barrier()
-    
-    if args.resume_from_checkpoint:
 
+    if args.resume_from_checkpoint:
         # We expect the `resume_from_checkpoint` argument to be the path to a directory of checkpoints,
         # the logic below will find the latest checkpoint in that directory.
         checkpoint_path = args.resume_from_checkpoint
@@ -351,9 +365,14 @@ def main(args):
         try:
             # We try to find the latest checkpoint in the directory.
             checkpoint_dirs = os.listdir(checkpoint_path)
-            checkpoint_dirs = [dir for dir in checkpoint_dirs if dir.startswith(f"checkpoint-")] # Checkpoints are intended to be named like "checkpoint-"
-            checkpoint_path = os.path.join(checkpoint_path, sorted(checkpoint_dirs, key=lambda x: int(x.split("-")[-1].split(".")[0]))[-1])
-        except:
+            checkpoint_dirs = [
+                dir for dir in checkpoint_dirs if dir.startswith("checkpoint-")
+            ]  # Checkpoints are intended to be named like "checkpoint-"
+            checkpoint_path = os.path.join(
+                checkpoint_path,
+                sorted(checkpoint_dirs, key=lambda x: int(x.split("-")[-1].split(".")[0]))[-1],
+            )
+        except (OSError, IndexError, ValueError):
             # If the checkpoint directory does not contain any checkpoints, we will assume
             # that `resume_from_checkpoint` is already set to the latest checkpoint.
             pass
@@ -362,7 +381,9 @@ def main(args):
 
     # Start the training
     try:
-        trainer.train(resume_from_checkpoint=checkpoint_path if args.resume_from_checkpoint else None)
+        trainer.train(
+            resume_from_checkpoint=checkpoint_path if args.resume_from_checkpoint else None
+        )
     except Exception as e:
         save_path = os.path.join(args.checkpoint_dir, "last")
         trainer.save_model(save_path)
@@ -380,32 +401,73 @@ def main(args):
     # Save the final model
     trainer.save_model(os.path.join(args.checkpoint_dir, "final"))
     # Done!
-    
-if __name__ == "__main__":
 
+
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
     # Core dataset/model args
-    parser.add_argument("--dataset_type", choices=["jsonl", "parquet"], default="parquet", help="Type of the dataset files. Can be either 'jsonl' or 'parquet'.")
-    parser.add_argument("--train_dataset_dir", type=str, nargs="+", required=True, help="Path(s) to the training dataset directory or file. Can be a single directory/file or a list of directories/files.")
-    parser.add_argument("--shuffle_dataset", action="store_true", help="If set, shuffle the dataset files before loading.")
-    parser.add_argument("--cache_dir", type=str, default=None, help="Path to a directory to use for caching the datasets and models.")
+    parser.add_argument(
+        "--dataset_type",
+        choices=["jsonl", "parquet"],
+        default="parquet",
+        help="Type of the dataset files. Can be either 'jsonl' or 'parquet'.",
+    )
+    parser.add_argument(
+        "--train_dataset_dir",
+        type=str,
+        nargs="+",
+        required=True,
+        help="Path(s) to the training dataset directory or file. Can be a single directory/file or a list of directories/files.",
+    )
+    parser.add_argument(
+        "--shuffle_dataset",
+        action="store_true",
+        help="If set, shuffle the dataset files before loading.",
+    )
+    parser.add_argument(
+        "--cache_dir",
+        type=str,
+        default=None,
+        help="Path to a directory to use for caching the datasets and models.",
+    )
     parser.add_argument("--num_proc", type=int, default=16)
     parser.add_argument("--target_column", type=str, default="score")
     parser.add_argument("--text_column", type=str, default="text")
     parser.add_argument("--test_size", type=int, default=20_000)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--model_name", type=str, required=True)
-    parser.add_argument("--chat_template_path", type=str, default=None, help="Path to a Jinja template.")
-    parser.add_argument("--id_label", type=str, default="Score", help="Label for the classification task, e.g., 'Edu-Score', 'Toxicity', etc.")
+    parser.add_argument(
+        "--chat_template_path", type=str, default=None, help="Path to a Jinja template."
+    )
+    parser.add_argument(
+        "--id_label",
+        type=str,
+        default="Score",
+        help="Label for the classification task, e.g., 'Edu-Score', 'Toxicity', etc.",
+    )
     parser.add_argument("--checkpoint_dir", type=str, required=True)
-    parser.add_argument("--resume_from_checkpoint", type=str, default=None, help="Path to a checkpoint to resume training from.")
+    parser.add_argument(
+        "--resume_from_checkpoint",
+        type=str,
+        default=None,
+        help="Path to a checkpoint to resume training from.",
+    )
     # Tokenization / model configuration
-    parser.add_argument("--max_length", type=int, default=512, help="Maximum sequence length for tokenization / model.")
-    parser.add_argument("--freeze", action="store_true", help="Freeze the embeddings and decoder/encoder layers. Only the classifier head will be trained.")
+    parser.add_argument(
+        "--max_length",
+        type=int,
+        default=512,
+        help="Maximum sequence length for tokenization / model.",
+    )
+    parser.add_argument(
+        "--freeze",
+        action="store_true",
+        help="Freeze the embeddings and decoder/encoder layers. Only the classifier head will be trained.",
+    )
     # Training and optimizer
     parser.add_argument("--eval_steps", type=int, default=1000)
     parser.add_argument("--save_steps", type=int, default=1000)
@@ -416,16 +478,38 @@ if __name__ == "__main__":
     parser.add_argument("--adam_beta2", type=float, default=0.999)
     parser.add_argument("--adam_epsilon", type=float, default=1e-8)
     parser.add_argument("--max_grad_norm", type=float, default=1.0)
-    parser.add_argument("--lr_scheduler_type", type=str, default="linear", help="Type of learning rate scheduler to use. Options: 'linear', 'cosine', and all the other types listed here: https://huggingface.co/docs/transformers/main/en/main_classes/optimizer_schedules#transformers.SchedulerType.")
+    parser.add_argument(
+        "--lr_scheduler_type",
+        type=str,
+        default="linear",
+        help="Type of learning rate scheduler to use. Options: 'linear', 'cosine', and all the other types listed here: https://huggingface.co/docs/transformers/main/en/main_classes/optimizer_schedules#transformers.SchedulerType.",
+    )
     parser.add_argument("--warmup_ratio", type=float, default=0.0)
     parser.add_argument("--num_train_epochs", type=int, default=20)
     parser.add_argument("--save_total_limit", type=int, default=5)
     parser.add_argument("--eval_on_start", action="store_true")
     # Precision / performance
-    parser.add_argument("--bf16", action="store_true", help="Use bfloat16 precision for training. Requires a GPU that supports bfloat16 (e.g., A100)")
-    parser.add_argument("--tf32", action="store_true", help="Use TensorFloat-32 precision for training. Requires a GPU that supports TF32 (e.g., A100)")
-    parser.add_argument("--gradient_checkpointing", action="store_true", help="Use gradient checkpointing to save memory. This will slow down training but reduce memory usage.")
-    parser.add_argument("--attn_implementation", type=str, default="eager", help="Attention implementation to use. Options: 'eager', 'sdpa', 'flash_attention_2', 'flash_attention_3', and 'flash_attention_4'.")
+    parser.add_argument(
+        "--bf16",
+        action="store_true",
+        help="Use bfloat16 precision for training. Requires a GPU that supports bfloat16 (e.g., A100)",
+    )
+    parser.add_argument(
+        "--tf32",
+        action="store_true",
+        help="Use TensorFloat-32 precision for training. Requires a GPU that supports TF32 (e.g., A100)",
+    )
+    parser.add_argument(
+        "--gradient_checkpointing",
+        action="store_true",
+        help="Use gradient checkpointing to save memory. This will slow down training but reduce memory usage.",
+    )
+    parser.add_argument(
+        "--attn_implementation",
+        type=str,
+        default="eager",
+        help="Attention implementation to use. Options: 'eager', 'sdpa', 'flash_attention_2', 'flash_attention_3', and 'flash_attention_4'.",
+    )
     # Data loader / batch sizes
     parser.add_argument("--per_device_train_batch_size", type=int, default=256)
     parser.add_argument("--per_device_eval_batch_size", type=int, default=128)
@@ -433,7 +517,13 @@ if __name__ == "__main__":
     # Hub / reporting
     parser.add_argument("--hub_token", type=str, default=None)
     parser.add_argument("--hub_model_id", type=str, default=None)
-    parser.add_argument("--report_to", type=str, nargs="+", default=None , help="The list of integrations to report the results and logs to. Supported platforms are 'tensorboard', 'wandb', 'comet_ml', 'mlflow', 'clearml', 'wandb' etc. See here: https://huggingface.co/docs/transformers/main/en/main_classes/trainer#transformers.TrainingArguments.report_to for more details.")
+    parser.add_argument(
+        "--report_to",
+        type=str,
+        nargs="+",
+        default=None,
+        help="The list of integrations to report the results and logs to. Supported platforms are 'tensorboard', 'wandb', 'comet_ml', 'mlflow', 'clearml', 'wandb' etc. See here: https://huggingface.co/docs/transformers/main/en/main_classes/trainer#transformers.TrainingArguments.report_to for more details.",
+    )
     parser.add_argument("--wandb_project", type=str, default="Polyglot")
 
     args = parser.parse_args()
@@ -442,21 +532,21 @@ if __name__ == "__main__":
 
 # How to use the trained model:
 #
-#from transformers import AutoTokenizer, AutoModelForSequenceClassification
+# from transformers import AutoTokenizer, AutoModelForSequenceClassification
 #
-#model_id = "my-username/my-model-name"
-#tokenizer = AutoTokenizer.from_pretrained(model_id)
-#model = AutoModelForSequenceClassification.from_pretrained(model_id)
+# model_id = "my-username/my-model-name"
+# tokenizer = AutoTokenizer.from_pretrained(model_id)
+# model = AutoModelForSequenceClassification.from_pretrained(model_id)
 #
-#text = "This is a test sentence."
-#inputs = tokenizer(text, return_tensors="pt", padding="longest", truncation=True)
-#outputs = model(**inputs)
-#logits = outputs.logits.squeeze(-1).float().detach().numpy()
-#score = logits.item() + 1 # scores are produced in the range [0, 4]. To convert to the range [1, 5], we add 1 to the score.
-#result = {
+# text = "This is a test sentence."
+# inputs = tokenizer(text, return_tensors="pt", padding="longest", truncation=True)
+# outputs = model(**inputs)
+# logits = outputs.logits.squeeze(-1).float().detach().numpy()
+# score = logits.item() + 1 # scores are produced in the range [0, 4]. To convert to the range [1, 5], we add 1 to the score.
+# result = {
 #    "text": text,
 #    "score": score,
 #    "edu_score": int(round(max(0, min(score, 4)))) + 1, # scores are produced in the range [0, 4]. To convert to the range [1, 5], we add 1 to the rounded score.
-#}
+# }
 #
-#print(result)
+# print(result)

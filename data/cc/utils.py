@@ -1,12 +1,12 @@
 """
 Shared utilities for CommonCrawl processing scripts.
 """
+
 import glob
 import json
 import logging
 import os
 import sys
-from typing import Optional
 
 
 def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
@@ -44,7 +44,7 @@ def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     return logger
 
 
-def read_metadata(metadata_file: str) -> Optional[dict]:
+def read_metadata(metadata_file: str) -> dict | None:
     """
     Read metadata from a file in YAML-like key: value format.
 
@@ -58,7 +58,7 @@ def read_metadata(metadata_file: str) -> Optional[dict]:
         return None
 
     metadata = {}
-    with open(metadata_file, "r", encoding="utf-8") as f:
+    with open(metadata_file, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if line and ":" in line:
@@ -117,7 +117,7 @@ def initialize_or_load_metadata(lang_output_path: str) -> dict:
     total_tokens = 0
 
     for jsonl_file in all_jsonl_files:
-        with open(jsonl_file, "r", encoding="utf-8") as f:
+        with open(jsonl_file, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line:

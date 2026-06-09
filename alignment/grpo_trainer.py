@@ -28,12 +28,13 @@ Example usage:
         --learning_rate 1e-6 \\
         --bf16
 """
+
 import argparse
 import os
-import sys
 
 import torch
 import trl
+from gym.verifier import Verifier
 
 from utils import (
     get_logger,
@@ -44,8 +45,6 @@ from utils import (
     setup_distributed_state,
     split_dataset,
 )
-
-from gym.verifier import Verifier
 
 GRPO_LOSS_TYPES = ("grpo", "bnpo", "dr_grpo", "dapo", "sapo")
 SCALE_REWARD_VALUES = {
@@ -81,7 +80,7 @@ def _normalize_verifier_kwargs(verifier_kwargs):
     """Normalize verifier_kwargs to a list of dictionaries."""
     if verifier_kwargs is None:
         return []
-    if isinstance(verifier_kwargs, (str, dict)):
+    if isinstance(verifier_kwargs, str | dict):
         return [verifier_kwargs]
     return list(verifier_kwargs)
 
@@ -101,7 +100,9 @@ def verifier_reward_func(
     passed_counts = []
     total_counts = []
 
-    for completion, verifier_ids, verifier_kwargs in zip(completions, verifier_id_list, kwargs):
+    for completion, verifier_ids, verifier_kwargs in zip(
+        completions, verifier_id_list, kwargs, strict=False
+    ):
         completion_text = _completion_to_text(completion)
         verifier_ids = _normalize_verifier_ids(verifier_ids)
         verifier_kwargs = _normalize_verifier_kwargs(verifier_kwargs)
@@ -190,7 +191,7 @@ def main(args):
         args.model_name_or_path,
         args.max_prompt_length + args.max_completion_length,
         args.cache_dir,
-        args.chat_template_path
+        args.chat_template_path,
     )
 
     jobid = os.getenv("SLURM_JOB_ID", "local")
@@ -202,7 +203,7 @@ def main(args):
         "attn_implementation": args.attn_implementation,
         "dtype": model_dtype,
         "trust_remote_code": True,
-        "use_cache": False if args.gradient_checkpointing else True,
+        "use_cache": not args.gradient_checkpointing,
     }
     if not args.use_vllm or args.vllm_mode != "server":
         model_init_kwargs["device_map"] = {"": state.process_index}
@@ -236,7 +237,9 @@ def main(args):
         use_liger_kernel=args.use_liger_kernel,
         activation_offloading=args.activation_offloading,
         gradient_checkpointing=args.gradient_checkpointing,
-        gradient_checkpointing_kwargs={"use_reentrant": False} if torch.cuda.device_count() > 1 and args.gradient_checkpointing else None,
+        gradient_checkpointing_kwargs={"use_reentrant": False}
+        if torch.cuda.device_count() > 1 and args.gradient_checkpointing
+        else None,
         seed=args.seed,
         eval_strategy="steps" if "test" in dataset else "no",
         save_strategy="steps",
@@ -256,20 +259,24 @@ def main(args):
         per_device_train_batch_size=args.per_device_train_batch_size,
         per_device_eval_batch_size=args.per_device_eval_batch_size if "test" in dataset else None,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
-        ddp_find_unused_parameters=args.ddp_find_unused_parameters if torch.cuda.device_count() > 1 else None,
+        ddp_find_unused_parameters=args.ddp_find_unused_parameters
+        if torch.cuda.device_count() > 1
+        else None,
         bf16=args.bf16,
         tf32=args.tf32,
         pad_to_multiple_of=8,
         hub_token=args.hub_token,
         hub_model_id=args.hub_model_id,
-        push_to_hub=True if args.hub_token is not None and args.hub_model_id is not None else False,
+        push_to_hub=bool(args.hub_token is not None and args.hub_model_id is not None),
         report_to=args.report_to,
         include_tokens_per_second=True,
         hub_private_repo=True,
         run_name=f"{args.model_name_or_path.split('/')[-1]}-jobid-{jobid}-bs-{args.per_device_train_batch_size}-accumulation-{args.gradient_accumulation_steps}-ngpu-{torch.cuda.device_count()}-epochs-{args.num_train_epochs}",
     )
 
-    def reward_func(completions, verifier_id_list, kwargs, log_extra=None, log_metric=None, **unused_kwargs):
+    def reward_func(
+        completions, verifier_id_list, kwargs, log_extra=None, log_metric=None, **unused_kwargs
+    ):
         return verifier_reward_func(
             completions=completions,
             verifier_id_list=verifier_id_list,
@@ -289,8 +296,8 @@ def main(args):
         reward_funcs=reward_func,
         processing_class=tokenizer,
         args=training_args,
-        train_dataset=dataset["train"] if "train" in dataset else dataset,
-        eval_dataset=dataset["test"] if "test" in dataset else None,
+        train_dataset=dataset.get("train", dataset),
+        eval_dataset=dataset.get("test", None),
     )
 
     state.wait_for_everyone()
@@ -299,7 +306,9 @@ def main(args):
 
     checkpoint_path = None
     if args.resume_from_checkpoint:
-        checkpoint_path = resolve_checkpoint_path(args.resume_from_checkpoint, master_process, logger)
+        checkpoint_path = resolve_checkpoint_path(
+            args.resume_from_checkpoint, master_process, logger
+        )
 
     run_training(trainer, checkpoint_path, args.checkpoint_dir, master_process, logger)
 
@@ -310,29 +319,104 @@ if __name__ == "__main__":
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
-    parser.add_argument("--dataset_type", choices=["jsonl", "parquet"], default="parquet", help="Type of the dataset files. Can be either 'jsonl' or 'parquet'.")
-    parser.add_argument("--train_dataset_dir", type=str, nargs="+", required=True, help="Path(s) to the training dataset directory or file.")
-    parser.add_argument("--shuffle_dataset", action="store_true", help="If set, shuffle the dataset before training.")
+    parser.add_argument(
+        "--dataset_type",
+        choices=["jsonl", "parquet"],
+        default="parquet",
+        help="Type of the dataset files. Can be either 'jsonl' or 'parquet'.",
+    )
+    parser.add_argument(
+        "--train_dataset_dir",
+        type=str,
+        nargs="+",
+        required=True,
+        help="Path(s) to the training dataset directory or file.",
+    )
+    parser.add_argument(
+        "--shuffle_dataset",
+        action="store_true",
+        help="If set, shuffle the dataset before training.",
+    )
     parser.add_argument("--cache_dir", type=str, default=None)
     parser.add_argument("--num_proc", type=int, default=16)
     parser.add_argument("--test_size", type=int, default=None)
-    parser.add_argument("--save_test_set", action="store_true", help="If set, the test set will be saved to a file in the checkpoint directory.")
+    parser.add_argument(
+        "--save_test_set",
+        action="store_true",
+        help="If set, the test set will be saved to a file in the checkpoint directory.",
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--model_name_or_path", type=str, required=True)
-    parser.add_argument("--chat_template_path", type=str, default=None, help="Path to the chat template file to use for training.")
+    parser.add_argument(
+        "--chat_template_path",
+        type=str,
+        default=None,
+        help="Path to the chat template file to use for training.",
+    )
     parser.add_argument("--checkpoint_dir", type=str, required=True)
-    parser.add_argument("--resume_from_checkpoint", type=str, default=None, help="Path to a checkpoint to resume training from.")
-    parser.add_argument("--ddp_find_unused_parameters", action="store_true", help="Set the `find_unused_parameters` flag in DDP.")
-    parser.add_argument("--max_prompt_length", type=int, default=2048, help="Maximum token length reserved when loading the tokenizer.")
-    parser.add_argument("--max_completion_length", type=int, default=256, help="Maximum generated completion length.")
-    parser.add_argument("--num_generations", type=int, default=8, help="Number of completions sampled per prompt.")
-    parser.add_argument("--num_iterations", type=int, default=1, help="Number of optimization iterations per generation batch.")
-    parser.add_argument("--beta", type=float, default=0.0, help="KL coefficient. TRL GRPO commonly defaults this to 0.0.")
-    parser.add_argument("--loss_type", choices=GRPO_LOSS_TYPES, default="dapo", help="GRPO loss variant.")
-    parser.add_argument("--scale_rewards", type=parse_scale_rewards, default="group", help="Reward scaling mode: group, batch, or none.")
-    parser.add_argument("--verifier_enable_thinking", action="store_true", help="Require completions to include a valid <think>...</think> block before verifier checks.")
-    parser.add_argument("--verifier_strict", action=argparse.BooleanOptionalAction, default=True, help="Use strict verifier checks. Pass --no-verifier_strict to allow soft checker tolerances where implemented.")
-    parser.add_argument("--mask_truncated_completions", action="store_true", help="Mask completions that hit max_completion_length without EOS.")
+    parser.add_argument(
+        "--resume_from_checkpoint",
+        type=str,
+        default=None,
+        help="Path to a checkpoint to resume training from.",
+    )
+    parser.add_argument(
+        "--ddp_find_unused_parameters",
+        action="store_true",
+        help="Set the `find_unused_parameters` flag in DDP.",
+    )
+    parser.add_argument(
+        "--max_prompt_length",
+        type=int,
+        default=2048,
+        help="Maximum token length reserved when loading the tokenizer.",
+    )
+    parser.add_argument(
+        "--max_completion_length",
+        type=int,
+        default=256,
+        help="Maximum generated completion length.",
+    )
+    parser.add_argument(
+        "--num_generations", type=int, default=8, help="Number of completions sampled per prompt."
+    )
+    parser.add_argument(
+        "--num_iterations",
+        type=int,
+        default=1,
+        help="Number of optimization iterations per generation batch.",
+    )
+    parser.add_argument(
+        "--beta",
+        type=float,
+        default=0.0,
+        help="KL coefficient. TRL GRPO commonly defaults this to 0.0.",
+    )
+    parser.add_argument(
+        "--loss_type", choices=GRPO_LOSS_TYPES, default="dapo", help="GRPO loss variant."
+    )
+    parser.add_argument(
+        "--scale_rewards",
+        type=parse_scale_rewards,
+        default="group",
+        help="Reward scaling mode: group, batch, or none.",
+    )
+    parser.add_argument(
+        "--verifier_enable_thinking",
+        action="store_true",
+        help="Require completions to include a valid <think>...</think> block before verifier checks.",
+    )
+    parser.add_argument(
+        "--verifier_strict",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Use strict verifier checks. Pass --no-verifier_strict to allow soft checker tolerances where implemented.",
+    )
+    parser.add_argument(
+        "--mask_truncated_completions",
+        action="store_true",
+        help="Mask completions that hit max_completion_length without EOS.",
+    )
     parser.add_argument("--temperature", type=float, default=1.0)
     parser.add_argument("--top_p", type=float, default=1.0)
     parser.add_argument("--top_k", type=int, default=0)
@@ -347,31 +431,91 @@ if __name__ == "__main__":
     parser.add_argument("--adam_beta2", type=float, default=0.95)
     parser.add_argument("--adam_epsilon", type=float, default=1e-8)
     parser.add_argument("--max_grad_norm", type=float, default=1.0)
-    parser.add_argument("--lr_scheduler_type", type=str, default="linear", help="Type of learning rate scheduler to use.")
+    parser.add_argument(
+        "--lr_scheduler_type",
+        type=str,
+        default="linear",
+        help="Type of learning rate scheduler to use.",
+    )
     parser.add_argument("--warmup_ratio", type=float, default=0.0)
     parser.add_argument("--num_train_epochs", type=int, default=1)
-    parser.add_argument("--max_steps", type=int, default=None, help="Total number of training steps to perform. If set, overrides num_train_epochs.")
+    parser.add_argument(
+        "--max_steps",
+        type=int,
+        default=None,
+        help="Total number of training steps to perform. If set, overrides num_train_epochs.",
+    )
     parser.add_argument("--bf16", action="store_true", help="Use bfloat16 precision for training.")
-    parser.add_argument("--tf32", action="store_true", help="Use TensorFloat-32 precision for training.")
-    parser.add_argument("--activation_offloading", action="store_true", help="Use activation offloading to CPU to save GPU memory.")
-    parser.add_argument("--gradient_checkpointing", action="store_true", help="Use gradient checkpointing to save memory.")
-    parser.add_argument("--attn_implementation", type=str, default="eager", help="Attention implementation to use. Options: 'eager', 'sdpa', 'flash_attention_2', 'flash_attention_3', and 'flash_attention_4'.")
+    parser.add_argument(
+        "--tf32", action="store_true", help="Use TensorFloat-32 precision for training."
+    )
+    parser.add_argument(
+        "--activation_offloading",
+        action="store_true",
+        help="Use activation offloading to CPU to save GPU memory.",
+    )
+    parser.add_argument(
+        "--gradient_checkpointing",
+        action="store_true",
+        help="Use gradient checkpointing to save memory.",
+    )
+    parser.add_argument(
+        "--attn_implementation",
+        type=str,
+        default="eager",
+        help="Attention implementation to use. Options: 'eager', 'sdpa', 'flash_attention_2', 'flash_attention_3', and 'flash_attention_4'.",
+    )
     parser.add_argument("--per_device_train_batch_size", type=int, default=4)
     parser.add_argument("--per_device_eval_batch_size", type=int, default=4)
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)
     parser.add_argument("--use_vllm", action="store_true", help="Use vLLM for GRPO rollouts.")
-    parser.add_argument("--vllm_mode", choices=["colocate", "server"], default="colocate", help="Run vLLM inside the trainer or through a separate server.")
-    parser.add_argument("--vllm_server_host", type=str, default="127.0.0.1", help="vLLM server host when --vllm_mode server is used.")
-    parser.add_argument("--vllm_server_port", type=int, default=8000, help="vLLM server port when --vllm_mode server is used.")
-    parser.add_argument("--vllm_gpu_memory_utilization", type=float, default=0.3, help="GPU memory fraction for colocated vLLM.")
-    parser.add_argument("--vllm_importance_sampling_correction", action=argparse.BooleanOptionalAction, default=True, help="Correct vLLM training-inference mismatch with importance sampling.")
+    parser.add_argument(
+        "--vllm_mode",
+        choices=["colocate", "server"],
+        default="colocate",
+        help="Run vLLM inside the trainer or through a separate server.",
+    )
+    parser.add_argument(
+        "--vllm_server_host",
+        type=str,
+        default="127.0.0.1",
+        help="vLLM server host when --vllm_mode server is used.",
+    )
+    parser.add_argument(
+        "--vllm_server_port",
+        type=int,
+        default=8000,
+        help="vLLM server port when --vllm_mode server is used.",
+    )
+    parser.add_argument(
+        "--vllm_gpu_memory_utilization",
+        type=float,
+        default=0.3,
+        help="GPU memory fraction for colocated vLLM.",
+    )
+    parser.add_argument(
+        "--vllm_importance_sampling_correction",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Correct vLLM training-inference mismatch with importance sampling.",
+    )
     parser.add_argument("--vllm_importance_sampling_cap", type=float, default=3.0)
     parser.add_argument("--vllm_importance_sampling_mode", type=str, default="sequence_mask")
     parser.add_argument("--hub_token", type=str, default=None)
     parser.add_argument("--hub_model_id", type=str, default=None)
-    parser.add_argument("--report_to", type=str, nargs="+", default=None, help="The list of integrations to report logs to.")
+    parser.add_argument(
+        "--report_to",
+        type=str,
+        nargs="+",
+        default=None,
+        help="The list of integrations to report logs to.",
+    )
     parser.add_argument("--wandb_project", type=str, default="Polyglot")
-    parser.add_argument("--use_liger_kernel", action="store_true", help="Use the Liger kernel for training (experimental).")
+    parser.add_argument(
+        "--use_liger_kernel",
+        action="store_true",
+        help="Use the Liger kernel for training (experimental).",
+    )
 
     args = parser.parse_args()
     main(args)

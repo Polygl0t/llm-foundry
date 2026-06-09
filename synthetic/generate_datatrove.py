@@ -16,9 +16,9 @@ Usage:
 
 Notes:
 
-    - This script support resume capability via checkpoints. If the process is interrupted. 
+    - This script support resume capability via checkpoints. If the process is interrupted.
         Simply re-run the same command and it will skip already-completed chunks.
-    - There is a bug in datatrove 0.9.0's VLLM server wrapper that causes it to pass an incompatible 
+    - There is a bug in datatrove 0.9.0's VLLM server wrapper that causes it to pass an incompatible
         flag to newer vLLM CLIs. See the patch in this script.
 """
 
@@ -27,28 +27,33 @@ import asyncio
 import os
 import shlex
 import sys
+from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Any, Awaitable, Callable
+from typing import Any
 
+import torch
 from datatrove.data import Document
 from datatrove.executor import LocalPipelineExecutor
-from datatrove.pipeline.inference.run_inference import InferenceConfig, InferenceResult, InferenceRunner
+from datatrove.pipeline.inference.run_inference import (
+    InferenceConfig,
+    InferenceResult,
+    InferenceRunner,
+)
 from datatrove.pipeline.readers import JsonlReader, ParquetReader
 from datatrove.pipeline.writers import JsonlWriter
 from datatrove.utils.logging import logger
-
-import torch
 from transformers import AutoConfig, GenerationConfig
 
 # Import normalization and validation utils (utils.py should be in the same directory as this script)
 SCRIPT_DIR = str(Path(__file__).parent)
 sys.path.insert(0, SCRIPT_DIR)
-from utils import (
+from utils import (  # noqa: E402
     normalize_kvc_dtype,
     normalize_quantization,
     normalize_speculative,
     validate_config,
 )
+
 
 # We need to perform a monkey-patch to datatrove's VLLM server wrapper to ensure compatibility with newer vLLM CLI changes.
 # please track the following issue: https://github.com/huggingface/datatrove/issues/480
@@ -163,10 +168,9 @@ def _compute_reader_limit(max_examples, tasks):
             f"({reader_limit} docs per task)"
         )
     return reader_limit
-    
+
 
 def main(args):
-    
     # Patch the datatrove VLLM server wrapper to ensure compatibility with newer vLLM CLIs.
     _patch_datatrove_vllm_server()
 
@@ -251,10 +255,11 @@ def main(args):
     generation_config = GenerationConfig.from_pretrained(
         model_name_or_path, revision=model_revision, trust_remote_code=trust_remote_code
     )
-    temperature = temperature if temperature is not None else getattr(generation_config, "temperature", 1.0)
+    temperature = (
+        temperature if temperature is not None else getattr(generation_config, "temperature", 1.0)
+    )
     top_p = top_p if top_p is not None else getattr(generation_config, "top_p", 1.0)
     top_k = top_k if top_k is not None else getattr(generation_config, "top_k", -1)
-
 
     # Rollout function for a single document
     async def simple_rollout(
@@ -268,7 +273,11 @@ def main(args):
         doc_system = (document.metadata or {}).get("system", "").strip()
         effective_system_prompt = doc_system if doc_system else system_prompt
 
-        messages = [] if effective_system_prompt is None else [{"role": "system", "content": effective_system_prompt}]
+        messages = (
+            []
+            if effective_system_prompt is None
+            else [{"role": "system", "content": effective_system_prompt}]
+        )
 
         if isinstance(document.text, list) and all(isinstance(msg, dict) for msg in document.text):
             if prompt_template:
@@ -276,16 +285,16 @@ def main(args):
             messages.extend(document.text)
         else:
             content = (
-                prompt_template.replace("[[DOCUMENT]]", document.text) if prompt_template else document.text
+                prompt_template.replace("[[DOCUMENT]]", document.text)
+                if prompt_template
+                else document.text
             )
 
-            
             # Reserve 512 tokens for system prompt, prompt template overhead,
             # chat template special tokens, and tokenization estimation error.
             OVERHEAD_TOKENS = 512
             char_budget = (model_max_context - max_tokens - OVERHEAD_TOKENS) * 3
             if len(content) > char_budget:
-
                 # Skip documents that would overflow the context window (~3 chars/token).
                 logger.info(
                     f"Skipping document: content length {len(content)} chars exceeds "
@@ -303,7 +312,7 @@ def main(args):
                 "temperature": temperature,
                 "top_k": top_k,
                 "top_p": top_p,
-                **({"seed": seed} if seed is not None else {})
+                **({"seed": seed} if seed is not None else {}),
             }
         )
 
@@ -376,29 +385,44 @@ def main(args):
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
     # Input and prompt configuration
-    parser.add_argument("--input-path", required=True, help="Directory containing JSONL or Parquet input files")
-    parser.add_argument("--input-format", default="auto", help="Input format: 'jsonl', 'parquet', or 'auto'")
-    parser.add_argument("--prompt-column", default="text", help="Column name containing the prompt text")
-    parser.add_argument("--prompt-template", default=None, help="Template with [[DOCUMENT]] placeholder")
-    parser.add_argument("--max-examples", type=int, default=-1, help="Max total examples to process (-1 = all)")
+    parser.add_argument(
+        "--input-path", required=True, help="Directory containing JSONL or Parquet input files"
+    )
+    parser.add_argument(
+        "--input-format", default="auto", help="Input format: 'jsonl', 'parquet', or 'auto'"
+    )
+    parser.add_argument(
+        "--prompt-column", default="text", help="Column name containing the prompt text"
+    )
+    parser.add_argument(
+        "--prompt-template", default=None, help="Template with [[DOCUMENT]] placeholder"
+    )
+    parser.add_argument(
+        "--max-examples", type=int, default=-1, help="Max total examples to process (-1 = all)"
+    )
 
     # Output configuration
-    parser.add_argument("--output-path", required=True, help="Local directory for output JSONL files")
+    parser.add_argument(
+        "--output-path", required=True, help="Local directory for output JSONL files"
+    )
 
     # Model and inference configuration
     parser.add_argument("--server-type", default="vllm", help="Inference server type")
     parser.add_argument("--model-name-or-path", required=True, help="Model name or local path")
     parser.add_argument("--model-revision", default="main", help="Model revision")
-    parser.add_argument("--model-max-context", type=int, default=32768, help="Maximum context length")
+    parser.add_argument(
+        "--model-max-context", type=int, default=32768, help="Maximum context length"
+    )
     parser.add_argument("--system-prompt", default=None, help="Optional system prompt")
-    parser.add_argument("--trust-remote-code", action="store_true", help="Trust remote code in model repo")
+    parser.add_argument(
+        "--trust-remote-code", action="store_true", help="Trust remote code in model repo"
+    )
 
     # Parallelism settings (adjust based on available GPUs and model size)
     parser.add_argument("--tp", type=int, default=1, help="Tensor parallelism")
@@ -408,30 +432,55 @@ if __name__ == "__main__":
     # vLLM-specific optimizations and settings
     parser.add_argument("--max-concurrent-generations", type=int, default=500)
     parser.add_argument("--max-concurrent-documents", type=int, default=500)
-    parser.add_argument("--max-num-seqs", type=int, default=256, help="Max sequences in batch (reduce if OOM)")
-    parser.add_argument("--max-num-batched-tokens", type=int, default=8192, help="Chunked-prefill batch size")
-    parser.add_argument("--gpu-memory-utilization", type=float, default=0.9, help="Fraction of GPU memory for KV cache")
+    parser.add_argument(
+        "--max-num-seqs", type=int, default=256, help="Max sequences in batch (reduce if OOM)"
+    )
+    parser.add_argument(
+        "--max-num-batched-tokens", type=int, default=8192, help="Chunked-prefill batch size"
+    )
+    parser.add_argument(
+        "--gpu-memory-utilization",
+        type=float,
+        default=0.9,
+        help="Fraction of GPU memory for KV cache",
+    )
     parser.add_argument("--block-size", type=int, default=16, help="KV cache block size (16 or 32)")
-    parser.add_argument("--speculative-config", default=None, help="Speculative decoding config (JSON)")
-    parser.add_argument("--quantization", default=None, help="Quantization method (e.g. bitsandbytes)")
-    parser.add_argument("--kv-cache-dtype", default="auto", help="KV cache dtype: auto, fp8_e4m3, fp8_e5m2")
-    parser.add_argument("--optimization-level", type=int, default=3, help="0 = fast startup, 3 = best throughput")
-    parser.add_argument("--metric-interval", type=int, default=120, help="Metric reporting interval in seconds")
+    parser.add_argument(
+        "--speculative-config", default=None, help="Speculative decoding config (JSON)"
+    )
+    parser.add_argument(
+        "--quantization", default=None, help="Quantization method (e.g. bitsandbytes)"
+    )
+    parser.add_argument(
+        "--kv-cache-dtype", default="auto", help="KV cache dtype: auto, fp8_e4m3, fp8_e5m2"
+    )
+    parser.add_argument(
+        "--optimization-level", type=int, default=3, help="0 = fast startup, 3 = best throughput"
+    )
+    parser.add_argument(
+        "--metric-interval", type=int, default=120, help="Metric reporting interval in seconds"
+    )
 
     # Generation settings (overrides model defaults if set)
     parser.add_argument("--temperature", type=float, default=None)
     parser.add_argument("--top-k", type=int, default=None)
     parser.add_argument("--top-p", type=float, default=None)
-    parser.add_argument("--max-tokens", type=int, default=8192, help="Max output tokens per generation")
+    parser.add_argument(
+        "--max-tokens", type=int, default=8192, help="Max output tokens per generation"
+    )
     parser.add_argument("--rollouts-per-document", type=int, default=1)
-    parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducible generation")
+    parser.add_argument(
+        "--seed", type=int, default=None, help="Random seed for reproducible generation"
+    )
 
     # Processing settings
-    parser.add_argument("--examples-per-chunk", type=int, default=500, help="Documents per checkpoint chunk")
+    parser.add_argument(
+        "--examples-per-chunk", type=int, default=500, help="Documents per checkpoint chunk"
+    )
     parser.add_argument("--tasks", type=int, default=1, help="Number of parallel tasks")
     parser.add_argument("--workers", type=int, default=1, help="Number of worker processes")
 
-    args =  parser.parse_args()
+    args = parser.parse_args()
 
     print("Starting synthesis! 🚀")
     main(args)

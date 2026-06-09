@@ -20,13 +20,14 @@ Requirements:
 #######################################
 # 1. Imports & Setup
 #######################################
-import sys
-import os
 import argparse
 import importlib
 import importlib.util
 import json
+import os
+import sys
 import tempfile
+from unittest.mock import MagicMock
 
 sys.pycache_prefix = os.path.join(tempfile.gettempdir(), "pycache")
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -34,8 +35,6 @@ REPO_ROOT = os.path.dirname(SCRIPT_DIR)
 DATA_CC_DIR = os.path.join(REPO_ROOT, "data", "cc")
 if DATA_CC_DIR not in sys.path:
     sys.path.insert(0, DATA_CC_DIR)
-
-from unittest.mock import MagicMock
 
 # Patch datatrove at module level so the CC scripts can be imported without it.
 _dt_mock = MagicMock()
@@ -53,7 +52,12 @@ for _mod in [
 ]:
     sys.modules.setdefault(_mod, _dt_mock)
 
-from utils import get_logger, read_metadata, write_metadata, initialize_or_load_metadata
+from utils import (  # noqa: E402
+    get_logger,
+    initialize_or_load_metadata,
+    read_metadata,
+    write_metadata,
+)
 
 print("All imports OK ✅")
 
@@ -62,6 +66,7 @@ print("All imports OK ✅")
 #######################################
 # Section 1 — data/cc/utils.py
 #######################################
+
 
 def test_02_getlogger_returns_a_working_logger():
     # 2. get_logger — returns a working logger with the correct name
@@ -181,7 +186,7 @@ def test_11_initializeorloadmetadata_scans_jsonl_skips_invalid_and_creates_metad
             f.write(json.dumps({"token_count": 30}) + "\n")
 
         result = initialize_or_load_metadata(tmpdir)
-        assert result["lines"] == 7    # 5 from shard_0 + 2 valid from shard_1
+        assert result["lines"] == 7  # 5 from shard_0 + 2 valid from shard_1
         assert result["tokens"] == 100  # 5×10 + 20 + 30
 
         # .metadata must have been persisted
@@ -196,6 +201,7 @@ def test_11_initializeorloadmetadata_scans_jsonl_skips_invalid_and_creates_metad
 # Section 2 — Argument Parsers
 #######################################
 
+
 def test_13_all_languages_argument_parser_defaults_and_required_args():
     # 13. process_cc_dump_all_languages.py — argument parser defaults and required args
     #######################################
@@ -207,7 +213,9 @@ def test_13_all_languages_argument_parser_defaults_and_required_args():
     parser.add_argument("--logs_folder", type=str, default="./logs")
     parser.add_argument("--dump", type=str, required=True)
     parser.add_argument("--languages", nargs="+", type=str, default=None)
-    parser.add_argument("--language_filter_backend", type=str, default="ft176", choices=["ft176", "glotlid"])
+    parser.add_argument(
+        "--language_filter_backend", type=str, default="ft176", choices=["ft176", "glotlid"]
+    )
     parser.add_argument("--language_threshold", type=float, default=0.65)
     parser.add_argument("--tasks", type=int, default=10)
     parser.add_argument("--workers", type=int, default=4)
@@ -215,10 +223,14 @@ def test_13_all_languages_argument_parser_defaults_and_required_args():
     parser.add_argument("--tokenizer_name_or_path", type=str, default="Qwen/Qwen3-0.6B-Base")
 
     # Defaults
-    args = parser.parse_args([
-        "--warc_files_folder", "/data/warc",
-        "--dump", "CC-MAIN-2025-30",
-    ])
+    args = parser.parse_args(
+        [
+            "--warc_files_folder",
+            "/data/warc",
+            "--dump",
+            "CC-MAIN-2025-30",
+        ]
+    )
     assert args.limit == -1
     assert args.temp_output_folder == "./language_filter_output"
     assert args.output_folder == "./all_languages"
@@ -234,16 +246,26 @@ def test_13_all_languages_argument_parser_defaults_and_required_args():
     assert args.dump == "CC-MAIN-2025-30"
 
     # Overrides
-    args2 = parser.parse_args([
-        "--warc_files_folder", "/data/warc",
-        "--dump", "CC-MAIN-2025-18",
-        "--languages", "pt", "bn",
-        "--language_filter_backend", "glotlid",
-        "--language_threshold", "0.7",
-        "--tasks", "32",
-        "--workers", "32",
-        "--expand_metadata",
-    ])
+    args2 = parser.parse_args(
+        [
+            "--warc_files_folder",
+            "/data/warc",
+            "--dump",
+            "CC-MAIN-2025-18",
+            "--languages",
+            "pt",
+            "bn",
+            "--language_filter_backend",
+            "glotlid",
+            "--language_threshold",
+            "0.7",
+            "--tasks",
+            "32",
+            "--workers",
+            "32",
+            "--expand_metadata",
+        ]
+    )
     assert args2.languages == ["pt", "bn"]
     assert args2.language_filter_backend == "glotlid"
     assert abs(args2.language_threshold - 0.7) < 1e-9
@@ -273,11 +295,16 @@ def test_14_quality_filters_argument_parser_defaults_and_required_args():
     parser.add_argument("--expand_metadata", action="store_true")
 
     # Defaults
-    args = parser.parse_args([
-        "--config_folder", ".configs/",
-        "--warc_files_folder", "/data/warc",
-        "--dump", "CC-MAIN-2025-30",
-    ])
+    args = parser.parse_args(
+        [
+            "--config_folder",
+            ".configs/",
+            "--warc_files_folder",
+            "/data/warc",
+            "--dump",
+            "CC-MAIN-2025-30",
+        ]
+    )
     assert args.limit == -1
     assert args.logs_folder == "./logs"
     assert args.warc_extraction_output == "./warc_extraction"
@@ -294,14 +321,22 @@ def test_14_quality_filters_argument_parser_defaults_and_required_args():
     assert args.dump == "CC-MAIN-2025-30"
 
     # Overrides
-    args2 = parser.parse_args([
-        "--config_folder", ".configs/",
-        "--warc_files_folder", "/data/warc",
-        "--dump", "CC-MAIN-2025-18",
-        "--languages", "pt", "hi",
-        "--tasks", "16",
-        "--expand_metadata",
-    ])
+    args2 = parser.parse_args(
+        [
+            "--config_folder",
+            ".configs/",
+            "--warc_files_folder",
+            "/data/warc",
+            "--dump",
+            "CC-MAIN-2025-18",
+            "--languages",
+            "pt",
+            "hi",
+            "--tasks",
+            "16",
+            "--expand_metadata",
+        ]
+    )
     assert args2.languages == ["pt", "hi"]
     assert args2.tasks == 16
     assert args2.expand_metadata is True
@@ -312,6 +347,7 @@ def test_14_quality_filters_argument_parser_defaults_and_required_args():
 #######################################
 # Section 3 — Consolidation Logic (process_cc_dump_all_languages.py)
 #######################################
+
 
 def _load_all_languages_main():
     """
@@ -337,21 +373,21 @@ def _make_args(tmpdir, **overrides):
     """Return a Namespace mimicking the argparse output for the all_languages script."""
     warc_dir = os.path.join(tmpdir, "warc")
     os.makedirs(warc_dir, exist_ok=True)
-    defaults = dict(
-        warc_files_folder=warc_dir,
-        limit=-1,
-        temp_output_folder=os.path.join(tmpdir, "temp"),
-        output_folder=os.path.join(tmpdir, "output"),
-        logs_folder=os.path.join(tmpdir, "logs"),
-        dump="CC-MAIN-TEST",
-        languages=None,
-        language_filter_backend="ft176",
-        language_threshold=0.65,
-        tasks=1,
-        workers=1,
-        expand_metadata=False,
-        tokenizer_name_or_path="Qwen/Qwen3-0.6B-Base",
-    )
+    defaults = {
+        "warc_files_folder": warc_dir,
+        "limit": -1,
+        "temp_output_folder": os.path.join(tmpdir, "temp"),
+        "output_folder": os.path.join(tmpdir, "output"),
+        "logs_folder": os.path.join(tmpdir, "logs"),
+        "dump": "CC-MAIN-TEST",
+        "languages": None,
+        "language_filter_backend": "ft176",
+        "language_threshold": 0.65,
+        "tasks": 1,
+        "workers": 1,
+        "expand_metadata": False,
+        "tokenizer_name_or_path": "Qwen/Qwen3-0.6B-Base",
+    }
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
 
@@ -382,7 +418,7 @@ def test_15_consolidation_writes_output_and_metadata():
         out_file = os.path.join(args.output_folder, "pt", "pt.jsonl")
         assert os.path.exists(out_file), "Consolidated JSONL must exist"
         with open(out_file) as f:
-            lines = [json.loads(l) for l in f if l.strip()]
+            lines = [json.loads(line) for line in f if line.strip()]
         assert len(lines) == 5
 
         meta = read_metadata(os.path.join(args.output_folder, "pt", ".metadata"))
@@ -412,7 +448,7 @@ def test_16_consolidation_skips_invalid_json_lines():
 
         out_file = os.path.join(args.output_folder, "bn", "bn.jsonl")
         with open(out_file) as f:
-            lines = [json.loads(l) for l in f if l.strip()]
+            lines = [json.loads(line) for line in f if line.strip()]
         assert len(lines) == 3
 
         meta = read_metadata(os.path.join(args.output_folder, "bn", ".metadata"))
@@ -445,12 +481,12 @@ def test_17_consolidation_appends_and_accumulates_metadata():
 
         out_file = os.path.join(lang_out, "pt.jsonl")
         with open(out_file) as f:
-            lines = [json.loads(l) for l in f if l.strip()]
-        assert len(lines) == 7          # 3 old + 4 new
+            lines = [json.loads(line) for line in f if line.strip()]
+        assert len(lines) == 7  # 3 old + 4 new
 
         meta = read_metadata(os.path.join(lang_out, ".metadata"))
-        assert meta["lines"] == 7       # 3 + 4
-        assert meta["tokens"] == 100    # 60 + 40
+        assert meta["lines"] == 7  # 3 + 4
+        assert meta["tokens"] == 100  # 60 + 40
     print("Test 17 — consolidation appends and accumulates metadata: OK ✅")
 
 
@@ -485,12 +521,12 @@ def test_19_consolidation_multiple_languages_in_one_run():
         args = _make_args(tmpdir)
 
         _write_temp_lang_jsonl(
-            args.temp_output_folder, "pt",
-            [{"text": f"pt {i}", "token_count": 5} for i in range(4)]
+            args.temp_output_folder, "pt", [{"text": f"pt {i}", "token_count": 5} for i in range(4)]
         )
         _write_temp_lang_jsonl(
-            args.temp_output_folder, "bn",
-            [{"text": f"bn {i}", "token_count": 20} for i in range(3)]
+            args.temp_output_folder,
+            "bn",
+            [{"text": f"bn {i}", "token_count": 20} for i in range(3)],
         )
 
         main(args)
@@ -526,12 +562,12 @@ def test_20_consolidation_multiple_shards_per_language():
 
         out_file = os.path.join(args.output_folder, "pt", "pt.jsonl")
         with open(out_file) as f:
-            lines = [json.loads(l) for l in f if l.strip()]
-        assert len(lines) == 8          # 3 + 5
+            lines = [json.loads(line) for line in f if line.strip()]
+        assert len(lines) == 8  # 3 + 5
 
         meta = read_metadata(os.path.join(args.output_folder, "pt", ".metadata"))
         assert meta["lines"] == 8
-        assert meta["tokens"] == 3 * 10 + 5 * 20   # 30 + 100 = 130
+        assert meta["tokens"] == 3 * 10 + 5 * 20  # 30 + 100 = 130
     print("Test 20 — consolidation multiple shards per language: OK ✅")
 
 

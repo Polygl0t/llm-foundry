@@ -7,6 +7,7 @@ Required config:
   "minimum_score": 3
 }
 """
+
 PARSER_NAME = "score-threshold-filter"
 
 

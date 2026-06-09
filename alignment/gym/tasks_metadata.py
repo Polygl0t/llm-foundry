@@ -3,8 +3,8 @@ Metadata for the procedural generation of instructions in the Portuguese gym env
 contains conflict sets, kwargs templates, and description/kwargs generators.
 """
 
-import random
 import copy
+import random
 
 # Verifier Category Prefixes
 _KEYWORD = "keywords:"
@@ -87,9 +87,7 @@ _RAW_CONFLICTS = {
         _FORMAT + "number_highlighted_sections",
     },
     _FORMAT + "constrained_response": set(ALL_VERIFIER_IDS),
-    _FORMAT + "number_highlighted_sections": {
-        _FORMAT + "number_highlighted_sections"
-    },
+    _FORMAT + "number_highlighted_sections": {_FORMAT + "number_highlighted_sections"},
     _FORMAT + "multiple_sections": {
         _FORMAT + "multiple_sections",
         _LANGUAGE + "response_language",
@@ -316,9 +314,7 @@ def generate_kwargs_for_verifier(verifier_id, prompt_text=""):
         kw["relation"] = random.choice(COMPARISON_RELATIONS)
 
     elif verifier_id == _KEYWORD + "forbidden_words":
-        kw["forbidden_words"] = sorted(
-            random.sample(FORBIDDEN_WORDS_PT, k=random.randint(1, 3))
-        )
+        kw["forbidden_words"] = sorted(random.sample(FORBIDDEN_WORDS_PT, k=random.randint(1, 3)))
 
     elif verifier_id == _KEYWORD + "letter_frequency":
         kw["letter"] = random.choice(LETTERS_PT)
@@ -415,17 +411,13 @@ def generate_description_for_verifier(verifier_id, kwargs):
         letter = kwargs.get("letter") or "a"
         freq = int(kwargs.get("let_frequency") or 5)
         rel = kwargs.get("let_relation") or "at least"
-        return (
-            f"Em sua resposta, a letra {letter} deve aparecer"
-            f" {_relation_pt(rel)} {freq} vezes."
-        )
+        return f"Em sua resposta, a letra {letter} deve aparecer {_relation_pt(rel)} {freq} vezes."
 
     elif verifier_id == _LANGUAGE + "response_language":
         lang = kwargs.get("language") or "pt"
         lang_name = LANGUAGE_CODES.get(lang, lang)
         return (
-            f"Toda a sua resposta deve estar em {lang_name},"
-            " nenhuma outra linguagem é permitida."
+            f"Toda a sua resposta deve estar em {lang_name}, nenhuma outra linguagem é permitida."
         )
 
     elif verifier_id == _LENGTH + "number_sentences":
@@ -494,15 +486,11 @@ def generate_description_for_verifier(verifier_id, kwargs):
     elif verifier_id == _FORMAT + "multiple_sections":
         spliter = kwargs.get("section_spliter") or "Seção"
         num = int(kwargs.get("num_sections") or 3)
-        return (
-            f"Sua resposta deve ter {num} seções."
-            f" Marque o início de cada seção com {spliter} X."
-        )
+        return f"Sua resposta deve ter {num} seções. Marque o início de cada seção com {spliter} X."
 
     elif verifier_id == _FORMAT + "json_format":
         return (
-            "Todo o output deve estar em formato JSON."
-            " Você pode usar marcadores markdown como ```."
+            "Todo o output deve estar em formato JSON. Você pode usar marcadores markdown como ```."
         )
 
     elif verifier_id == _FORMAT + "title":
@@ -541,10 +529,7 @@ def generate_description_for_verifier(verifier_id, kwargs):
         )
 
     elif verifier_id == _CHANGE_CASES + "portuguese_capital":
-        return (
-            "Sua resposta inteira deve estar em português e em todas"
-            " as letras maiúsculas."
-        )
+        return "Sua resposta inteira deve estar em português e em todas as letras maiúsculas."
 
     elif verifier_id == _CHANGE_CASES + "portuguese_lowercase":
         return (
@@ -612,16 +597,14 @@ LONG_CONTEXT_DEFAULTS = {
 def generate_long_context_task_description(task_id):
     """Return a brief Portuguese description for a long context task ID."""
     descriptions = {
-        _LONG_CONTEXT + "common_words":
-            "Identificar as palavras mais frequentes em uma lista longa.",
-        _LONG_CONTEXT + "rare_words":
-            "Identificar as palavras menos frequentes em uma lista longa.",
-        _LONG_CONTEXT + "count_word":
-            "Contar o número de ocorrências de uma palavra específica.",
-        _LONG_CONTEXT + "word_at_position":
-            "Identificar a palavra em uma posição específica da lista.",
-        _LONG_CONTEXT + "frequency_comparison":
-            "Comparar a frequência de duas palavras na lista.",
+        _LONG_CONTEXT
+        + "common_words": "Identificar as palavras mais frequentes em uma lista longa.",
+        _LONG_CONTEXT
+        + "rare_words": "Identificar as palavras menos frequentes em uma lista longa.",
+        _LONG_CONTEXT + "count_word": "Contar o número de ocorrências de uma palavra específica.",
+        _LONG_CONTEXT
+        + "word_at_position": "Identificar a palavra em uma posição específica da lista.",
+        _LONG_CONTEXT + "frequency_comparison": "Comparar a frequência de duas palavras na lista.",
     }
     return descriptions.get(task_id, "")
 
@@ -652,14 +635,13 @@ HAYSTACK_DEFAULTS = {
 def generate_haystack_task_description(task_id):
     """Return a brief Portuguese description for a haystack task ID."""
     descriptions = {
-        _HAYSTACK + "needle_single_number":
-            "Encontrar um número especial escondido em um documento longo.",
-        _HAYSTACK + "needle_multi_number_same_key":
-            "Encontrar múltiplos números especiais para a mesma chave em um documento.",
-        _HAYSTACK + "needle_multi_number_diff_keys":
-            "Encontrar números especiais para chaves diferentes em um documento.",
-        _HAYSTACK + "needle_uuid":
-            "Encontrar o código UUID associado a uma chave específica.",
+        _HAYSTACK
+        + "needle_single_number": "Encontrar um número especial escondido em um documento longo.",
+        _HAYSTACK
+        + "needle_multi_number_same_key": "Encontrar múltiplos números especiais para a mesma chave em um documento.",
+        _HAYSTACK
+        + "needle_multi_number_diff_keys": "Encontrar números especiais para chaves diferentes em um documento.",
+        _HAYSTACK + "needle_uuid": "Encontrar o código UUID associado a uma chave específica.",
     }
     return descriptions.get(task_id, "")
 
@@ -675,8 +657,8 @@ MATH_TASK_IDS = [
 def generate_math_task_description(task_id):
     """Return a brief Portuguese description for a math task ID."""
     descriptions = {
-        _MATH + "answer_check":
-            "Resolver um problema matemático e fornecer a resposta numérica correta.",
+        _MATH
+        + "answer_check": "Resolver um problema matemático e fornecer a resposta numérica correta.",
     }
     return descriptions.get(task_id, "")
 
@@ -686,36 +668,36 @@ _EMAIL = "email:"
 
 # Fields extractable directly from email content (no injection needed)
 EMAIL_DIRECT_FIELDS = [
-    "subject",          # Assunto do e-mail
-    "sender",           # Nome do remetente
-    "receiver",         # Nome do destinatário
-    "intent",           # Intenção/propósito do e-mail
-    "summary",          # Resumo breve do conteúdo
+    "subject",  # Assunto do e-mail
+    "sender",  # Nome do remetente
+    "receiver",  # Nome do destinatário
+    "intent",  # Intenção/propósito do e-mail
+    "summary",  # Resumo breve do conteúdo
 ]
 
 # Fields synthetically injected into the email context at generation time,
 # enabling deterministic verification via exact-match.
 EMAIL_INJECTED_FIELDS = [
-    "date",             # Data/hora de recebimento (ISO 8601)
-    "attachments",      # Presença de anexos (booleano)
-    "spam",             # Classificação de spam (booleano)
-    "sender_email",     # Endereço de e-mail do remetente
-    "telephone_number", # Número de telefone mencionado
+    "date",  # Data/hora de recebimento (ISO 8601)
+    "attachments",  # Presença de anexos (booleano)
+    "spam",  # Classificação de spam (booleano)
+    "sender_email",  # Endereço de e-mail do remetente
+    "telephone_number",  # Número de telefone mencionado
 ]
 
 EMAIL_ALL_FIELDS = EMAIL_DIRECT_FIELDS + EMAIL_INJECTED_FIELDS
 
 # Portuguese field-description labels used inside prompts
 EMAIL_FIELD_LABELS = {
-    "subject":          "subject (assunto do e-mail)",
-    "sender":           "sender (nome do remetente)",
-    "receiver":         "receiver (nome do destinatário)",
-    "intent":           "intent (intenção/propósito principal do e-mail)",
-    "summary":          "summary (resumo breve do conteúdo)",
-    "date":             "date (data de recebimento conforme cabeçalho, formato ISO 8601)",
-    "attachments":      "attachments (true se há anexos, false caso contrário)",
-    "spam":             "spam (true se é spam, false caso contrário)",
-    "sender_email":     "sender_email (endereço de e-mail do remetente)",
+    "subject": "subject (assunto do e-mail)",
+    "sender": "sender (nome do remetente)",
+    "receiver": "receiver (nome do destinatário)",
+    "intent": "intent (intenção/propósito principal do e-mail)",
+    "summary": "summary (resumo breve do conteúdo)",
+    "date": "date (data de recebimento conforme cabeçalho, formato ISO 8601)",
+    "attachments": "attachments (true se há anexos, false caso contrário)",
+    "spam": "spam (true se é spam, false caso contrário)",
+    "sender_email": "sender_email (endereço de e-mail do remetente)",
     "telephone_number": "telephone_number (número de telefone mencionado no e-mail)",
 }
 
@@ -735,12 +717,10 @@ EMAIL_DEFAULTS = {
 def generate_email_task_description(task_id):
     """Return a brief Portuguese description for an email extraction task ID."""
     descriptions = {
-        _EMAIL + "json_format":
-            "Formatar a resposta como objeto JSON válido dentro de bloco markdown.",
-        _EMAIL + "schema_keys":
-            "O JSON deve conter exatamente as chaves solicitadas.",
-        _EMAIL + "field_value":
-            "Um campo específico deve ter o valor exato esperado.",
+        _EMAIL
+        + "json_format": "Formatar a resposta como objeto JSON válido dentro de bloco markdown.",
+        _EMAIL + "schema_keys": "O JSON deve conter exatamente as chaves solicitadas.",
+        _EMAIL + "field_value": "Um campo específico deve ter o valor exato esperado.",
     }
     return descriptions.get(task_id, "")
 
@@ -767,15 +747,12 @@ TOOL_CALL_DEFAULTS = {
 def generate_tool_call_task_description(task_id):
     """Return a brief Portuguese description for a tool-call task ID."""
     descriptions = {
-        _TOOL_CALL + "format":
-            "Verificar se a resposta contém uma chamada de ferramenta formatada corretamente.",
-        _TOOL_CALL + "name":
-            "Verificar se a ferramenta correta foi invocada.",
-        _TOOL_CALL + "args_keys":
-            "Verificar se os argumentos contêm as chaves obrigatórias.",
-        _TOOL_CALL + "args_types":
-            "Verificar se os tipos dos argumentos estão corretos.",
-        _TOOL_CALL + "refusal":
-            "Verificar se o modelo recusou corretamente sem chamar ferramentas.",
+        _TOOL_CALL
+        + "format": "Verificar se a resposta contém uma chamada de ferramenta formatada corretamente.",
+        _TOOL_CALL + "name": "Verificar se a ferramenta correta foi invocada.",
+        _TOOL_CALL + "args_keys": "Verificar se os argumentos contêm as chaves obrigatórias.",
+        _TOOL_CALL + "args_types": "Verificar se os tipos dos argumentos estão corretos.",
+        _TOOL_CALL
+        + "refusal": "Verificar se o modelo recusou corretamente sem chamar ferramentas.",
     }
     return descriptions.get(task_id, "")

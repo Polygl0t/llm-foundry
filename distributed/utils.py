@@ -12,21 +12,23 @@ Provides:
     - cleanup_log_file:             truncate log after last validation entry
     - checkpoint_already_validated: check if a step was already validated
 """
+
 import json
 import logging
 import math
 import os
 import sys
 import time
+
+import numpy as np
 import torch
 import torch.distributed as dist
-import numpy as np
 
 
 class StructuredTrainingLogger:
     """
     Write training logs as metadata lines and JSON stats entries.
-    
+
     This class has mainly two methods:
     - log_metadata: for writing human-readable metadata lines (e.g. hyperparameters)
     - log_stats: for writing structured JSON lines (e.g. training/validation metrics)
@@ -95,14 +97,15 @@ class DistributedEnvironment:
     """
 
     def __init__(self, logger, mode="Distributed"):
-
         self.mode = mode
 
         if "SLURM_NTASKS" in os.environ and "SLURM_PROCID" in os.environ:
             # SLURM cluster
             self.world_size = int(os.environ["SLURM_NTASKS"])
             self.rank = int(os.environ["SLURM_PROCID"])
-            self.local_rank = int(os.environ.get("SLURM_LOCALID", self.rank % max(torch.cuda.device_count(), 1)))
+            self.local_rank = int(
+                os.environ.get("SLURM_LOCALID", self.rank % max(torch.cuda.device_count(), 1))
+            )
 
         elif "WORLD_SIZE" in os.environ and "RANK" in os.environ:
             # torchrun / torch.distributed.launch
@@ -147,7 +150,9 @@ class DistributedEnvironment:
             self.master_process = self.rank == 0
             self.ddp = True
             if self.master_process:
-                logger.info(f"Running {self.mode} via '{dist.get_backend()}' backend. Logging process: {self.rank}. World size: {self.world_size}.")
+                logger.info(
+                    f"Running {self.mode} via '{dist.get_backend()}' backend. Logging process: {self.rank}. World size: {self.world_size}."
+                )
 
         else:
             # Single-process training (1 GPU or CPU).
@@ -181,27 +186,34 @@ class DistributedEnvironment:
             dist.destroy_process_group()
 
 
-def load_checkpoint_state(args, checkpoint_path, optimizer, device='cpu', master_process=False, logger=None, file_logger=None):
+def load_checkpoint_state(
+    args,
+    checkpoint_path,
+    optimizer,
+    device="cpu",
+    master_process=False,
+    logger=None,
+    file_logger=None,
+):
     """
     Load checkpoint state and restore the optimizer if resuming from a checkpoint.
 
     Returns a tuple of (resume_step, iter_count, epoch).
     """
     if args.resume_from_checkpoint:
-
-        checkpoint = os.path.join(checkpoint_path, 'checkpoint.pt')
+        checkpoint = os.path.join(checkpoint_path, "checkpoint.pt")
         checkpoint = torch.load(checkpoint, map_location=torch.device(device), weights_only=False)
 
         # The optimizer is updated in-place, so we don't need to return it.
-        optimizer.load_state_dict(checkpoint['optimizer'])
+        optimizer.load_state_dict(checkpoint["optimizer"])
         if master_process:
             logger.info(f"Resumed optimizer from checkpoint: {checkpoint_path}")
             file_logger.log_metadata(f"Resumed optimizer from checkpoint: {checkpoint_path}")
 
         if not args.begin_new_stage:
-            resume_step = int(checkpoint['resume_step'])
-            iter_count = int(checkpoint['iteration'])
-            epoch = int(checkpoint['epoch'])
+            resume_step = int(checkpoint["resume_step"])
+            iter_count = int(checkpoint["iteration"])
+            epoch = int(checkpoint["epoch"])
             return resume_step, iter_count, epoch
 
         else:
@@ -230,7 +242,7 @@ def _iter_log_entries(log_file):
     """Helper generator to iterate through log entries, yielding (index, section, line) tuples."""
     current_section = None
 
-    with open(log_file, "r") as file_handle:
+    with open(log_file) as file_handle:
         for index, raw_line in enumerate(file_handle):
             line = raw_line.rstrip("\n")
 
@@ -264,9 +276,7 @@ def compute_training_schedule(args, train_dataloader_length, world_size):
     if args.max_steps is not None:
         max_steps = args.max_steps
         args.num_train_epochs = (
-            max_steps // num_update_steps_per_epoch
-            if max_steps > num_update_steps_per_epoch
-            else 1
+            max_steps // num_update_steps_per_epoch if max_steps > num_update_steps_per_epoch else 1
         )
 
     return gradient_accumulation_steps, num_update_steps_per_epoch, max_steps
@@ -276,22 +286,22 @@ def setup_triton_cache():
     """
     Setup Triton cache directory with proper permissions and cleanup.
 
-    -   This helps to avoid conflicts where different processes 
+    -   This helps to avoid conflicts where different processes
         might try to access cache files that have been modified
         or deleted.
     """
 
     # Use SLURM_JOB_ID to create a unique cache directory for each job.
-    slurm_job_id = os.environ.get('SLURM_JOB_ID', 'local')
-    cache_dir = os.environ.get('TRITON_CACHE_DIR', f'./.cache/triton_cache/{slurm_job_id}')
+    slurm_job_id = os.environ.get("SLURM_JOB_ID", "local")
+    cache_dir = os.environ.get("TRITON_CACHE_DIR", f"./.cache/triton_cache/{slurm_job_id}")
 
     # Create rank-specific cache directory to avoid conflicts.
     rank = dist.get_rank() if dist.is_initialized() else 0
     rank_cache_dir = f"{cache_dir}/rank_{rank}"
-    
+
     os.makedirs(rank_cache_dir, exist_ok=True)
-    os.environ['TRITON_CACHE_DIR'] = rank_cache_dir
-    
+    os.environ["TRITON_CACHE_DIR"] = rank_cache_dir
+
     # Cleanup old cache files older than 1 hour.
     try:
         for root, _, files in os.walk(rank_cache_dir):
@@ -300,10 +310,11 @@ def setup_triton_cache():
                 try:
                     if os.path.getmtime(file_path) < time.time() - 3600:
                         os.remove(file_path)
-                except (OSError, IOError):
+                except OSError:
                     pass
     except Exception:
         pass
+
 
 def cleanup_log_file(log_file):
     """
@@ -312,9 +323,9 @@ def cleanup_log_file(log_file):
     """
     if not os.path.exists(log_file):
         return
-    
+
     try:
-        with open(log_file, "r") as f:
+        with open(log_file) as f:
             lines = f.readlines()
 
         last_validation_idx = -1
@@ -335,31 +346,32 @@ def cleanup_log_file(log_file):
 
         if last_validation_idx != -1:
             with open(log_file, "w") as f:
-                f.writelines(lines[:last_validation_idx + 1])
+                f.writelines(lines[: last_validation_idx + 1])
     except Exception as e:
         # If cleanup fails, just continue - we don't want to crash the training
         print(f"Warning: Failed to cleanup log file: {e}")
+
 
 def checkpoint_already_validated(checkpoint_dir, stage_name, step, log_file):
     """
     Check if a checkpoint has already been validated by verifying:
     1. The checkpoint directory exists
     2. The log file contains a validation entry for this step
-    
+
     Returns:
         bool: True if checkpoint exists and has been validated, False otherwise
     """
     # Check if checkpoint directory exists
     checkpoint_name = f"step_{step:05d}"
     output_dir = os.path.join(checkpoint_dir, stage_name, checkpoint_name)
-    
+
     if not os.path.exists(output_dir):
         return False
-    
+
     # Check if log file exists and contains validation for this step
     if not os.path.exists(log_file):
         return False
-    
+
     try:
         for _, section, line in _iter_log_entries(log_file):
             if section == "stats":
@@ -376,7 +388,7 @@ def checkpoint_already_validated(checkpoint_dir, stage_name, step, log_file):
     except Exception:
         # If we can't read the log, assume not validated to be safe
         return False
-    
+
     return False
 
 
@@ -390,8 +402,9 @@ def initialize_wandb(args, slurm_job_id, max_steps):
         - See https://docs.wandb.ai/ref/python/sdk/functions/login
         - See https://docs.wandb.ai/ref/python/sdk/functions/init/
     """
-    import wandb
     import time as _time
+
+    import wandb
 
     wandb.login(key=args.wandb_token)
 

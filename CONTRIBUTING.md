@@ -8,6 +8,7 @@ Thank you for contributing to LLM Foundry! This document explains how to get sta
 
 - [Getting started](#getting-started)
 - [Setting up your environment](#setting-up-your-environment)
+- [Catching mistakes before committing](#catching-mistakes-before-committing)
 - [The contribution workflow](#the-contribution-workflow)
   - [1. Fork the repository](#1-fork-the-repository)
   - [2. Clone your fork](#2-clone-your-fork)
@@ -77,6 +78,124 @@ pip install -e ".[distributed]"  # for DDP/FSDP training
 pip install -e ".[trl]"          # for SFT/DPO
 pip install -e ".[tests]"        # for running the test suite
 ```
+
+---
+
+## Catching mistakes before committing
+
+LLM Foundry uses [**pre-commit**](https://pre-commit.com) with [**Ruff**](https://docs.astral.sh/ruff/) to catch and fix style issues, formatting errors, and other common mistakes automatically before they ever reach a commit. This saves you from CI failures and keeps the codebase consistent.
+
+### What gets checked
+
+The pre-commit config (`.pre-commit-config.yaml`) runs these hooks automatically on every `git commit`:
+
+| Hook                                       | What it does                                                                                           |
+|--------------------------------------------|--------------------------------------------------------------------------------------------------------|
+| **Ruff** (`ruff --fix`)                    | Lints Python code and auto-fixes issues where possible (replaces flake8, isort, and dozens of plugins) |
+| **Ruff format** (`ruff format`)            | Enforces consistent code formatting (replaces Black)                                                   |
+| `check-yaml` / `check-json` / `check-toml` | Validates syntax of config files                                                                       |
+| `check-merge-conflict`                     | Blocks files with unresolved `<<<<<<<` merge markers                                                   |
+| `check-added-large-files`                  | Rejects files larger than 1 MB                                                                         |
+| `detect-private-key`                       | Prevents accidentally committing SSH keys or tokens                                                    |
+| `trailing-whitespace`                      | Strips trailing spaces (respects Markdown line breaks)                                                 |
+| `end-of-file-fixer`                        | Ensures files end with a single newline                                                                |
+| `nbstripout`                               | Strips notebook outputs before committing                                                              |
+
+The Ruff rules are configured in `pyproject.toml` under `[tool.ruff]`, `[tool.ruff.lint]`, and `[tool.ruff.format]`.
+
+### Installing pre-commit
+
+Install pre-commit and set up the hooks once per clone:
+
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+After this, the hooks will run automatically on every `git commit`. If a hook finds an issue, it will either fix it in-place (Ruff auto-fixes) or block the commit with an error message explaining what went wrong.
+
+### Running hooks manually
+
+You can run all hooks against staged files at any time:
+
+```bash
+pre-commit run
+```
+
+To run a specific hook (e.g., just Ruff):
+
+```bash
+pre-commit run ruff --all-files
+```
+
+To run against all files in the repo (useful when setting up for the first time):
+
+```bash
+pre-commit run --all-files
+```
+
+If a hook auto-fixes files, the changes will be unstaged — you'll need to `git add` them and commit again. This is intentional: it lets you review the fixes before committing.
+
+### When your commit is blocked
+
+If pre-commit blocks your commit, **don't panic**. The error output tells you exactly what went wrong and which file. Here's the recommended workflow to diagnose and fix the issues:
+
+**Step 1 — Dump all Ruff errors to a log file:**
+
+```bash
+ruff check . --output-file ruff-errors.log
+```
+
+The `--output-file` flag writes a clean list of every rule violation to `ruff-errors.log`, one per line. Open the file and work through the problems systematically:
+
+```bash
+cat ruff-errors.log
+```
+
+Each line follows the format `path/to/file.py:line:col: RULE_CODE explanation`. For example:
+
+```
+distributed/trainer.py:42:1: F401 `os` imported but unused
+alignment/utils.py:88:80: E501 Line too long (92 > 88 characters)
+```
+
+**Step 2 — Understand what each rule means.** Ruff's rule codes are searchable. Run `ruff rule RULE_CODE` to see a full explanation with examples:
+
+```bash
+ruff rule F401    # explains the unused-import rule
+ruff rule E501    # explains the line-too-long rule
+```
+
+**Step 3 — Fix the issues.** Most problems are straightforward:
+
+- **Unused imports / variables** — delete them.
+- **Line too long** — break the line or shorten a variable name.
+- **Bare except** — use `except Exception:` instead.
+- **Missing trailing comma** — Ruff auto-fixes these; just run `ruff check --fix .` again.
+
+After fixing, re-run the check to confirm everything is clean:
+
+```bash
+ruff check .     # should produce no output
+```
+
+Then stage your fixes and commit again:
+
+```bash
+git add .
+git commit -m "Your commit message"
+```
+
+**Step 4 — If auto-fixes are enough.** Many Ruff violations can be fixed automatically. Try this first before manually editing:
+
+```bash
+ruff check --fix .
+ruff format .
+```
+
+This fixes what it can and leaves the rest for you to handle manually.
+
+> **Tip:** If you're overwhelmed by a large number of errors on an existing file, focus only on the lines you changed. Run `ruff check path/to/your_file.py` instead of `ruff check .` to scope the check to your changes.
 
 ---
 
@@ -152,6 +271,8 @@ A good commit message:
 - Explains **what** changed and **why**, not just how
 
 You can make as many commits as you like while working. You'll clean them up before opening a PR (see next step).
+
+> Remember to run `pre-commit` hooks before committing to catch style issues early!
 
 ### 7. Squash your commits
 

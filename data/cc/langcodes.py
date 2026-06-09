@@ -4095,7 +4095,7 @@ FILTERS_LANGUAGE_CODES = (
     "zyp",
     "zyp_Latn",
     "zza",
-    "zza_Latn"
+    "zza_Latn",
 )
 
 FILTERS_HELP_MESSAGE = (
@@ -6028,7 +6028,7 @@ CONFIG_LANGUAGE_CODES = (
     "bvr_Latn",
     "aoj_Latn",
     "xmv_Latn",
-    "pkb_Latn"
+    "pkb_Latn",
 )
 
 # Print a help message saying these are the codes available.
@@ -8143,7 +8143,7 @@ GLOTLID_LANGUAGE_CODES = (
     "zxx_Latn",
     "zxx_Zzzz",
     "zyb_Latn",
-    "zyp_Latn"
+    "zyp_Latn",
 )
 
 GLOTLID_HELP_MESSAGE = (
@@ -8153,170 +8153,169 @@ GLOTLID_HELP_MESSAGE = (
 
 # These are language codes supported by the FT176 model.
 FT176_LANGUAGE_CODES = (
-    "af",    # Afrikaans
-    "als",   # Alemannic German
-    "am",    # Amharic
-    "an",    # Aragonese
-    "ar",    # Arabic
-    "arz",   # Egyptian Arabic
-    "as",    # Assamese
-    "ast",   # Asturian
-    "av",    # Avaric
-    "az",    # Azerbaijani
-    "azb",   # South Azerbaijani
-    "ba",    # Bashkir
-    "bcl",   # Bikol Central
-    "be",    # Belarusian
-    "bg",    # Bulgarian
-    "bh",    # Bihari
-    "bn",    # Bengali
-    "bo",    # Tibetan
-    "bpy",   # Bishnupriya Manipuri
-    "br",    # Breton
-    "bs",    # Bosnian
-    "ca",    # Catalan
-    "ce",    # Chechen
-    "ceb",   # Cebuano
-    "ckb",   # Central Kurdish
-    "cs",    # Czech
-    "cv",    # Chuvash
-    "cy",    # Welsh
-    "da",    # Danish
-    "de",    # German
-    "diq",   # Dimli/Kurdish Zaza
-    "dsb",   # Lower Sorbian
-    "dv",    # Divehi
-    "el",    # Greek
-    "eml",   # Emilian‑Romagnolo
-    "en",    # English
-    "eo",    # Esperanto
-    "es",    # Spanish
-    "et",    # Estonian
-    "eu",    # Basque
-    "fa",    # Persian
-    "fi",    # Finnish
-    "fr",    # French
-    "fy",    # Western Frisian
-    "ga",    # Irish
-    "gd",    # Scottish Gaelic
-    "gl",    # Galician
-    "gn",    # Guarani
-    "gom",   # Goan Konkani
-    "gu",    # Gujarati
-    "gv",    # Manx
-    "he",    # Hebrew
-    "hi",    # Hindi
-    "hr",    # Croatian
-    "hsb",   # Upper Sorbian
-    "ht",    # Haitian Creole
-    "hu",    # Hungarian
-    "hy",    # Armenian
-    "ia",    # Interlingua
-    "id",    # Indonesian
-    "ilo",   # Ilocano
-    "io",    # Ido
-    "is",    # Icelandic
-    "it",    # Italian
-    "ja",    # Japanese
-    "jbo",   # Lojban
-    "jv",    # Javanese
-    "ka",    # Georgian
-    "kk",    # Kazakh
-    "km",    # Khmer
-    "kn",    # Kannada
-    "ko",    # Korean
-    "krc",   # Karachay‑Balkar
-    "ku",    # Kurdish
-    "kv",    # Komi
-    "ky",    # Kyrgyz
-    "la",    # Latin
-    "lb",    # Luxembourgish
-    "lez",   # Lezghian
-    "li",    # Limburgish
-    "lmo",   # Lombard
-    "lo",    # Lao
-    "lt",    # Lithuanian
-    "lv",    # Latvian
-    "mai",   # Maithili
-    "mg",    # Malagasy
-    "mhr",   # Eastern Mari
-    "min",   # Minangkabau
-    "mk",    # Macedonian
-    "ml",    # Malayalam
-    "mn",    # Mongolian
-    "mr",    # Marathi
-    "mrj",   # Western Mari
-    "ms",    # Malay
-    "mt",    # Maltese
-    "my",    # Burmese
-    "mzn",   # Mazanderani
-    "nah",   # Nahuatl
-    "nds",   # Low German
-    "ne",    # Nepali
-    "new",   # Newari / Nepal Bhasa
-    "nl",    # Dutch
-    "nn",    # Norwegian Nynorsk
-    "no",    # Norwegian
-    "oc",    # Occitan
-    "or",    # Odia
-    "os",    # Ossetian
-    "pa",    # Punjabi
-    "pl",    # Polish
-    "pms",   # Piedmontese
-    "pnb",   # Western Punjabi
-    "ps",    # Pashto
-    "pt",    # Portuguese
-    "qu",    # Quechua
-    "rm",    # Romansh
-    "ro",    # Romanian
-    "ru",    # Russian
-    "sa",    # Sanskrit
-    "sah",   # Yakut
-    "scn",   # Sicilian
-    "sco",   # Scots
-    "sd",    # Sindhi
-    "sh",    # Serbo‑Croatian
-    "si",    # Sinhala
-    "sk",    # Slovak
-    "sl",    # Slovenian
-    "so",    # Somali
-    "sq",    # Albanian
-    "sr",    # Serbian
-    "su",    # Sundanese
-    "sv",    # Swedish
-    "sw",    # Swahili
-    "ta",    # Tamil
-    "te",    # Telugu
-    "tg",    # Tajik
-    "th",    # Thai
-    "tk",    # Turkmen
-    "tl",    # Tagalog / Filipino
-    "tr",    # Turkish
-    "tt",    # Tatar
-    "tyv",   # Tuvinian
-    "ug",    # Uyghur
-    "uk",    # Ukrainian
-    "ur",    # Urdu
-    "uz",    # Uzbek
-    "vec",   # Venetian
-    "vi",    # Vietnamese
-    "vo",    # Volapük
-    "wa",    # Walloon
-    "war",   # Waray
-    "wuu",   # Wu Chinese
-    "xmf",   # Mingrelian
-    "yi",    # Yiddish
-    "yo",    # Yoruba
-    "zh",    # Chinese
+    "af",  # Afrikaans
+    "als",  # Alemannic German
+    "am",  # Amharic
+    "an",  # Aragonese
+    "ar",  # Arabic
+    "arz",  # Egyptian Arabic
+    "as",  # Assamese
+    "ast",  # Asturian
+    "av",  # Avaric
+    "az",  # Azerbaijani
+    "azb",  # South Azerbaijani
+    "ba",  # Bashkir
+    "bcl",  # Bikol Central
+    "be",  # Belarusian
+    "bg",  # Bulgarian
+    "bh",  # Bihari
+    "bn",  # Bengali
+    "bo",  # Tibetan
+    "bpy",  # Bishnupriya Manipuri
+    "br",  # Breton
+    "bs",  # Bosnian
+    "ca",  # Catalan
+    "ce",  # Chechen
+    "ceb",  # Cebuano
+    "ckb",  # Central Kurdish
+    "cs",  # Czech
+    "cv",  # Chuvash
+    "cy",  # Welsh
+    "da",  # Danish
+    "de",  # German
+    "diq",  # Dimli/Kurdish Zaza
+    "dsb",  # Lower Sorbian
+    "dv",  # Divehi
+    "el",  # Greek
+    "eml",  # Emilian‑Romagnolo
+    "en",  # English
+    "eo",  # Esperanto
+    "es",  # Spanish
+    "et",  # Estonian
+    "eu",  # Basque
+    "fa",  # Persian
+    "fi",  # Finnish
+    "fr",  # French
+    "fy",  # Western Frisian
+    "ga",  # Irish
+    "gd",  # Scottish Gaelic
+    "gl",  # Galician
+    "gn",  # Guarani
+    "gom",  # Goan Konkani
+    "gu",  # Gujarati
+    "gv",  # Manx
+    "he",  # Hebrew
+    "hi",  # Hindi
+    "hr",  # Croatian
+    "hsb",  # Upper Sorbian
+    "ht",  # Haitian Creole
+    "hu",  # Hungarian
+    "hy",  # Armenian
+    "ia",  # Interlingua
+    "id",  # Indonesian
+    "ilo",  # Ilocano
+    "io",  # Ido
+    "is",  # Icelandic
+    "it",  # Italian
+    "ja",  # Japanese
+    "jbo",  # Lojban
+    "jv",  # Javanese
+    "ka",  # Georgian
+    "kk",  # Kazakh
+    "km",  # Khmer
+    "kn",  # Kannada
+    "ko",  # Korean
+    "krc",  # Karachay‑Balkar
+    "ku",  # Kurdish
+    "kv",  # Komi
+    "ky",  # Kyrgyz
+    "la",  # Latin
+    "lb",  # Luxembourgish
+    "lez",  # Lezghian
+    "li",  # Limburgish
+    "lmo",  # Lombard
+    "lo",  # Lao
+    "lt",  # Lithuanian
+    "lv",  # Latvian
+    "mai",  # Maithili
+    "mg",  # Malagasy
+    "mhr",  # Eastern Mari
+    "min",  # Minangkabau
+    "mk",  # Macedonian
+    "ml",  # Malayalam
+    "mn",  # Mongolian
+    "mr",  # Marathi
+    "mrj",  # Western Mari
+    "ms",  # Malay
+    "mt",  # Maltese
+    "my",  # Burmese
+    "mzn",  # Mazanderani
+    "nah",  # Nahuatl
+    "nds",  # Low German
+    "ne",  # Nepali
+    "new",  # Newari / Nepal Bhasa
+    "nl",  # Dutch
+    "nn",  # Norwegian Nynorsk
+    "no",  # Norwegian
+    "oc",  # Occitan
+    "or",  # Odia
+    "os",  # Ossetian
+    "pa",  # Punjabi
+    "pl",  # Polish
+    "pms",  # Piedmontese
+    "pnb",  # Western Punjabi
+    "ps",  # Pashto
+    "pt",  # Portuguese
+    "qu",  # Quechua
+    "rm",  # Romansh
+    "ro",  # Romanian
+    "ru",  # Russian
+    "sa",  # Sanskrit
+    "sah",  # Yakut
+    "scn",  # Sicilian
+    "sco",  # Scots
+    "sd",  # Sindhi
+    "sh",  # Serbo‑Croatian
+    "si",  # Sinhala
+    "sk",  # Slovak
+    "sl",  # Slovenian
+    "so",  # Somali
+    "sq",  # Albanian
+    "sr",  # Serbian
+    "su",  # Sundanese
+    "sv",  # Swedish
+    "sw",  # Swahili
+    "ta",  # Tamil
+    "te",  # Telugu
+    "tg",  # Tajik
+    "th",  # Thai
+    "tk",  # Turkmen
+    "tl",  # Tagalog / Filipino
+    "tr",  # Turkish
+    "tt",  # Tatar
+    "tyv",  # Tuvinian
+    "ug",  # Uyghur
+    "uk",  # Ukrainian
+    "ur",  # Urdu
+    "uz",  # Uzbek
+    "vec",  # Venetian
+    "vi",  # Vietnamese
+    "vo",  # Volapük
+    "wa",  # Walloon
+    "war",  # Waray
+    "wuu",  # Wu Chinese
+    "xmf",  # Mingrelian
+    "yi",  # Yiddish
+    "yo",  # Yoruba
+    "zh",  # Chinese
 )
 
 # Print a help message saying these are the codes available.
-FT176_HELP_MESSAGE = (
-    "The following language codes are supported by the FT176 model:\n"
-    + ", ".join(FT176_LANGUAGE_CODES)
+FT176_HELP_MESSAGE = "The following language codes are supported by the FT176 model:\n" + ", ".join(
+    FT176_LANGUAGE_CODES
 )
 
-#print(FILTERS_HELP_MESSAGE)
-#print(CONFIG_HELP_MESSAGE)
-#print(GLOTLID_HELP_MESSAGE)
-#print(FT176_HELP_MESSAGE)
+# print(FILTERS_HELP_MESSAGE)
+# print(CONFIG_HELP_MESSAGE)
+# print(GLOTLID_HELP_MESSAGE)
+# print(FT176_HELP_MESSAGE)

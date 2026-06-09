@@ -297,4 +297,3 @@ Main parameters:
 - `--token`: HF token.
 - `--num_workers`: upload concurrency.
 - `--repo_type`: repository type.
-

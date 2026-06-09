@@ -40,7 +40,7 @@ err="$workdir/run_outputs/err-train-hf-tok.$SLURM_JOB_ID"
 #############################################
 
 source $workdir/.modules.sh > "$out" 2>&1
-# python3 -m venv $workdir/.venv_intel  
+# python3 -m venv $workdir/.venv_intel
 source $workdir/.venv_intel/bin/activate
 
 # ===== LLM Foundry Install =====

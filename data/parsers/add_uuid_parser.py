@@ -6,6 +6,7 @@ Optional config:
   "uuid_column": "uuid"
 }
 """
+
 import uuid
 
 PARSER_NAME = "add-uuid"

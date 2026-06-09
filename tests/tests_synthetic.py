@@ -10,8 +10,8 @@ Requirements:
 - datasets
 """
 
-import json
 import importlib
+import json
 import os
 import sys
 import tempfile
@@ -156,7 +156,13 @@ def test_save_cai_sample_preserves_nested_results_metadata_and_unicode():
             "revisions": [["Olá, tudo ótimo!"]],
         }
 
-        save_cai_sample(output_path, row=4, instruction="Cumprimente.", cai_result=result, metadata={"lang": "pt"})
+        save_cai_sample(
+            output_path,
+            row=4,
+            instruction="Cumprimente.",
+            cai_result=result,
+            metadata={"lang": "pt"},
+        )
 
         record = _read_jsonl(output_path)[0]
         assert record == {
@@ -174,17 +180,24 @@ def test_save_cai_sample_preserves_nested_results_metadata_and_unicode():
 def test_chunk_text_splits_on_token_boundaries_and_can_keep_first_chunk_only():
     tokenizer = _mock_word_tokenizer()
 
-    assert chunk_text("one two three", tokenizer, max_chunk_size=10, chunk_once=False) == ["w0 w1 w2"]
+    assert chunk_text("one two three", tokenizer, max_chunk_size=10, chunk_once=False) == [
+        "w0 w1 w2"
+    ]
     assert chunk_text(" ".join(f"word{i}" for i in range(11)), tokenizer, 10, False) == [
         "w0 w1 w2 w3 w4 w5 w6 w7 w8 w9",
         "w10",
     ]
-    assert chunk_text(" ".join(f"word{i}" for i in range(20)), tokenizer, 5, True) == ["w0 w1 w2 w3 w4"]
+    assert chunk_text(" ".join(f"word{i}" for i in range(20)), tokenizer, 5, True) == [
+        "w0 w1 w2 w3 w4"
+    ]
     print("Test 5 — chunk_text: OK ✅")
 
 
 def test_setup_triton_cache_sets_rank_directory_and_removes_stale_files():
-    original_env = {key: os.environ.get(key) for key in ["TRITON_CACHE_DIR", "SLURM_JOB_ID", "CUDA_VISIBLE_DEVICES"]}
+    original_env = {
+        key: os.environ.get(key)
+        for key in ["TRITON_CACHE_DIR", "SLURM_JOB_ID", "CUDA_VISIBLE_DEVICES"]
+    }
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
             cache_root = os.path.join(tmpdir, "triton")
@@ -229,7 +242,10 @@ def test_dataset_loader_reads_local_jsonl_files_and_directories():
         data_dir = os.path.join(tmpdir, "dataset_dir")
         os.makedirs(data_dir)
         for shard in range(2):
-            _write_jsonl(os.path.join(data_dir, f"shard_{shard}.jsonl"), [{"text": f"s{shard}_{i}"} for i in range(2)])
+            _write_jsonl(
+                os.path.join(data_dir, f"shard_{shard}.jsonl"),
+                [{"text": f"s{shard}_{i}"} for i in range(2)],
+            )
 
         directory_dataset = DatasetLoader(path=data_dir, cache_dir=tmpdir).load()
         assert len(directory_dataset) == 4
@@ -259,7 +275,7 @@ def test_dataset_loader_rejects_unsupported_files_and_empty_directories():
 
         try:
             DatasetLoader(path=bad_path, cache_dir=tmpdir).load()
-            assert False, "Unsupported file format should raise ValueError"
+            raise AssertionError("Unsupported file format should raise ValueError")
         except ValueError as error:
             assert "Unsupported file format" in str(error)
 
@@ -267,7 +283,7 @@ def test_dataset_loader_rejects_unsupported_files_and_empty_directories():
         os.makedirs(empty_dir)
         try:
             DatasetLoader(path=empty_dir, cache_dir=tmpdir).load()
-            assert False, "Empty directory should raise ValueError"
+            raise AssertionError("Empty directory should raise ValueError")
         except ValueError as error:
             assert "No .jsonl or .parquet" in str(error)
     print("Test 9 — DatasetLoader invalid inputs: OK ✅")
@@ -322,9 +338,11 @@ def test_constitutional_generation_returns_initial_responses_when_critique_is_di
 
 
 def test_constitutional_generation_runs_requested_critique_revision_iterations():
-    with patch("utils.generate_rollouts", return_value=["Initial resp"]), \
-         patch("utils.critique_response", return_value=["Critique text"]) as critique_mock, \
-         patch("utils.revise_response", return_value=["Revised resp"]) as revise_mock:
+    with (
+        patch("utils.generate_rollouts", return_value=["Initial resp"]),
+        patch("utils.critique_response", return_value=["Critique text"]) as critique_mock,
+        patch("utils.revise_response", return_value=["Revised resp"]) as revise_mock,
+    ):
         result = constitutional_generation(
             model=MagicMock(),
             tokenizer=MagicMock(),
@@ -351,7 +369,11 @@ def test_run_rollouts_generates_for_each_chunk_and_saves_metadata():
 
         with patch("utils.generate_rollouts", return_value=["Generated output"]) as generate_mock:
             run_rollouts(
-                sample={"text": "one two three four five six", "source": "test_suite", "ignored": True},
+                sample={
+                    "text": "one two three four five six",
+                    "source": "test_suite",
+                    "ignored": True,
+                },
                 counter=7,
                 text_column="text",
                 metadata_columns=["source", "missing"],

@@ -4,7 +4,7 @@
 # Download WARC paths from Common Crawl
 #
 # Purpose:
-#   This script downloads the index file (warc.paths) 
+#   This script downloads the index file (warc.paths)
 #   that lists all available WARC files for a specific
 #   Common Crawl dump. This index is needed before you
 #   can download actual WARC files.
