@@ -57,6 +57,8 @@ source $workdir/.venv_eval_bengali/bin/activate  # <-- Activate the virtual envi
 # mv $workdir/lm-evaluation-harness $workdir/lm_evaluation_harness_bengali
 # pip3 install --upgrade pip
 # pip3 install -e $workdir/lm_evaluation_harness_bengali
+# pip3 install "lm_eval[hf,vllm]"          # <-- Install lm-eval with HuggingFace and vLLM support
+# pip3 install pyyaml                      # <-- Required for post-processing script (can be installed in the same virtual environment)
 
 #############################################
 # Available Bengali evaluation tasks:
@@ -176,7 +178,7 @@ if [ "$EVAL_MODE" == "checkpoints" ]; then
             
             # Check if evaluation already exists
             if [ -f "$eval_file" ]; then
-                echo "✓ $checkpoint_name already evaluated (found $eval_file)"  # <-- Skip this checkpoint
+                echo "✅ $checkpoint_name already evaluated (found $eval_file)"  # <-- Skip this checkpoint
             else
                 echo "✗ $checkpoint_name needs evaluation"
                 MODELS_TO_EVAL_ARRAY+=("$checkpoint")   # <-- Add to evaluation queue
@@ -198,7 +200,7 @@ elif [ "$EVAL_MODE" == "models" ]; then
         
         # Check if evaluation already exists
         if [ -f "$eval_file" ]; then
-            echo "✓ $model already evaluated (found $eval_file)"  # <-- Skip this model
+            echo "✅ $model already evaluated (found $eval_file)"  # <-- Skip this model
         else
             echo "✗ $model needs evaluation"
             MODELS_TO_EVAL_ARRAY+=("$model")   # <-- Add to evaluation queue
@@ -322,7 +324,7 @@ for i in $(seq 0 $((NUM_TO_EVAL - 1))); do
     model_name="${MODEL_NAMES[$i]}"
     
     if [ $exit_code -eq 0 ]; then
-        echo "✓ Evaluation completed successfully for $model_name"
+        echo "✅ Evaluation completed successfully for $model_name"
     else
         echo "✗ Evaluation failed for $model_name (exit code: $exit_code)"
     fi
@@ -333,7 +335,7 @@ done
 # 
 # Converts JSON evaluation results to YAML format for easier analysis.
 # Flattens nested result structures and extracts model metadata.
-# Requires: jq (JSON processor)
+# Uses embedded Python (requires PyYAML in the active virtual environment).
 #############################################
 echo "====================================="
 echo "Running post-processing..."
@@ -342,82 +344,91 @@ echo "====================================="
 YAML_OUTPUT_DIR="$EVAL_OUTPUT_DIR"
 mkdir -p "$YAML_OUTPUT_DIR"                 # <-- Ensure output directory exists
 
-# Find all JSON files recursively in logs folder
-json_files=()
-while IFS= read -r -d '' file; do
-    json_files+=("$file")
-done < <(find "$LOGS_FOLDER" -type f -name "*.json" -print0)
+# Post-processing: convert JSON results to YAML using embedded Python
+# (no external dependencies beyond Python's standard library + PyYAML)
+python3 - "$LOGS_FOLDER" "$YAML_OUTPUT_DIR" << 'PYEOF'
+import os, sys, json, yaml
 
-if [ ${#json_files[@]} -eq 0 ]; then
-    echo "No JSON files found in $LOGS_FOLDER"
-else
-    echo "Found ${#json_files[@]} JSON file(s) to process"
-    
-    # Check if jq is available (required for JSON parsing)
-    if ! command -v jq &> /dev/null; then
-        echo "WARNING: jq is not installed. Skipping post-processing."
-        echo "Install with: module load jq (or apt-get install jq)"
-    else
-        # Process each JSON file
-        for file in "${json_files[@]}"; do
-            echo "Processing $(basename "$file")..."
-            
-            # Extract pretrained model path from JSON config
-            pretrained=$(jq -r '.config.model_args.pretrained // empty' "$file" 2>/dev/null || echo "")
-            
-            # Determine model name (from pretrained path or filename)
-            if [ -n "$pretrained" ]; then
-                model_name=$(basename "$pretrained" | sed 's:/*$::')  # <-- Use model path
-            else
-                # Extract from filename as fallback
-                fname=$(basename "$file" .json)
-                # Remove common prefixes
-                fname="${fname#results_}"
-                fname="${fname#result_}"
-                fname="${fname#eval_}"
-                model_name="$fname"         # <-- Use filename
-            fi
-            
-            output_file="$YAML_OUTPUT_DIR/${model_name}.yaml"
-            
-            # Skip if already exists
-            if [ -f "$output_file" ]; then
-                echo "  ✓ YAML already exists, skipping"
-                continue
-            fi
-            
-            # Build YAML output
-            {
-                echo "model_name: $model_name"
-                if [ -n "$pretrained" ]; then
-                    echo "model_pretrained: $pretrained"
-                else
-                    echo "model_pretrained: null"
-                fi
-                echo "results:"
-                
-                # Extract and flatten results from nested JSON structure
-                # Prepends benchmark name to each metric and removes ",none" suffix
-                jq -r '
-                    (.results // .) | 
-                    to_entries[] | 
-                    if .value | type == "object" then
-                        .key as $parent |
-                        .value | to_entries[] | 
-                        "  " + $parent + "_" + (.key | sub(",none$"; "")) + ": " + (.value | tostring)
-                    else
-                        "  " + .key + ": " + (.value | tostring)
-                    end
-                ' "$file" 2>/dev/null || echo "  error: failed to parse results"
-                
-            } > "$output_file"
-            
-            echo "  ✓ Created $(basename "$output_file")"
-        done
-        
-        echo "✓ Post-processing completed successfully"
-    fi
-fi
+logs_dir = sys.argv[1]
+output_dir = sys.argv[2]
+os.makedirs(output_dir, exist_ok=True)
+
+json_files = []
+for root, _, files in os.walk(logs_dir):
+    for f in files:
+        if f.endswith(".json"):
+            json_files.append(os.path.join(root, f))
+
+if not json_files:
+    print(f"No JSON files found in {logs_dir}")
+else:
+    print(f"Found {len(json_files)} JSON file(s) to process")
+
+    for filepath in json_files:
+        print(f"Processing {os.path.basename(filepath)}...")
+
+        try:
+            with open(filepath, "r") as f:
+                data = json.load(f)
+        except Exception as e:
+            print(f"  ❌ Failed to read {filepath}: {e}")
+            continue
+
+        results = data.get("results", data)
+
+        # Extract pretrained model path from config
+        pretrained = None
+        config = data.get("config", {})
+        if isinstance(config, dict):
+            model_args = config.get("model_args", {})
+            if isinstance(model_args, dict):
+                pretrained = model_args.get("pretrained")
+
+        # Determine model name
+        if pretrained:
+            model_name = os.path.basename(pretrained.rstrip("/"))
+        else:
+            fname = os.path.basename(filepath)
+            for prefix in ("results_", "result_", "eval_"):
+                if fname.startswith(prefix):
+                    fname = fname[len(prefix):]
+                    break
+            model_name = os.path.splitext(fname)[0]
+
+        output_file = os.path.join(output_dir, f"{model_name}.yaml")
+
+        if os.path.exists(output_file):
+            print("  ✅ YAML already exists, skipping")
+            continue
+
+        # Flatten nested results (prepend benchmark name, strip ",none" suffix)
+        flat_results = {}
+        if isinstance(results, dict):
+            for key, value in results.items():
+                if isinstance(value, dict):
+                    for subkey, subvalue in value.items():
+                        clean_subkey = subkey.replace(",none", "")
+                        flat_results[f"{key}_{clean_subkey}"] = subvalue
+                else:
+                    flat_results[key] = value
+
+        out = {
+            "model_name": model_name,
+            "model_pretrained": pretrained,
+            "results": flat_results,
+        }
+
+        try:
+            with open(output_file, "w") as f:
+                yaml.dump(out, f, default_flow_style=False)
+        except Exception as e:
+            print(f"  ❌ Failed to write {output_file}: {e}")
+            continue
+
+        print(f"  ✅ Created {os.path.basename(output_file)}")
+
+    print("✅ Post-processing completed successfully")
+PYEOF
 
 #############################################
 # Finalize
@@ -449,9 +460,9 @@ for i in $(seq 0 $((NUM_TO_EVAL - 1))); do
 done
 
 if [ "$ALL_SUCCESS" = true ]; then
-    echo "✓ All evaluations completed successfully."
+    echo "✅ All evaluations completed successfully."
 else
-    echo "⚠ Some evaluations failed. Check logs in $workdir/job_outputs for details."
+    echo "⚠️ Some evaluations failed. Check logs in $LOGS_FOLDER for details."
 fi
 
 #############################################
@@ -463,7 +474,7 @@ if [ "$CLEAN_CACHE" = "1" ]; then
     echo "Cleaning HF_DATASETS_CACHE..."
     if [ -d "$HF_DATASETS_CACHE" ]; then
         find "$HF_DATASETS_CACHE" -mindepth 1 -delete 2>/dev/null || true  # <-- Delete all cache contents
-        echo "✓ Cache cleaned"
+        echo "✅ Cache cleaned"
     fi
 else
     echo "Skipping cache cleanup (CLEAN_CACHE=$CLEAN_CACHE)"
@@ -474,5 +485,5 @@ fi
 #############################################
 echo "====================================="
 echo "Results available at: $EVAL_OUTPUT_DIR/"
-echo "Job logs available at: $workdir/job_outputs/"
+echo "Job logs available at: $LOGS_FOLDER/"
 echo "====================================="

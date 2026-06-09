@@ -57,9 +57,10 @@ source $workdir/.venv_eval_pt_old/bin/activate   # <-- Activate the virtual envi
 # mv $workdir/lm-evaluation-harness-pt $workdir/lm_evaluation_harness_pt
 # cd $workdir/lm_evaluation_harness_pt
 # git checkout e44c7e26cbface8b3a1b54cad7792b6431670a61 # <-- Commit hash for the used version
-# pip3 install -e . --no-cache-dir
-# pip3 install -e ".[vllm]" --no-cache-dir
-# pip3 install transformers==4.53.2 --no-cache-dir
+# pip3 install -e .
+# pip3 install -e ".[vllm]"
+# pip3 install transformers==4.53.2
+# pip3 install pyyaml
 # cd $workdir
 
 #############################################
@@ -331,7 +332,7 @@ done
 # 
 # Converts JSON evaluation results to YAML format for easier analysis.
 # Flattens nested result structures matching the Python post_processing_portuguese.py behavior.
-# Requires: jq (JSON processor)
+# Uses embedded Python (requires PyYAML in the active virtual environment).
 #############################################
 echo "====================================="
 echo "Running post-processing..."
@@ -340,66 +341,72 @@ echo "====================================="
 YAML_OUTPUT_DIR="$EVAL_OUTPUT_DIR"
 mkdir -p "$YAML_OUTPUT_DIR"                 # <-- Ensure output directory exists
 
-# Find all JSON files in logs folder (not recursive, matching Python script behavior)
-json_files=()
-for file in "$LOGS_FOLDER"/*.json; do
-    if [ -f "$file" ]; then
-        json_files+=("$file")
-    fi
-done
+# Post-processing: convert JSON results to YAML using embedded Python
+# (no external dependencies beyond Python's standard library + PyYAML)
+python3 - "$LOGS_FOLDER" "$YAML_OUTPUT_DIR" << 'PYEOF'
+import os, sys, json, yaml
 
-if [ ${#json_files[@]} -eq 0 ]; then
-    echo "No JSON files found in $LOGS_FOLDER"
-else
-    echo "Found ${#json_files[@]} JSON file(s) to process"
-    
-    # Check if jq is available (required for JSON parsing)
-    if ! command -v jq &> /dev/null; then
-        echo "WARNING: jq is not installed. Skipping post-processing."
-        echo "Install with: module load jq (or apt-get install jq)"
-    else
-        # Process each JSON file
-        for file in "${json_files[@]}"; do
-            echo "Processing $(basename "$file")..."
-            
-            # Extract model name from filename (matching Python script: eval_file.split(".json")[0])
-            model_name=$(basename "$file" .json)
-            
-            output_file="$YAML_OUTPUT_DIR/${model_name}.yaml"
-            
-            # Skip if already exists
-            if [ -f "$output_file" ]; then
-                echo "  ✓ YAML already exists, skipping"
-                continue
-            fi
-            
-            # Build YAML output
-            {
-                echo "model_name: $model_name"
-                echo "results:"
-                
-                # Extract and flatten results from JSON structure
-                jq -r '
-                    def fmt: if type == "string" then . else tostring end;
-                    .results | 
-                    to_entries[] | 
-                    if .value | type == "object" then
-                        .key as $parent | 
-                        .value | to_entries[] | 
-                        "  " + $parent + "_" + (.key | gsub(",none"; "")) + ": " + (.value | fmt)
-                    else
-                        "  " + .key + ": " + (.value | fmt)
-                    end
-                ' "$file" 2>/dev/null || echo "  error: failed to parse results"
-                
-            } > "$output_file"
-            
-            echo "  ✓ Created $(basename "$output_file")"
-        done
-        
-        echo "✓ Post-processing completed successfully"
-    fi
-fi
+logs_dir = sys.argv[1]
+output_dir = sys.argv[2]
+os.makedirs(output_dir, exist_ok=True)
+
+# Non-recursive: only look at JSON files directly in the logs folder
+json_files = [
+    os.path.join(logs_dir, f)
+    for f in os.listdir(logs_dir)
+    if f.endswith(".json")
+]
+
+if not json_files:
+    print(f"No JSON files found in {logs_dir}")
+else:
+    print(f"Found {len(json_files)} JSON file(s) to process")
+
+    for filepath in json_files:
+        print(f"Processing {os.path.basename(filepath)}...")
+
+        try:
+            with open(filepath, "r") as f:
+                data = json.load(f)
+            results = data["results"]
+        except Exception as e:
+            print(f"  ❌ Failed to read {filepath}: {e}")
+            continue
+
+        # Model name from filename only (no pretrained extraction)
+        model_name = os.path.basename(filepath).split(".json")[0]
+
+        output_file = os.path.join(output_dir, f"{model_name}.yaml")
+
+        if os.path.exists(output_file):
+            print("  ✅ YAML already exists, skipping")
+            continue
+
+        # Flatten nested results (prepend benchmark name, strip ",none" suffix)
+        flat_results = {}
+        for key, value in results.items():
+            if isinstance(value, dict):
+                for subkey, subvalue in value.items():
+                    flat_results[f"{key}_{subkey.replace(',none', '')}"] = subvalue
+            else:
+                flat_results[key] = value
+
+        out = {
+            "model_name": model_name,
+            "results": flat_results,
+        }
+
+        try:
+            with open(output_file, "w") as f:
+                yaml.dump(out, f, default_flow_style=False)
+        except Exception as e:
+            print(f"  ❌ Failed to write {output_file}: {e}")
+            continue
+
+        print(f"  ✅ Created {os.path.basename(output_file)}")
+
+    print("✅ Post-processing completed successfully")
+PYEOF
 
 #############################################
 # Finalize
@@ -431,9 +438,9 @@ for i in $(seq 0 $((NUM_TO_EVAL - 1))); do
 done
 
 if [ "$ALL_SUCCESS" = true ]; then
-    echo "✓ All evaluations completed successfully."
+    echo "✅ All evaluations completed successfully."
 else
-    echo "⚠ Some evaluations failed. Check logs in $workdir/job_outputs for details."
+    echo "⚠️ Some evaluations failed. Check logs in $LOGS_FOLDER for details."
 fi
 
 #############################################
@@ -445,7 +452,7 @@ if [ "$CLEAN_CACHE" = "1" ]; then
     echo "Cleaning HF_DATASETS_CACHE..."
     if [ -d "$HF_DATASETS_CACHE" ]; then
         find "$HF_DATASETS_CACHE" -mindepth 1 -delete 2>/dev/null || true  # <-- Delete all cache contents
-        echo "✓ Cache cleaned"
+        echo "✅ Cache cleaned"
     fi
 else
     echo "Skipping cache cleanup (CLEAN_CACHE=$CLEAN_CACHE)"
@@ -456,5 +463,5 @@ fi
 #############################################
 echo "====================================="
 echo "Results available at: $EVAL_OUTPUT_DIR/"
-echo "Job logs available at: $workdir/job_outputs/"
+echo "Job logs available at: $LOGS_FOLDER/"
 echo "====================================="
