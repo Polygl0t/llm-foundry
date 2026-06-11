@@ -7,6 +7,7 @@ This folder contains miscellaneous utility scripts and helpers for working with 
 - [`compute_hyperparams.py`](./compute_hyperparams.py) — Compute training hyperparameters like learning rate, batch size, and steps based on model size and training configuration (uses the heuristics from the [DeepSeek LLM scaling laws paper](https://arxiv.org/abs/2401.02954)).
 - [`convert_dataset_to_hf.py`](./convert_dataset_to_hf.py) — Convert JSONL or Parquet dataset shards into a Hugging Face Dataset format and optionally upload it to the Hub.
 - [`count_tokens.py`](./count_tokens.py) — Create token count reports for a pretraining corpus.
+- [`distributed_test.py`](./distributed_test.py) — GPU Communication Benchmark / LLM Gradient All-Reduce Simulation.
 - [`download.py`](./download.py) — Download and cache Hugging Face repositories using patterns and authentication.
 - [`env_doctor.sh`](./env_doctor.sh) — SLURM batch script to diagnose GPU/CUDA/PyTorch environment issues using env-doctor.
 - [`inference_test.py`](./inference_test.py) — Run inference on a model using a sample dataset and save outputs.
@@ -101,6 +102,25 @@ Main parameters:
 - `--token`: Hugging Face authentication token.
 - `--repo_type`: repository type: `dataset`, `model`, or `space`.
 - `--allow_patterns`: glob patterns to filter downloaded files.
+
+### `distributed_test.py`
+GPU communication benchmark that runs all_reduce (SUM) on gradient tensors for a Llama-style LLM. Also benchmarks activation/logits-scale tensors (hidden states, logits) whose size depends on `--batch-size` and `--seq-length`, so you can measure communication cost at realistic token counts.
+
+Example:
+```bash
+# Via SLURM:
+srun --cpu-bind=none python utils/distributed_test.py
+
+# Via torchrun:
+torchrun --nproc-per-node=<N> utils/distributed_test.py
+```
+
+Main parameters:
+- `--n-warmup`: warmup iterations (default: 5).
+- `--n-iter`: timed iterations (default: 20).
+- `--batch-size`: micro batch size controlling activation/logits tensor sizes (default: 128).
+- `--seq-length`: sequence length controlling activation/logits tensor sizes (default: 4096).
+- `--dtype`: data type for gradients — `float32`, `bfloat16`, or `float16` (default: `bfloat16`).
 
 ### `env_doctor.sh`
 Diagnose GPU/CUDA/PyTorch environment issues using env-doctor.
