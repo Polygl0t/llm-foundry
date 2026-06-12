@@ -186,6 +186,24 @@ def main(args):
     model_revision = args.model_revision
     model_max_context = args.model_max_context
     system_prompt = args.system_prompt
+    system_prompt_file = args.system_prompt_file
+    prompt_template_file = args.prompt_template_file
+
+    # Read system prompt / prompt template from files if provided (safer than
+    # passing via shell, which can misinterpret backticks, $, (, ), etc.)
+    if system_prompt_file:
+        with open(system_prompt_file, encoding="utf-8") as f:
+            system_prompt = f.read().strip()
+            logger.info(
+                f"Loaded system prompt from {system_prompt_file} ({len(system_prompt)} chars)"
+            )
+    if prompt_template_file:
+        with open(prompt_template_file, encoding="utf-8") as f:
+            prompt_template = f.read().strip()
+            logger.info(
+                f"Loaded prompt template from {prompt_template_file} ({len(prompt_template)} chars)"
+            )
+
     trust_remote_code = args.trust_remote_code
     tp = args.tp
     pp = args.pp
@@ -419,7 +437,15 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model-max-context", type=int, default=32768, help="Maximum context length"
     )
-    parser.add_argument("--system-prompt", default=None, help="Optional system prompt")
+    parser.add_argument(
+        "--system-prompt", default=None, help="Optional system prompt (inline text)"
+    )
+    parser.add_argument(
+        "--system-prompt-file", default=None, help="Path to a file containing the system prompt"
+    )
+    parser.add_argument(
+        "--prompt-template-file", default=None, help="Path to a file containing the prompt template"
+    )
     parser.add_argument(
         "--trust-remote-code", action="store_true", help="Trust remote code in model repo"
     )
