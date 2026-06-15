@@ -250,9 +250,19 @@ def main(args):
     reader_limit = _compute_reader_limit(max_examples=max_examples, tasks=tasks)
 
     if input_format == "parquet":
-        reader = ParquetReader(data_folder=input_path, text_key=prompt_column, limit=reader_limit)
+        reader = ParquetReader(
+            data_folder=input_path,
+            text_key=prompt_column,
+            limit=reader_limit,
+            glob_pattern="*.parquet",
+        )
     elif input_format == "jsonl":
-        reader = JsonlReader(data_folder=input_path, text_key=prompt_column, limit=reader_limit)
+        reader = JsonlReader(
+            data_folder=input_path,
+            text_key=prompt_column,
+            limit=reader_limit,
+            glob_pattern="*.jsonl",
+        )
     else:
         raise ValueError(f"Unsupported input format: {input_format}. Use 'jsonl' or 'parquet'.")
 
