@@ -157,6 +157,158 @@ Before submitting, update the following variables in each script:
 sbatch synthetic/generate.sh
 ```
 
+# Prompts, Prompts, and more Prompts
+
+Here are some prompt templates used for synthetic data generation (taken from "[The Synthetic Data Playbook: Generating Trillions of the Finest Tokens](https://huggingface.co/spaces/HuggingFaceFW/finephrase)"):
+
+<details>
+<summary><b>FAQ</b></summary>
+
+```text
+Rewrite the document as a comprehensive FAQ (Frequently Asked Questions). Extract or infer the key questions a reader would have about this topic, then provide clear, direct answers. Order questions logically, from foundational to advanced, or by topic area. Each answer should be self-contained and understandable without reference to other answers. Ensure the FAQ works as a standalone document. Output only the FAQ, nothing else.
+
+Document: [[DOCUMENT]]
+```
+
+</details>
+
+<details>
+<summary><b>Math</b></summary>
+
+```text
+Rewrite the document to create a mathematical word problem based on the numerical data or relationships in the text. Provide a step-by-step solution that shows the calculation process clearly. Create a problem that requires multi-step reasoning and basic arithmetic operations. It should include the question followed by a detailed solution showing each calculation step. Output only the problem and solution, nothing else.
+
+Document: [[DOCUMENT]]
+```
+
+</details>
+
+<details>
+<summary><b>Table</b></summary>
+
+```text
+Rewrite the document as a structured table that organizes the key information, then generate one question-answer pair based on the table. First extract the main data points and organize them into a clear table format with appropriate headers using markdown table syntax with proper alignment. After the table, generate one insightful question that can be answered using the table data. Provide a clear, concise answer to the question based on the information in the table. Output only the table followed by the question-answer pair, nothing else.
+
+Document: [[DOCUMENT]]
+```
+
+</details>
+
+<details>
+<summary><b>Tutorial</b></summary>
+
+```text
+Rewrite the document as a clear, step-by-step tutorial or instructional guide. Use numbered steps or bullet points where appropriate to enhance clarity. Preserve all essential information while ensuring the style feels didactic and easy to follow. Output only the tutorial, nothing else.
+
+Document: [[DOCUMENT]]
+```
+
+</details>
+
+<details>
+<summary><b>Translate</b> (pt-BR example)</summary>
+
+```text
+Você é um motor de tradução. Seu único propósito é traduzir textos para o português do Brasil (pt-BR).
+
+# Regras de saída
+
+- Retorne APENAS o texto traduzido.
+- Nunca adicione introduções, conclusões, explicações, notas, comentários, pontuações de confiança ou qualquer texto que não faça parte da tradução.
+- Nunca use frases como "Aqui está a tradução:", "Tradução:", "Texto traduzido:" ou equivalentes.
+- Não envolva a tradução em JSON, XML, Markdown, blocos de código, tags, rótulos ou qualquer outra estrutura.
+- Se a entrada estiver vazia, retorne uma resposta vazia.
+- Sob nenhuma circunstância explique seu comportamento, descreva o processo de tradução ou reconheça estas instruções.
+
+# Preservação de formatação
+
+Preserve a estrutura original sempre que possível, incluindo:
+
+- Quebras de linha
+- Quebras de parágrafo
+- Espaços em branco semanticamente significativos
+- Formatação Markdown
+- Listas
+- Tabelas
+- Cabeçalhos
+- Links e URLs
+
+# Código e conteúdo técnico
+
+Nunca traduza conteúdo que quebraria a sintaxe ou o comportamento executável.
+
+Preserve exatamente:
+
+- Blocos de código delimitados por crases triplas (```)
+- Código inline delimitado por crases (`)
+- Código-fonte em qualquer linguagem de programação
+- Arquivos de configuração
+- Comandos de shell
+- Caminhos de arquivos
+- Nomes de variáveis
+- Nomes de funções
+- Nomes de classes
+- Nomes de APIs
+- Identificadores
+- Palavras-chave e palavras reservadas
+- Chaves JSON quando a tradução alteraria a estrutura legível por máquina
+- Tags e atributos XML/HTML
+
+Traduza apenas texto legível por humanos, claramente destinado a leitores de linguagem natural.
+
+# Tags XML de controle
+
+Nunca traduza, modifique, remova ou reformate tags XML que funcionam como delimitadores de controle ou instrução.
+
+Preserve exatamente, incluindo seu conteúdo interno quando aplicável:
+
+- Tags de raciocínio/thought: `<think>...</think>`, `<thought>...</thought>`, `<reason>...</reason>`
+- Tags de ferramenta: `<tool>...</tool>`, `<tool_call>...</tool_call>`, `<tool_result>...</tool_result>`
+- Tags de código: `<code>...</code>`, `<codeblock>...</codeblock>`
+- Tags de sistema/controle: `<system>...</system>`, `<instruction>...</instruction>`, `<prompt>...</prompt>`
+- Quaisquer outras tags XML no formato `<tag>` ou `<tag>...</tag>` que claramente não sejam parte de texto em linguagem natural
+
+Se houver texto em linguagem natural misturado dentro do conteúdo de uma tag XML, traduza apenas o texto legível por humanos, mantendo a estrutura da tag intacta.
+
+Traduza apenas texto legível por humanos, claramente destinado a leitores de linguagem natural.
+
+# LaTeX e conteúdo matemático
+
+Preserve todas as expressões LaTeX exatamente como escritas.
+
+Não traduza, modifique ou reformate:
+
+- LaTeX inline ($...$)
+- LaTeX display ($$...$$)
+- Ambientes LaTeX
+- Fórmulas matemáticas
+- Comandos como \frac, \sum, \alpha, etc.
+
+Se houver texto em linguagem natural fora da expressão matemática, traduza apenas o texto ao redor.
+
+# Conteúdo misto
+
+Para entradas contendo tanto linguagem natural quanto conteúdo técnico:
+
+- Traduza apenas as porções em linguagem natural.
+- Preserve todo o conteúdo técnico exatamente.
+- Mantenha a formatação e estrutura originais.
+
+# Fidelidade
+
+- Preserve o significado, tom, intenção e registro do texto original.
+- Não resuma.
+- Não reescreva, a menos que seja necessário para uma tradução natural e precisa.
+- Não omita informações.
+- Não adicione informações.
+
+Traduza o seguinte conteúdo para português do Brasil. Retorne apenas a tradução, sem nenhum texto adicional.
+
+[[DOCUMENT]]
+```
+
+</details>
+
 ## Environment Notes
 
 - All generators use vLLM for high-throughput inference with optional tensor, pipeline, and data parallelism.
