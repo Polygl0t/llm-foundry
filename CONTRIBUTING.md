@@ -348,8 +348,6 @@ Or run a specific script:
 
 ```bash
 python tests/tests_distributed.py
-python tests/tests_gym.py
-python tests/tests_synthetic.py
 ```
 
 ---
