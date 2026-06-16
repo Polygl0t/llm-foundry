@@ -88,7 +88,7 @@ install_core_packages() {
         sentencepiece==0.2.1 \
         accelerate==1.9.0 \
         codecarbon==3.0.6 \
-        wandb==0.21.0 \
+        wandb==0.27.2 \
         pyyaml==6.0.2 \
         liger-kernel==0.8.0 \
         kernels==0.13.0 \
