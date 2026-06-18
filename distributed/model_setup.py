@@ -227,15 +227,29 @@ def _build_model_from_config(
     )
 
 
+# Per-decoder-layer RMSNorms (siblings of the attention block) that we keep
+# trainable during context-extension fine-tuning. The norm immediately
+# preceding attention shapes the activation distribution that attention
+# sees; freezing it can become a bottleneck at large RoPE scale factors
+# (cf. LongRoPE, LLaMA-Pro). `post_attention_layernorm` is included for
+# symmetry — the parameter count is negligible (one weight vector per norm
+# per layer) and it keeps the residual-stream conditioning consistent.
+TRAINABLE_PER_LAYER_NORM_CHILDREN = ("input_layernorm", "post_attention_layernorm")
+
+
 def _freeze_non_attention_blocks(model, master_process, logger=None, file_logger=None):
     """
-    Freeze every parameter that does not live inside an attention block.
+    Freeze every parameter that does not live inside an attention block,
+    except for the per-decoder-layer RMSNorms adjacent to attention
+    (`input_layernorm`, `post_attention_layernorm`), which are kept
+    trainable.
 
     Used for context-extension fine-tuning: we only want to spend VRAM /
     optimizer state on the modules that actually need to adapt to the new
     sequence length (the attention blocks and, for Qwen3.5 hybrids, the
-    linear-attention `GatedDeltaNet` blocks). Embeddings, RMSNorms, MLPs /
-    MoE experts, and `lm_head` are all set to `requires_grad=False`.
+    linear-attention `GatedDeltaNet` blocks, plus the per-layer norms
+    feeding them). Embeddings, the final `model.norm`, MLPs / MoE experts,
+    and `lm_head` are all set to `requires_grad=False`.
 
     Returns the number of trainable / frozen parameters after the operation
     for logging convenience.
@@ -262,18 +276,42 @@ def _freeze_non_attention_blocks(model, master_process, logger=None, file_logger
             f"refusing to freeze the entire model."
         )
 
+    # Each attention block's immediate parent is its decoder layer. The
+    # per-layer norms (`input_layernorm`, `post_attention_layernorm`) are
+    # direct children of that decoder layer and should remain trainable.
+    # Top-level attention prefixes (no parent) — unusual, but possible —
+    # contribute nothing here and are simply skipped.
+    decoder_layer_prefixes = set()
+    for prefix in attention_prefixes:
+        parent_path, _, _ = prefix.rpartition(".")
+        if parent_path:
+            decoder_layer_prefixes.add(parent_path)
+
+    trainable_norm_prefixes = tuple(
+        f"{layer_prefix}.{norm_child}"
+        for layer_prefix in decoder_layer_prefixes
+        for norm_child in TRAINABLE_PER_LAYER_NORM_CHILDREN
+    )
+
     def _is_inside_attention(param_name: str) -> bool:
         return any(
             param_name.startswith(prefix + ".") or param_name == prefix
             for prefix in attention_prefixes
         )
 
+    def _is_per_layer_attention_norm(param_name: str) -> bool:
+        return any(
+            param_name.startswith(prefix + ".") or param_name == prefix
+            for prefix in trainable_norm_prefixes
+        )
+
     trainable_after = 0
     frozen_after = 0
     for param_name, parameter in model.named_parameters():
-        if _is_inside_attention(param_name):
-            # Leave attention params trainable (do not flip to True if the
-            # user already disabled them elsewhere).
+        if _is_inside_attention(param_name) or _is_per_layer_attention_norm(param_name):
+            # Leave attention params (and per-layer attention-adjacent norms)
+            # trainable. Do not flip to True if the user already disabled
+            # them elsewhere.
             if parameter.requires_grad:
                 trainable_after += parameter.numel()
             else:
@@ -286,8 +324,9 @@ def _freeze_non_attention_blocks(model, master_process, logger=None, file_logger
         master_process,
         logger,
         file_logger,
-        f"Context extension: froze non-attention parameters. "
-        f"Trainable (attention only): {trainable_after:,} | Frozen: {frozen_after:,}.",
+        f"Context extension: froze non-attention parameters "
+        f"(kept per-layer {'/'.join(TRAINABLE_PER_LAYER_NORM_CHILDREN)} trainable). "
+        f"Trainable: {trainable_after:,} | Frozen: {frozen_after:,}.",
     )
     return trainable_after, frozen_after
 
@@ -564,8 +603,9 @@ def _compute_active_trainable_params(config, trainable_params, non_attention_fro
     the MoE experts have already been frozen and are therefore excluded
     from `trainable_params` entirely. Subtracting inactive-expert params
     again would over-count (and could even go negative), so we short-circuit
-    and return `trainable_params` as-is — all remaining trainable params live
-    in dense attention blocks and are fully active per forward pass.
+    and return `trainable_params` as-is — all remaining trainable params
+    (dense attention blocks plus per-layer attention-adjacent norms) are
+    fully active per forward pass.
 
     - Note: Handles some naming conventions for MoE-related config fields,
             but you might need to adjust this function if your model uses

@@ -1201,6 +1201,7 @@ def _build_fake_llama_like_model(model_type="llama", with_attention=True):
                 self.self_attn = _DenseBlock()
             self.mlp = nn.Linear(8, 16)
             self.input_layernorm = nn.LayerNorm(8)
+            self.post_attention_layernorm = nn.LayerNorm(8)
 
     class _Inner(nn.Module):
         def __init__(self):
@@ -1220,18 +1221,36 @@ def _build_fake_llama_like_model(model_type="llama", with_attention=True):
 
 
 def test_freeze_non_attention_blocks_basic():
-    """Only parameters inside attention blocks remain trainable after freezing."""
+    """Attention blocks and per-layer norms (input_layernorm, post_attention_layernorm)
+    remain trainable; everything else (MLP, embeddings, final norm, lm_head) is frozen."""
     model = _build_fake_llama_like_model(model_type="llama", with_attention=True)
     trainable_after, frozen_after = _freeze_non_attention_blocks(model, master_process=True)
 
+    # Track which prefixes should stay trainable per-layer.
+    trainable_prefixes = ("self_attn", "input_layernorm", "post_attention_layernorm")
+
     for name, param in model.named_parameters():
-        if "self_attn" in name:
+        # Per-layer elements (attention + norms): must stay trainable.
+        if any(prefix in name for prefix in trainable_prefixes):
             assert param.requires_grad, f"{name} should stay trainable"
         else:
             assert not param.requires_grad, f"{name} should be frozen"
 
-    expected_trainable = sum(p.numel() for n, p in model.named_parameters() if "self_attn" in n)
-    expected_frozen = sum(p.numel() for n, p in model.named_parameters() if "self_attn" not in n)
+    # Top-level model.norm (outside any decoder layer) must be frozen.
+    for name, param in model.named_parameters():
+        if "model.norm" in name and "layers" not in name:
+            assert not param.requires_grad, f"{name} (final model.norm) should be frozen"
+
+    expected_trainable = sum(
+        p.numel()
+        for n, p in model.named_parameters()
+        if any(prefix in n for prefix in trainable_prefixes)
+    )
+    expected_frozen = sum(
+        p.numel()
+        for n, p in model.named_parameters()
+        if not any(prefix in n for prefix in trainable_prefixes)
+    )
     assert trainable_after == expected_trainable
     assert frozen_after == expected_frozen
 
