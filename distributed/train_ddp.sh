@@ -154,7 +154,7 @@ echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --ve
 # - https://slurm.schedmd.com/srun.html
 #############################################
 
-srun --cpu-bind=none python3 "$workdir/distributed/train_ddp.py" \
+srun --cpu-bind=none python3 "$workdir/llm-foundry/distributed/train_ddp.py" \
     --specs "$SPECS_FILE" \
     --slurm-job-id "$SLURM_JOB_ID" \
     --hardware "a100" 1>>"$out" 2>>"$err"
