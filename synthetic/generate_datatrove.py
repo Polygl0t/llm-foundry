@@ -297,8 +297,9 @@ def main(args):
         """Send a single request per document and return the result."""
 
         # Per-document system prompt override: if the document has a non-empty
-        # "system" metadata field, use it instead of the global --system-prompt.
-        doc_system = (document.metadata or {}).get("system", "").strip()
+        # "system" metadata field, we use it instead of the global --system-prompt.
+        doc_system = (document.metadata or {}).get("system") or ""
+        doc_system = doc_system.strip()
         effective_system_prompt = doc_system if doc_system else system_prompt
 
         messages = (
