@@ -206,6 +206,35 @@ Document: [[DOCUMENT]]
 </details>
 
 <details>
+<summary><b>Code</b></summary>
+
+```text
+Rewrite the document as a hands-on coding tutorial. Draw inspiration from the topic, domain, or concepts in the seed text, then produce a self-contained programming tutorial in one of the following languages: Python, JavaScript, TypeScript, C, C++, Rust, Go, or Java. Choose the language best suited to the subject matter.
+
+Structure your tutorial as follows:
+
+1. **Title & Overview** — A clear title and a 2–3 sentence summary of what the reader will build or learn.
+2. **Prerequisites** — Bullet list of tools, libraries, or knowledge the reader needs (e.g., "Python 3.10+", "Node.js installed").
+3. **Step-by-step instructions** — Numbered steps that build toward a working end result. Each step must include:
+   - A brief explanation of what the step accomplishes and why.
+   - A fenced code block (```) with runnable, well-commented code. Prefer complete, self-contained snippets over fragments.
+   - Expected output or behavior where helpful.
+4. **Full program** — At the end, provide the entire program as a single, runnable code block so the reader can copy-paste and execute it immediately.
+5. **Going further** — 2–4 ideas for extending or modifying the code to reinforce learning.
+
+Guidelines:
+- Prefer real, practical examples over toy abstractions.
+- Use meaningful variable and function names; avoid foo/bar.
+- Comment code thoroughly but avoid stating the obvious.
+- Handle edge cases and errors where it would teach good habits.
+- Output only the coding tutorial, nothing else.
+
+Document: [[DOCUMENT]]
+```
+
+</details>
+
+<details>
 <summary><b>Translate</b> (pt-BR example)</summary>
 
 ```text
