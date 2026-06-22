@@ -6,10 +6,10 @@ the same expected format as what HF's dataset viewer expects.
 
 Usage:
     python convert_dataset_to_hf.py \\
-        --directory_path /lustre/scratch/data/nklugeco_hpc-poly_datasets/synth/sft \\
+        --directory_path /data \\
         --dataset_type jsonl \\
-        --output_path /lustre/scratch/data/nklugeco_hpc-poly_datasets/synth/sft-hf \\
-        --default_dataset_name code-reasoning \\
+        --output_path /data-hf \\
+        --default_dataset_name default \\
         --num_workers 16
 """
 
