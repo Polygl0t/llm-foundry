@@ -6,14 +6,15 @@ the same expected format as what HF's dataset viewer expects.
 
 Usage:
     python convert_dataset_to_hf.py \\
-        --directory_path ./raw_data \\
+        --directory_path /lustre/scratch/data/nklugeco_hpc-poly_datasets/synth/sft \\
         --dataset_type jsonl \\
-        --output_path ./processed_data \\
-        --default_dataset_name default \\
+        --output_path /lustre/scratch/data/nklugeco_hpc-poly_datasets/synth/sft-hf \\
+        --default_dataset_name code-reasoning \\
         --num_workers 16
 """
 
 import argparse
+import fnmatch
 import glob
 import os
 import time
@@ -167,12 +168,27 @@ def process_folder(
     output_path,
     dataset_type,
     cache_dir,
+    relative_path=None,
     max_chunk_size_gb=5.0,
     compression_ratio=0.25,
 ):
-    """Process a single folder containing data files, one file at a time."""
+    """Process a single folder containing data files, one file at a time.
+
+    Args:
+        folder_name: Config name (e.g., 'code-reasoning')
+        folder_path: Absolute path to the source data folder
+        output_path: Root output directory
+        dataset_type: 'jsonl' or 'parquet'
+        cache_dir: Cache directory for datasets
+        relative_path: Relative path from source root (e.g., 'code/reasoning').
+            Used to nest output files. If None, output goes to output_path/folder_name/.
+        max_chunk_size_gb: Max output file size in GB
+        compression_ratio: Expected JSONL to Parquet compression ratio
+    """
     print(f"\n{'=' * 60}")
     print(f"Processing folder: {folder_name}")
+    if relative_path:
+        print(f"  Relative path: {relative_path}")
     print(f"{'=' * 60}")
 
     # Find all data files
@@ -186,8 +202,11 @@ def process_folder(
     print(f"Found {len(data_files)} {dataset_type.upper()} files")
     print(f"Max output file size: {max_chunk_size_gb:.1f} GB")
 
-    # Create output directory
-    output_dir = os.path.join(output_path, folder_name)
+    # Create output directory (use relative_path if provided for nested structure)
+    if relative_path:
+        output_dir = os.path.join(output_path, relative_path)
+    else:
+        output_dir = os.path.join(output_path, folder_name)
     os.makedirs(output_dir, exist_ok=True)
 
     # Process files sequentially (one at a time to control memory)
@@ -264,6 +283,7 @@ def process_folder(
 
     return {
         "folder_name": folder_name,
+        "relative_path": relative_path or folder_name,
         "num_files": total_output_files,
         "num_rows": total_rows,
         "size_bytes": total_size,
@@ -308,10 +328,11 @@ def generate_yaml_config(folder_stats, output_path, default_dataset_name):
         if stats is None:
             continue
         folder_name = stats["folder_name"]
+        relative_path = stats.get("relative_path", folder_name)
         yaml_config += f"- config_name: {folder_name}\n"
         if folder_name == default_dataset_name:
             yaml_config += "  default: true\n"
-        yaml_config += f"  data_files:\n  - split: train\n    path: {folder_name}/train-*\n"
+        yaml_config += f"  data_files:\n  - split: train\n    path: {relative_path}/train-*\n"
 
     yaml_config += "---\n\n# Dataset Card\n\n"
 
@@ -364,37 +385,65 @@ def main(args):
     # Create output directory
     os.makedirs(args.output_path, exist_ok=True)
 
-    # Find all folders to process (skip files, symlinks, and the output directory)
+    # Recursively find leaf folders that contain data files.
+    # A leaf folder is one that directly contains at least one matching data file.
+    # Config names are derived from the relative path (e.g., 'code/reasoning' -> 'code-reasoning').
     output_realpath = os.path.realpath(args.output_path)
-    folder_names = sorted(os.listdir(args.directory_path))
-    folder_paths = [os.path.join(args.directory_path, name) for name in folder_names]
-    folder_paths = [
-        (name, path)
-        for name, path in zip(folder_names, folder_paths, strict=False)
-        if os.path.isdir(path)
-        and not os.path.islink(path)
-        and os.path.realpath(path) != output_realpath
-    ]
+    pattern = f"*.{args.dataset_type}"
 
-    print(f"Found {len(folder_paths)} folders to process")
-    for name, _path in folder_paths:
-        print(f"  - {name}")
+    # Walk the directory tree and find leaf folders
+    leaf_folders = []  # list of (config_name, folder_path, relative_path)
+    for root, dirs, files in os.walk(args.directory_path):
+        # Skip the output directory if it's inside the source tree
+        if os.path.realpath(root) == output_realpath:
+            dirs[:] = []  # don't recurse into output dir
+            continue
 
-    # Process each folder
+        # Check if this directory has matching data files
+        matching_files = fnmatch.filter(files, pattern)
+        if not matching_files:
+            continue
+
+        # Compute relative path from the source directory
+        rel = os.path.relpath(root, args.directory_path)
+        if rel == ".":
+            # Files directly in the root directory
+            config_name = args.default_dataset_name
+            relative_path = "."
+        else:
+            # Derive config name: replace / with - for flat naming
+            config_name = rel.replace("/", "-")
+            relative_path = rel
+
+        leaf_folders.append((config_name, root, relative_path))
+
+    # Sort by config name for deterministic processing order
+    leaf_folders.sort(key=lambda x: x[0])
+
+    if not leaf_folders:
+        print(f"No leaf folders with {args.dataset_type} files found in {args.directory_path}")
+        return
+
+    print(f"Found {len(leaf_folders)} leaf folders to process")
+    for config_name, _, relative_path in leaf_folders:
+        print(f"  - {config_name} ({relative_path})")
+
+    # Process each leaf folder
     all_stats = []
-    for folder_name, folder_path in folder_paths:
+    for config_name, folder_path, relative_path in leaf_folders:
         stats = process_folder(
-            folder_name=folder_name,
+            folder_name=config_name,
             folder_path=folder_path,
             output_path=args.output_path,
             dataset_type=args.dataset_type,
             cache_dir=args.cache_dir,
+            relative_path=relative_path,
             max_chunk_size_gb=args.max_chunk_size_gb,
             compression_ratio=args.compression_ratio,
         )
         all_stats.append(stats)
 
-    # Generate YAML config from collected stats (no second pass needed!)
+    # Generate YAML config from collected stats.
     generate_yaml_config(all_stats, args.output_path, args.default_dataset_name)
 
     elapsed = time.time() - start_time
