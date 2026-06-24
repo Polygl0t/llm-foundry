@@ -32,6 +32,9 @@ import glob
 import os
 import numpy as np
 from langdetect import detect, LangDetectException
+from utils import get_logger
+
+logger = get_logger("Pack")
 
 # TODO: We should stop using print statements and instead use a proper logger.
 # See `data/tokenization/utils.py` for an example of how to set up logging.
@@ -71,12 +74,12 @@ def create_language_filter(languages):
         if lang.lower() in LANGUAGE_CODES:
             target_codes.add(LANGUAGE_CODES[lang.lower()])
         else:
-            print(f"[WARNING] Unknown language '{lang}', skipping...")
+            logger.warning(f"Unknown language '{lang}', skipping...")
     
     if not target_codes:
         raise ValueError(f"No valid languages specified. Available languages: {list(LANGUAGE_CODES.keys())}")
     
-    print(f"[INFO] Target language codes: {sorted(target_codes)}")
+    logger.info(f"Target language codes: {sorted(target_codes)}")
     
     def filter_language(text):
         """Check if text is in one of the target languages."""
@@ -166,8 +169,8 @@ def main(args):
         cache_dir=args.cache_dir,
         num_proc=len(data_files),
     )
-    print(f"[INFO] Loaded dataset with {len(dataset):,} examples from {args.input_type.upper()} files.")
-    print(f"[INFO] Columns: {dataset.column_names}")
+    logger.info(f"Loaded dataset with {len(dataset):,} examples from {args.input_type.upper()} files.")
+    logger.info(f"Columns: {dataset.column_names}")
     
     # Verify text column exists
     if args.text_column not in dataset.column_names:
@@ -176,20 +179,20 @@ def main(args):
     # Check if the column is a messages column
     is_messages = is_messages_column(dataset, args.text_column)
     if is_messages:
-        print(f"[INFO] Detected messages format in column '{args.text_column}'")
-        print("[INFO] Messages will be flattened before filtering")
+        logger.info(f"Detected messages format in column '{args.text_column}'")
+        logger.info("Messages will be flattened before filtering")
     
     # Calculate initial token count if column exists
     original_count = len(dataset)
     if 'token_count' in dataset.column_names:
         original_tokens = sum(dataset['token_count'])
-        print(f"[INFO] Original tokens: {original_tokens:,}")
+        logger.info(f"Original tokens: {original_tokens:,}")
     
     # Filter out non-matching language samples
     if args.save_excluded:
-        print(f"\n[INFO] Saving EXCLUDED samples (those NOT matching: {', '.join(args.languages)})")
+        logger.info(f"\nSaving EXCLUDED samples (those NOT matching: {', '.join(args.languages)})")
     else:
-        print(f"\n[INFO] Filtering samples using langdetect for: {', '.join(args.languages)}")
+        logger.info(f"\nFiltering samples using langdetect for: {', '.join(args.languages)}")
     language_filter = create_language_filter(args.languages)
     
     # Create a modified filter that works with the specified text column
@@ -217,25 +220,25 @@ def main(args):
     removed_count = original_count - filtered_count
     removed_percentage = (removed_count / original_count * 100) if original_count > 0 else 0
     
-    print(f"\n[INFO] ===== FILTERING RESULTS =====")
-    print(f"[INFO] Original samples: {original_count:,}")
+    logger.info(f"\n===== FILTERING RESULTS =====")
+    logger.info(f"Original samples: {original_count:,}")
     if args.save_excluded:
-        print(f"[INFO] Excluded samples (saved): {filtered_count:,}")
-        print(f"[INFO] Matching samples (not saved): {removed_count:,} ({removed_percentage:.2f}%)")
+        logger.info(f"Excluded samples (saved): {filtered_count:,}")
+        logger.info(f"Matching samples (not saved): {removed_count:,} ({removed_percentage:.2f}%)")
     else:
-        print(f"[INFO] Filtered samples: {filtered_count:,}")
-        print(f"[INFO] Removed samples: {removed_count:,} ({removed_percentage:.2f}%)")
+        logger.info(f"Filtered samples: {filtered_count:,}")
+        logger.info(f"Removed samples: {removed_count:,} ({removed_percentage:.2f}%)")
     
     if 'token_count' in filtered_dataset.column_names:
         filtered_tokens = sum(filtered_dataset['token_count'])
         removed_tokens = original_tokens - filtered_tokens
         removed_tokens_percentage = (removed_tokens / original_tokens * 100) if original_tokens > 0 else 0
-        print(f"[INFO] Original tokens: {original_tokens:,}")
-        print(f"[INFO] Filtered tokens: {filtered_tokens:,}")
-        print(f"[INFO] Removed tokens: {removed_tokens:,} ({removed_tokens_percentage:.2f}%)")
+        logger.info(f"Original tokens: {original_tokens:,}")
+        logger.info(f"Filtered tokens: {filtered_tokens:,}")
+        logger.info(f"Removed tokens: {removed_tokens:,} ({removed_tokens_percentage:.2f}%)")
     
     if filtered_count == 0:
-        print("[WARNING] No samples remaining after filtering. Not saving dataset.")
+        logger.warning("No samples remaining after filtering. Not saving dataset.")
         return
     
     # Create output directory
@@ -247,7 +250,7 @@ def main(args):
     
     # Determine number of chunks (equal to number of input files)
     n_chunks = len(data_files)
-    print(f"\n[INFO] Splitting dataset into {n_chunks} chunks (matching input file count)")
+    logger.info(f"\n Splitting dataset into {n_chunks} chunks (matching input file count)")
     
     # Split dataset into chunks
     indices = np.array_split(np.arange(filtered_count), n_chunks)
@@ -262,7 +265,7 @@ def main(args):
     for i, chunk in enumerate(chunks):
         filename = f"{args.output_dir}/train-{i:05d}-of-{n_chunks:05d}.{extension}"
         save_fn(chunk, filename)
-        print(f"[INFO] Saved chunk {i+1}/{n_chunks} with {len(chunk):,} examples to {filename}")
+        logger.info(f"Saved chunk {i+1}/{n_chunks} with {len(chunk):,} examples to {filename}")
     
     # Save metadata
     with open(f"{args.output_dir}/.metadata", "w") as meta_file:
@@ -272,8 +275,8 @@ def main(args):
         meta_file.write(f"Chunks: {n_chunks}\n")
         meta_file.write(f"Columns: {filtered_dataset.column_names}\n")
     
-    print("\n[INFO] Metadata saved to .metadata file")
-    print("\n[INFO] Language filtering complete!")
+    logger.info("\n Metadata saved to .metadata file")
+    logger.info("\n Language filtering complete!")
 
 
 if __name__ == "__main__":
@@ -295,6 +298,6 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    print(f"Filtering dataset for {', '.join(args.languages)} text using langdetect...")
+    logger.info(f"Filtering dataset for {', '.join(args.languages)} text using langdetect...")
     main(args)
-    print("Done! 🎆")
+    logger.info("Done! 🎆")
