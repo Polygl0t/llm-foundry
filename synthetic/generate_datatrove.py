@@ -357,7 +357,7 @@ def main(args):
 
     model_kwargs = {
         "revision": model_revision,
-        "dtype": "bfloat16",
+        "dtype": "float16" if "awq" in model_name_or_path.lower() else "bfloat16",
         "max_num_seqs": max_num_seqs,
         "max_num_batched_tokens": max_num_batched_tokens,
         "block-size": block_size,

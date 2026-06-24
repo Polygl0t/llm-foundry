@@ -175,7 +175,7 @@ def load_model_and_tokenizer(
     # See https://docs.vllm.ai/en/latest/api/vllm/#vllm.LLM
     model = LLM(
         model=model_name_or_path,
-        dtype=torch.float16 if "AWQ" in model_name_or_path else torch.bfloat16,
+        dtype=torch.float16 if "awq" in model_name_or_path.lower() else torch.bfloat16,
         download_dir=cache_dir,
         tensor_parallel_size=tensor_parallel_size,
         gpu_memory_utilization=gpu_memory_utilization,
