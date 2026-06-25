@@ -165,9 +165,11 @@ Here are some prompt templates used for synthetic data generation (taken from "[
 <summary><b>FAQ</b></summary>
 
 ```text
-Rewrite the document as a comprehensive FAQ (Frequently Asked Questions). Extract or infer the key questions a reader would have about this topic, then provide clear, direct answers. Order questions logically, from foundational to advanced, or by topic area. Each answer should be self-contained and understandable without reference to other answers. Ensure the FAQ works as a standalone document. Output only the FAQ, nothing else.
+Rewrite the document as a comprehensive FAQ (Frequently Asked Questions). Extract or infer the main questions a reader would have about this topic and provide clear, direct answers. Organize the questions logically, from fundamental to advanced, or by subject area. Each answer should be self-contained and understandable without reference to other answers. Ensure the FAQ works as a standalone document. **Avoid repetition:** each question must be distinct in content and structure — do not repeat the same wording or question pattern. Cover varied aspects of the topic. AVOID generic or repetitive FAQs. Output only the FAQ, nothing more.
 
-Document: [[DOCUMENT]]
+Document:
+
+[[DOCUMENT]]
 ```
 
 </details>
@@ -176,9 +178,11 @@ Document: [[DOCUMENT]]
 <summary><b>Math</b></summary>
 
 ```text
-Rewrite the document to create a mathematical word problem based on the numerical data or relationships in the text. Provide a step-by-step solution that shows the calculation process clearly. Create a problem that requires multi-step reasoning and basic arithmetic operations. It should include the question followed by a detailed solution showing each calculation step. Output only the problem and solution, nothing else.
+Rewrite the document to create a math word problem based on the numerical data or relationships present in the text. Provide a step-by-step solution that clearly shows the calculation process. Create a problem that requires multi-step reasoning and basic arithmetic operations. AVOID generic or repetitive problems. The problem must include the question followed by a detailed solution showing each step of the calculation. Output only the problem and solution, nothing more.
 
-Document: [[DOCUMENT]]
+Document:
+
+[[DOCUMENT]]
 ```
 
 </details>
@@ -187,9 +191,11 @@ Document: [[DOCUMENT]]
 <summary><b>Table</b></summary>
 
 ```text
-Rewrite the document as a structured table that organizes the key information, then generate one question-answer pair based on the table. First extract the main data points and organize them into a clear table format with appropriate headers using markdown table syntax with proper alignment. After the table, generate one insightful question that can be answered using the table data. Provide a clear, concise answer to the question based on the information in the table. Output only the table followed by the question-answer pair, nothing else.
+Rewrite the document as a structured table that organizes the main information, then generate a question-and-answer pair based on the table. First, extract the key data points and organize them in a clear table format with appropriate headers, using Markdown table syntax with proper alignment. After the table, generate an insightful question that can be answered using the table data. Provide a clear and concise answer to the question based on the table information. AVOID repetitive patterns. Output only the table followed by the question-answer pair, nothing more.
 
-Document: [[DOCUMENT]]
+Document:
+
+[[DOCUMENT]]
 ```
 
 </details>
@@ -198,7 +204,7 @@ Document: [[DOCUMENT]]
 <summary><b>Tutorial</b></summary>
 
 ```text
-Rewrite the document as a clear, step-by-step tutorial or instructional guide. Use numbered steps or bullet points where appropriate to enhance clarity. Preserve all essential information while ensuring the style feels didactic and easy to follow. Output only the tutorial, nothing else.
+Rewrite the document as a clear step-by-step tutorial or instructional guide. Use numbered steps or bullet points when appropriate to improve clarity. Preserve all essential information, ensuring the style is didactic and easy to follow. AVOID generic or repetitive tutorials. Output only the tutorial, nothing more.
 
 Document: [[DOCUMENT]]
 ```
@@ -227,6 +233,7 @@ Guidelines:
 - Use meaningful variable and function names; avoid foo/bar.
 - Comment code thoroughly but avoid stating the obvious.
 - Handle edge cases and errors where it would teach good habits.
+- AVOID generic or repetitive tutorials. Focus on the unique aspects of the topic.
 - Output only the coding tutorial, nothing else.
 
 Document: [[DOCUMENT]]
