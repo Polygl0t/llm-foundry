@@ -39,6 +39,8 @@ logger = get_logger("Pack")
 # TODO: We should stop using print statements and instead use a proper logger.
 # See `data/tokenization/utils.py` for an example of how to set up logging.
 
+#All print functions replaced with logger.info or logger.warning
+
 # Language code mapping (langdetect uses ISO 639-1 codes)
 LANGUAGE_CODES = {
     'english': 'en',
