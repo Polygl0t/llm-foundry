@@ -1,6 +1,7 @@
 """Run all test scripts in the tests/ folder."""
-import os
+
 import glob
+import os
 import subprocess
 import sys
 import tempfile
@@ -16,15 +17,15 @@ env["PYTHONPYCACHEPREFIX"] = os.path.join(tempfile.gettempdir(), "pycache")
 failed = []
 for script in SCRIPTS:
     path = TESTS_DIR / script
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Running {script}")
-    print('='*60)
+    print("=" * 60)
     result = subprocess.run([sys.executable, str(path)], env=env)
     if result.returncode != 0:
         print(f"\n[FAILED] {script} exited with code {result.returncode}", file=sys.stderr)
         failed.append(script)
 
-print(f"\n{'='*60}")
+print(f"\n{'=' * 60}")
 if failed:
     print(f"FAILED: {', '.join(failed)}")
     sys.exit(1)

@@ -36,7 +36,7 @@ mixed_precision: bf16               # Mixed precision training mode
                                     # Options: "no" (fp32), "fp16", "bf16" (recommended for A100/H100)
                                     # bf16 provides better numerical stability than fp16
                                     # Reduces memory usage and speeds up training
-downcast_bf16: 'no'                 # Whether when using bf16 precision on TPUs if both float and double 
+downcast_bf16: 'no'                 # Whether when using bf16 precision on TPUs if both float and double
                                     # tensors are cast to bfloat16 or if double tensors remain as float32.
 
 # TPU Configuration

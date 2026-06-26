@@ -40,11 +40,11 @@
     {%- else %}
         {%- set content = '' %}
     {%- endif %}
-    
+
     {#- Handle user messages and non-first system messages #}
     {%- if (message.role == "user") or (message.role == "system" and not loop.first) %}
         {{- '<|im_start|>' + message.role + '\n' + content + '<|im_end|>' + '\n' }}
-    
+
     {#- Handle assistant messages with optional reasoning #}
     {%- elif message.role == "assistant" %}
         {#- Extract reasoning content if present #}
@@ -71,7 +71,7 @@
         {%- else %}
             {{- content }}
         {%- endif %}
-        
+
         {#- Add tool calls if present #}
         {%- if message.tool_calls %}
             {%- for tool_call in message.tool_calls %}
@@ -95,7 +95,7 @@
         {%- endif %}
         {{- '<|im_end|>' }}
         {% endgeneration %}
-    
+
     {#- Handle tool response messages #}
     {%- elif message.role == "tool" %}
         {#- Group consecutive tool responses under one user message #}

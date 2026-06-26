@@ -11,13 +11,31 @@ Provides:
     - `get_full_model_state_dict()` utility to gather the full model state dict for checkpointing.
     - `get_full_optimizer_state_dict()` utility to gather the full optimizer state dict for checkpointing.
 """
-from dataclasses import dataclass
-from typing import Any, Optional
+
 import importlib
 import os
+from dataclasses import dataclass
+from typing import Any
 
 import torch
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+
+# Attention (and attention-like) module class names per supported model family.
+# Anything listed here is treated as an "attention block" whose parameters
+# remain trainable during context-extension fine-tuning, while everything else
+# (embeddings, norms, MLPs / MoE experts, lm_head) is frozen.
+#
+# Qwen3.5 hybrids list both the regular attention AND the linear-attention
+# variant (GatedDeltaNet), because both implement positional / sequence mixing
+# and should be trained when extending the context window.
+ATTENTION_CLASS_NAMES = {
+    "llama": {"LlamaAttention"},
+    "qwen2": {"Qwen2Attention"},
+    "qwen3": {"Qwen3Attention"},
+    "qwen3_moe": {"Qwen3MoeAttention"},
+    "qwen3_5_text": {"Qwen3_5Attention", "Qwen3_5GatedDeltaNet"},
+    "qwen3_5_moe_text": {"Qwen3_5MoeAttention", "Qwen3_5MoeGatedDeltaNet"},
+}
 
 
 @dataclass
@@ -28,9 +46,10 @@ class ModelInitializationResult:
     tokenizer: Any
     model: torch.nn.Module
     precision: torch.dtype
-    checkpoint_path: Optional[str]
+    checkpoint_path: str | None
     trainable_params: int
     active_trainable_params: int
+    non_attention_frozen: bool = False
 
 
 def _log_message(master_process, logger, file_logger, message):
@@ -47,7 +66,7 @@ def _log_message(master_process, logger, file_logger, message):
 def _resolve_checkpoint_path(resume_from_checkpoint):
     """
     Determine the correct checkpoint path to resume from, if any.
-    We always want to resume from the latest checkpoint in the specified directory, 
+    We always want to resume from the latest checkpoint in the specified directory,
     but we also want to allow users to specify a specific checkpoint path if they choose to.
     """
     if not resume_from_checkpoint:
@@ -98,13 +117,21 @@ def _create_tokenizer(args, master_process, logger=None, file_logger=None):
             args.base_model,
             **tokenizer_kwargs,
         )
+    elif not args.continual_pretraining:
+        _log_message(
+            master_process,
+            logger,
+            file_logger,
+            "No tokenizer specified. Continuing without a tokenizer because training is configured from scratch.",
+        )
+        tokenizer = None
     else:
         raise ValueError(
-            "Either `tokenizer_name_or_path` or `base_model` must be set to load a tokenizer."
+            "Either `tokenizer_name_or_path` or `base_model` must be set to load a tokenizer for continual pretraining."
         )
 
-    if args.chat_template_path is not None:
-        with open(args.chat_template_path, "r") as handle:
+    if tokenizer is not None and args.chat_template_path is not None:
+        with open(args.chat_template_path) as handle:
             tokenizer.chat_template = handle.read()
         _log_message(
             master_process,
@@ -112,11 +139,20 @@ def _create_tokenizer(args, master_process, logger=None, file_logger=None):
             file_logger,
             f"Loaded chat template from {args.chat_template_path}. Chat template added to the tokenizer.",
         )
+    elif tokenizer is None and args.chat_template_path is not None:
+        _log_message(
+            master_process,
+            logger,
+            file_logger,
+            f"WARNING: chat_template_path={args.chat_template_path} was provided but no tokenizer was loaded. Skipping chat template setup.",
+        )
 
     return tokenizer
 
 
-def _build_model_from_config(args, tokenizer, precision, master_process, distributed_config=None, use_kernels=False):
+def _build_model_from_config(
+    args, tokenizer, precision, master_process, distributed_config=None, use_kernels=False
+):
     """
     Build and return a model with random weights from a Hugging Face config file.
 
@@ -138,12 +174,17 @@ def _build_model_from_config(args, tokenizer, precision, master_process, distrib
 
     runtime_kwargs = {
         "token": args.hub_token,
-        "bos_token_id": tokenizer.bos_token_id,
-        "eos_token_id": tokenizer.eos_token_id,
-        "pad_token_id": tokenizer.pad_token_id,
-        "unk_token_id": tokenizer.unk_token_id,
         "dtype": precision,
     }
+    if tokenizer is not None:
+        runtime_kwargs.update(
+            {
+                "bos_token_id": tokenizer.bos_token_id,
+                "eos_token_id": tokenizer.eos_token_id,
+                "pad_token_id": tokenizer.pad_token_id,
+                "unk_token_id": tokenizer.unk_token_id,
+            }
+        )
 
     config = AutoConfig.from_pretrained(
         pretrained_model_name_or_path=args.path_to_model_config,
@@ -151,8 +192,9 @@ def _build_model_from_config(args, tokenizer, precision, master_process, distrib
         **runtime_kwargs,
     )
 
-    # Ensure vocab_size is at least as large as the tokenizer
-    config.vocab_size = max(config.vocab_size, len(tokenizer))
+    # When a tokenizer is available, keep the config large enough to host it.
+    if tokenizer is not None:
+        config.vocab_size = max(config.vocab_size, len(tokenizer))
 
     # Bootstrap checkpoint path. Leading `.` keeps it invisible to the resume logic
     # in `_resolve_checkpoint_path` (which filters dirs by `startswith("step_")`).
@@ -185,9 +227,128 @@ def _build_model_from_config(args, tokenizer, precision, master_process, distrib
     )
 
 
-def _load_model(args, tokenizer, precision, master_process, logger=None, file_logger=None, distributed_config=None, use_kernels=False):
+# Per-decoder-layer RMSNorms (siblings of the attention block) that we keep
+# trainable during context-extension fine-tuning. The norm immediately
+# preceding attention shapes the activation distribution that attention
+# sees; freezing it can become a bottleneck at large RoPE scale factors
+# (cf. LongRoPE, LLaMA-Pro). `post_attention_layernorm` is included for
+# symmetry — the parameter count is negligible (one weight vector per norm
+# per layer) and it keeps the residual-stream conditioning consistent.
+TRAINABLE_PER_LAYER_NORM_CHILDREN = ("input_layernorm", "post_attention_layernorm")
+
+
+def _freeze_non_attention_blocks(model, master_process, logger=None, file_logger=None):
+    """
+    Freeze every parameter that does not live inside an attention block,
+    except for the per-decoder-layer RMSNorms adjacent to attention
+    (`input_layernorm`, `post_attention_layernorm`), which are kept
+    trainable.
+
+    Used for context-extension fine-tuning: we only want to spend VRAM /
+    optimizer state on the modules that actually need to adapt to the new
+    sequence length (the attention blocks and, for Qwen3.5 hybrids, the
+    linear-attention `GatedDeltaNet` blocks, plus the per-layer norms
+    feeding them). Embeddings, the final `model.norm`, MLPs / MoE experts,
+    and `lm_head` are all set to `requires_grad=False`.
+
+    Returns the number of trainable / frozen parameters after the operation
+    for logging convenience.
+    """
+    model_type = str(getattr(model.config, "model_type", "") or "")
+    attention_class_names = ATTENTION_CLASS_NAMES.get(model_type)
+    if attention_class_names is None:
+        raise ValueError(
+            f"Cannot freeze non-attention blocks: unsupported model_type={model_type!r}. "
+            f"Expected one of {sorted(ATTENTION_CLASS_NAMES)}. Add the model's attention "
+            f"class name(s) to `ATTENTION_CLASS_NAMES` to support context-extension freezing."
+        )
+
+    # Collect module-name prefixes of attention blocks; anything that matches
+    # one of these prefixes (or is nested under one) stays trainable.
+    attention_prefixes = set()
+    for module_name, module in model.named_modules():
+        if type(module).__name__ in attention_class_names:
+            attention_prefixes.add(module_name)
+
+    if not attention_prefixes:
+        raise ValueError(
+            f"Could not find any attention blocks for model_type={model_type!r}; "
+            f"refusing to freeze the entire model."
+        )
+
+    # Each attention block's immediate parent is its decoder layer. The
+    # per-layer norms (`input_layernorm`, `post_attention_layernorm`) are
+    # direct children of that decoder layer and should remain trainable.
+    # Top-level attention prefixes (no parent) — unusual, but possible —
+    # contribute nothing here and are simply skipped.
+    decoder_layer_prefixes = set()
+    for prefix in attention_prefixes:
+        parent_path, _, _ = prefix.rpartition(".")
+        if parent_path:
+            decoder_layer_prefixes.add(parent_path)
+
+    trainable_norm_prefixes = tuple(
+        f"{layer_prefix}.{norm_child}"
+        for layer_prefix in decoder_layer_prefixes
+        for norm_child in TRAINABLE_PER_LAYER_NORM_CHILDREN
+    )
+
+    def _is_inside_attention(param_name: str) -> bool:
+        return any(
+            param_name.startswith(prefix + ".") or param_name == prefix
+            for prefix in attention_prefixes
+        )
+
+    def _is_per_layer_attention_norm(param_name: str) -> bool:
+        return any(
+            param_name.startswith(prefix + ".") or param_name == prefix
+            for prefix in trainable_norm_prefixes
+        )
+
+    trainable_after = 0
+    frozen_after = 0
+    for param_name, parameter in model.named_parameters():
+        if _is_inside_attention(param_name) or _is_per_layer_attention_norm(param_name):
+            # Leave attention params (and per-layer attention-adjacent norms)
+            # trainable. Do not flip to True if the user already disabled
+            # them elsewhere.
+            if parameter.requires_grad:
+                trainable_after += parameter.numel()
+            else:
+                frozen_after += parameter.numel()
+        else:
+            parameter.requires_grad = False
+            frozen_after += parameter.numel()
+
+    _log_message(
+        master_process,
+        logger,
+        file_logger,
+        f"Context extension: froze non-attention parameters "
+        f"(kept per-layer {'/'.join(TRAINABLE_PER_LAYER_NORM_CHILDREN)} trainable). "
+        f"Trainable: {trainable_after:,} | Frozen: {frozen_after:,}.",
+    )
+    return trainable_after, frozen_after
+
+
+def _load_model(
+    args,
+    tokenizer,
+    precision,
+    master_process,
+    logger=None,
+    file_logger=None,
+    distributed_config=None,
+    use_kernels=False,
+):
     """
     Load a model from a checkpoint or initialize a new model based on the provided arguments.
+
+    Returns a 3-tuple `(model, checkpoint_path, non_attention_frozen)`. The
+    `non_attention_frozen` flag is True when `_freeze_non_attention_blocks`
+    was applied (only happens during continual pretraining with context
+    extension); downstream code uses it to skip the MoE active-params
+    adjustment, since all remaining trainable params are dense attention.
     """
     checkpoint_path = _resolve_checkpoint_path(args.resume_from_checkpoint)
 
@@ -197,7 +358,9 @@ def _load_model(args, tokenizer, precision, master_process, logger=None, file_lo
             dtype=precision,
             attn_implementation=args.attn_implementation,
             cache_dir=args.cache_dir,
-            **({"distributed_config": distributed_config} if distributed_config is not None else {}),
+            **(
+                {"distributed_config": distributed_config} if distributed_config is not None else {}
+            ),
             **({"use_kernels": True} if use_kernels else {}),
         )
         _log_message(
@@ -206,14 +369,22 @@ def _load_model(args, tokenizer, precision, master_process, logger=None, file_lo
             file_logger,
             f"Resumed model from checkpoint: {checkpoint_path}",
         )
-        return model, checkpoint_path
+        return model, checkpoint_path, False
 
     if not args.continual_pretraining:
         _log_message(master_process, logger, file_logger, "Initializing model from `AutoConfig`.")
-        return _build_model_from_config(
-            args, tokenizer, precision, master_process,
-            distributed_config=distributed_config, use_kernels=use_kernels,
-        ), None
+        return (
+            _build_model_from_config(
+                args,
+                tokenizer,
+                precision,
+                master_process,
+                distributed_config=distributed_config,
+                use_kernels=use_kernels,
+            ),
+            None,
+            False,
+        )
 
     _log_message(
         master_process,
@@ -237,18 +408,23 @@ def _load_model(args, tokenizer, precision, master_process, logger=None, file_lo
         if args.new_max_position_embeddings is not None:
             config.max_position_embeddings = args.new_max_position_embeddings
         elif args.rope_scale_factor is not None:
-            config.max_position_embeddings = int(config.max_position_embeddings * args.rope_scale_factor)
+            config.max_position_embeddings = int(
+                config.max_position_embeddings * args.rope_scale_factor
+            )
 
         # Apply rope_theta override
         if args.new_rope_theta is not None:
             config.rope_theta = args.new_rope_theta
-        elif config.max_position_embeddings != original_max_pos:
+        elif (
+            config.max_position_embeddings != original_max_pos
+            and master_process
+            and logger is not None
+        ):
             # Warn if scaling positions without scaling theta
-            if master_process and logger is not None:
-                logger.info(
-                    "WARNING: max_position_embeddings was scaled but rope_theta was not overridden. "
-                    "Consider setting `new_rope_theta` to a larger value for context extension."
-                )
+            logger.info(
+                "WARNING: max_position_embeddings was scaled but rope_theta was not overridden. "
+                "Consider setting `new_rope_theta` to a larger value for context extension."
+            )
 
         _log_message(
             master_process,
@@ -266,7 +442,40 @@ def _load_model(args, tokenizer, precision, master_process, logger=None, file_lo
         **({"distributed_config": distributed_config} if distributed_config is not None else {}),
         **({"use_kernels": True} if use_kernels else {}),
     )
-    return model, None
+
+    # Context-extension fine-tuning: freeze everything outside the attention
+    # blocks so VRAM / optimizer state goes entirely to the modules that need
+    # to adapt to the new sequence length.
+    non_attention_frozen = False
+    if needs_context_extension:
+        _freeze_non_attention_blocks(model, master_process, logger, file_logger)
+        non_attention_frozen = True
+
+    return model, None, non_attention_frozen
+
+
+def _resize_embeddings_for_tokenizer(
+    model, tokenizer, master_process, logger=None, file_logger=None
+):
+    """Ensure pretrained models can represent every tokenizer token."""
+    if tokenizer is None:
+        return model
+
+    tokenizer_vocab_size = len(tokenizer)
+    current_vocab_size = model.get_input_embeddings().num_embeddings
+    target_vocab_size = max(current_vocab_size, tokenizer_vocab_size)
+
+    if target_vocab_size == current_vocab_size:
+        return model
+
+    model.resize_token_embeddings(target_vocab_size)
+    _log_message(
+        master_process,
+        logger,
+        file_logger,
+        f"Resized token embeddings from {current_vocab_size:,} to {target_vocab_size:,} to cover the tokenizer vocabulary.",
+    )
+    return model
 
 
 def _apply_liger_kernels(model, args):
@@ -279,7 +488,7 @@ def _apply_liger_kernels(model, args):
     is not compatible with Liger's RoPE kernel, so we disable it there.
     """
     liger_transformers = importlib.import_module("liger_kernel.transformers")
-    apply_liger_kernel = getattr(liger_transformers, "_apply_liger_kernel_to_instance")
+    apply_liger_kernel = liger_transformers._apply_liger_kernel_to_instance
     model_type = str(getattr(model.config, "model_type", "") or "")
     rope_compatible = not model_type.startswith("qwen3_5")
     liger_kwargs = {
@@ -292,7 +501,9 @@ def _apply_liger_kernels(model, args):
     apply_liger_kernel(model=model, **liger_kwargs)
 
 
-def _try_create_distributed_config(enable_expert_parallelism, master_process, logger=None, file_logger=None):
+def _try_create_distributed_config(
+    enable_expert_parallelism, master_process, logger=None, file_logger=None
+):
     """
     Attempt to create a DistributedConfig with expert parallelism enabled.
 
@@ -304,14 +515,19 @@ def _try_create_distributed_config(enable_expert_parallelism, master_process, lo
 
     try:
         from transformers.distributed.configuration_utils import DistributedConfig
+
         _log_message(
-            master_process, logger, file_logger,
+            master_process,
+            logger,
+            file_logger,
             "Expert parallelism enabled via DistributedConfig.",
         )
         return DistributedConfig(enable_expert_parallel=True)
     except (ImportError, ModuleNotFoundError):
         _log_message(
-            master_process, logger, file_logger,
+            master_process,
+            logger,
+            file_logger,
             "WARNING: enable_expert_parallelism is True but DistributedConfig could not be imported. "
             "Expert parallelism requires transformers >= 5.x. Continuing without it.",
         )
@@ -333,28 +549,34 @@ def _check_kernels_available(use_kernels, master_process, logger=None, file_logg
         import kernels as _kernels  # noqa: F401
     except (ImportError, ModuleNotFoundError):
         _log_message(
-            master_process, logger, file_logger,
+            master_process,
+            logger,
+            file_logger,
             "WARNING: use_kernels is True but the `kernels` package is not installed. "
             "Install it with `pip install -U kernels` (>= 0.11.0). Continuing without kernels.",
         )
         return False
 
     # Verify that the installed transformers version actually supports use_kernels.
-    # Probe for `transformers.KernelConfig` to make sure the kwarg is recognized, 
-    # since older versions of transformers may ignore the `use_kernels` 
+    # Probe for `transformers.KernelConfig` to make sure the kwarg is recognized,
+    # since older versions of transformers may ignore the `use_kernels`
     # argument without error.
     try:
         from transformers import KernelConfig  # noqa: F401
     except (ImportError, ModuleNotFoundError):
         _log_message(
-            master_process, logger, file_logger,
+            master_process,
+            logger,
+            file_logger,
             "WARNING: use_kernels is True but the installed transformers version does not support "
             "the `use_kernels` kwarg. Upgrade transformers to a compatible version. Continuing without kernels.",
         )
         return False
 
     _log_message(
-        master_process, logger, file_logger,
+        master_process,
+        logger,
+        file_logger,
         "Optimized HF Hub kernels enabled (use_kernels=True).",
     )
     # To use specific kernel mappings, create a KernelConfig:
@@ -368,7 +590,7 @@ def _check_kernels_available(use_kernels, master_process, logger=None, file_logg
     return True
 
 
-def _compute_active_trainable_params(config, trainable_params):
+def _compute_active_trainable_params(config, trainable_params, non_attention_frozen=False):
     """
     Compute the number of active trainable parameters.
 
@@ -377,23 +599,36 @@ def _compute_active_trainable_params(config, trainable_params):
     (num_experts_per_tok) are counted, since the remaining experts
     are inactive during each forward pass.
 
-    - Note: Handles some naming conventions for MoE-related config fields, 
-            but you might need to adjust this function if your model uses 
+    When `non_attention_frozen` is True (context-extension fine-tuning),
+    the MoE experts have already been frozen and are therefore excluded
+    from `trainable_params` entirely. Subtracting inactive-expert params
+    again would over-count (and could even go negative), so we short-circuit
+    and return `trainable_params` as-is — all remaining trainable params
+    (dense attention blocks plus per-layer attention-adjacent norms) are
+    fully active per forward pass.
+
+    - Note: Handles some naming conventions for MoE-related config fields,
+            but you might need to adjust this function if your model uses
             different field names or MoE architecture.
     """
+    if non_attention_frozen:
+        return trainable_params
+
     # Detect MoE: try both naming conventions for the total expert count.
-    num_experts = getattr(config, 'num_experts', None) or getattr(config, 'num_local_experts', None)
+    num_experts = getattr(config, "num_experts", None) or getattr(config, "num_local_experts", None)
     if num_experts is None or num_experts <= 1:
         return trainable_params
 
-    num_experts_per_tok = getattr(config, 'num_experts_per_tok', None)
+    num_experts_per_tok = getattr(config, "num_experts_per_tok", None)
     if num_experts_per_tok is None or num_experts_per_tok >= num_experts:
         return trainable_params
 
     hidden_size = config.hidden_size
 
     # Per-expert MLP intermediate size.
-    expert_intermediate_size = getattr(config, 'moe_intermediate_size', None) or config.intermediate_size
+    expert_intermediate_size = (
+        getattr(config, "moe_intermediate_size", None) or config.intermediate_size
+    )
 
     # SwiGLU MLP per expert: gate_proj + up_proj + down_proj
     params_per_expert = 3 * hidden_size * expert_intermediate_size
@@ -402,12 +637,12 @@ def _compute_active_trainable_params(config, trainable_params):
     # k-th layer is MoE) and `mlp_only_layers` (explicit indices that use a
     # dense MLP instead of MoE). Both are honored when present; otherwise the
     # default assumption is that every layer is a MoE layer.
-    decoder_sparse_step = getattr(config, 'decoder_sparse_step', 1) or 1
-    mlp_only_layers = set(getattr(config, 'mlp_only_layers', None) or [])
+    decoder_sparse_step = getattr(config, "decoder_sparse_step", 1) or 1
+    mlp_only_layers = set(getattr(config, "mlp_only_layers", None) or [])
     num_moe_layers = sum(
-        1 for layer_idx in range(config.num_hidden_layers)
-        if layer_idx not in mlp_only_layers
-        and (layer_idx + 1) % decoder_sparse_step == 0
+        1
+        for layer_idx in range(config.num_hidden_layers)
+        if layer_idx not in mlp_only_layers and (layer_idx + 1) % decoder_sparse_step == 0
     )
 
     inactive_params = num_moe_layers * (num_experts - num_experts_per_tok) * params_per_expert
@@ -425,18 +660,38 @@ def prepare_training_components(args, device, master_process, logger=None, file_
     tokenizer = _create_tokenizer(args, master_process, logger, file_logger)
 
     distributed_config = _try_create_distributed_config(
-        args.enable_expert_parallelism, master_process, logger, file_logger,
+        args.enable_expert_parallelism,
+        master_process,
+        logger,
+        file_logger,
     )
 
     use_kernels = _check_kernels_available(
-        args.use_kernels, master_process, logger, file_logger,
+        args.use_kernels,
+        master_process,
+        logger,
+        file_logger,
     )
 
-    model, checkpoint_path = _load_model(
-        args, tokenizer, precision, master_process, logger, file_logger,
+    model, checkpoint_path, non_attention_frozen = _load_model(
+        args,
+        tokenizer,
+        precision,
+        master_process,
+        logger,
+        file_logger,
         distributed_config=distributed_config,
         use_kernels=use_kernels,
     )
+
+    if args.continual_pretraining:
+        model = _resize_embeddings_for_tokenizer(
+            model,
+            tokenizer,
+            master_process,
+            logger,
+            file_logger,
+        )
 
     # Backfill runtime architecture fields declared in TrainingArguments
     # (consumed by mfu.py, data_loading.py, utils.py, train_ddp.py)
@@ -445,18 +700,21 @@ def prepare_training_components(args, device, master_process, logger=None, file_
     args.num_hidden_layers = model.config.num_hidden_layers
     args.num_attention_heads = model.config.num_attention_heads
     args.head_dim = getattr(
-        model.config, 'head_dim',
+        model.config,
+        "head_dim",
         model.config.hidden_size // model.config.num_attention_heads,
     )
     # GQA: fall back to num_attention_heads (MHA) when not specified.
     args.num_key_value_heads = getattr(
-        model.config, 'num_key_value_heads', model.config.num_attention_heads,
+        model.config,
+        "num_key_value_heads",
+        model.config.num_attention_heads,
     )
 
     # Architecture fields consumed by the structural MFU path for hybrid models.
     # No-ops for the standard dense / MoE-active dense_transformer path.
-    args.hidden_size = getattr(model.config, 'hidden_size', 0)
-    args.intermediate_size = getattr(model.config, 'intermediate_size', 0)
+    args.hidden_size = getattr(model.config, "hidden_size", 0)
+    args.intermediate_size = getattr(model.config, "intermediate_size", 0)
     # `layer_types` lists each block's flavour. Supported values for the
     # families this codebase targets: "full_attention" / "attention" and
     # "linear_attention" (Qwen3.5 Gated-DeltaNet hybrid). Some configs encode
@@ -464,45 +722,46 @@ def prepare_training_components(args, device, master_process, logger=None, file_
     # attention, the rest are linear-attention); synthesize `layer_types`
     # from it when present so the MFU path works without architecture-specific
     # branching.
-    layer_types = tuple(getattr(model.config, 'layer_types', ()) or ())
+    layer_types = tuple(getattr(model.config, "layer_types", ()) or ())
     if not layer_types:
-        full_attention_interval = getattr(model.config, 'full_attention_interval', None)
+        full_attention_interval = getattr(model.config, "full_attention_interval", None)
         if full_attention_interval and full_attention_interval > 0:
             layer_types = tuple(
-                "full_attention" if (layer_idx + 1) % full_attention_interval == 0
+                "full_attention"
+                if (layer_idx + 1) % full_attention_interval == 0
                 else "linear_attention"
                 for layer_idx in range(model.config.num_hidden_layers)
             )
     args.layer_types = layer_types
 
     # Linear attention (GDN / DeltaNet) hyperparameters (e.g. Qwen3.5 hybrid).
-    args.linear_num_key_heads = getattr(model.config, 'linear_num_key_heads', 0) or 0
-    args.linear_num_value_heads = getattr(model.config, 'linear_num_value_heads', 0) or 0
-    args.linear_key_head_dim = getattr(model.config, 'linear_key_head_dim', 0) or 0
-    args.linear_value_head_dim = getattr(model.config, 'linear_value_head_dim', 0) or 0
-    args.linear_conv_kernel_dim = getattr(model.config, 'linear_conv_kernel_dim', 4) or 4
+    args.linear_num_key_heads = getattr(model.config, "linear_num_key_heads", 0) or 0
+    args.linear_num_value_heads = getattr(model.config, "linear_num_value_heads", 0) or 0
+    args.linear_key_head_dim = getattr(model.config, "linear_key_head_dim", 0) or 0
+    args.linear_value_head_dim = getattr(model.config, "linear_value_head_dim", 0) or 0
+    args.linear_conv_kernel_dim = getattr(model.config, "linear_conv_kernel_dim", 4) or 4
 
     # MoE fields. Used by the hybrid structural FLOPs path for per-layer MLP
     # cost; for the dense path, MoE accounting goes through `num_parameters`
     # (active parameters, computed in `_compute_active_trainable_params`).
     _num_experts = (
-        getattr(model.config, 'num_experts', None)
-        or getattr(model.config, 'num_local_experts', None)
+        getattr(model.config, "num_experts", None)
+        or getattr(model.config, "num_local_experts", None)
         or 0
     )
     if _num_experts and _num_experts > 1:
-        args.num_experts_per_tok = getattr(model.config, 'num_experts_per_tok', 0) or 0
+        args.num_experts_per_tok = getattr(model.config, "num_experts_per_tok", 0) or 0
         args.moe_intermediate_size = (
-            getattr(model.config, 'moe_intermediate_size', None)
-            or getattr(model.config, 'intermediate_size', 0)
+            getattr(model.config, "moe_intermediate_size", None)
+            or getattr(model.config, "intermediate_size", 0)
             or 0
         )
         # Qwen-MoE / Qwen3.5-MoE name the shared-expert size
         # `shared_expert_intermediate_size`; accept `shared_intermediate_size`
         # as an alias for backwards compatibility.
         args.shared_intermediate_size = (
-            getattr(model.config, 'shared_expert_intermediate_size', None)
-            or getattr(model.config, 'shared_intermediate_size', None)
+            getattr(model.config, "shared_expert_intermediate_size", None)
+            or getattr(model.config, "shared_intermediate_size", None)
             or 0
         )
     else:
@@ -510,7 +769,8 @@ def prepare_training_components(args, device, master_process, logger=None, file_
         args.moe_intermediate_size = 0
         args.shared_intermediate_size = 0
 
-    tokenizer.model_max_length = model.config.max_position_embeddings
+    if tokenizer is not None:
+        tokenizer.model_max_length = model.config.max_position_embeddings
 
     # Warn if training a hybrid (used linear-attention) model without the
     # fast-path kernels. E.g., the Qwen3.5 modeling code only takes the optimized
@@ -529,7 +789,9 @@ def prepare_training_components(args, device, master_process, logger=None, file_
             missing.append("causal-conv1d")
         if missing:
             _log_message(
-                master_process, logger, file_logger,
+                master_process,
+                logger,
+                file_logger,
                 "WARNING: the model has linear-attention layers but the following fast-path "
                 f"package(s) are not installed: {', '.join(missing)}. Training will fall back "
                 "to a slow PyTorch reference path. Install with:\n"
@@ -544,8 +806,14 @@ def prepare_training_components(args, device, master_process, logger=None, file_
 
     model.config.name_or_path = args.hub_model_id
 
-    trainable_params = sum(parameter.numel() for parameter in model.parameters() if parameter.requires_grad)
-    active_trainable_params = _compute_active_trainable_params(model.config, trainable_params)
+    trainable_params = sum(
+        parameter.numel() for parameter in model.parameters() if parameter.requires_grad
+    )
+    active_trainable_params = _compute_active_trainable_params(
+        model.config,
+        trainable_params,
+        non_attention_frozen=non_attention_frozen,
+    )
     _log_message(
         master_process,
         logger,
@@ -598,17 +866,19 @@ def prepare_training_components(args, device, master_process, logger=None, file_
         checkpoint_path=checkpoint_path,
         trainable_params=trainable_params,
         active_trainable_params=active_trainable_params,
+        non_attention_frozen=non_attention_frozen,
     )
 
+
 # FSDP wrapping and state-dict utilities
-from torch.distributed.checkpoint.state_dict import (
+from torch.distributed.checkpoint.state_dict import (  # noqa: E402
+    StateDictOptions,
     get_model_state_dict,
     get_optimizer_state_dict,
-    StateDictOptions,
 )
-from torch.distributed.fsdp import CPUOffloadPolicy
-from torch.distributed.fsdp import fully_shard, MixedPrecisionPolicy
-from torch.distributed.device_mesh import init_device_mesh
+from torch.distributed.device_mesh import init_device_mesh  # noqa: E402
+from torch.distributed.fsdp import CPUOffloadPolicy, MixedPrecisionPolicy, fully_shard  # noqa: E402
+
 
 def _iter_transformer_blocks(model):
     """
@@ -658,7 +928,9 @@ def _set_modules_to_backward_prefetch(model, num_to_backward_prefetch):
         layer.set_modules_to_backward_prefetch(layers_to_prefetch)
 
 
-def apply_fsdp_wrapping(model, args, device_type, world_size, rank, master_process, logger=None, file_logger=None):
+def apply_fsdp_wrapping(
+    model, args, device_type, world_size, rank, master_process, logger=None, file_logger=None
+):
     """
     Apply FSDP2 (fully_shard) wrapping to the model.
 
@@ -680,7 +952,9 @@ def apply_fsdp_wrapping(model, args, device_type, world_size, rank, master_proce
             reduce_dtype=torch.float32,
         )
         _log_message(
-            master_process, logger, file_logger,
+            master_process,
+            logger,
+            file_logger,
             "Enabled mixed precision policy for FSDP. Param type = torch.bfloat16, Reduce type = torch.float32",
         )
 
@@ -693,7 +967,9 @@ def apply_fsdp_wrapping(model, args, device_type, world_size, rank, master_proce
             mesh_shape=(world_size,),
         )
         _log_message(
-            master_process, logger, file_logger,
+            master_process,
+            logger,
+            file_logger,
             f"Initialized 1D device mesh with shape: ({world_size},) for Fully Sharded Data Parallel (FSDP).",
         )
     else:
@@ -711,16 +987,20 @@ def apply_fsdp_wrapping(model, args, device_type, world_size, rank, master_proce
         )
         effective_world_size = data_parallel_size
         _log_message(
-            master_process, logger, file_logger,
+            master_process,
+            logger,
+            file_logger,
             f"Initialized 2D device mesh with shape: (dp_replicate={data_parallel_size}, dp_shard={args.dp_shard}) for Hybrid Sharding Data Parallel (HSDP).",
         )
 
     fsdp_kwargs["mesh"] = mesh_config
 
     # Sharding strategy (ZeRO-3 vs ZeRO-2)
-    fsdp_kwargs["reshard_after_forward"] = True if args.full_shard else False
+    fsdp_kwargs["reshard_after_forward"] = bool(args.full_shard)
     _log_message(
-        master_process, logger, file_logger,
+        master_process,
+        logger,
+        file_logger,
         f"FSDP / ZeRO Stage is set to {'ZeroStage3' if args.full_shard else 'ZeroStage2'}",
     )
 
@@ -739,7 +1019,9 @@ def apply_fsdp_wrapping(model, args, device_type, world_size, rank, master_proce
         fully_shard(layer, **fsdp_kwargs)
         layer_classes.add(type(layer).__name__)
     _log_message(
-        master_process, logger, file_logger,
+        master_process,
+        logger,
+        file_logger,
         f"FSDP per-layer sharding applied to block classes: {sorted(layer_classes)}.",
     )
 

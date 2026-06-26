@@ -1,11 +1,13 @@
 """
 Shared utilities for tokenization and packing scripts.
 """
+
 import glob
 import json
+import logging
 import os
 import sys
-import logging
+
 import datasets
 import numpy as np
 
@@ -43,6 +45,7 @@ def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     logger.propagate = False
 
     return logger
+
 
 class DatasetLoader:
     """Loads datasets from a local file, local directory, or HuggingFace Hub.
@@ -83,7 +86,9 @@ class DatasetLoader:
         fmt = self._FILE_FORMATS.get(ext)
         if fmt is None:
             raise ValueError(f"Unsupported file format '{ext}'. Expected .jsonl or .parquet.")
-        return datasets.load_dataset(fmt, data_files=self.path, split="train", cache_dir=self.cache_dir)
+        return datasets.load_dataset(
+            fmt, data_files=self.path, split="train", cache_dir=self.cache_dir
+        )
 
     def _from_directory(self):
         for ext, fmt in (("*.jsonl", "json"), ("*.parquet", "parquet")):
@@ -165,7 +170,7 @@ def infer_file_features(file_path: str, output_type: str) -> list[str]:
 
         return list(pq.read_schema(file_path).names)
 
-    with open(file_path, "r", encoding="utf-8") as fh:
+    with open(file_path, encoding="utf-8") as fh:
         line = fh.readline()
         if not line.strip():
             return []

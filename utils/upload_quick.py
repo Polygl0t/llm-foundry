@@ -19,6 +19,7 @@ Usage:
 
 Note: Token can also be set via the HF_TOKEN environment variable
 """
+
 import argparse
 import os
 
@@ -78,43 +79,57 @@ def push_folder(api, repo_id, folder_path, repo_type, repo_folder=None, main_onl
 
 
 def main(args):
-
     login(token=args.token)
     api = HfApi(token=args.token)
 
     if args.files:
         push_files(api, args.repo, args.files, args.repo_type, main_only=args.main_only)
     else:
-        push_folder(api, args.repo, args.folder, args.repo_type,
-                    repo_folder=args.repo_folder, main_only=args.main_only)
+        push_folder(
+            api,
+            args.repo,
+            args.folder,
+            args.repo_type,
+            repo_folder=args.repo_folder,
+            main_only=args.main_only,
+        )
 
     print("\nDone 🎉🎉🎉")
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(
-        description=__doc__,
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
 
     parser.add_argument("--repo", required=True, help="Repository ID, e.g. Polygl0t/MyModel")
-    parser.add_argument("--repo-type", default="model", choices=["model", "dataset", "space"],
-                        help="Repository type (default: model)")
-    parser.add_argument("--token", default=None,
-                        help="Hugging Face token. Falls back to HF_TOKEN env var.")
-    parser.add_argument("--main-only", action="store_true",
-                        help="Upload to the main branch only instead of all branches")
+    parser.add_argument(
+        "--repo-type",
+        default="model",
+        choices=["model", "dataset", "space"],
+        help="Repository type (default: model)",
+    )
+    parser.add_argument(
+        "--token", default=None, help="Hugging Face token. Falls back to HF_TOKEN env var."
+    )
+    parser.add_argument(
+        "--main-only",
+        action="store_true",
+        help="Upload to the main branch only instead of all branches",
+    )
 
     source = parser.add_mutually_exclusive_group(required=True)
-    source.add_argument("--files", nargs="+", metavar="FILE",
-                        help="One or more file paths to upload")
-    source.add_argument("--folder", metavar="DIR",
-                        help="Local folder to upload")
+    source.add_argument(
+        "--files", nargs="+", metavar="FILE", help="One or more file paths to upload"
+    )
+    source.add_argument("--folder", metavar="DIR", help="Local folder to upload")
 
-    parser.add_argument("--repo-folder", default=None,
-                        help="Destination path inside the repo when using --folder "
-                             "(defaults to the local folder name)")
+    parser.add_argument(
+        "--repo-folder",
+        default=None,
+        help="Destination path inside the repo when using --folder "
+        "(defaults to the local folder name)",
+    )
 
     args = parser.parse_args()
 

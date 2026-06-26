@@ -80,9 +80,9 @@ num_threads=32                              # <-- Number of threads to use in CP
 
 #############################################
 # IMPORTANT NOTE:
-# For the tokensurgeon tool to work correctly, 
+# For the tokensurgeon tool to work correctly,
 # ensure that the donor model has a `tokenizer_class`
-# in the `tokenizer_config.json` file that matches one 
+# in the `tokenizer_config.json` file that matches one
 # of the following styles:
 #
 # - GPT2Tokenizer

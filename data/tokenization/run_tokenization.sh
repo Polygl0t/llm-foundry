@@ -13,13 +13,12 @@
 # - https://wiki.hpc.uni-bonn.de/en/dualstacks
 #############################################
 #SBATCH --account=ag_bit_flek              # <-- Change to your SLURM account
-#SBATCH --partition=intelsr_short          # <-- Change to your partition
-#SBATCH --job-name=lang-filter
+#SBATCH --partition=lm_short               # <-- Change to your partition
+#SBATCH --job-name=tokenize
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=64
+#SBATCH --cpus-per-task=96
 #SBATCH --time=08:00:00
-#SBATCH --mem=500G
 #SBATCH --exclusive
 
 #############################################
@@ -32,8 +31,8 @@ mkdir -p "$workdir/run_outputs"
 cd "$workdir"
 ulimit -c 0
 
-out="$workdir/run_outputs/out-lang-filter.$SLURM_JOB_ID"
-err="$workdir/run_outputs/err-lang-filter.$SLURM_JOB_ID"
+out="$workdir/run_outputs/out-tokenize.$SLURM_JOB_ID"
+err="$workdir/run_outputs/err-tokenize.$SLURM_JOB_ID"
 
 #############################################
 # Modules & Libraries Setup
@@ -69,15 +68,14 @@ echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --ve
 # Main Job Execution
 #############################################
 
-python3 "$workdir/llm-foundry/data/filters/langdetect_language_filter.py" \
-    --input_dir "$workdir/data" \
-    --output_dir "$workdir/data-filtered" \
-    --input_type "jsonl" \
-    --output_type "jsonl" \
-    --text_column "messages" \
-    --languages portuguese \
-    --save_excluded \
-    --num_proc 32 1>>"$out" 2>>"$err"
+python3 $workdir/llm-foundry/data/tokenization/run_tokenization.py \
+    --input_path "$workdir/data/raw" \
+    --output_dir "$workdir/data/tokenized" \
+    --tokenizer_name "Qwen/Qwen3-0.6B" \
+    --cache_dir "$HF_DATASETS_CACHE" \
+    --num_proc $SLURM_CPUS_PER_TASK \
+    --return_seq_lengths \
+    --add_eos_token 1>>"$out" 2>>"$err"
 
 #############################################
 # End of Script

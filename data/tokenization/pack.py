@@ -18,9 +18,9 @@ Packs a pre-tokenized dataset into fixed-length chunks using one of two strategi
 Both strategies detect and pack the following columns when present in the dataset:
   input_ids, labels, attention_mask, assistant_masks
 
-The output always contains a `seq_lengths` column whose value equals `block_size`
-for every row (since every packed chunk is exactly `block_size` tokens long after
-padding/discarding).
+When `--return_seq_lengths` is set, the output also includes a `seq_lengths`
+column whose value equals `block_size` for every row (since every packed chunk
+is exactly `block_size` tokens long after padding/discarding).
 
 Padding values used by the BFD strategy:
   input_ids      -> --pad_token_id  (required for bfd)
@@ -44,7 +44,9 @@ Usage:
         --block_size   4096 \\
         --pad_token_id 0
 """
+
 import argparse
+
 from utils import DatasetLoader, get_logger, save_dataset, save_metadata
 
 logger = get_logger("Pack")
@@ -55,11 +57,12 @@ _PACKABLE_COLUMNS = ["input_ids", "labels", "attention_mask", "assistant_masks"]
 
 # Default pad value for each packable column (used by BFD strategy).
 _DEFAULT_PAD = {
-    "input_ids": None,   # overridden by --pad_token_id
+    "input_ids": None,  # overridden by --pad_token_id
     "labels": -100,
     "attention_mask": 0,
     "assistant_masks": 0,
 }
+
 
 # Strategy: concatenate
 def create_concatenate_function(block_size, columns):
@@ -68,6 +71,7 @@ def create_concatenate_function(block_size, columns):
     Any tokens at the end that do not fill a complete block are discarded.
     No padding is applied.
     """
+
     def pack(examples):
         # Flatten every packable column across the batch into one long sequence.
         concat = {col: [tok for seq in examples[col] for tok in seq] for col in columns}
@@ -77,7 +81,7 @@ def create_concatenate_function(block_size, columns):
         usable = n_blocks * block_size
 
         result = {
-            col: [concat[col][i: i + block_size] for i in range(0, usable, block_size)]
+            col: [concat[col][i : i + block_size] for i in range(0, usable, block_size)]
             for col in columns
         }
         result["seq_lengths"] = [block_size] * n_blocks
@@ -93,6 +97,7 @@ def create_bfd_function(block_size, columns, pad_values):
     Sequences longer than `block_size` are silently discarded.
     Partially filled chunks are padded to `block_size` using `pad_values`.
     """
+
     def pack(examples):
         # Determine per-sequence lengths.
         if "seq_lengths" in examples:
@@ -107,9 +112,7 @@ def create_bfd_function(block_size, columns, pad_values):
                 entry = {"len": length}
                 for col in columns:
                     if len(examples[col][i]) < length:
-                        raise ValueError(
-                            f"Column '{col}' is shorter than seq_lengths for row {i}."
-                        )
+                        raise ValueError(f"Column '{col}' is shorter than seq_lengths for row {i}.")
                     entry[col] = list(examples[col][i][:length])
                 sequences.append(entry)
 
@@ -127,14 +130,14 @@ def create_bfd_function(block_size, columns, pad_values):
             best_idx, best_leftover = None, block_size + 1
             for idx, ch in enumerate(partial_chunks):
                 space = block_size - ch["len"]
-                if L <= space:
+                if space >= L:
                     leftover = space - L
                     if leftover < best_leftover:
                         best_leftover = leftover
                         best_idx = idx
 
             if best_idx is None:
-                if L == block_size:
+                if block_size == L:
                     # Exact fit — emit immediately without buffering.
                     for col in columns:
                         out[col].append(seq[col])
@@ -234,6 +237,10 @@ def main(args):
         sample_count = max_rows
         token_count = actual_tokens
 
+    # Drop seq_lengths from output if not requested by the user.
+    if not args.return_seq_lengths:
+        dataset = dataset.remove_columns("seq_lengths")
+
     # Save
     n_chunks = save_dataset(
         dataset, args.output_dir, args.output_type, args.tokens_per_chunk, token_count
@@ -261,59 +268,83 @@ if __name__ == "__main__":
     # I/O stuff
     io = parser.add_argument_group("Input / Output")
     io.add_argument(
-        "--input_path", required=True,
+        "--input_path",
+        required=True,
         help="Tokenized dataset source: local file, local directory, or HuggingFace Hub id.",
     )
     io.add_argument(
-        "--output_dir", required=True,
+        "--output_dir",
+        required=True,
         help="Directory to write the packed dataset into.",
     )
     io.add_argument(
-        "--output_type", choices=["parquet", "jsonl"], default="parquet",
+        "--output_type",
+        choices=["parquet", "jsonl"],
+        default="parquet",
         help="Output file format.",
     )
 
     # Packing
     pack = parser.add_argument_group("Packing")
     pack.add_argument(
-        "--strategy", choices=["concatenate", "bfd"], required=True,
+        "--strategy",
+        choices=["concatenate", "bfd"],
+        required=True,
         help=(
             "'concatenate': concatenate all tokens and split into blocks (pretraining). "
             "'bfd': Best-Fit Decreasing bin-packing with padding (SFT)."
         ),
     )
     pack.add_argument(
-        "--block_size", type=int, required=True,
+        "--block_size",
+        type=int,
+        required=True,
         help="Target sequence length for every packed chunk.",
     )
     pack.add_argument(
-        "--pad_token_id", type=int, default=None,
+        "--pad_token_id",
+        type=int,
+        default=None,
         help="Token ID used to pad partial chunks. Required for the 'bfd' strategy.",
+    )
+    pack.add_argument(
+        "--return_seq_lengths",
+        action="store_true",
+        help="Include the 'seq_lengths' column in the saved dataset.",
     )
 
     # Limits
     lim = parser.add_argument_group("Limits")
     lim.add_argument(
-        "--max_tokens", type=int, default=None,
+        "--max_tokens",
+        type=int,
+        default=None,
         help="Truncate the packed output to at most this many tokens in total.",
     )
 
     # Performance / saving
     perf = parser.add_argument_group("Performance / Saving")
     perf.add_argument(
-        "--num_proc", type=int, default=8,
+        "--num_proc",
+        type=int,
+        default=8,
         help="Number of parallel worker processes.",
     )
     perf.add_argument(
-        "--tokens_per_chunk", type=int, default=300_000_000,
+        "--tokens_per_chunk",
+        type=int,
+        default=300_000_000,
         help="Maximum number of tokens per output file.",
     )
     perf.add_argument(
-        "--cache_dir", default=None,
+        "--cache_dir",
+        default=None,
         help="Cache directory for HuggingFace datasets.",
     )
     perf.add_argument(
-        "--seed", type=int, default=None,
+        "--seed",
+        type=int,
+        default=None,
         help="Random seed for dataset shuffling before packing (disabled when not set).",
     )
 

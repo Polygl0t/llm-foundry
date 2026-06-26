@@ -99,4 +99,3 @@ sbatch data/preprocess.sh
 - [`preprocess.py`](./preprocess.py) expects parquet input files and writes one subfolder per output subset.
 - Per-subset `.metadata` files are written after the pipeline completes.
 - If both `--parser_path` and `--stratify_by_column` are provided, the parser logic runs first and stratification determines the final subset name.
-

@@ -4,8 +4,7 @@ Dataset filtering and annotation pipelines for text corpus curation. This folder
 
 ## Contents
 
-- [`langdetect_language_filter.py`](./langdetect_language_filter.py) — Filters datasets by language using the `langdetect` library.
-- [`unicode_language_filter.py`](./unicode_language_filter.py) — Filters datasets by character set validation using Unicode ranges for 18+ languages.
+- [`language_filter.py`](./language_filter.py) — Filters datasets by language using one of two backends: `langdetect` (probabilistic) or `unicode` (Unicode character-range heuristics).
 - [`minhash.py`](./minhash.py) — MinHash-based fuzzy deduplication pipeline using DataTrove and LSH.
 - [`quality_filters.py`](./quality_filters.py) — Multi-stage quality filtering pipeline using FastText, GlotLID, Gopher, and FineWeb quality checks.
 - [`sft_filters.py`](./sft_filters.py) — Filters and cleans instruction-tuning datasets (malformed code, repetition loops, Unicode issues, etc.).
@@ -14,52 +13,43 @@ Dataset filtering and annotation pipelines for text corpus curation. This folder
 
 ## Usage Summary
 
-### `langdetect_language_filter.py`
+### `language_filter.py`
 
-Language-based filtering using `langdetect`.
+Language-based filtering with two backends selectable via `--backend`:
 
-Example:
+- **`langdetect`** — probabilistic detection using the `langdetect` library. More accurate on short or ambiguous text; requires `langdetect` to be installed.
+- **`unicode`** — heuristic filtering using Unicode character-range matching. Fast, deterministic, and requires no extra dependencies. Use `--unicode_threshold` (default `0.85`) to control strictness.
+
+Examples:
 ```bash
-python data/filters/langdetect_language_filter.py \
+# langdetect backend
+python data/filters/language_filter.py \
+    --backend langdetect \
     --input_dir data/ --output_dir filtered/ \
     --languages portuguese english \
     --input_type jsonl --output_type jsonl \
     --text_column text --num_proc 16
+
+# unicode backend
+python data/filters/language_filter.py \
+    --backend unicode \
+    --input_dir data/ --output_dir filtered/ \
+    --languages portuguese \
+    --unicode_threshold 0.85 \
+    --text_column text --num_proc 16
 ```
 
 Main parameters:
+- `--backend` — filtering backend: `langdetect` or `unicode` (required).
 - `--input_dir` — directory containing the input dataset files.
 - `--output_dir` — directory to save filtered dataset files.
 - `--languages` — list of languages to keep (e.g. `portuguese`, `english`).
 - `--input_type` / `--output_type` — choose `jsonl` or `parquet`.
 - `--text_column` — name of the text field in the dataset.
 - `--cache_dir` — optional cache directory for dataset loading.
-- `--num_proc` — number of processes to use.
-- `--save_excluded` — save excluded samples instead of included samples for debugging.
-
-
-
-### `unicode_language_filter.py`
-
-Unicode-range filtering that validates sample content against allowed script ranges for supported languages.
-
-Example:
-```bash
-python data/filters/unicode_language_filter.py \
-    --input_dir data/ --output_dir filtered/ \
-    --languages portuguese \
-    --text_column text --num_proc 16
-```
-
-Main parameters:
-- `--input_dir` — directory containing the input dataset files.
-- `--output_dir` — directory to save filtered dataset files.
-- `--languages` — languages to keep by Unicode validation.
-- `--input_type` / `--output_type` — choose `jsonl` or `parquet`.
-- `--text_column` — name of the text field in the dataset.
-- `--cache_dir` — optional cache directory for dataset loading.
-- `--num_proc` — number of processes to use.
-- `--save_excluded` — save excluded samples instead of included samples for debugging.
+- `--num_proc` — number of processes to use (default: all available CPUs).
+- `--save_excluded` — save excluded samples instead of included ones (useful for debugging).
+- `--unicode_threshold` — minimum fraction of in-range characters required to keep a sample (`unicode` backend only, default: `0.85`).
 
 ### `minhash.py`
 

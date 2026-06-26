@@ -72,10 +72,10 @@ source $workdir/.venv_distributed/bin/activate
 #
 # Option B – Build from source.
 #            This takes time ... However, it can be the only option if no
-#            compatible wheel exists for your environment.    
+#            compatible wheel exists for your environment.
 #            The build process requires a working nvcc setup and a compatible PyTorch installation.
 #            The following environment variables and pip options can help ensure a smooth build:
-#      
+#
 #   FLASH_ATTENTION_FORCE_BUILD=TRUE  flash-attn's setup.py skips its wheel search
 #   --no-binary :flash-attn:          pip-level guard: never use a prebuilt wheel
 #   --no-build-isolation              keep the current venv active (avoids reinstalling torch)
@@ -106,7 +106,7 @@ source $workdir/.venv_distributed/bin/activate
 #
 # PyTorch Distributed Documentation:
 # - https://github.com/pytorch/pytorch/blob/main/docs/source/distributed.md
-# 
+#
 # NCCL Documentation:
 # - https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html
 #############################################
@@ -155,7 +155,7 @@ echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --ve
 # - https://slurm.schedmd.com/srun.html
 #############################################
 
-srun --cpu-bind=none python3 "$workdir/distributed/train_fsdp.py" \
+srun --cpu-bind=none python3 "$workdir/llm-foundry/distributed/train_fsdp.py" \
     --specs "$SPECS_FILE" \
     --slurm-job-id "$SLURM_JOB_ID" \
     --hardware "a100" 1>>"$out" 2>>"$err"

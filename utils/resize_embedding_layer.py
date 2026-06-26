@@ -18,17 +18,18 @@ Usage:
     # Resize with vocab padded to the nearest multiple of 64 (for hardware efficiency)
     python resize_embedding_layer.py /path/to/model --resize --pad-to-multiple-of 64
 """
+
 import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any, Tuple
+from typing import Any
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
-def load_model_and_tokenizer(model_path: str, dtype: str = "bfloat16") -> Tuple[Any, Any]:
+def load_model_and_tokenizer(model_path: str, dtype: str = "bfloat16") -> tuple[Any, Any]:
     torch_dtype = getattr(torch, dtype)
 
     print(f"Loading tokenizer from {model_path} ...")
@@ -44,7 +45,7 @@ def load_model_and_tokenizer(model_path: str, dtype: str = "bfloat16") -> Tuple[
     return tokenizer, model
 
 
-def get_sizes(tokenizer: Any, model: Any) -> Tuple[int, int]:
+def get_sizes(tokenizer: Any, model: Any) -> tuple[int, int]:
     try:
         tokenizer_size = len(tokenizer)
     except Exception:
@@ -124,7 +125,9 @@ def resize_and_save(
 
     new_embed_size = model.get_input_embeddings().weight.shape[0]
     if pad_to_multiple_of:
-        print(f"Successfully resized to {new_embed_size} rows (padded to multiple of {pad_to_multiple_of})")
+        print(
+            f"Successfully resized to {new_embed_size} rows (padded to multiple of {pad_to_multiple_of})"
+        )
     else:
         print(f"Successfully resized to {new_embed_size} rows")
 
@@ -136,7 +139,6 @@ def resize_and_save(
 
 
 def main(args: argparse.Namespace) -> int:
-
     tokenizer, model = load_model_and_tokenizer(args.model_path, args.dtype)
     tokenizer_size, embed_size = get_sizes(tokenizer, model)
 
@@ -147,18 +149,23 @@ def main(args: argparse.Namespace) -> int:
         print("\n✓ Sizes match: every tokenizer id has a corresponding embedding row.")
         sys.exit(0)
 
-    out_dir = Path(args.output_dir) if args.output_dir else Path(args.model_path) / "model_with_resized_embedding"
+    out_dir = (
+        Path(args.output_dir)
+        if args.output_dir
+        else Path(args.model_path) / "model_with_resized_embedding"
+    )
 
     report_mismatch(tokenizer, tokenizer_size, embed_size, args.save_missing, out_dir)
 
     if args.resize:
-        resize_and_save(model, tokenizer, tokenizer_size, embed_size, out_dir, args.pad_to_multiple_of)
+        resize_and_save(
+            model, tokenizer, tokenizer_size, embed_size, out_dir, args.pad_to_multiple_of
+        )
     else:
         print("\nSkipping resize (use --resize to resize and save the model)")
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -170,7 +177,8 @@ if __name__ == "__main__":
         help="Path to the model directory containing model and tokenizer files",
     )
     parser.add_argument(
-        "-o", "--output-dir",
+        "-o",
+        "--output-dir",
         type=str,
         default=None,
         help="Output directory for the resized model (default: MODEL_PATH/model_with_resized_embedding)",

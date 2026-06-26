@@ -122,7 +122,7 @@ datasets==4.0.0 \
 sentencepiece==0.2.0 \
 accelerate==1.9.0 \
 codecarbon==3.0.6 \
-wandb==0.21.0 \
+wandb==0.27.2 \
 pyyaml==6.0.2 \
 liger-kernel==0.8.0 \
 kernels==0.13.0 \
@@ -140,28 +140,52 @@ https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0
 ```
 ### MoE Error on Bender
 
-If your training a MoE model on Bender and encounter the error: `ValueError: atomic_add does not support bf16`, 
+If your training a MoE model on Bender and encounter this error:
 
-this is probably because Liger-Kernel uses tl.atomic_add to accumulate gradients ([Source](https://github.com/linkedin/Liger-Kernel/blob/v0.8.0/src/liger_kernel/ops/fused_moe.py)), but Triton's atomic_add does not support bfloat16 (with current version _Triton 3.2.0_ ). 
-Since the model trains in bf16, it crashes on the first backward pass.  
-Support for bf16 in atomic_add is added in _Triton 3.4.0_ ([Source](https://github.com/triton-lang/triton/releases/tag/v3.4.0) and [Source](https://github.com/triton-lang/triton/pull/6519)).
+```
+ValueError: atomic_add does not support bf16
+```
 
-#### Possible Solution 1: 
-Upgrade Triton to 3.4.0 or later to get bf16 support in atomic_add.  
-**But** Current installed version of PyTorch (2.6.0) only supports up to Triton 3.2.0 ([Source](https://github.com/triton-lang/triton-windows)), so we cannot upgrade Triton without upgrading PyTorch. 
+This happens because Liger-Kernel uses `tl.atomic_add` to accumulate gradients ([source](https://github.com/linkedin/Liger-Kernel/blob/v0.8.0/src/liger_kernel/ops/fused_moe.py)), but Triton's `atomic_add` does not support bfloat16 with the version of Triton we use in this stack (3.2.0). Since we train our models in bf16 precision, the training crashes on the first backward pass.
 
-#### Possible Solution 2:
+- **Note:** Support for bf16 in `atomic_add` is added in Triton 3.4.0 ([source](https://github.com/triton-lang/triton/releases/tag/v3.4.0)).
+
+**Possible Solution 1:**
+
+Upgrade Triton to 3.4.0 or later to get bf16 support in `atomic_add`. However, this may require upgrading PyTorch to a version that supports Triton 3.4.0, which may not be possible on Bender because of CUDA version constraints (max is 12.4 in Bender), the old GLIBC version that Bender is running (2.28), and flash attention's pickyness.
+
+**Possible Solution 2:**
+
 Disable swiglu when applying the liger kernel to MoE models.
 
-in _model_setup.py_:
+in [`model_setup.py`](./model_setup.py):
 
 ```python
-model_type = str(getattr(model.config, "model_type", "") or "")
-is_moe = "moe" in model_type
-.....
-....
-....
-"swiglu": not is_moe,
+...
+
+def _apply_liger_kernels(model, args):
+    """
+    Apply Liger kernels to the model for optimized performance.
+
+    Liger's RoPE replacement is only valid for HF rotary embedding modules
+    with the standard interface (Llama / Qwen3 / Qwen2.5 ...). Qwen3.5 uses
+    a customized rotary embedding (partial rotation, per-layer shapes) that
+    is not compatible with Liger's RoPE kernel, so we disable it there.
+    """
+    liger_transformers = importlib.import_module("liger_kernel.transformers")
+    apply_liger_kernel = getattr(liger_transformers, "_apply_liger_kernel_to_instance")
+    model_type = str(getattr(model.config, "model_type", "") or "")
+    rope_compatible = not model_type.startswith("qwen3_5")
+    liger_kwargs = {
+        "rope": rope_compatible,
+        "cross_entropy": False,
+        "fused_linear_cross_entropy": True,
+        "rms_norm": True,
+        "swiglu": False,  # Set to False to avoid atomic_add bf16 error in MoE models on Bender
+    }
+    apply_liger_kernel(model=model, **liger_kwargs)
+
+...
 ```
 
 ## Example Architecture Configs
@@ -234,7 +258,7 @@ Here we have toy examples of model config files covering the supported architect
   "num_experts_per_tok": 2,
   "num_hidden_layers": 8,
   "num_key_value_heads": 8,
-  "output_router_logits": false,
+  "output_router_logits": true,
   "rms_norm_eps": 1e-06,
   "rope_scaling": null,
   "rope_theta": 100000,
@@ -388,7 +412,7 @@ Every 4th layer is full attention, the rest use Gated-DeltaNet linear attention.
   "moe_intermediate_size": 384,
   "shared_expert_intermediate_size": 384,
   "norm_topk_prob": true,
-  "output_router_logits": false,
+  "output_router_logits": true,
   "router_aux_loss_coef": 0.001,
   "rope_parameters": null,
   "bos_token_id": 0,
@@ -447,7 +471,7 @@ Every 4th layer is full attention, the rest use Gated-DeltaNet linear attention;
   "moe_intermediate_size": 384,
   "shared_expert_intermediate_size": 384,
   "norm_topk_prob": true,
-  "output_router_logits": false,
+  "output_router_logits": true,
   "router_aux_loss_coef": 0.001,
   "rope_parameters": null,
   "bos_token_id": 0,
@@ -459,3 +483,31 @@ Every 4th layer is full attention, the rest use Gated-DeltaNet linear attention;
 
 </details>
 
+## Benchmarks
+
+Training throughput measured on 2-GPU nodes (seq len 4096, bfloat16). TPS and dt are per-GPU figures for a single optimization step.
+
+| Model Class                              | GPU          | Context Length | Batch Size          | Total Params | Active Params | VRAM     | MFU     | TPS / GPU | Step dt  |
+|------------------------------------------|--------------|----------------|---------------------|--------------|---------------|----------|---------|-----------|----------|
+| `LlamaForCausalLM`                       | A100 2×80 GB | 4096           | 256 total (128/GPU) | 52.4 M       | 52.4 M        | 71.64 GB | 62.15 % | 361,389   | 1,451 ms |
+| `LlamaForCausalLM`                       | A40 2×48 GB  | 4096           | 128 total (64/GPU)  | 52.4 M       | 52.4 M        | 36.05 GB | 56.21 % | 164,473   | 1,594 ms |
+| `Qwen3_5ForCausalLM` (full attention)    | A100 2×80 GB | 4096           | 128 total (64/GPU)  | 52.4 M       | 52.4 M        | 52.16 GB | 45.30 % | 263,734   |   994 ms |
+| `Qwen3_5ForCausalLM` (full attention)    | A40 2×48 GB  | 4096           | 64 total (32/GPU)   | 52.4 M       | 52.4 M        | 26.31 GB | 40.00 % | 116,379   | 1,123 ms |
+| `Qwen3_5ForCausalLM` (hybrid 3:1)        | A100 2×80 GB | 4096           | 128 total (64/GPU)  | 58.8 M       | 58.8 M        | 61.69 GB | 42.19 % | 279,797   |   937 ms |
+| `Qwen3_5ForCausalLM` (hybrid 3:1)        | A40 2×48 GB  | 4096           | 64 total (32/GPU)   | 58.8 M       | 58.8 M        | 31.10 GB | 36.25 % | 115,735   | 1,134 ms |
+| `Qwen3_5ForCausalLM` (full linear)       | A100 2×80 GB | 4096           | 128 total (64/GPU)  | 61 M         | 61 M          | 65.88 GB | 42.20 % | 286,253   |   915 ms |
+| `Qwen3_5ForCausalLM` (full linear)       | A40 2×48 GB  | 4096           | 64 total (32/GPU)   | 61 M         | 61 M          | 33.20 GB | 34.50 % | 112,514   | 1,164 ms |
+| `Qwen3_5MoeForCausalLM` (full attention) | A100 2×80 GB | 4096           | 128 total (64/GPU)  | 76.1 M       | 47.8 M        | 63.05 GB | 34.52 % | 211,553   | 1,233 ms |
+| `Qwen3_5MoeForCausalLM` (full attention) | A40 2×48 GB  | 4096           | 64 total (32/GPU)   | 76.1 M       | 47.8 M        | 24.26 GB | 33.75 % | 103,772   | 1,263 ms |
+| `Qwen3_5MoeForCausalLM` (hybrid 3:1)     | A100 2×80 GB | 4096           | 128 total (64/GPU)  | 82.5 M       | 54.1 M        | 57.43 GB | 34.18 % | 241,045   | 1,087 ms |
+| `Qwen3_5MoeForCausalLM` (hybrid 3:1)     | A40 2×48 GB  | 4096           | 64 total (32/GPU)   | 82.5 M       | 54.1 M        | 29.06 GB | 31.66 % | 107,326   | 1,221 ms |
+| `Qwen3_5MoeForCausalLM` (full linear)    | A40 2×48 GB  | 4096           | 64 total (32/GPU)   | 84.6 M       | 56.3 M        | 61.40 GB | 35.28 % | 257,200   | 1,011 ms |
+| `Qwen3_5MoeForCausalLM` (full linear)    | A40 2×48 GB  | 4096           | 64 total (32/GPU)   | 84.6 M       | 56.3 M        | 31.05 GB | 30.34 % | 105,426   | 1,243 ms |
+| `Qwen3MoeForCausalLM`   (full attention) | A100 2×80 GB | 4096           | 128 total (64/GPU)  | 79.7 M       | 51.4 M        | 70.84 GB | 43.10 % | 189,089   | 1,386 ms |
+| `Qwen3MoeForCausalLM`   (full attention) | A40 2×48 GB  | 4096           | 64 total (32/GPU)   | 79.7 M       | 51.4 M        | 35.75 GB | 39.54 % | 83,385    | 1,571 ms |
+
+
+
+> - **Note:** The table values are rounded from the raw benchmark logs. `LlamaForCausalLM` was benchmarked at 2× the total batch size of the other models. Active params equal total params for dense models; MoE models activate 2 of 8 experts per token.
+>
+> - **Bug:** For reasons of divine mystery, when we set `Qwen3_5ForCausalLM` or `Qwen3MoeForCausalLM` to use linear attention on ALL layers, on some seeds, the loss becomes `NaN` after the first step. This is very strange, since the same config with 7 linear layers + 1 full-attention layer works fine, and the linear attention implementation is identical in both cases. I suspect there is an issue with the liger + conv1d kernels when all layers are linear, but I haven't had time to investigate yet.

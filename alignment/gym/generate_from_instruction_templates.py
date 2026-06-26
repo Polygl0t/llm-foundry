@@ -19,20 +19,20 @@ Usage:
         --seed 123 --verbose
 """
 
+import argparse
+import hashlib
 import json
 import random
-import hashlib
-import argparse
 from pathlib import Path
 
+from instruction_templates import TEMPLATES
 from tasks_metadata import (
     ALL_VERIFIER_IDS,
+    generate_description_for_verifier,
+    generate_kwargs_for_verifier,
     get_addable_verifiers,
     is_combination_valid,
-    generate_kwargs_for_verifier,
-    generate_description_for_verifier,
 )
-from instruction_templates import TEMPLATES
 
 # Constants
 # Verifiers excluded from automatic modifier selection
@@ -42,12 +42,11 @@ _EXCLUDED_MODIFIERS = {
 }
 
 # All verifier IDs available as modifiers
-MODIFIER_IDS = sorted(
-    iid for iid in ALL_VERIFIER_IDS if iid not in _EXCLUDED_MODIFIERS
-)
+MODIFIER_IDS = sorted(iid for iid in ALL_VERIFIER_IDS if iid not in _EXCLUDED_MODIFIERS)
 
 # Must be appended last (its kwargs depend on the final prompt text)
 _REPEAT_PROMPT_ID = "combination:repeat_prompt"
+
 
 # Template Filling
 def fill_template(template):
@@ -56,10 +55,7 @@ def fill_template(template):
     Returns the filled prompt string.
     """
     prompt_fmt = random.choice(template["prompts"])
-    filled_slots = {
-        slot: random.choice(values)
-        for slot, values in template["slots"].items()
-    }
+    filled_slots = {slot: random.choice(values) for slot, values in template["slots"].items()}
     return prompt_fmt.format(**filled_slots)
 
 
@@ -86,10 +82,8 @@ def select_modifier_ids(count):
 # Sample Construction
 def _normalize_kwargs(kw):
     """Convert integer kwargs values to float."""
-    return {
-        k: float(v) if isinstance(v, int) else v
-        for k, v in kw.items()
-    }
+    return {k: float(v) if isinstance(v, int) else v for k, v in kw.items()}
+
 
 def build_sample(template, min_modifiers=1, max_modifiers=4):
     """Build one complete sample from a template + random modifiers.
@@ -125,9 +119,7 @@ def build_sample(template, min_modifiers=1, max_modifiers=4):
     # 5. Handle repeat_prompt last (needs the full prompt so far)
     if has_repeat:
         prompt_before_repeat = " ".join(prompt_parts)
-        kw = generate_kwargs_for_verifier(
-            _REPEAT_PROMPT_ID, prompt_before_repeat
-        )
+        kw = generate_kwargs_for_verifier(_REPEAT_PROMPT_ID, prompt_before_repeat)
         desc = generate_description_for_verifier(_REPEAT_PROMPT_ID, kw)
         verifier_ids.append(_REPEAT_PROMPT_ID)
         kwargs_list.append(_normalize_kwargs(kw))
@@ -149,14 +141,16 @@ def sample_fingerprint(sample):
     """Hashable fingerprint for uniqueness checking."""
     return (sample["prompt"], tuple(sorted(sample["verifier_id_list"])))
 
+
 def _sample_kwargs_by_id(sample):
     """Return verifier kwargs keyed by verifier ID."""
     by_id = {}
-    for iid, kw in zip(sample.get("verifier_id_list", []), sample.get("kwargs", [])):
+    for iid, kw in zip(sample.get("verifier_id_list", []), sample.get("kwargs", []), strict=False):
         if isinstance(kw, str):
             kw = json.loads(kw)
         by_id[iid] = kw
     return by_id
+
 
 def _semantic_instruction_issues(sample):
     """Return kwargs-dependent instruction issues missed by ID conflicts."""
@@ -178,11 +172,11 @@ def _semantic_instruction_issues(sample):
             and float(frequency) <= 1
         ):
             issues.append(
-                "Conflicting keyword requirements: keyword must exist and "
-                "appear less than once"
+                "Conflicting keyword requirements: keyword must exist and appear less than once"
             )
 
     return issues
+
 
 def validate_sample(sample):
     """Return a list of issues (empty means valid)."""
@@ -191,9 +185,7 @@ def validate_sample(sample):
     n_ids = len(sample.get("verifier_id_list", []))
     n_kw = len(sample.get("kwargs", []))
     if n_ids != n_kw:
-        issues.append(
-            f"verifier_id_list length ({n_ids}) != kwargs length ({n_kw})"
-        )
+        issues.append(f"verifier_id_list length ({n_ids}) != kwargs length ({n_kw})")
 
     for iid in sample.get("verifier_id_list", []):
         if iid not in ALL_VERIFIER_IDS:
@@ -217,6 +209,7 @@ def validate_sample(sample):
             issues.append(f"Description for {iid} not found in prompt")
 
     return issues
+
 
 def main(args):
     output_path = Path(args.output_file)
@@ -251,7 +244,7 @@ def main(args):
             if issues:
                 retries_used += 1
                 if args.verbose:
-                    print(f"  Rejected candidate #{i+1}: {issues}")
+                    print(f"  Rejected candidate #{i + 1}: {issues}")
                 continue
 
             sid = candidate["id"]
@@ -264,7 +257,7 @@ def main(args):
 
         if sample is None:
             # Extremely unlikely with enough templates, but be safe
-            print(f"  Warning: could not produce unique sample #{i+1}")
+            print(f"  Warning: could not produce unique sample #{i + 1}")
             continue
 
         samples.append(sample)
@@ -278,12 +271,10 @@ def main(args):
             if args.verbose:
                 print(f"  ID {s['id']}: {issues}")
 
-    conflict_free = sum(
-        1 for s in samples if is_combination_valid(s["verifier_id_list"])
-    )
-    unique_ids = len({s['id'] for s in samples})
+    conflict_free = sum(1 for s in samples if is_combination_valid(s["verifier_id_list"]))
+    unique_ids = len({s["id"] for s in samples})
 
-    print(f"\nResults:")
+    print("\nResults:")
     print(f"  Generated samples:  {len(samples)}")
     print(
         f"  Conflict-free:      {conflict_free}/{len(samples)}"
@@ -297,18 +288,14 @@ def main(args):
     if retries_used:
         print(f"  Uniqueness retries: {retries_used}")
 
-    #  Hard assertions 
+    #  Hard assertions
     assert conflict_free == len(samples), (
         f"FAIL: {len(samples) - conflict_free} samples have instruction conflicts"
     )
-    assert unique_ids == len(samples), (
-        f"FAIL: {len(samples) - unique_ids} duplicate samples"
-    )
-    assert total_issues == 0, (
-        f"FAIL: {total_issues} validation issues found"
-    )
+    assert unique_ids == len(samples), f"FAIL: {len(samples) - unique_ids} duplicate samples"
+    assert total_issues == 0, f"FAIL: {total_issues} validation issues found"
 
-    #  Write output 
+    #  Write output
     use_jsonl = output_path.suffix.lower() == ".jsonl"
     with open(output_path, "w", encoding="utf-8") as f:
         if use_jsonl:
@@ -326,7 +313,7 @@ if __name__ == "__main__":
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    
+
     parser.add_argument(
         "--output_file",
         type=str,

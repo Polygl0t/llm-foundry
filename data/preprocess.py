@@ -61,15 +61,17 @@ Examples:
         --parser_path ./data/parsers/score_threshold_filter_parser.py \\
         --parser_config '{"score_column": "edu_int_score", "minimum_score": 3}'
 """
+
 import argparse
+import contextlib
 import json
 import os
 from collections import defaultdict
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 import pyarrow as pa
 import pyarrow.parquet as pq
-
 from datatrove.executor import LocalPipelineExecutor
 from datatrove.pipeline.base import PipelineStep
 from datatrove.pipeline.readers import ParquetReader
@@ -165,7 +167,11 @@ def build_active_parser(args) -> tuple[Callable[[Any], ParseResult | None], str,
             return None
         return apply_stratification(parsed, doc, args)
 
-    return wrapped, parser_name, [sanitize_subset_name(name, args.default_subset_name) for name in expected_subsets]
+    return (
+        wrapped,
+        parser_name,
+        [sanitize_subset_name(name, args.default_subset_name) for name in expected_subsets],
+    )
 
 
 class RoutingWriter(PipelineStep):
@@ -188,7 +194,7 @@ class RoutingWriter(PipelineStep):
         self.token_count_column = token_count_column
         self.write_batch_size = write_batch_size
 
-    def _flush_batch(self, subset_name, rows, rank, pq_writers, jsonl_files):
+    def _flush_batch(self, subset_name, rows, rank, pq_writers, jsonl_files, stack):
         """Write buffered rows to the corresponding subset shard."""
         out_dir = os.path.join(self.output_dir, subset_name)
         os.makedirs(out_dir, exist_ok=True)
@@ -197,13 +203,15 @@ class RoutingWriter(PipelineStep):
             table = pa.Table.from_pylist(rows)
             if subset_name not in pq_writers:
                 file_path = os.path.join(out_dir, f"{rank:05d}.parquet")
-                pq_writers[subset_name] = pq.ParquetWriter(file_path, table.schema)
+                writer = pq.ParquetWriter(file_path, table.schema)
+                stack.callback(writer.close)
+                pq_writers[subset_name] = writer
             pq_writers[subset_name].write_table(table)
             return
 
         if subset_name not in jsonl_files:
             file_path = os.path.join(out_dir, f"{rank:05d}.jsonl")
-            jsonl_files[subset_name] = open(file_path, "w", encoding="utf-8")
+            jsonl_files[subset_name] = stack.enter_context(open(file_path, "w", encoding="utf-8"))  # noqa: SIM115
 
         for row in rows:
             jsonl_files[subset_name].write(json.dumps(row, ensure_ascii=False) + "\n")
@@ -212,6 +220,7 @@ class RoutingWriter(PipelineStep):
         buffers: defaultdict[str, list[dict[str, Any]]] = defaultdict(list)
         pq_writers: dict[str, Any] = {}
         jsonl_files: dict[str, Any] = {}
+        stack = contextlib.ExitStack()
 
         try:
             for doc in data:
@@ -222,24 +231,25 @@ class RoutingWriter(PipelineStep):
 
                 subset_name = parsed.subset
                 row = parsed.row
-                tokens = row.get(self.token_count_column, doc.metadata.get(self.token_count_column) or 0)
+                tokens = row.get(
+                    self.token_count_column, doc.metadata.get(self.token_count_column) or 0
+                )
 
                 self.stat_update(f"{subset_name}_documents")
                 self.stat_update(f"{subset_name}_tokens", value=tokens)
 
                 buffers[subset_name].append(row)
                 if len(buffers[subset_name]) >= self.write_batch_size:
-                    self._flush_batch(subset_name, buffers[subset_name], rank, pq_writers, jsonl_files)
+                    self._flush_batch(
+                        subset_name, buffers[subset_name], rank, pq_writers, jsonl_files, stack
+                    )
                     buffers[subset_name] = []
 
             for subset_name, rows in buffers.items():
                 if rows:
-                    self._flush_batch(subset_name, rows, rank, pq_writers, jsonl_files)
+                    self._flush_batch(subset_name, rows, rank, pq_writers, jsonl_files, stack)
         finally:
-            for writer in pq_writers.values():
-                writer.close()
-            for handle in jsonl_files.values():
-                handle.close()
+            stack.close()
 
         if False:
             yield

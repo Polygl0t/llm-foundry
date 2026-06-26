@@ -112,4 +112,3 @@ Chat template files in `assets/` define Jinja2 templates for formatting conversa
 - `chat_template_non_reasoning.jinja` — Template for non-reasoning conversational data
 - `chat_template_hybrid_reasoning.jinja` — Template supporting mixed reasoning and conversational modes
 - `chat_template_text.jinja` — Basic text template (i.e., concatenates all messages without special formatting)
-

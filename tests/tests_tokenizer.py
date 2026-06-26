@@ -69,12 +69,14 @@ def _read_json(path: str | Path) -> dict:
 
 
 def _write_sample_corpus(path: str | Path, min_chars: int = 40_000) -> None:
-    fallback_text = "\n".join([
-        "To be, or not to be, that is the question.",
-        "Whether tis nobler in the mind to suffer the slings and arrows of outrageous fortune.",
-        "The tokenizer should keep <think>reasoning</think> and <tool_call>calls</tool_call> visible.",
-        "Code indentation matters:\n    def example():\n        return '<answer>done</answer>'",
-    ])
+    fallback_text = "\n".join(
+        [
+            "To be, or not to be, that is the question.",
+            "Whether tis nobler in the mind to suffer the slings and arrows of outrageous fortune.",
+            "The tokenizer should keep <think>reasoning</think> and <tool_call>calls</tool_call> visible.",
+            "Code indentation matters:\n    def example():\n        return '<answer>done</answer>'",
+        ]
+    )
 
     try:
         with urllib.request.urlopen(SHAKESPEARE_URL, timeout=10) as response:
@@ -165,10 +167,16 @@ def _assert_special_token_contract(output_dir: str) -> None:
 
     for token in EXTRA_TOKENS:
         assert token in added_by_content, f"Missing extra token in tokenizer.json: {token!r}"
-        assert added_by_content[token]["special"] is False, f"Extra token should not be special: {token!r}"
+        assert added_by_content[token]["special"] is False, (
+            f"Extra token should not be special: {token!r}"
+        )
 
     for token_key in CORE_SPECIAL_TOKEN_KEYS:
-        token_value = special_tokens_map[token_key]["content"] if isinstance(special_tokens_map[token_key], dict) else special_tokens_map[token_key]
+        token_value = (
+            special_tokens_map[token_key]["content"]
+            if isinstance(special_tokens_map[token_key], dict)
+            else special_tokens_map[token_key]
+        )
         assert added_by_content[token_value]["special"] is True
 
     tokenizer = AutoTokenizer.from_pretrained(output_dir, use_fast=True)
@@ -182,7 +190,9 @@ def _assert_special_token_contract(output_dir: str) -> None:
 
     for token in EXTRA_TOKENS:
         input_ids = tokenizer(token, add_special_tokens=False)["input_ids"]
-        assert input_ids == [tokenizer.convert_tokens_to_ids(token)], f"Extra token is not atomic: {token!r}"
+        assert input_ids == [tokenizer.convert_tokens_to_ids(token)], (
+            f"Extra token is not atomic: {token!r}"
+        )
 
     encoded = tokenizer("<think> visible reasoning </think>", add_special_tokens=True)
     decoded = tokenizer.decode(encoded["input_ids"], skip_special_tokens=True)
@@ -195,7 +205,9 @@ def test_01_load_text_dataset_reads_plain_text_files():
         corpus_path = os.path.join(tmpdir, "sample.txt")
         _write_sample_corpus(corpus_path, min_chars=1_000)
 
-        dataset = load_text_dataset(corpus_path, "txt", cache_dir=os.path.join(tmpdir, "cache"), num_proc=1)
+        dataset = load_text_dataset(
+            corpus_path, "txt", cache_dir=os.path.join(tmpdir, "cache"), num_proc=1
+        )
 
         assert len(dataset) >= 1
         assert "text" in dataset.column_names

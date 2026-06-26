@@ -161,7 +161,7 @@ while IFS= read -r warc_path && [ $DOWNLOADED -lt $NUM_FILES ]; do
     FILENAME=$(basename "$warc_path")      # <-- Extract filename from path
     FULL_URL="$BASE_URL/$warc_path"       # <-- Construct full download URL
     OUTPUT_FILE="$DOWNLOAD_DIR/$FILENAME" # <-- Local file path
-    
+
     # Skip if file already exists (allows resuming downloads)
     if [ -f "$OUTPUT_FILE" ]; then
         echo "[$((DOWNLOADED + 1))/$NUM_FILES] Skipping $FILENAME (already exists)"
@@ -172,9 +172,9 @@ while IFS= read -r warc_path && [ $DOWNLOADED -lt $NUM_FILES ]; do
         fi
         continue
     fi
-    
+
     echo "[$((DOWNLOADED + 1))/$NUM_FILES] Downloading $FILENAME..."
-    
+
     # Download using wget with robust options
     # --continue      : Resume partial downloads
     # --progress=bar  : Show progress bar
@@ -182,7 +182,7 @@ while IFS= read -r warc_path && [ $DOWNLOADED -lt $NUM_FILES ]; do
     # --tries=3       : Retry up to 3 times on failure
     wget --continue --progress=bar --timeout=30 --tries=3 \
          "$FULL_URL" -O "$OUTPUT_FILE"
-    
+
     # Check download status
     if [ $? -eq 0 ]; then
         echo "✓ Successfully downloaded $FILENAME"
@@ -197,7 +197,7 @@ while IFS= read -r warc_path && [ $DOWNLOADED -lt $NUM_FILES ]; do
         # Clean up partial file to prevent corruption
         [ -f "$OUTPUT_FILE" ] && rm "$OUTPUT_FILE"
     fi
-    
+
 done < "$WARC_PATHS_FILE"                  # <-- Read from warc.paths file
 
 #############################################
@@ -213,10 +213,10 @@ if [ "$REMOVE_DOWNLOADED" = true ] && [ ${#DOWNLOADED_PATHS[@]} -gt 0 ]; then
     echo ""
     echo "Updating warc.paths file..."
     echo "Removing ${#DOWNLOADED_PATHS[@]} downloaded paths from index..."
-    
+
     # Create a copy of the original paths file
     cp "$WARC_PATHS_FILE" "$TEMP_PATHS_FILE"
-    
+
     # Remove each downloaded path from the temp file
     for path in "${DOWNLOADED_PATHS[@]}"; do
         # grep -v "^$path$" : Find lines that DON'T match exactly
@@ -225,10 +225,10 @@ if [ "$REMOVE_DOWNLOADED" = true ] && [ ${#DOWNLOADED_PATHS[@]} -gt 0 ]; then
         grep -v "^$path$" "$TEMP_PATHS_FILE" > "$TEMP_PATHS_FILE.new" && \
             mv "$TEMP_PATHS_FILE.new" "$TEMP_PATHS_FILE"
     done
-    
+
     # Replace original file with updated version
     mv "$TEMP_PATHS_FILE" "$WARC_PATHS_FILE"
-    
+
     REMAINING=$(wc -l < "$WARC_PATHS_FILE")
     echo "✓ Updated warc.paths file. Remaining files to download: $REMAINING"
 fi

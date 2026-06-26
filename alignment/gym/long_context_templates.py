@@ -28,7 +28,7 @@ Template structure:
 """
 
 LONG_CONTEXT_TEMPLATES = [
-    #  Common Words (Top-K Most Frequent) 
+    #  Common Words (Top-K Most Frequent)
     {
         "id": "common_words",
         "task_type": "common_words",
@@ -54,7 +54,7 @@ LONG_CONTEXT_TEMPLATES = [
             "Das palavras listadas, quais {top_k} possuem a maior frequência?",
         ],
     },
-    #  Rare Words (Least Frequent) 
+    #  Rare Words (Least Frequent)
     {
         "id": "rare_words",
         "task_type": "rare_words",
@@ -80,7 +80,7 @@ LONG_CONTEXT_TEMPLATES = [
             "Das palavras listadas, quais {top_k} são as menos recorrentes?",
         ],
     },
-    #  Count Word (Exact Count of a Specific Word) 
+    #  Count Word (Exact Count of a Specific Word)
     {
         "id": "count_word",
         "task_type": "count_word",
@@ -96,17 +96,17 @@ LONG_CONTEXT_TEMPLATES = [
             "Examine a lista numerada de palavras apresentada abaixo. Determine o número exato de vezes que uma determinada palavra aparece.",
         ],
         "questions": [
-            "Quantas vezes a palavra \"{target_word}\" aparece na lista acima?",
-            "Conte o número de ocorrências da palavra \"{target_word}\" na lista.",
-            "Na lista acima, quantas vezes a palavra \"{target_word}\" foi mencionada?",
-            "Qual é o total de vezes que \"{target_word}\" aparece na lista?",
-            "Diga quantas vezes a palavra \"{target_word}\" surge na lista acima.",
-            "Quantas ocorrências da palavra \"{target_word}\" existem na lista?",
-            "A palavra \"{target_word}\" aparece quantas vezes na lista acima?",
-            "Informe o número exato de vezes que \"{target_word}\" aparece na lista.",
+            'Quantas vezes a palavra "{target_word}" aparece na lista acima?',
+            'Conte o número de ocorrências da palavra "{target_word}" na lista.',
+            'Na lista acima, quantas vezes a palavra "{target_word}" foi mencionada?',
+            'Qual é o total de vezes que "{target_word}" aparece na lista?',
+            'Diga quantas vezes a palavra "{target_word}" surge na lista acima.',
+            'Quantas ocorrências da palavra "{target_word}" existem na lista?',
+            'A palavra "{target_word}" aparece quantas vezes na lista acima?',
+            'Informe o número exato de vezes que "{target_word}" aparece na lista.',
         ],
     },
-    #  Word at Position 
+    #  Word at Position
     {
         "id": "word_at_position",
         "task_type": "word_at_position",
@@ -132,7 +132,7 @@ LONG_CONTEXT_TEMPLATES = [
             "Informe a palavra correspondente à posição {position}.",
         ],
     },
-    #  Frequency Comparison 
+    #  Frequency Comparison
     {
         "id": "frequency_comparison",
         "task_type": "frequency_comparison",
@@ -148,17 +148,17 @@ LONG_CONTEXT_TEMPLATES = [
             "Examine a lista de palavras abaixo. Determine qual das palavras indicadas aparece mais vezes.",
         ],
         "questions": [
-            "Entre as palavras \"{word_a}\" e \"{word_b}\", qual aparece mais vezes na lista?",
-            "Comparando \"{word_a}\" e \"{word_b}\", qual é mais frequente na lista acima?",
-            "Qual das duas palavras aparece com maior frequência na lista: \"{word_a}\" ou \"{word_b}\"?",
-            "Na lista acima, qual palavra é mais comum: \"{word_a}\" ou \"{word_b}\"?",
-            "Dentre \"{word_a}\" e \"{word_b}\", qual tem mais ocorrências na lista?",
-            "Qual palavra aparece mais na lista: \"{word_a}\" ou \"{word_b}\"?",
-            "Das duas palavras, \"{word_a}\" e \"{word_b}\", qual surge com mais frequência?",
-            "Entre \"{word_a}\" e \"{word_b}\", qual foi mais repetida na lista acima?",
+            'Entre as palavras "{word_a}" e "{word_b}", qual aparece mais vezes na lista?',
+            'Comparando "{word_a}" e "{word_b}", qual é mais frequente na lista acima?',
+            'Qual das duas palavras aparece com maior frequência na lista: "{word_a}" ou "{word_b}"?',
+            'Na lista acima, qual palavra é mais comum: "{word_a}" ou "{word_b}"?',
+            'Dentre "{word_a}" e "{word_b}", qual tem mais ocorrências na lista?',
+            'Qual palavra aparece mais na lista: "{word_a}" ou "{word_b}"?',
+            'Das duas palavras, "{word_a}" e "{word_b}", qual surge com mais frequência?',
+            'Entre "{word_a}" e "{word_b}", qual foi mais repetida na lista acima?',
         ],
     },
-    #  needle_single_number 
+    #  needle_single_number
     {
         "id": "needle_single_number",
         "task_type": "needle_single_number",
@@ -185,7 +185,7 @@ LONG_CONTEXT_TEMPLATES = [
             "Encontre o número especial para {key} no texto acima.",
         ],
     },
-    #  needle_multi_number_same_key 
+    #  needle_multi_number_same_key
     {
         "id": "needle_multi_number_same_key",
         "task_type": "needle_multi_number_same_key",
@@ -212,7 +212,7 @@ LONG_CONTEXT_TEMPLATES = [
             "Diga quais são todos os números especiais para {key} contidos no texto.",
         ],
     },
-    #  needle_multi_number_diff_keys 
+    #  needle_multi_number_diff_keys
     {
         "id": "needle_multi_number_diff_keys",
         "task_type": "needle_multi_number_diff_keys",
@@ -239,7 +239,7 @@ LONG_CONTEXT_TEMPLATES = [
             "Diga quais são os números especiais para {keys_str} contidos no texto.",
         ],
     },
-    #  needle_uuid 
+    #  needle_uuid
     {
         "id": "needle_uuid",
         "task_type": "needle_uuid",
@@ -273,10 +273,15 @@ LONG_CONTEXT_TASK_TYPES = [t["task_type"] for t in LONG_CONTEXT_TEMPLATES]
 
 # Category sublists
 WORD_LIST_TASK_TYPES = [
-    "common_words", "rare_words", "count_word",
-    "word_at_position", "frequency_comparison",
+    "common_words",
+    "rare_words",
+    "count_word",
+    "word_at_position",
+    "frequency_comparison",
 ]
 HAYSTACK_TASK_TYPES = [
-    "needle_single_number", "needle_multi_number_same_key",
-    "needle_multi_number_diff_keys", "needle_uuid",
+    "needle_single_number",
+    "needle_multi_number_same_key",
+    "needle_multi_number_diff_keys",
+    "needle_uuid",
 ]

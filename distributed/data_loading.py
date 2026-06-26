@@ -6,18 +6,17 @@ Provides:
     - prepare_dataloaders:        main entry point; returns fully configured dataloaders
     - DataLoaderBundle:           return type bundling dataloaders and metadata
 """
-from dataclasses import dataclass
-from torch.utils.data.distributed import DistributedSampler
-from torch.utils.data import DataLoader
-import torch
 
 import glob
 import os
+from dataclasses import dataclass
 
-from transformers import default_data_collator
-import numpy as np
 import datasets
-
+import numpy as np
+import torch
+from torch.utils.data import DataLoader
+from torch.utils.data.distributed import DistributedSampler
+from transformers import default_data_collator
 
 # Map user-facing format names to HuggingFace datasets format names.
 _FORMAT_MAP = {
@@ -31,6 +30,7 @@ SUPPORTED_FORMATS = set(_FORMAT_MAP)
 @dataclass
 class DataLoaderBundle:
     """Everything the training loop needs from the data pipeline."""
+
     train_dataloader: DataLoader
     val_dataloader: DataLoader
     train_sampler: DistributedSampler
@@ -52,7 +52,9 @@ def create_collate_fn(mask_token_ids):
     returns a function matching the signature `collate_fn(examples) -> batch`.
     """
     # Pre-compute a tensor of IDs to mask for efficient vectorized lookup.
-    _mask_ids_tensor = torch.tensor(sorted(mask_token_ids), dtype=torch.long) if mask_token_ids else None
+    _mask_ids_tensor = (
+        torch.tensor(sorted(mask_token_ids), dtype=torch.long) if mask_token_ids else None
+    )
 
     def collate_fn(examples):
         batch = default_data_collator(examples)
@@ -132,20 +134,27 @@ class RandomTokenDataset(torch.utils.data.Dataset):
         g.manual_seed(self.seed + int(idx))
 
         input_ids = torch.randint(
-            0, self.vocab_size, (self.seq_len,), generator=g, dtype=self.dtype,
+            0,
+            self.vocab_size,
+            (self.seq_len,),
+            generator=g,
+            dtype=self.dtype,
         )
 
         # Overwrite a contiguous slice with a learnable pattern.
         pattern_len = max(2, int(self.seq_len * self.pattern_ratio))
         start = torch.randint(
-            0, self.seq_len - pattern_len + 1, (1,), generator=g,
+            0,
+            self.seq_len - pattern_len + 1,
+            (1,),
+            generator=g,
         ).item()
 
         # Alternate between two simple patterns based on idx parity.
         if idx % 2 == 0:
             # Copy-next: each token is (previous + 1) mod vocab_size.
             anchor = torch.randint(0, self.vocab_size, (1,), generator=g, dtype=self.dtype)
-            input_ids[start:start + pattern_len] = (
+            input_ids[start : start + pattern_len] = (
                 anchor + torch.arange(pattern_len, dtype=self.dtype)
             ) % self.vocab_size
         else:
@@ -200,7 +209,9 @@ def _load_disk_datasets(args, logger=None, file_logger=None):
         if logger:
             logger.info(f"Shuffling enabled. Shuffling {len(train_files)} dataset files.")
         if file_logger:
-            file_logger.log_metadata(f"Shuffling enabled. Shuffling {len(train_files)} dataset files.")
+            file_logger.log_metadata(
+                f"Shuffling enabled. Shuffling {len(train_files)} dataset files."
+            )
         np.random.seed(args.seed)
         np.random.shuffle(train_files)
 
@@ -247,7 +258,9 @@ def _load_disk_datasets(args, logger=None, file_logger=None):
     return train_dataset, val_dataset
 
 
-def prepare_dataloaders(args, tokenizer, world_size, rank, logger=None, file_logger=None, collate_fn=None):
+def prepare_dataloaders(
+    args, tokenizer, world_size, rank, logger=None, file_logger=None, collate_fn=None
+):
     """
     Build train and validation DataLoaders from the training arguments.
     It returns a DataLoaderBundle containing the dataloaders and metadata about the datasets.
@@ -257,15 +270,22 @@ def prepare_dataloaders(args, tokenizer, world_size, rank, logger=None, file_log
         train_dataset, val_dataset = _load_sanity_check_datasets(args)
     else:
         train_dataset, val_dataset = _load_disk_datasets(
-            args, logger=logger, file_logger=file_logger,
+            args,
+            logger=logger,
+            file_logger=file_logger,
         )
 
     if collate_fn is None:
         # Always mask pad, eos, and bos tokens when they are defined in the tokenizer.
         mask_token_ids = set()
-        for token_id in (tokenizer.pad_token_id, tokenizer.eos_token_id, tokenizer.bos_token_id):
-            if token_id is not None:
-                mask_token_ids.add(token_id)
+        if tokenizer is not None:
+            for token_id in (
+                tokenizer.pad_token_id,
+                tokenizer.eos_token_id,
+                tokenizer.bos_token_id,
+            ):
+                if token_id is not None:
+                    mask_token_ids.add(token_id)
 
         # Add any user-specified additional token IDs to mask.
         if args.additional_mask_token_ids:
@@ -276,7 +296,9 @@ def prepare_dataloaders(args, tokenizer, world_size, rank, logger=None, file_log
         if logger:
             logger.info(f"Collate function will mask token IDs: {sorted(mask_token_ids)}")
         if file_logger:
-            file_logger.log_metadata(f"Collate function will mask token IDs: {sorted(mask_token_ids)}")
+            file_logger.log_metadata(
+                f"Collate function will mask token IDs: {sorted(mask_token_ids)}"
+            )
 
     train_sampler = DistributedSampler(
         train_dataset,

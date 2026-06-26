@@ -4,11 +4,11 @@
 # NOTICE
 #############################################
 # There are several new tools for PDF to
-# markdown conversion, that (alegedly) 
+# markdown conversion, that (alegedly)
 # outperform marker.
 #
 # Here is a table of comparisons: https://github.com/opendataloader-project/opendataloader-pdf
-# - source: 
+# - source:
 #
 # | Engine                  | Overall | Reading Order | Table | Heading | Speed (s/page) |
 # |-------------------------|---------|---------------|-------|---------|----------------|
@@ -77,7 +77,7 @@ source "$workdir/.venv_amd_pdf/bin/activate"
 #############################################
 
 export NUM_DEVICES=8                        # <-- Number of GPUs to use
-export NUM_WORKERS=8                        # <-- Same as NUM_DEVICES          
+export NUM_WORKERS=8                        # <-- Same as NUM_DEVICES
 export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export HF_DATASETS_CACHE="$workdir/.cache"

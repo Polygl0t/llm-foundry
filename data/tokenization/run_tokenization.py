@@ -35,8 +35,11 @@ Usage:
         --return_labels \\
         --return_assistant_masks
 """
+
 import argparse
+
 from transformers import AutoTokenizer
+
 from utils import DatasetLoader, get_logger, save_dataset, save_metadata
 
 logger = get_logger("Tokenize")
@@ -103,7 +106,7 @@ def create_tokenize_function(tokenizer, args):
             # break the template's expected formatting.
 
             if assistant_masks is not None:
-                for seq, mask in zip(input_ids, assistant_masks):
+                for seq, mask in zip(input_ids, assistant_masks, strict=False):
                     if len(seq) != len(mask):
                         raise ValueError("assistant_masks must have the same length as input_ids.")
 
@@ -136,8 +139,8 @@ def create_tokenize_function(tokenizer, args):
         if args.return_labels:
             if want_assistant_masks:
                 result["labels"] = [
-                    [t if m == 1 else -100 for t, m in zip(seq, mask)]
-                    for seq, mask in zip(input_ids, assistant_masks)
+                    [t if m == 1 else -100 for t, m in zip(seq, mask, strict=False)]
+                    for seq, mask in zip(input_ids, assistant_masks, strict=False)
                 ]
             else:
                 # No assistant mask available — treat every token as a label.
@@ -149,7 +152,6 @@ def create_tokenize_function(tokenizer, args):
 
 
 def main(args):
-    
     # Load dataset
     loader = DatasetLoader(
         path=args.input_path,
@@ -251,49 +253,60 @@ if __name__ == "__main__":
     # I/O Stuff
     io = parser.add_argument_group("Input / Output")
     io.add_argument(
-        "--input_path", required=True,
+        "--input_path",
+        required=True,
         help="Dataset source: local file, local directory, or HuggingFace Hub id.",
     )
     io.add_argument(
-        "--output_dir", required=True,
+        "--output_dir",
+        required=True,
         help="Directory to write the tokenized dataset into.",
     )
     io.add_argument(
-        "--output_type", choices=["parquet", "jsonl"], default="parquet",
+        "--output_type",
+        choices=["parquet", "jsonl"],
+        default="parquet",
         help="Output file format.",
     )
     io.add_argument(
-        "--split", default="train",
+        "--split",
+        default="train",
         help="Dataset split to use when loading from HuggingFace Hub.",
     )
     io.add_argument(
-        "--subset", default=None,
+        "--subset",
+        default=None,
         help="Dataset subset / config name for HuggingFace Hub datasets.",
     )
 
     # Tokenizer
     tok = parser.add_argument_group("Tokenizer")
     tok.add_argument(
-        "--tokenizer_name", required=True,
+        "--tokenizer_name",
+        required=True,
         help="Name or local path of the tokenizer.",
     )
     tok.add_argument(
-        "--token", default=None,
+        "--token",
+        default=None,
         help="HuggingFace API token (for gated models).",
     )
     tok.add_argument(
-        "--chat_template_path", default=None,
+        "--chat_template_path",
+        default=None,
         help="Path to a Jinja2 chat-template file. Overrides the tokenizer's built-in template.",
     )
 
     # Text input
     text = parser.add_argument_group("Text Input")
     text.add_argument(
-        "--text_column", default="text",
+        "--text_column",
+        default="text",
         help="Dataset column that contains the text or messages to tokenize.",
     )
     text.add_argument(
-        "--apply_chat_template", action="store_true",
+        "--apply_chat_template",
+        action="store_true",
         help=(
             "Apply the tokenizer's chat template. "
             "Use when the text column holds a list of message dicts (SFT)."
@@ -303,33 +316,39 @@ if __name__ == "__main__":
     # Special tokens
     sp = parser.add_argument_group("Special Tokens")
     sp.add_argument(
-        "--add_bos_token", action="store_true",
+        "--add_bos_token",
+        action="store_true",
         help="Prepend the BOS token to each sequence. Incompatible with --apply_chat_template.",
     )
     sp.add_argument(
-        "--add_eos_token", action="store_true",
+        "--add_eos_token",
+        action="store_true",
         help="Append the EOS token to each sequence. Incompatible with --apply_chat_template.",
     )
 
     # Output fields
     out = parser.add_argument_group("Output Fields")
     out.add_argument(
-        "--return_seq_lengths", action="store_true",
+        "--return_seq_lengths",
+        action="store_true",
         help="Include the 'seq_lengths' column in the saved dataset.",
     )
     out.add_argument(
-        "--return_attention_mask", action="store_true",
+        "--return_attention_mask",
+        action="store_true",
         help="Include an 'attention_mask' column (all 1s over real tokens).",
     )
     out.add_argument(
-        "--return_labels", action="store_true",
+        "--return_labels",
+        action="store_true",
         help=(
             "Include a 'labels' column for loss computation. "
             "Non-assistant tokens are masked to -100 when --return_assistant_masks is also set."
         ),
     )
     out.add_argument(
-        "--return_assistant_masks", action="store_true",
+        "--return_assistant_masks",
+        action="store_true",
         help=(
             "Include an 'assistant_masks' column (1 for assistant tokens, 0 otherwise). "
             "Requires --apply_chat_template."
@@ -339,30 +358,41 @@ if __name__ == "__main__":
     # Filtering / limits
     filt = parser.add_argument_group("Filtering / Limits")
     filt.add_argument(
-        "--max_length", type=int, default=None,
+        "--max_length",
+        type=int,
+        default=None,
         help="Discard sequences longer than this many tokens.",
     )
     filt.add_argument(
-        "--max_tokens", type=int, default=None,
+        "--max_tokens",
+        type=int,
+        default=None,
         help="Truncate the output dataset to at most this many tokens in total.",
     )
 
     # Performance / saving
     perf = parser.add_argument_group("Performance / Saving")
     perf.add_argument(
-        "--num_proc", type=int, default=8,
+        "--num_proc",
+        type=int,
+        default=8,
         help="Number of parallel worker processes.",
     )
     perf.add_argument(
-        "--tokens_per_chunk", type=int, default=300_000_000,
+        "--tokens_per_chunk",
+        type=int,
+        default=300_000_000,
         help="Maximum number of tokens per output file.",
     )
     perf.add_argument(
-        "--cache_dir", default=None,
+        "--cache_dir",
+        default=None,
         help="Cache directory for the tokenizer and HuggingFace datasets.",
     )
     perf.add_argument(
-        "--seed", type=int, default=None,
+        "--seed",
+        type=int,
+        default=None,
         help="Random seed for dataset shuffling (shuffling disabled when not set).",
     )
 

@@ -22,11 +22,11 @@ Requirements:
 #######################################
 # 1. Imports & Setup
 #######################################
-import sys
-import os
 import argparse
 import importlib
 import json
+import os
+import sys
 import tempfile
 import types
 from unittest.mock import MagicMock, patch
@@ -67,10 +67,20 @@ class TinyDataset:
         if batched:
             batch = {col: [row[col] for row in self.rows] for col in self.column_names}
             keep = fn(batch)
-            return TinyDataset([row for row, should_keep in zip(self.rows, keep) if should_keep])
+            return TinyDataset(
+                [row for row, should_keep in zip(self.rows, keep, strict=False) if should_keep]
+            )
         return TinyDataset([row for row in self.rows if fn(row)])
 
-    def map(self, fn, batched=False, remove_columns=None, desc=None, num_proc=None, load_from_cache_file=True):
+    def map(
+        self,
+        fn,
+        batched=False,
+        remove_columns=None,
+        desc=None,
+        num_proc=None,
+        load_from_cache_file=True,
+    ):
         if batched:
             batch = {col: [row[col] for row in self.rows] for col in self.column_names}
             mapped = fn(batch)
@@ -88,10 +98,9 @@ class TinyDataset:
     def remove_columns(self, columns):
         if isinstance(columns, str):
             columns = [columns]
-        return TinyDataset([
-            {key: value for key, value in row.items() if key not in columns}
-            for row in self.rows
-        ])
+        return TinyDataset(
+            [{key: value for key, value in row.items() if key not in columns} for row in self.rows]
+        )
 
     def shuffle(self, seed=None):
         return TinyDataset(self.rows)
@@ -116,13 +125,15 @@ class FakeDatasetsModule(types.ModuleType):
         self.next_datasets = []
 
     def load_dataset(self, fmt, data_files=None, split="train", cache_dir=None, **kwargs):
-        self.load_calls.append({
-            "fmt": fmt,
-            "data_files": data_files,
-            "split": split,
-            "cache_dir": cache_dir,
-            **kwargs,
-        })
+        self.load_calls.append(
+            {
+                "fmt": fmt,
+                "data_files": data_files,
+                "split": split,
+                "cache_dir": cache_dir,
+                **kwargs,
+            }
+        )
         if isinstance(data_files, list):
             rows = []
             for path in data_files:
@@ -164,10 +175,12 @@ def _load_module_from_tokenization_dir(module_name, filename):
 make_validation_split = _load_module_from_tokenization_dir(
     "tokenization_make_validation_split_mod", "make_validation_split.py"
 )
-decontaminate = _load_module_from_tokenization_dir("tokenization_decontaminate_mod", "decontaminate.py")
+decontaminate = _load_module_from_tokenization_dir(
+    "tokenization_decontaminate_mod", "decontaminate.py"
+)
 pack = _load_module_from_tokenization_dir("tokenization_pack_mod", "pack.py")
-tokenize = _load_module_from_tokenization_dir("tokenization_tokenize_mod", "tokenize.py")
-from utils import save_metadata
+tokenize = _load_module_from_tokenization_dir("tokenization_tokenize_mod", "run_tokenization.py")
+from utils import save_metadata  # noqa: E402
 
 print("All imports OK ✅")
 
@@ -182,6 +195,7 @@ def _reset_fake_datasets():
 #######################################
 # Section 1 - make_validation_split.py
 #######################################
+
 
 def test_01_read_metadata_returns_empty_dict_for_missing_file():
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -214,10 +228,14 @@ def test_04_get_files_from_dirs_can_sample_n_files():
     with tempfile.TemporaryDirectory() as tmpdir:
         for i in range(5):
             open(os.path.join(tmpdir, f"part_{i}.parquet"), "w").close()
-        with patch.object(make_validation_split.random, "sample", return_value=[
-            os.path.join(tmpdir, "part_4.parquet"),
-            os.path.join(tmpdir, "part_1.parquet"),
-        ]):
+        with patch.object(
+            make_validation_split.random,
+            "sample",
+            return_value=[
+                os.path.join(tmpdir, "part_4.parquet"),
+                os.path.join(tmpdir, "part_1.parquet"),
+            ],
+        ):
             files = make_validation_split.get_files_from_dirs([tmpdir], "parquet", n_files=2)
         assert [os.path.basename(path) for path in files] == ["part_1.parquet", "part_4.parquet"]
     print("Test 4 - get_files_from_dirs sampled files: OK ✅")
@@ -244,16 +262,20 @@ def test_06_validation_split_main_writes_json_split_and_metadata():
         open(file_a, "w").close()
         open(file_b, "w").close()
         save_metadata(input_dir, Tokenizer="toy-tokenizer")
-        fake_datasets.datasets_by_file[file_a] = TinyDataset([
-            {"input_ids": [1, 2, 3, 4], "id": "a0"},
-            {"input_ids": [5, 6, 7, 8], "id": "a1"},
-            {"input_ids": [9, 10, 11, 12], "id": "a2"},
-        ])
-        fake_datasets.datasets_by_file[file_b] = TinyDataset([
-            {"input_ids": [13, 14, 15, 16], "id": "b0"},
-            {"input_ids": [17, 18, 19, 20], "id": "b1"},
-            {"input_ids": [21, 22, 23, 24], "id": "b2"},
-        ])
+        fake_datasets.datasets_by_file[file_a] = TinyDataset(
+            [
+                {"input_ids": [1, 2, 3, 4], "id": "a0"},
+                {"input_ids": [5, 6, 7, 8], "id": "a1"},
+                {"input_ids": [9, 10, 11, 12], "id": "a2"},
+            ]
+        )
+        fake_datasets.datasets_by_file[file_b] = TinyDataset(
+            [
+                {"input_ids": [13, 14, 15, 16], "id": "b0"},
+                {"input_ids": [17, 18, 19, 20], "id": "b1"},
+                {"input_ids": [21, 22, 23, 24], "id": "b2"},
+            ]
+        )
 
         make_validation_split.main([input_dir], output_dir, "json", "valid", n_samples=4)
 
@@ -281,10 +303,12 @@ def test_07_validation_split_main_accumulates_existing_metadata():
         file_path = os.path.join(input_dir, "a.jsonl")
         open(file_path, "w").close()
         save_metadata(output_dir, Samples=2, Tokens=8, Chunks=1)
-        fake_datasets.datasets_by_file[file_path] = TinyDataset([
-            {"input_ids": [1, 2], "id": "new0"},
-            {"input_ids": [3, 4], "id": "new1"},
-        ])
+        fake_datasets.datasets_by_file[file_path] = TinyDataset(
+            [
+                {"input_ids": [1, 2], "id": "new0"},
+                {"input_ids": [3, 4], "id": "new1"},
+            ]
+        )
 
         make_validation_split.main([input_dir], output_dir, "json", "valid", n_samples=1)
 
@@ -317,12 +341,15 @@ def test_08_validation_split_main_rejects_too_many_samples():
 # Section 2 - pack.py
 #######################################
 
+
 def test_09_concatenate_pack_splits_blocks_and_discards_tail():
     pack_fn = pack.create_concatenate_function(4, ["input_ids", "attention_mask"])
-    result = pack_fn({
-        "input_ids": [[1, 2], [3, 4, 5], [6, 7, 8, 9]],
-        "attention_mask": [[1, 1], [1, 1, 1], [1, 1, 1, 1]],
-    })
+    result = pack_fn(
+        {
+            "input_ids": [[1, 2], [3, 4, 5], [6, 7, 8, 9]],
+            "attention_mask": [[1, 1], [1, 1, 1], [1, 1, 1, 1]],
+        }
+    )
     assert result["input_ids"] == [[1, 2, 3, 4], [5, 6, 7, 8]]
     assert result["attention_mask"] == [[1, 1, 1, 1], [1, 1, 1, 1]]
     assert result["seq_lengths"] == [4, 4]
@@ -337,16 +364,22 @@ def test_10_concatenate_pack_handles_no_full_blocks():
 
 
 def test_11_bfd_pack_pads_partial_chunks():
-    pack_fn = pack.create_bfd_function(5, ["input_ids", "labels", "attention_mask"], {
-        "input_ids": 0,
-        "labels": -100,
-        "attention_mask": 0,
-    })
-    result = pack_fn({
-        "input_ids": [[1, 2, 3], [4]],
-        "labels": [[1, 2, 3], [4]],
-        "attention_mask": [[1, 1, 1], [1]],
-    })
+    pack_fn = pack.create_bfd_function(
+        5,
+        ["input_ids", "labels", "attention_mask"],
+        {
+            "input_ids": 0,
+            "labels": -100,
+            "attention_mask": 0,
+        },
+    )
+    result = pack_fn(
+        {
+            "input_ids": [[1, 2, 3], [4]],
+            "labels": [[1, 2, 3], [4]],
+            "attention_mask": [[1, 1, 1], [1]],
+        }
+    )
     assert result["input_ids"] == [[1, 2, 3, 4, 0]]
     assert result["labels"] == [[1, 2, 3, 4, -100]]
     assert result["attention_mask"] == [[1, 1, 1, 1, 0]]
@@ -407,6 +440,7 @@ def test_15_pack_main_bfd_requires_pad_token_id():
         output_dir="ignored",
         output_type="jsonl",
         tokens_per_chunk=100,
+        return_seq_lengths=False,
     )
     with patch.object(pack, "DatasetLoader") as loader_cls:
         loader_cls.return_value.load.return_value = TinyDataset([{"input_ids": [1, 2]}])
@@ -432,6 +466,7 @@ def test_16_pack_main_saves_packed_dataset_and_metadata():
             output_dir=tmpdir,
             output_type="jsonl",
             tokens_per_chunk=6,
+            return_seq_lengths=False,
         )
         dataset = TinyDataset([{"input_ids": [1, 2]}, {"input_ids": [3, 4]}, {"input_ids": [5, 6]}])
         with patch.object(pack, "DatasetLoader") as loader_cls:
@@ -452,16 +487,25 @@ def test_16_pack_main_saves_packed_dataset_and_metadata():
 # Section 3 - tokenize.py
 #######################################
 
+
 class FakeTokenizer:
     def __init__(self):
         self.bos_token_id = 101
         self.eos_token_id = 102
         self.chat_template = "template"
 
-    def __call__(self, texts, return_attention_mask=False, return_token_type_ids=False, add_special_tokens=False):
+    def __call__(
+        self,
+        texts,
+        return_attention_mask=False,
+        return_token_type_ids=False,
+        add_special_tokens=False,
+    ):
         return {"input_ids": [[ord(ch) % 50 for ch in text] for text in texts]}
 
-    def apply_chat_template(self, messages_batch, return_assistant_tokens_mask, return_dict, add_generation_prompt):
+    def apply_chat_template(
+        self, messages_batch, return_assistant_tokens_mask, return_dict, add_generation_prompt
+    ):
         input_ids = []
         assistant_masks = []
         for messages in messages_batch:
@@ -478,30 +522,30 @@ class FakeTokenizer:
 
 
 def _tokenize_args(**overrides):
-    defaults = dict(
-        tokenizer_name="fake-tokenizer",
-        cache_dir=None,
-        token=None,
-        chat_template_path=None,
-        text_column="text",
-        apply_chat_template=False,
-        add_bos_token=False,
-        add_eos_token=False,
-        return_seq_lengths=True,
-        return_attention_mask=False,
-        return_labels=False,
-        return_assistant_masks=False,
-        input_path="ignored",
-        output_dir="ignored",
-        output_type="jsonl",
-        split="train",
-        subset=None,
-        seed=None,
-        num_proc=1,
-        max_length=None,
-        max_tokens=None,
-        tokens_per_chunk=100,
-    )
+    defaults = {
+        "tokenizer_name": "fake-tokenizer",
+        "cache_dir": None,
+        "token": None,
+        "chat_template_path": None,
+        "text_column": "text",
+        "apply_chat_template": False,
+        "add_bos_token": False,
+        "add_eos_token": False,
+        "return_seq_lengths": True,
+        "return_attention_mask": False,
+        "return_labels": False,
+        "return_assistant_masks": False,
+        "input_path": "ignored",
+        "output_dir": "ignored",
+        "output_type": "jsonl",
+        "split": "train",
+        "subset": None,
+        "seed": None,
+        "num_proc": 1,
+        "max_length": None,
+        "max_tokens": None,
+        "tokens_per_chunk": 100,
+    }
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
 
@@ -545,7 +589,9 @@ def test_19_load_tokenizer_requires_chat_template_when_missing():
 
 
 def test_20_standard_tokenize_adds_special_tokens_and_masks():
-    args = _tokenize_args(add_bos_token=True, add_eos_token=True, return_attention_mask=True, return_labels=True)
+    args = _tokenize_args(
+        add_bos_token=True, add_eos_token=True, return_attention_mask=True, return_labels=True
+    )
     tokenize_fn = tokenize.create_tokenize_function(FakeTokenizer(), args)
     result = tokenize_fn({"text": ["ab", "c"]})
     assert result["input_ids"] == [[101, 47, 48, 102], [101, 49, 102]]
@@ -563,10 +609,16 @@ def test_21_chat_tokenize_returns_assistant_masks_and_masked_labels():
         return_labels=True,
     )
     tokenize_fn = tokenize.create_tokenize_function(FakeTokenizer(), args)
-    result = tokenize_fn({"messages": [[
-        {"role": "user", "content": "hello"},
-        {"role": "assistant", "content": "ok"},
-    ]]})
+    result = tokenize_fn(
+        {
+            "messages": [
+                [
+                    {"role": "user", "content": "hello"},
+                    {"role": "assistant", "content": "ok"},
+                ]
+            ]
+        }
+    )
     # Chat template is solely responsible for special tokens — no extra BOS/EOS injected.
     assert result["input_ids"] == [[5, 4, 2, 9]]
     assert result["assistant_masks"] == [[0, 0, 1, 1]]
@@ -612,7 +664,9 @@ def test_23_tokenize_main_filters_truncates_saves_and_metadata():
         dataset = TinyDataset([{"text": "ab"}, {"text": "abcdef"}, {"text": "c"}])
         with patch.object(tokenize, "DatasetLoader") as loader_cls:
             loader_cls.return_value.load.return_value = dataset
-            with patch.object(tokenize.AutoTokenizer, "from_pretrained", return_value=FakeTokenizer()):
+            with patch.object(
+                tokenize.AutoTokenizer, "from_pretrained", return_value=FakeTokenizer()
+            ):
                 tokenize.main(args)
         output_files = [name for name in os.listdir(tmpdir) if name.endswith(".jsonl")]
         assert output_files == ["train-00000-of-00001.jsonl"]
@@ -632,20 +686,21 @@ def test_23_tokenize_main_filters_truncates_saves_and_metadata():
 # Section 4 - decontaminate.py
 #######################################
 
+
 def _decontaminate_args(tmpdir, **overrides):
-    defaults = dict(
-        input_dir=os.path.join(tmpdir, "input"),
-        reference_path=os.path.join(tmpdir, "ref.jsonl"),
-        cache_dir=None,
-        num_proc=1,
-        batch_size=2,
-        output_dir=os.path.join(tmpdir, "output"),
-        output_type="jsonl",
-        min_k=3,
-        max_k=4,
-        allow_one_token_mismatch=False,
-        approx_max_k=3,
-    )
+    defaults = {
+        "input_dir": os.path.join(tmpdir, "input"),
+        "reference_path": os.path.join(tmpdir, "ref.jsonl"),
+        "cache_dir": None,
+        "num_proc": 1,
+        "batch_size": 2,
+        "output_dir": os.path.join(tmpdir, "output"),
+        "output_type": "jsonl",
+        "min_k": 3,
+        "max_k": 4,
+        "allow_one_token_mismatch": False,
+        "approx_max_k": 3,
+    }
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
 
@@ -660,10 +715,12 @@ def test_24_decontaminate_exact_match_filters_contaminated_rows():
         open(input_file, "w").close()
         open(ref_file, "w").close()
         fake_datasets.next_datasets = [
-            TinyDataset([
-                {"input_ids": [9, 1, 2, 3, 8], "id": "bad"},
-                {"input_ids": [7, 7, 7, 7], "id": "good"},
-            ]),
+            TinyDataset(
+                [
+                    {"input_ids": [9, 1, 2, 3, 8], "id": "bad"},
+                    {"input_ids": [7, 7, 7, 7], "id": "good"},
+                ]
+            ),
             TinyDataset([{"input_ids": [101, 1, 2, 3, 102]}]),
         ]
         decontaminate.main(_decontaminate_args(tmpdir))
@@ -683,13 +740,17 @@ def test_25_decontaminate_allows_one_token_mismatch_when_enabled():
         open(input_file, "w").close()
         open(ref_file, "w").close()
         fake_datasets.next_datasets = [
-            TinyDataset([
-                {"input_ids": [1, 2, 99], "id": "near-match"},
-                {"input_ids": [8, 8, 8], "id": "clean"},
-            ]),
+            TinyDataset(
+                [
+                    {"input_ids": [1, 2, 99], "id": "near-match"},
+                    {"input_ids": [8, 8, 8], "id": "clean"},
+                ]
+            ),
             TinyDataset([{"input_ids": [101, 1, 2, 3, 102]}]),
         ]
-        decontaminate.main(_decontaminate_args(tmpdir, allow_one_token_mismatch=True, approx_max_k=3))
+        decontaminate.main(
+            _decontaminate_args(tmpdir, allow_one_token_mismatch=True, approx_max_k=3)
+        )
         with open(os.path.join(tmpdir, "output", "train-00000-of-00001.jsonl")) as f:
             rows = [json.loads(line) for line in f]
         assert rows == [{"input_ids": [8, 8, 8], "id": "clean"}]
@@ -730,7 +791,9 @@ def test_27_decontaminate_chunks_output_by_input_file_count():
             TinyDataset([{"input_ids": [1, 2, 3]}]),
         ]
         decontaminate.main(_decontaminate_args(tmpdir, min_k=3))
-        files = sorted(name for name in os.listdir(os.path.join(tmpdir, "output")) if name.endswith(".jsonl"))
+        files = sorted(
+            name for name in os.listdir(os.path.join(tmpdir, "output")) if name.endswith(".jsonl")
+        )
         assert files == ["train-00000-of-00002.jsonl", "train-00001-of-00002.jsonl"]
     print("Test 27 - decontaminate output chunk count: OK ✅")
 
@@ -749,11 +812,16 @@ def test_28_decontaminate_argument_parser_defaults_and_required_args():
     parser.add_argument("--allow_one_token_mismatch", action="store_true")
     parser.add_argument("--approx_max_k", type=int, default=10)
 
-    args = parser.parse_args([
-        "--input_dir", "data/tokenized_train",
-        "--reference_path", "eval_set/",
-        "--output_dir", "cleaned",
-    ])
+    args = parser.parse_args(
+        [
+            "--input_dir",
+            "data/tokenized_train",
+            "--reference_path",
+            "eval_set/",
+            "--output_dir",
+            "cleaned",
+        ]
+    )
     assert args.cache_dir is None
     assert args.num_proc == 8
     assert args.batch_size == 10000

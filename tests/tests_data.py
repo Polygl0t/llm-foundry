@@ -86,8 +86,9 @@ def _install_datatrove_stubs():
 
 _install_datatrove_stubs()
 
-import preprocess
-from utils import ParseResult, document_to_row
+import preprocess  # noqa: E402
+
+from utils import ParseResult, document_to_row  # noqa: E402
 
 print("All imports OK ✅")
 
@@ -106,20 +107,20 @@ def _make_args(tmpdir, **overrides):
     os.makedirs(datasets_dir, exist_ok=True)
     os.makedirs(logs_folder, exist_ok=True)
 
-    defaults = dict(
-        datasets_dir=datasets_dir,
-        output_dir=output_dir,
-        output_type="jsonl",
-        token_count_column="token_count",
-        parser_path=None,
-        parser_config=None,
-        default_subset_name="default",
-        stratify_by_column=None,
-        write_batch_size=2,
-        tasks=1,
-        workers=1,
-        logs_folder=logs_folder,
-    )
+    defaults = {
+        "datasets_dir": datasets_dir,
+        "output_dir": output_dir,
+        "output_type": "jsonl",
+        "token_count_column": "token_count",
+        "parser_path": None,
+        "parser_config": None,
+        "default_subset_name": "default",
+        "stratify_by_column": None,
+        "write_batch_size": 2,
+        "tasks": 1,
+        "workers": 1,
+        "logs_folder": logs_folder,
+    }
     defaults.update(overrides)
     return argparse.Namespace(**defaults)
 
@@ -133,13 +134,13 @@ def _write_parquet_rows(directory, rows, file_name="00000.parquet"):
 
 
 def _read_jsonl(file_path):
-    with open(file_path, "r", encoding="utf-8") as handle:
+    with open(file_path, encoding="utf-8") as handle:
         return [json.loads(line) for line in handle if line.strip()]
 
 
 def _read_metadata(file_path):
     metadata = {}
-    with open(file_path, "r", encoding="utf-8") as handle:
+    with open(file_path, encoding="utf-8") as handle:
         for line in handle:
             line = line.strip()
             if not line or ":" not in line:
@@ -155,8 +156,7 @@ def _read_metadata(file_path):
 
 def _pipeline_stats_from_writer(writer):
     routing_stats = {
-        name: SimpleNamespace(total=total)
-        for name, total in writer._stat_totals.items()
+        name: SimpleNamespace(total=total) for name, total in writer._stat_totals.items()
     }
     routing = SimpleNamespace(name="RoutingWriter", stats=routing_stats)
     return SimpleNamespace(stats=[routing])
@@ -165,6 +165,7 @@ def _pipeline_stats_from_writer(writer):
 #######################################
 # Section 1 — Parser Resolution
 #######################################
+
 
 def test_01_apply_stratification_overrides_subset_when_enabled():
     args = argparse.Namespace(stratify_by_column="language", default_subset_name="fallback")
@@ -274,6 +275,7 @@ def test_05_build_active_parser_combines_filtering_and_stratification():
 # Section 2 — RoutingWriter
 #######################################
 
+
 def test_06_routing_writer_writes_jsonl_and_tracks_stats():
     with tempfile.TemporaryDirectory() as tmpdir:
         output_dir = os.path.join(tmpdir, "jsonl_output")
@@ -344,6 +346,7 @@ def test_07_routing_writer_writes_parquet_rows():
 # Section 3 — main()
 #######################################
 
+
 def test_08_main_runs_writer_and_emits_subset_metadata():
     class FakeExecutor:
         docs = []
@@ -382,7 +385,9 @@ def test_08_main_runs_writer_and_emits_subset_metadata():
         FakeExecutor.docs = [
             FakeDocument("ola", "doc-1", {"language": "pt", "edu_int_score": 5, "token_count": 5}),
             FakeDocument("skip", "doc-2", {"language": "bn", "edu_int_score": 1, "token_count": 8}),
-            FakeDocument("namaskar", "doc-3", {"language": "bn", "edu_int_score": 4, "token_count": 7}),
+            FakeDocument(
+                "namaskar", "doc-3", {"language": "bn", "edu_int_score": 4, "token_count": 7}
+            ),
         ]
 
         with patch.object(preprocess, "LocalPipelineExecutor", FakeExecutor):
@@ -395,8 +400,18 @@ def test_08_main_runs_writer_and_emits_subset_metadata():
 
         pt_rows = _read_jsonl(os.path.join(args.output_dir, "pt", "00000.jsonl"))
         bn_rows = _read_jsonl(os.path.join(args.output_dir, "bn", "00000.jsonl"))
-        assert pt_rows == [{"text": "ola", "id": "doc-1", "language": "pt", "edu_int_score": 5, "token_count": 5}]
-        assert bn_rows == [{"text": "namaskar", "id": "doc-3", "language": "bn", "edu_int_score": 4, "token_count": 7}]
+        assert pt_rows == [
+            {"text": "ola", "id": "doc-1", "language": "pt", "edu_int_score": 5, "token_count": 5}
+        ]
+        assert bn_rows == [
+            {
+                "text": "namaskar",
+                "id": "doc-3",
+                "language": "bn",
+                "edu_int_score": 4,
+                "token_count": 7,
+            }
+        ]
 
         pt_meta = _read_metadata(os.path.join(args.output_dir, "pt", ".metadata"))
         bn_meta = _read_metadata(os.path.join(args.output_dir, "bn", ".metadata"))

@@ -5,6 +5,8 @@ LLM Foundry is the source repository for the development of models, datasets, an
 ## Table of Contents
 
 - [Overview](#overview)
+- [Code of Conduct](#code-of-conduct)
+- [How to Train a Model](#how-to-train-a-model)
 - [Repository Structure](#repository-structure)
 - [Installation](#installation)
   - [Workspace Setup on Marvin](#workspace-setup-on-marvin)
@@ -18,6 +20,14 @@ LLM Foundry is the source repository for the development of models, datasets, an
 ## Overview
 
 This repository contains all source code used for the development of the models, datasets, and all other accompanying artifacts tied to the Polyglot project at the University of Bonn. It is designed to run on both the [Marvin cluster](https://www.hpc.uni-bonn.de/) and [Bender](https://www.hpc.uni-bonn.de/en/systems/bender) (University of Bonn), which have dual software stacks (AMD and Intel) that the code base is aware of.
+
+## Code of Conduct
+
+This project adheres to a [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Please report unacceptable behavior to [polyglot@uni-bonn.de](mailto:polyglot@uni-bonn.de).
+
+## How to Train a Model
+
+For a step-by-step walkthrough of the LLM Foundry—covering data collection, tokenization, evaluation harness setup, pretraining, and post-training/alignment—see [HOWTO.md](HOWTO.md).
 
 ## Repository Structure
 
@@ -130,4 +140,3 @@ This project is licensed under the Apache License 2.0. See [`LICENSE`](LICENSE) 
 Polyglot is a project funded by the Federal Ministry of Education and Research (BMBF) and the Ministry of Culture and Science of the State of North Rhine-Westphalia (MWK) as part of TRA Sustainable Futures (University of Bonn) and the Excellence Strategy of the federal and state governments.
 
 We also gratefully acknowledge access to the Marvin and Bender clusters, hosted by the University of Bonn, and maintained by the university's High Performance Computing Team.
-

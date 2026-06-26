@@ -246,4 +246,3 @@ for i in $(seq 0 $((SLURM_NTASKS_PER_NODE - 1))); do
     eval "err_var=\"\$err$i\""
     echo "# [${SLURM_JOB_ID}] Job finished at: $(date)" >> "$out_var"
 done
-

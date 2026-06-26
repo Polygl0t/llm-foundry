@@ -1,11 +1,12 @@
 """
 Shared utilities for tokenizer training scripts.
 """
+
 import glob
 import json
 import logging
 import os
-from typing import Any, Optional
+from typing import Any
 
 # Additional tokens beyond BOS, EOS, UNK, and PAD.
 EXTRA_TOKENS = [
@@ -69,13 +70,15 @@ def get_logger(name: str) -> logging.Logger:
     logger = logging.getLogger(name)
     if not logger.handlers:
         handler = logging.StreamHandler()
-        handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        )
         logger.addHandler(handler)
         logger.setLevel(logging.INFO)
     return logger
 
 
-def load_text_dataset(path: str, data_type: str, cache_dir: Optional[str] = None, num_proc: int = 8):
+def load_text_dataset(path: str, data_type: str, cache_dir: str | None = None, num_proc: int = 8):
     """Load a text dataset from a file or directory.
 
     Supports txt, jsonl, parquet, and csv formats. When *path* is a directory,
@@ -106,7 +109,9 @@ def load_text_dataset(path: str, data_type: str, cache_dir: Optional[str] = None
         raise ValueError(f"Invalid path: '{path}'. Must be an existing file or directory.")
 
     hf_type = "text" if data_type == "txt" else "json" if data_type == "jsonl" else data_type
-    return _datasets.load_dataset(hf_type, data_files=data_files, split="train", cache_dir=cache_dir, num_proc=num_proc)
+    return _datasets.load_dataset(
+        hf_type, data_files=data_files, split="train", cache_dir=cache_dir, num_proc=num_proc
+    )
 
 
 def update_tokenizer_config(output_dir: str, **fields: Any) -> None:
@@ -119,14 +124,16 @@ def update_tokenizer_config(output_dir: str, **fields: Any) -> None:
         **fields: Key/value pairs to set (or overwrite) in the config.
     """
     config_path = os.path.join(output_dir, "tokenizer_config.json")
-    with open(config_path, "r", encoding="utf-8") as f:
+    with open(config_path, encoding="utf-8") as f:
         config = json.load(f)
     config.update(fields)
     with open(config_path, "w", encoding="utf-8") as f:
         json.dump(config, f, indent=2)
 
 
-def write_special_tokens_map(output_dir: str, *, bos_token: str, eos_token: str, unk_token: str, pad_token: str) -> None:
+def write_special_tokens_map(
+    output_dir: str, *, bos_token: str, eos_token: str, unk_token: str, pad_token: str
+) -> None:
     """Write the canonical special-token map for saved tokenizer artifacts."""
     special_tokens_map_path = os.path.join(output_dir, "special_tokens_map.json")
     special_tokens_map = {
@@ -149,10 +156,13 @@ def validate_saved_tokenizer(output_dir: str) -> None:
         AssertionError: If either the slow or fast tokenizer fails to load.
     """
     from transformers import AutoTokenizer
-    assert AutoTokenizer.from_pretrained(output_dir, use_fast=False), \
+
+    assert AutoTokenizer.from_pretrained(output_dir, use_fast=False), (
         f"Failed to load slow tokenizer from '{output_dir}'."
-    assert AutoTokenizer.from_pretrained(output_dir, use_fast=True), \
+    )
+    assert AutoTokenizer.from_pretrained(output_dir, use_fast=True), (
         f"Failed to load fast tokenizer from '{output_dir}'."
+    )
 
 
 def push_tokenizer_to_hub(output_dir: str, repo_id: str, token: str, private: bool = True) -> None:
@@ -164,7 +174,8 @@ def push_tokenizer_to_hub(output_dir: str, repo_id: str, token: str, private: bo
         token: Hugging Face authentication token.
         private: Whether to create the repository as private.
     """
-    from huggingface_hub import create_repo, HfApi
+    from huggingface_hub import HfApi, create_repo
+
     _logger = get_logger("push_tokenizer_to_hub")
     _logger.info(f"Pushing tokenizer to the hub at '{repo_id}'...")
     create_repo(repo_id=repo_id, token=token, repo_type="model", exist_ok=True, private=private)

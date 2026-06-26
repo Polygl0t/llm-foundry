@@ -28,7 +28,6 @@ Requirements:
 import os
 import sys
 import tempfile
-import types
 
 sys.pycache_prefix = os.path.join(tempfile.gettempdir(), "pycache")
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -106,6 +105,7 @@ print("All imports OK ✅")
 # Section 1 - Logging / Distributed State
 #######################################
 
+
 def test_01_getlogger_returns_a_working_logger():
     logger = get_logger("TestAlignment")
     assert logger.name == "TestAlignment"
@@ -146,6 +146,7 @@ def test_04_setupdistributedstate_identifies_worker_process():
 #######################################
 # Section 2 - Dataset Helpers
 #######################################
+
 
 def test_05_loadtrainingdataset_collects_sorted_jsonl_files_and_waits():
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -213,7 +214,6 @@ class FakeSplittableDataset:
         return {"train": "train-split", "test": self.test}
 
 
-
 def test_07_splitdataset_returns_original_when_no_test_size():
     dataset = FakeSplittableDataset()
     state = FakeState()
@@ -256,12 +256,12 @@ def test_09_splitdataset_worker_does_not_save_test_set():
 # Section 3 - Tokenizer Helper
 #######################################
 
+
 class FakeTokenizer:
     def __init__(self, chat_template="template", pad_token="<pad>", eos_token="<eos>"):
         self.chat_template = chat_template
         self.pad_token = pad_token
         self.eos_token = eos_token
-
 
 
 def test_10_loadtokenizer_uses_from_pretrained_options():
@@ -339,6 +339,7 @@ def test_15_loadtokenizer_rejects_pad_equal_to_eos_by_default():
 # Section 4 - Checkpoint / Training Helpers
 #######################################
 
+
 def test_16_resolvecheckpointpath_returns_latest_checkpoint():
     with tempfile.TemporaryDirectory() as tmpdir:
         os.makedirs(os.path.join(tmpdir, "checkpoint-2"))
@@ -372,7 +373,6 @@ class FakeTrainer:
 
     def save_model(self, path):
         self.save_model_calls.append(path)
-
 
 
 def test_18_runtraining_trains_and_saves_final_model():

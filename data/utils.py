@@ -1,15 +1,17 @@
 """
 Utilities for data preprocessing.
 """
-import importlib.util
+
 import glob
+import importlib.util
 import json
+import logging
 import os
 import sys
-import logging
 from dataclasses import dataclass
 from types import ModuleType
 from typing import Any
+
 
 def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     """
@@ -69,7 +71,7 @@ def infer_file_features(file_path: str, output_type: str) -> list[str]:
 
         return list(pq.read_schema(file_path).names)
 
-    with open(file_path, "r", encoding="utf-8") as fh:
+    with open(file_path, encoding="utf-8") as fh:
         line = fh.readline()
         if not line.strip():
             return []
@@ -108,7 +110,7 @@ def load_parser_config(raw_value: str | None) -> dict[str, Any]:
         return {}
 
     if os.path.isfile(raw_value):
-        with open(raw_value, "r", encoding="utf-8") as fh:
+        with open(raw_value, encoding="utf-8") as fh:
             loaded = json.load(fh)
     else:
         loaded = json.loads(raw_value)
@@ -146,8 +148,7 @@ def validate_parquet_column(input_files: list[str], column_name: str) -> None:
     schema = pq.read_schema(input_files[0])
     if column_name not in schema.names:
         raise ValueError(
-            f"Column '{column_name}' not found in dataset. "
-            f"Available columns: {list(schema.names)}"
+            f"Column '{column_name}' not found in dataset. Available columns: {list(schema.names)}"
         )
 
 
@@ -228,7 +229,9 @@ def get_subset_stats(pipeline_stats, subset_name: str) -> tuple[int, int]:
     return total_docs, total_tokens
 
 
-def write_subset_metadata(output_dir: str, output_type: str, pipeline_stats, subset_name: str, logger) -> tuple[int, int]:
+def write_subset_metadata(
+    output_dir: str, output_type: str, pipeline_stats, subset_name: str, logger
+) -> tuple[int, int]:
     """Write per-subset metadata after pipeline execution."""
     output_files = list_matching_files(output_dir, f"*.{output_type}")
     features = infer_file_features(output_files[0], output_type) if output_files else []

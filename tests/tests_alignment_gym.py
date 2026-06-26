@@ -1,4 +1,3 @@
-
 """
 Gym test suite for verifiers, templates, and generation pipeline.
 
@@ -18,8 +17,11 @@ Requirements:
 #######################################
 # 1. Imports & Setup
 #######################################
-import sys
+import json
 import os
+import random
+import string as _string
+import sys
 import tempfile
 
 sys.pycache_prefix = os.path.join(tempfile.gettempdir(), "pycache")
@@ -29,36 +31,34 @@ GYM_DIR = os.path.join(REPO_ROOT, "alignment", "gym")
 if GYM_DIR not in sys.path:
     sys.path.insert(0, GYM_DIR)
 
-import json
-import random
-import string as _string
 
 def _parse_kw(kw):
     """Deserialize a kwargs entry (string or dict) into a dict."""
     return json.loads(kw) if isinstance(kw, str) else kw
 
-from tasks_metadata import (
+
+from generate_from_instruction_templates import (  # noqa: E402
+    MODIFIER_IDS,
+    build_sample,
+    fill_template,
+    sample_fingerprint,
+    select_modifier_ids,
+    validate_sample,
+)
+from instruction_templates import TEMPLATES  # noqa: E402
+from tasks_metadata import (  # noqa: E402
     ALL_VERIFIER_IDS,
-    VERIFIER_CONFLICTS,
     EMPTY_KWARGS_TEMPLATE,
+    HAYSTACK_TASK_IDS,
+    LONG_CONTEXT_TASK_IDS,
+    VERIFIER_CONFLICTS,
+    generate_description_for_verifier,
+    generate_kwargs_for_verifier,
     get_addable_verifiers,
     is_combination_valid,
     make_empty_kwargs,
-    generate_kwargs_for_verifier,
-    generate_description_for_verifier,
-    LONG_CONTEXT_TASK_IDS,
-    HAYSTACK_TASK_IDS,
 )
-from instruction_templates import TEMPLATES
-from verifier import Verifier, VERIFICATION_REGISTRY
-from generate_from_instruction_templates import (
-    fill_template,
-    select_modifier_ids,
-    build_sample,
-    validate_sample,
-    sample_fingerprint,
-    MODIFIER_IDS,
-)
+from verifier import VERIFICATION_REGISTRY, Verifier  # noqa: E402
 
 print("All imports OK ✅")
 
@@ -326,7 +326,7 @@ def test_07_unknown_verifier_id_raises_error():
             completion="Teste.",
         )
         v.verify()
-        assert False, "Should have raised ValueError"
+        raise AssertionError("Should have raised ValueError")
     except ValueError as e:
         assert "Unknown verifier ID" in str(e)
     print("Test 7 — unknown verifier raises error: OK ✅")
@@ -348,9 +348,7 @@ def test_08_metadata_integrity_registry_conflict_symmetry_selfconflict():
 
     # Every verifier self-conflicts
     for vid in ALL_VERIFIER_IDS:
-        assert vid in VERIFIER_CONFLICTS.get(vid, set()), (
-            f"{vid} should self-conflict"
-        )
+        assert vid in VERIFIER_CONFLICTS.get(vid, set()), f"{vid} should self-conflict"
 
     # Long context + haystack IDs also in registry
     for tid in LONG_CONTEXT_TASK_IDS:
@@ -364,10 +362,12 @@ def test_09_metadata_helpers_iscombinationvalid_getaddable_makeemptykwar():
     # 9. Metadata helpers — is_combination_valid, get_addable, make_empty_kwargs
     #######################################
     assert is_combination_valid(["detectable_format:title", "punctuation:no_comma"])
-    assert not is_combination_valid([
-        "detectable_format:constrained_response",
-        "detectable_format:title",
-    ])
+    assert not is_combination_valid(
+        [
+            "detectable_format:constrained_response",
+            "detectable_format:title",
+        ]
+    )
     assert is_combination_valid([])
     assert is_combination_valid(["punctuation:no_comma"])
 
@@ -408,7 +408,8 @@ def test_10_generation_pipeline_kwargs_descriptions_templates_fill():
         assert "slots" in t, "Template missing 'slots'"
         for prompt_fmt in t["prompts"]:
             field_names = [
-                fname for _, fname, _, _ in _string.Formatter().parse(prompt_fmt)
+                fname
+                for _, fname, _, _ in _string.Formatter().parse(prompt_fmt)
                 if fname is not None
             ]
             for fname in field_names:
@@ -421,7 +422,9 @@ def test_10_generation_pipeline_kwargs_descriptions_templates_fill():
         filled = fill_template(t)
         assert isinstance(filled, str) and len(filled) > 0
         assert "{" not in filled, f"Unfilled slot in template {t['id']}: {filled}"
-    print(f"Test 10 — generation pipeline ({len(TEMPLATES)} templates, {len(ALL_VERIFIER_IDS)} verifiers): OK ✅")
+    print(
+        f"Test 10 — generation pipeline ({len(TEMPLATES)} templates, {len(ALL_VERIFIER_IDS)} verifiers): OK ✅"
+    )
 
 
 def test_11_sample_building_validation_fingerprint_uniqueness():
@@ -449,14 +452,18 @@ def test_11_sample_building_validation_fingerprint_uniqueness():
 
     # validate_sample — bad (unknown verifier + empty prompt)
     bad_sample = {
-        "id": "dummy", "prompt": "Test",
-        "verifier_id_list": ["fake_category:nonexistent"], "kwargs": [{}],
+        "id": "dummy",
+        "prompt": "Test",
+        "verifier_id_list": ["fake_category:nonexistent"],
+        "kwargs": [{}],
     }
     issues = validate_sample(bad_sample)
     assert len(issues) > 0 and any("Unknown" in i for i in issues)
     bad_sample2 = {
-        "id": "dummy", "prompt": "   ",
-        "verifier_id_list": [], "kwargs": [],
+        "id": "dummy",
+        "prompt": "   ",
+        "verifier_id_list": [],
+        "kwargs": [],
     }
     assert any("Empty prompt" in i for i in validate_sample(bad_sample2))
 
@@ -521,13 +528,13 @@ def test_13_long_context_verifiers_pass_fail_partial_edge_cases():
     v7 = Verifier(
         verifier_id_list=["long_context:count_word"],
         kwargs=[{"target_word": "gato", "expected_count": 7}],
-        completion="A palavra \"gato\" aparece 7 vezes na lista.",
+        completion='A palavra "gato" aparece 7 vezes na lista.',
     )
     assert v7.verify() == [True]
     v8 = Verifier(
         verifier_id_list=["long_context:count_word"],
         kwargs=[{"target_word": "gato", "expected_count": 7}],
-        completion="A palavra \"gato\" aparece 5 vezes na lista.",
+        completion='A palavra "gato" aparece 5 vezes na lista.',
     )
     assert v8.verify() == [False]
 
@@ -535,13 +542,13 @@ def test_13_long_context_verifiers_pass_fail_partial_edge_cases():
     v9 = Verifier(
         verifier_id_list=["long_context:word_at_position"],
         kwargs=[{"position": 42, "expected_word": "cachorro"}],
-        completion="A palavra na posição 42 é \"cachorro\".",
+        completion='A palavra na posição 42 é "cachorro".',
     )
     assert v9.verify() == [True]
     v10 = Verifier(
         verifier_id_list=["long_context:word_at_position"],
         kwargs=[{"position": 42, "expected_word": "cachorro"}],
-        completion="A palavra na posição 42 é \"gato\".",
+        completion='A palavra na posição 42 é "gato".',
     )
     assert v10.verify() == [False]
 
@@ -549,13 +556,13 @@ def test_13_long_context_verifiers_pass_fail_partial_edge_cases():
     v11 = Verifier(
         verifier_id_list=["long_context:frequency_comparison"],
         kwargs=[{"word_a": "gato", "word_b": "cachorro", "expected_winner": "gato"}],
-        completion="\"gato\" aparece 15 vezes e \"cachorro\" 8 vezes. Portanto, \"gato\" é mais frequente.",
+        completion='"gato" aparece 15 vezes e "cachorro" 8 vezes. Portanto, "gato" é mais frequente.',
     )
     assert v11.verify() == [True]
     v12 = Verifier(
         verifier_id_list=["long_context:frequency_comparison"],
         kwargs=[{"word_a": "gato", "word_b": "cachorro", "expected_winner": "gato"}],
-        completion="A palavra \"cachorro\" é mais frequente na lista.",
+        completion='A palavra "cachorro" é mais frequente na lista.',
     )
     assert v12.verify() == [False]
     print("Test 13 — long context verifiers (pass/fail/partial/edge): OK ✅")
@@ -565,9 +572,13 @@ def test_14_long_context_endtoend_generate_verify():
     # 14. Long context — end-to-end generate + verify
     #######################################
     from generate_from_long_context_templates import (
-        build_sample as build_lc_sample,
-        validate_sample as validate_lc_sample,
         LONG_CONTEXT_TEMPLATES,
+    )
+    from generate_from_long_context_templates import (
+        build_sample as build_lc_sample,
+    )
+    from generate_from_long_context_templates import (
+        validate_sample as validate_lc_sample,
     )
 
     for idx, template in enumerate(LONG_CONTEXT_TEMPLATES[:5]):
@@ -630,13 +641,23 @@ def test_15_haystack_verifiers_pass_fail_partial_edge_cases():
     assert v3.verify() == [True]
     v4 = Verifier(
         verifier_id_list=["haystack:needle_multi_number_same_key"],
-        kwargs=[{"key": "seco-dia", "expected_values": {"seco-dia": ["7777458", "8855030", "1111111", "2222222"]}}],
+        kwargs=[
+            {
+                "key": "seco-dia",
+                "expected_values": {"seco-dia": ["7777458", "8855030", "1111111", "2222222"]},
+            }
+        ],
         completion="1. **7777458**\n2. **8855030**",
     )
     assert v4.verify() == [True], "Partial ≥50% should pass"
     v5 = Verifier(
         verifier_id_list=["haystack:needle_multi_number_same_key"],
-        kwargs=[{"key": "seco-dia", "expected_values": {"seco-dia": ["7777458", "8855030", "1111111", "2222222"]}}],
+        kwargs=[
+            {
+                "key": "seco-dia",
+                "expected_values": {"seco-dia": ["7777458", "8855030", "1111111", "2222222"]},
+            }
+        ],
         completion="Nenhum número encontrado.",
     )
     assert v5.verify() == [False]
@@ -658,28 +679,38 @@ def test_15_haystack_verifiers_pass_fail_partial_edge_cases():
     # NeedleUUIDChecker — pass, fail, case-insensitive
     v8 = Verifier(
         verifier_id_list=["haystack:needle_uuid"],
-        kwargs=[{
-            "query_key": "9384e37b-7e27-40ad-8cdd-3646065df267",
-            "expected_values": {"9384e37b-7e27-40ad-8cdd-3646065df267": ["64807347-1142-483e-8f2d-bafcce9f112d"]},
-        }],
+        kwargs=[
+            {
+                "query_key": "9384e37b-7e27-40ad-8cdd-3646065df267",
+                "expected_values": {
+                    "9384e37b-7e27-40ad-8cdd-3646065df267": ["64807347-1142-483e-8f2d-bafcce9f112d"]
+                },
+            }
+        ],
         completion="O código UUID é: **64807347-1142-483e-8f2d-bafcce9f112d**",
     )
     assert v8.verify() == [True]
     v9 = Verifier(
         verifier_id_list=["haystack:needle_uuid"],
-        kwargs=[{
-            "query_key": "9384e37b-7e27-40ad-8cdd-3646065df267",
-            "expected_values": {"9384e37b-7e27-40ad-8cdd-3646065df267": ["64807347-1142-483e-8f2d-bafcce9f112d"]},
-        }],
+        kwargs=[
+            {
+                "query_key": "9384e37b-7e27-40ad-8cdd-3646065df267",
+                "expected_values": {
+                    "9384e37b-7e27-40ad-8cdd-3646065df267": ["64807347-1142-483e-8f2d-bafcce9f112d"]
+                },
+            }
+        ],
         completion="O código UUID é: **aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee**",
     )
     assert v9.verify() == [False]
     v10 = Verifier(
         verifier_id_list=["haystack:needle_uuid"],
-        kwargs=[{
-            "query_key": "abc",
-            "expected_values": {"abc": ["64807347-1142-483E-8F2D-BAFCCE9F112D"]},
-        }],
+        kwargs=[
+            {
+                "query_key": "abc",
+                "expected_values": {"abc": ["64807347-1142-483E-8F2D-BAFCCE9F112D"]},
+            }
+        ],
         completion="O UUID é: 64807347-1142-483e-8f2d-bafcce9f112d.",
     )
     assert v10.verify() == [True], "UUID check should be case-insensitive"
@@ -698,21 +729,26 @@ def test_16_haystack_endtoend_generate_verify_all_templates():
     # 16. Haystack — end-to-end generate + verify (all templates)
     #######################################
     from generate_from_long_context_templates import (
-        build_sample as build_hs_sample,
-        validate_sample as validate_hs_sample,
-        load_documents,
         LONG_CONTEXT_TEMPLATES,
+        load_documents,
     )
-    HAYSTACK_TEMPLATES = [
-        t for t in LONG_CONTEXT_TEMPLATES if t["task_type"].startswith("needle_")
-    ]
+    from generate_from_long_context_templates import (
+        build_sample as build_hs_sample,
+    )
+    from generate_from_long_context_templates import (
+        validate_sample as validate_hs_sample,
+    )
+
+    HAYSTACK_TEMPLATES = [t for t in LONG_CONTEXT_TEMPLATES if t["task_type"].startswith("needle_")]
     _hs_docs = load_documents(os.path.join(GYM_DIR, "assets"))
 
     for idx, hs_template in enumerate(HAYSTACK_TEMPLATES):
         random.seed(42 + idx)
         hs_sample = build_hs_sample(
-            hs_template, documents=_hs_docs,
-            num_chars=2000, rng=random.Random(42 + idx),
+            hs_template,
+            documents=_hs_docs,
+            num_chars=2000,
+            rng=random.Random(42 + idx),
         )
         hs_issues = validate_hs_sample(hs_sample)
         assert hs_issues == [], f"Haystack template {idx} has issues: {hs_issues}"
@@ -861,25 +897,32 @@ def test_18_math_buildsample_validate_verify_jsonl_synthetic_generation():
     # 18. Math — build_sample + validate + verify + JSONL + synthetic generation
     #######################################
     from generate_from_math_dataset import (
-        build_sample as build_math_sample,
-        validate_sample as validate_math_sample,
-        load_math_problems,
-        generate_math_problems as _gen_math_problems,
         MATH_PROBLEMS_JSONL,
+        load_math_problems,
+    )
+    from generate_from_math_dataset import (
+        build_sample as build_math_sample,
+    )
+    from generate_from_math_dataset import (
+        generate_math_problems as _gen_math_problems,
+    )
+    from generate_from_math_dataset import (
+        validate_sample as validate_math_sample,
     )
 
-    #  JSONL dataset loading 
+    #  JSONL dataset loading
     math_pairs = load_math_problems(MATH_PROBLEMS_JSONL)
     assert len(math_pairs) > 0, "JSONL dataset should contain problems"
     q0, a0 = math_pairs[0]
     assert q0.strip() and a0.strip(), "Each pair must have non-empty question and answer"
 
-    #  Dataset sample: relaxed validation by default 
+    #  Dataset sample: relaxed validation by default
     sample = build_math_sample("Quanto é 2 + 2?", "4")
     assert isinstance(sample["id"], str) and len(sample["id"]) == 32
     assert sample["verifier_id_list"] == ["math:answer_check"]
-    assert _parse_kw(sample["kwargs"][0]) == {"expected_answer": "4", "relaxed": True}, \
+    assert _parse_kw(sample["kwargs"][0]) == {"expected_answer": "4", "relaxed": True}, (
         "Math sample kwargs should include relaxed=True by default"
+    )
     assert validate_math_sample(sample) == []
 
     v = Verifier(
@@ -896,7 +939,7 @@ def test_18_math_buildsample_validate_verify_jsonl_synthetic_generation():
     )
     assert v2.verify() == [False]
 
-    #  Synthetic sample: relaxed validation 
+    #  Synthetic sample: relaxed validation
     sample_synth = build_math_sample("Resolva: 10 / 3", "3.3333333333333335", relaxed=True)
     kw_synth = _parse_kw(sample_synth["kwargs"][0])
     assert kw_synth.get("relaxed") is True, "Synthetic sample must have relaxed=True"
@@ -919,7 +962,7 @@ def test_18_math_buildsample_validate_verify_jsonl_synthetic_generation():
     )
     assert v_synth_fail.verify() == [False]
 
-    #  math_generator logic (now inlined in generate_from_math_dataset) 
+    #  math_generator logic (now inlined in generate_from_math_dataset)
     synth_pairs = _gen_math_problems(n=10, max_depth=3, seed=42)
     assert len(synth_pairs) == 10, "Should generate exactly 10 problems"
     for sq, sa in synth_pairs:
@@ -938,15 +981,6 @@ def test_18_math_buildsample_validate_verify_jsonl_synthetic_generation():
 def test_19_email_json_format_verifier_pass_fail_edge_cases():
     # 19. Email JSON format verifier — pass, fail, edge cases
     #######################################
-    from generate_from_email_templates import (
-        build_email_sample,
-        validate_email_sample,
-        generate_injected_values,
-    )
-    from tasks_metadata import (
-        EMAIL_TASK_IDS,
-        EMAIL_INJECTED_FIELDS,
-    )
 
     # Pass: valid JSON object in ```json``` block
     v = Verifier(
@@ -976,7 +1010,7 @@ def test_19_email_json_format_verifier_pass_fail_edge_cases():
     v4 = Verifier(
         verifier_id_list=["email:json_format"],
         kwargs=[{}],
-        completion='```json\n{subject: Reunião}\n```',
+        completion="```json\n{subject: Reunião}\n```",
     )
     assert v4.verify() == [False], "Invalid JSON syntax should fail"
 
@@ -1122,12 +1156,13 @@ def test_22_email_endtoend_build_validate_verify():
     # 22. Email — end-to-end build + validate + verify
     #######################################
     import json as _json_mod
+
     from generate_from_email_templates import (
         build_email_sample,
-        validate_email_sample,
         generate_injected_values,
+        validate_email_sample,
     )
-    from tasks_metadata import EMAIL_TASK_IDS, EMAIL_INJECTED_FIELDS
+    from tasks_metadata import EMAIL_INJECTED_FIELDS, EMAIL_TASK_IDS
 
     _test_email = (
         "Assunto: Proposta de Parceria\n\n"
@@ -1192,11 +1227,13 @@ def test_22_email_endtoend_build_validate_verify():
         completion=correct_completion,
     )
     results_email = v_email.verify()
-    assert results_email[0] == True, f"email:json_format failed: {correct_completion}"
-    assert results_email[1] == True, f"email:schema_keys failed: {correct_completion}"
-    for i, (iid, res) in enumerate(zip(sample_email["verifier_id_list"], results_email)):
+    assert results_email[0], f"email:json_format failed: {correct_completion}"
+    assert results_email[1], f"email:schema_keys failed: {correct_completion}"
+    for i, (iid, res) in enumerate(
+        zip(sample_email["verifier_id_list"], results_email, strict=False)
+    ):
         if iid == "email:field_value":
-            assert res == True, (
+            assert res, (
                 f"email:field_value[{i}] failed for field "
                 f"'{_parse_kw(sample_email['kwargs'][i])['field_name']}': {correct_completion}"
             )
@@ -1209,7 +1246,7 @@ def test_22_email_endtoend_build_validate_verify():
         completion=wrong_completion,
     )
     results_wrong = v_wrong.verify()
-    assert results_wrong[1] == False, "schema_keys should fail for wrong keys"
+    assert not results_wrong[1], "schema_keys should fail for wrong keys"
 
     # All EMAIL_TASK_IDS must be in VERIFICATION_REGISTRY
     for tid in EMAIL_TASK_IDS:
@@ -1221,7 +1258,6 @@ def test_22_email_endtoend_build_validate_verify():
 def test_23_toolcall_verifiers_pass_and_fail_scenarios():
     # 23. Tool-call verifiers — pass and fail scenarios
     #######################################
-    from tasks_metadata import TOOL_CALL_TASK_IDS
 
     # 23a. Valid tool call — all verifiers pass
     v_tc = Verifier(
@@ -1238,10 +1274,10 @@ def test_23_toolcall_verifiers_pass_and_fail_scenarios():
             {"expected_arg_types": {"source": "string", "destination": "string"}},
         ],
         completion=(
-            '<tool_call>\n'
+            "<tool_call>\n"
             '{"name": "calculate_distance", "arguments": '
             '{"source": "New York", "destination": "Los Angeles"}}\n'
-            '</tool_call>'
+            "</tool_call>"
         ),
     )
     assert v_tc.verify() == [True, True, True, True]
@@ -1320,16 +1356,20 @@ def test_24_toolcall_endtoend_generate_validate_verify():
     # 24. Tool-call end-to-end (generate + validate + verify)
     #######################################
     import re as _re
-    from tasks_metadata import TOOL_CALL_TASK_IDS
+
     from generate_from_tool_call_templates import (
-        load_tool_call_data,
-        build_tool_call_sample,
-        build_valid_completion,
-        validate_tool_call_sample,
-        sample_fingerprint as tc_fingerprint,
         _REFUSAL_QUERY_TEMPLATES as _REFUSAL_TEMPLATES,
     )
-    from pathlib import Path
+    from generate_from_tool_call_templates import (
+        build_tool_call_sample,
+        build_valid_completion,
+        load_tool_call_data,
+        validate_tool_call_sample,
+    )
+    from generate_from_tool_call_templates import (
+        sample_fingerprint as tc_fingerprint,
+    )
+    from tasks_metadata import TOOL_CALL_TASK_IDS
 
     _data_dir = os.path.join(GYM_DIR, "assets")
     all_tools = load_tool_call_data(os.path.join(_data_dir, "tools.json"))
@@ -1341,19 +1381,25 @@ def test_24_toolcall_endtoend_generate_validate_verify():
     for i in range(5):
         tool = rng.choice(all_tools)
         sample = build_tool_call_sample(
-            tool=tool, all_tools=all_tools,
-            rng=random.Random(42 + i), is_valid=True,
+            tool=tool,
+            all_tools=all_tools,
+            rng=random.Random(42 + i),
+            is_valid=True,
         )
-        assert set(sample.keys()) == {"id", "prompt", "verifier_id_list", "kwargs"}, \
+        assert set(sample.keys()) == {"id", "prompt", "verifier_id_list", "kwargs"}, (
             f"Valid sample has wrong keys: {set(sample.keys())}"
+        )
 
     for i in range(5):
         sample = build_tool_call_sample(
-            tool=None, all_tools=all_tools,
-            rng=random.Random(99 + i), is_valid=False,
+            tool=None,
+            all_tools=all_tools,
+            rng=random.Random(99 + i),
+            is_valid=False,
         )
-        assert set(sample.keys()) == {"id", "prompt", "verifier_id_list", "kwargs"}, \
+        assert set(sample.keys()) == {"id", "prompt", "verifier_id_list", "kwargs"}, (
             f"Refusal sample has wrong keys: {set(sample.keys())}"
+        )
 
     # Generate valid samples and verify with a matching completion
     rng2 = random.Random(42)
@@ -1361,15 +1407,16 @@ def test_24_toolcall_endtoend_generate_validate_verify():
         tool = rng2.choice(all_tools)
         sample_rng = random.Random(42 + i)
         sample = build_tool_call_sample(
-            tool=tool, all_tools=all_tools,
-            rng=sample_rng, is_valid=True,
+            tool=tool,
+            all_tools=all_tools,
+            rng=sample_rng,
+            is_valid=True,
         )
         issues = validate_tool_call_sample(sample)
         assert not issues, f"Valid sample {i} has issues: {issues}"
 
         # Build a completion that matches the expected tool call
         expected_name = _parse_kw(sample["kwargs"][1])["expected_name"]
-        expected_arg_keys = _parse_kw(sample["kwargs"][2])["required_arg_keys"]
         expected_arg_types = _parse_kw(sample["kwargs"][3])["expected_arg_types"]
         # Generate arguments that satisfy the verifiers (include all typed args)
         args = {}
@@ -1400,8 +1447,10 @@ def test_24_toolcall_endtoend_generate_validate_verify():
     # Generate and verify refusal samples
     for i in range(10):
         sample = build_tool_call_sample(
-            tool=None, all_tools=all_tools,
-            rng=random.Random(99 + i), is_valid=False,
+            tool=None,
+            all_tools=all_tools,
+            rng=random.Random(99 + i),
+            is_valid=False,
         )
         issues = validate_tool_call_sample(sample)
         assert not issues, f"Refusal sample {i} has issues: {issues}"
@@ -1441,21 +1490,23 @@ def test_24_toolcall_endtoend_generate_validate_verify():
     for i in range(20):
         tool = rng_tc.choice(all_tools)
         sample = build_tool_call_sample(
-            tool=tool, all_tools=all_tools,
-            rng=random.Random(300 + i), is_valid=True,
-            min_tools=1, max_tools=3,
+            tool=tool,
+            all_tools=all_tools,
+            rng=random.Random(300 + i),
+            is_valid=True,
+            min_tools=1,
+            max_tools=3,
         )
         # Match the actual tools block (after a newline, not the inline mention)
-        tools_match = _re.search(r'<tools>\n(.*?)</tools>', sample['prompt'], _re.DOTALL)
+        tools_match = _re.search(r"<tools>\n(.*?)</tools>", sample["prompt"], _re.DOTALL)
         assert tools_match, f"Sample {i} has no <tools> block"
         tool_jsons = [
-            ln.strip() for ln in tools_match.group(1).strip().splitlines()
-            if ln.strip().startswith('{')
+            ln.strip()
+            for ln in tools_match.group(1).strip().splitlines()
+            if ln.strip().startswith("{")
         ]
         tool_count = len(tool_jsons)
-        assert 1 <= tool_count <= 3, (
-            f"Sample {i} has {tool_count} tools (expected 1-3)"
-        )
+        assert 1 <= tool_count <= 3, f"Sample {i} has {tool_count} tools (expected 1-3)"
 
     # 24c. Prompt contains a sentence drawn from the tool's own request_samples
     rng_rs = random.Random(42)
@@ -1465,10 +1516,12 @@ def test_24_toolcall_endtoend_generate_validate_verify():
         if not rs:
             continue
         sample = build_tool_call_sample(
-            tool=tool, all_tools=all_tools,
-            rng=random.Random(400 + i), is_valid=True,
+            tool=tool,
+            all_tools=all_tools,
+            rng=random.Random(400 + i),
+            is_valid=True,
         )
-        found = any(r.strip() in sample['prompt'] for r in rs)
+        found = any(r.strip() in sample["prompt"] for r in rs)
         assert found, (
             f"Sample {i} (tool={tool['function']['name']}) prompt does not contain "
             f"any request_sample.\nPrompt: {sample['prompt'][:300]}"
@@ -1483,8 +1536,10 @@ def test_24_toolcall_endtoend_generate_validate_verify():
         if not required or not input_samples:
             continue
         sample = build_tool_call_sample(
-            tool=tool, all_tools=all_tools,
-            rng=random.Random(500 + i), is_valid=True,
+            tool=tool,
+            all_tools=all_tools,
+            rng=random.Random(500 + i),
+            is_valid=True,
         )
         for req_param in required:
             if req_param not in input_samples:
@@ -1492,11 +1547,13 @@ def test_24_toolcall_endtoend_generate_validate_verify():
             valid_values = input_samples[req_param]
             if not isinstance(valid_values, list):
                 valid_values = [valid_values]
+
             # For array params each valid value is itself a list; check its elements.
-            def _in_prompt(v):
+            def _in_prompt(v, sample=sample):
                 if isinstance(v, list):
-                    return any(str(e) in sample['prompt'] for e in v)
-                return str(v) in sample['prompt']
+                    return any(str(e) in sample["prompt"] for e in v)
+                return str(v) in sample["prompt"]
+
             any_found = any(_in_prompt(v) for v in valid_values)
             assert any_found, (
                 f"Sample {i}: tool={tool['function']['name']}, param={req_param}: "
@@ -1506,10 +1563,12 @@ def test_24_toolcall_endtoend_generate_validate_verify():
     # 24e. Refusal prompts contain a sentence from _REFUSAL_QUERY_TEMPLATES
     for i in range(10):
         sample = build_tool_call_sample(
-            tool=None, all_tools=all_tools,
-            rng=random.Random(600 + i), is_valid=False,
+            tool=None,
+            all_tools=all_tools,
+            rng=random.Random(600 + i),
+            is_valid=False,
         )
-        found = any(rt in sample['prompt'] for rt in _REFUSAL_TEMPLATES)
+        found = any(rt in sample["prompt"] for rt in _REFUSAL_TEMPLATES)
         assert found, f"Refusal sample {i} does not contain any refusal query template"
 
     print("Test 24 — tool-call end-to-end (generate + validate + verify): OK ✅")
@@ -1527,8 +1586,8 @@ def test_25_thinking_format_verifier_enablethinking_flag():
     )
     r_think = v_think.verify()
     assert len(r_think) == 2, f"Expected 2 results, got {len(r_think)}"
-    assert r_think[0] == True, "thinking_format should pass with non-empty <think> block"
-    assert r_think[1] == True, "no_comma should pass"
+    assert r_think[0], "thinking_format should pass with non-empty <think> block"
+    assert r_think[1], "no_comma should pass"
 
     # 25b. enable_thinking=True, missing <think> tags -> first result False
     v_think2 = Verifier(
@@ -1538,8 +1597,8 @@ def test_25_thinking_format_verifier_enablethinking_flag():
         enable_thinking=True,
     )
     r_think2 = v_think2.verify()
-    assert r_think2[0] == False, "thinking_format should fail without <think> tags"
-    assert r_think2[1] == True, "no_comma should still pass"
+    assert not r_think2[0], "thinking_format should fail without <think> tags"
+    assert r_think2[1], "no_comma should still pass"
 
     # 25c. enable_thinking=True, empty <think></think> tags -> fail
     v_think3 = Verifier(
@@ -1566,7 +1625,9 @@ def test_25_thinking_format_verifier_enablethinking_flag():
         completion="Resposta simples sem vírgulas.",
     )
     r_think5 = v_think5.verify()
-    assert len(r_think5) == 1, "Without enable_thinking, result length should match verifier_id_list"
+    assert len(r_think5) == 1, (
+        "Without enable_thinking, result length should match verifier_id_list"
+    )
     assert r_think5 == [True]
 
     # 25f. Direct checker in registry
@@ -1582,24 +1643,16 @@ def test_26_soft_matching_sentence_count_1_boundary_tolerance():
     v_strict = Verifier(
         verifier_id_list=["length_constraints:number_sentences"],
         kwargs=[{"num_sentences": 6, "relation": "less than"}],
-        completion=(
-            "Frase um. Frase dois. Frase três. "
-            "Frase quatro. Frase cinco. Frase seis."
-        ),
+        completion=("Frase um. Frase dois. Frase três. Frase quatro. Frase cinco. Frase seis."),
         strict=True,
     )
-    assert v_strict.verify() == [False], (
-        "Strict: exactly 6 sentences with 'less than 6' must fail"
-    )
+    assert v_strict.verify() == [False], "Strict: exactly 6 sentences with 'less than 6' must fail"
 
     # 26b. Soft mode: exactly-at-boundary "less than N" passes
     v_soft = Verifier(
         verifier_id_list=["length_constraints:number_sentences"],
         kwargs=[{"num_sentences": 6, "relation": "less than"}],
-        completion=(
-            "Frase um. Frase dois. Frase três. "
-            "Frase quatro. Frase cinco. Frase seis."
-        ),
+        completion=("Frase um. Frase dois. Frase três. Frase quatro. Frase cinco. Frase seis."),
         strict=False,
     )
     assert v_soft.verify() == [True], (
@@ -1614,9 +1667,7 @@ def test_26_soft_matching_sentence_count_1_boundary_tolerance():
         strict=False,
     )
     # 6 sentences, limit ≤ 4 — even soft cannot pass this (off by 2)
-    assert v_over.verify() == [False], (
-        "Soft: 6 sentences with 'less than 4' must still fail"
-    )
+    assert v_over.verify() == [False], "Soft: 6 sentences with 'less than 4' must still fail"
 
     # 26d. Soft mode: one below "at least N" passes
     v_one_below = Verifier(
@@ -1633,10 +1684,7 @@ def test_26_soft_matching_sentence_count_1_boundary_tolerance():
     v_default = Verifier(
         verifier_id_list=["length_constraints:number_sentences"],
         kwargs=[{"num_sentences": 6, "relation": "less than"}],
-        completion=(
-            "Frase um. Frase dois. Frase três. "
-            "Frase quatro. Frase cinco. Frase seis."
-        ),
+        completion=("Frase um. Frase dois. Frase três. Frase quatro. Frase cinco. Frase seis."),
     )
     assert v_default.verify() == [False], "Default (no strict kwarg) must be strict"
 
@@ -1677,9 +1725,7 @@ def test_27_soft_matching_word_count_10_boundary_tolerance():
         completion=_91_words,
         strict=False,
     )
-    assert v_w_below.verify() == [True], (
-        "Soft: 91 words 'at least 100' should pass (≥90 tolerance)"
-    )
+    assert v_w_below.verify() == [True], "Soft: 91 words 'at least 100' should pass (≥90 tolerance)"
 
     # 27d. Soft: far below still fails
     _50_words = " ".join(["palavra"] * 50)
@@ -1704,8 +1750,7 @@ def test_28_soft_matching_nthparagraphfirstword_with_singlen_separator():
         verifier_id_list=["length_constraints:nth_paragraph_first_word"],
         kwargs=[{"num_paragraphs": 2, "nth_paragraph": 2, "first_word": "geralmente"}],
         completion=(
-            "Primeiro parágrafo com algum conteúdo.\n"
-            "Geralmente o segundo parágrafo começa aqui."
+            "Primeiro parágrafo com algum conteúdo.\nGeralmente o segundo parágrafo começa aqui."
         ),
         strict=True,
     )
@@ -1718,22 +1763,18 @@ def test_28_soft_matching_nthparagraphfirstword_with_singlen_separator():
         verifier_id_list=["length_constraints:nth_paragraph_first_word"],
         kwargs=[{"num_paragraphs": 2, "nth_paragraph": 2, "first_word": "geralmente"}],
         completion=(
-            "Primeiro parágrafo com algum conteúdo.\n"
-            "Geralmente o segundo parágrafo começa aqui."
+            "Primeiro parágrafo com algum conteúdo.\nGeralmente o segundo parágrafo começa aqui."
         ),
         strict=False,
     )
-    assert v_para_soft.verify() == [True], (
-        "Soft: single-\\n separator should pass"
-    )
+    assert v_para_soft.verify() == [True], "Soft: single-\\n separator should pass"
 
     # 28c. \n\n separator: both strict and soft pass
     v_para_nn = Verifier(
         verifier_id_list=["length_constraints:nth_paragraph_first_word"],
         kwargs=[{"num_paragraphs": 2, "nth_paragraph": 2, "first_word": "geralmente"}],
         completion=(
-            "Primeiro parágrafo com algum conteúdo.\n\n"
-            "Geralmente o segundo parágrafo começa aqui."
+            "Primeiro parágrafo com algum conteúdo.\n\nGeralmente o segundo parágrafo começa aqui."
         ),
         strict=True,
     )
@@ -1743,10 +1784,7 @@ def test_28_soft_matching_nthparagraphfirstword_with_singlen_separator():
     v_para_wrong = Verifier(
         verifier_id_list=["length_constraints:nth_paragraph_first_word"],
         kwargs=[{"num_paragraphs": 2, "nth_paragraph": 2, "first_word": "geralmente"}],
-        completion=(
-            "Primeiro parágrafo.\n"
-            "Normalmente o segundo parágrafo começa aqui."
-        ),
+        completion=("Primeiro parágrafo.\nNormalmente o segundo parágrafo começa aqui."),
         strict=False,
     )
     assert v_para_wrong.verify() == [False], (
@@ -1777,16 +1815,20 @@ def test_29_soft_matching_letter_frequency_3_tolerance():
     # In a typical Portuguese sentence 'a' appears many times — let's count exactly
     _sample_text = "Para fazer um café, aqueça a água e adicione o pó."
     import collections as _collections
-    _a_count = _collections.Counter(_sample_text.lower())['a']
+
+    _a_count = _collections.Counter(_sample_text.lower())["a"]
 
     # Threshold just below actual count -> strict fails
     _threshold_below = _a_count - 1  # e.g. 7 when actual is 8 -> strict: 8 < 7 -> False
     v_lf_strict = Verifier(
         verifier_id_list=["keywords:letter_frequency"],
-        kwargs=[{
-            "letter": "a", "let_frequency": _threshold_below,
-            "let_relation": "less than",
-        }],
+        kwargs=[
+            {
+                "letter": "a",
+                "let_frequency": _threshold_below,
+                "let_relation": "less than",
+            }
+        ],
         completion=_sample_text,
         strict=True,
     )
@@ -1798,10 +1840,13 @@ def test_29_soft_matching_letter_frequency_3_tolerance():
     _threshold_at_plus2 = _a_count + 2  # within +3 tolerance
     v_lf_soft = Verifier(
         verifier_id_list=["keywords:letter_frequency"],
-        kwargs=[{
-            "letter": "a", "let_frequency": _a_count,
-            "let_relation": "less than",
-        }],
+        kwargs=[
+            {
+                "letter": "a",
+                "let_frequency": _a_count,
+                "let_relation": "less than",
+            }
+        ],
         completion=_sample_text,
         strict=False,
     )
@@ -1813,10 +1858,13 @@ def test_29_soft_matching_letter_frequency_3_tolerance():
     # 29b. "at least" with soft ±3 tolerance
     v_lf_at_soft = Verifier(
         verifier_id_list=["keywords:letter_frequency"],
-        kwargs=[{
-            "letter": "a", "let_frequency": _a_count + 2,
-            "let_relation": "at least",
-        }],
+        kwargs=[
+            {
+                "letter": "a",
+                "let_frequency": _a_count + 2,
+                "let_relation": "at least",
+            }
+        ],
         completion=_sample_text,
         strict=False,
     )
@@ -1828,16 +1876,17 @@ def test_29_soft_matching_letter_frequency_3_tolerance():
     # 29c. Strict: same "at least" scenario fails
     v_lf_at_strict = Verifier(
         verifier_id_list=["keywords:letter_frequency"],
-        kwargs=[{
-            "letter": "a", "let_frequency": _a_count + 2,
-            "let_relation": "at least",
-        }],
+        kwargs=[
+            {
+                "letter": "a",
+                "let_frequency": _a_count + 2,
+                "let_relation": "at least",
+            }
+        ],
         completion=_sample_text,
         strict=True,
     )
-    assert v_lf_at_strict.verify() == [False], (
-        "Strict: 2 below 'at least' threshold must fail"
-    )
+    assert v_lf_at_strict.verify() == [False], "Strict: 2 below 'at least' threshold must fail"
 
     print("Test 29 — soft matching: letter frequency ±3 tolerance: OK ✅")
 
@@ -1852,9 +1901,7 @@ def test_30_soft_matching_keyword_frequency_1_tolerance():
         completion="A inovação é importante. A inovação é necessária. A inovação transforma.",
         strict=True,
     )
-    assert v_kf_strict.verify() == [False], (
-        "Strict: 3 occurrences with 'less than 3' must fail"
-    )
+    assert v_kf_strict.verify() == [False], "Strict: 3 occurrences with 'less than 3' must fail"
 
     # 30b. Soft: exactly at boundary -> passes (≤N tolerance)
     v_kf_soft = Verifier(
@@ -1913,9 +1960,7 @@ def test_31_critical_errors_always_fail_in_soft_mode():
         completion="Esta resposta não está entre aspas.",
         strict=False,
     )
-    assert v_quote_soft.verify() == [False], (
-        "Soft: missing quotation marks must still fail"
-    )
+    assert v_quote_soft.verify() == [False], "Soft: missing quotation marks must still fail"
 
     print("Test 31 — critical errors always fail in soft mode: OK ✅")
 
@@ -1923,9 +1968,7 @@ def test_31_critical_errors_always_fail_in_soft_mode():
 def test_32_description_consistency_nthparagraphfirstword_includes_nn_in():
     # 32. Description consistency — nth_paragraph_first_word includes \n\n info
     #######################################
-    _kw_para = generate_kwargs_for_verifier(
-        "length_constraints:nth_paragraph_first_word"
-    )
+    _kw_para = generate_kwargs_for_verifier("length_constraints:nth_paragraph_first_word")
     _desc_para = generate_description_for_verifier(
         "length_constraints:nth_paragraph_first_word", _kw_para
     )
@@ -1961,6 +2004,7 @@ def test_33_letterfrequency_kwargs_less_than_uses_higher_threshold():
         )
 
     print("Test 33 — letter_frequency kwargs: 'less than' uses threshold ≥10: OK ✅")
+
 
 # %%
 #######################################

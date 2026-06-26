@@ -14,18 +14,24 @@ Requirements:
 - numpy
 - pyyaml
 """
+
 # %%
 #######################################
 # 0. Setup for Testing
 #######################################
-import sys
-import os
-import json
-import math
-import tempfile
-import shutil
-import traceback
 import atexit
+import contextlib
+import json
+import logging
+import math
+import os
+import shutil
+import sys
+import tempfile
+import traceback
+
+import torch
+import yaml
 
 sys.pycache_prefix = os.path.join(tempfile.gettempdir(), "pycache")
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -48,10 +54,8 @@ def cleanup_generated_bootstrap_checkpoint():
             os.path.dirname(GENERATED_BOOTSTRAP_CHECKPOINT_DIR),
             os.path.dirname(os.path.dirname(GENERATED_BOOTSTRAP_CHECKPOINT_DIR)),
         ]:
-            try:
+            with contextlib.suppress(OSError):
                 os.rmdir(directory)
-            except OSError:
-                pass
 
 
 atexit.register(cleanup_generated_bootstrap_checkpoint)
@@ -65,7 +69,7 @@ def run_test(name, fn):
     try:
         fn()
         _results.append((name, True, ""))
-    except Exception as exc:
+    except Exception:
         tb = traceback.format_exc()
         _results.append((name, False, tb))
         print(f"  FAIL ❌  {name}\n{tb}")
@@ -79,7 +83,7 @@ def report():
     print(f"Results: {passed} passed, {failed} failed, {passed + failed} total")
     if failed:
         print("\nFailed tests:")
-        for name, ok, tb in _results:
+        for name, ok, _tb in _results:
             if not ok:
                 print(f"  - {name}")
         print("=" * 60)
@@ -97,11 +101,7 @@ print("\n" + "=" * 60)
 print("1. TrainingArguments & Config Loading")
 print("=" * 60)
 
-import yaml
-import torch
-import numpy as np
-import logging
-from specifications import TrainingArguments
+from specifications import TrainingArguments  # noqa: E402
 
 
 def test_training_args_defaults():
@@ -209,15 +209,15 @@ print("\n" + "=" * 60)
 print("2. MFU Calculation")
 print("=" * 60)
 
-from mfu import (
+from mfu import (  # noqa: E402
+    PEAK_FLOPS_BY_HARDWARE,
     MFUContext,
     TrainingPerformanceMetrics,
-    PEAK_FLOPS_BY_HARDWARE,
-    create_mfu_context,
-    calculate_training_metrics,
     _full_attention_macs_per_token,
     _linear_attention_macs_per_token,
     _mlp_macs_per_token,
+    calculate_training_metrics,
+    create_mfu_context,
 )
 
 
@@ -225,20 +225,20 @@ def test_peak_flops_registry():
     """Known hardware entries exist in the registry."""
     assert "a100" in PEAK_FLOPS_BY_HARDWARE
     assert "a40" in PEAK_FLOPS_BY_HARDWARE
-    assert PEAK_FLOPS_BY_HARDWARE["a100"] == 300e12
+    assert PEAK_FLOPS_BY_HARDWARE["a100"] == 312e12
 
 
 def test_calculate_training_metrics_moe_uses_active_params():
     """MoE MFU uses the dense formula on the active parameter count, which the
     trainer is expected to pass via num_parameters."""
-    common = dict(
-        peak_flops=300e12,
-        num_parameters=10_000_000,
-        num_hidden_layers=12,
-        num_attention_heads=12,
-        head_dim=64,
-        sequence_length=512,
-    )
+    common = {
+        "peak_flops": 312e12,
+        "num_parameters": 10_000_000,
+        "num_hidden_layers": 12,
+        "num_attention_heads": 12,
+        "head_dim": 64,
+        "sequence_length": 512,
+    }
     moe_ctx = MFUContext(**common)
     dense_ctx = MFUContext(**common)
     moe_metrics = calculate_training_metrics(moe_ctx, 4, 2, 1, dt=1.0)
@@ -255,7 +255,7 @@ def test_create_mfu_context():
     args.max_position_embeddings = 512
     ctx = create_mfu_context(args, "a100", num_parameters=125_000_000)
     assert isinstance(ctx, MFUContext)
-    assert ctx.peak_flops == 300e12
+    assert ctx.peak_flops == 312e12
     assert ctx.num_parameters == 125_000_000
     assert ctx.sequence_length == 512
 
@@ -278,7 +278,7 @@ def test_create_mfu_context_unsupported_hardware():
 def test_calculate_training_metrics():
     """calculate_training_metrics returns sensible values."""
     ctx = MFUContext(
-        peak_flops=300e12,
+        peak_flops=312e12,
         num_parameters=125_000_000,
         num_hidden_layers=12,
         num_attention_heads=12,
@@ -302,7 +302,7 @@ def test_calculate_training_metrics():
 def test_calculate_training_metrics_rejects_invalid_inputs():
     """Invalid timing must raise."""
     ctx = MFUContext(
-        peak_flops=300e12,
+        peak_flops=312e12,
         num_parameters=125_000_000,
         num_hidden_layers=12,
         num_attention_heads=12,
@@ -319,24 +319,24 @@ def test_calculate_training_metrics_rejects_invalid_inputs():
 
 def _make_qwen3_5_hybrid_context(**overrides):
     """Helper: build an MFUContext shaped like a Qwen3.5 hybrid model."""
-    defaults = dict(
-        peak_flops=300e12,
-        num_parameters=0,
-        num_hidden_layers=32,
-        num_attention_heads=30,
-        head_dim=128,
-        sequence_length=1024,
-        hidden_size=3840,
-        vocab_size=100352,
-        intermediate_size=11008,
-        num_key_value_heads=6,
-        linear_num_key_heads=30,
-        linear_num_value_heads=30,
-        linear_key_head_dim=96,
-        linear_value_head_dim=192,
-        linear_conv_kernel_dim=4,
-        linear_chunk_size=256,
-    )
+    defaults = {
+        "peak_flops": 312e12,
+        "num_parameters": 0,
+        "num_hidden_layers": 32,
+        "num_attention_heads": 30,
+        "head_dim": 128,
+        "sequence_length": 1024,
+        "hidden_size": 3840,
+        "vocab_size": 100352,
+        "intermediate_size": 11008,
+        "num_key_value_heads": 6,
+        "linear_num_key_heads": 30,
+        "linear_num_value_heads": 30,
+        "linear_key_head_dim": 96,
+        "linear_value_head_dim": 192,
+        "linear_conv_kernel_dim": 4,
+        "linear_chunk_size": 256,
+    }
     defaults.update(overrides)
     return MFUContext(**defaults)
 
@@ -344,30 +344,40 @@ def _make_qwen3_5_hybrid_context(**overrides):
 def test_full_attention_macs_formula():
     """Verify _full_attention_macs_per_token for an MHA config."""
     ctx = MFUContext(
-        peak_flops=300e12, num_parameters=0,
-        num_hidden_layers=4, num_attention_heads=12, head_dim=128,
-        sequence_length=1024, hidden_size=1536, vocab_size=100352,
+        peak_flops=312e12,
+        num_parameters=0,
+        num_hidden_layers=4,
+        num_attention_heads=12,
+        head_dim=128,
+        sequence_length=1024,
+        hidden_size=1536,
+        vocab_size=100352,
         intermediate_size=512,
     )
     d, s, h, head_dim = 1536, 1024, 12, 128
     q_dim = h * head_dim
-    expected = 2 * d * q_dim + 2 * d * q_dim + d * s + 3 * d * 512
+    expected = 2 * d * q_dim + 2 * d * q_dim + 2 * d * s + 3 * d * 512
     assert _full_attention_macs_per_token(ctx) == expected
 
 
 def test_full_attention_macs_gqa():
     """GQA: K/V projection cost scales with num_key_value_heads."""
-    base = dict(
-        peak_flops=300e12, num_parameters=0,
-        num_hidden_layers=4, num_attention_heads=12, head_dim=128,
-        sequence_length=1024, hidden_size=1536, vocab_size=100352,
-        intermediate_size=512,
-    )
+    base = {
+        "peak_flops": 312e12,
+        "num_parameters": 0,
+        "num_hidden_layers": 4,
+        "num_attention_heads": 12,
+        "head_dim": 128,
+        "sequence_length": 1024,
+        "hidden_size": 1536,
+        "vocab_size": 100352,
+        "intermediate_size": 512,
+    }
     ctx = MFUContext(num_key_value_heads=4, **base)
     d, s, head_dim = 1536, 1024, 128
     q_dim = 12 * head_dim
     kv_dim = 4 * head_dim
-    expected = 2 * d * q_dim + 2 * d * kv_dim + d * s + 3 * d * 512
+    expected = 2 * d * q_dim + 2 * d * kv_dim + 2 * d * s + 3 * d * 512
     assert _full_attention_macs_per_token(ctx) == expected
     mha_ctx = MFUContext(num_key_value_heads=12, **base)
     assert _full_attention_macs_per_token(ctx) < _full_attention_macs_per_token(mha_ctx)
@@ -377,17 +387,24 @@ def test_linear_attention_macs_formula():
     """Verify _linear_attention_macs_per_token matches a hand-derived reference."""
     ctx = _make_qwen3_5_hybrid_context()
     d = 3840
-    k = 30 * 96    # 2880
-    v = 30 * 192   # 5760
-    h = 30
+    nk = 30
+    nv = 30
+    dk = 96
+    dv = 192
+    k = nk * dk  # 2880
+    v = nv * dv  # 5760
     L = 256
+    K = 4
+
+    # Replicate the source-of-truth formula in the module under test.
     expected = (
-        d * (2 * k + v + 2 * h)
-        + 4 * (2 * k + v)
-        + 2 * d * v
-        + L * (3 * k + 2 * v)
-        + 3 * k * v // h
-        + 3 * d * 11008
+        d * (2 * k + 2 * v + 2 * nv)  # projections
+        + K * (2 * k + v)  # conv
+        + nv * (2 * L * dk + L * dv + (2 * L * L) // 3)  # intra
+        + nv * ((L * dk) // 2 + (L * dv) // 2 + 3 * dk * dv)  # inter
+        + nv * (6 * dk + 5 * dv)  # elem_ops
+        + d * v  # out_proj
+        + 3 * d * 11008  # MLP
     )
     assert _linear_attention_macs_per_token(ctx) == expected
 
@@ -395,8 +412,7 @@ def test_linear_attention_macs_formula():
 def test_hybrid_linear_attention_mfu():
     """End-to-end MFU for a Qwen3.5-shaped hybrid (full + linear) model."""
     layer_types = tuple(
-        "full_attention" if (i + 1) % 4 == 0 else "linear_attention"
-        for i in range(32)
+        "full_attention" if (i + 1) % 4 == 0 else "linear_attention" for i in range(32)
     )
     ctx = _make_qwen3_5_hybrid_context(layer_types=layer_types)
     metrics = calculate_training_metrics(ctx, 4, 1, 1, dt=1.0)
@@ -414,7 +430,10 @@ def test_create_mfu_context_hybrid_fields():
     args.vocab_size = 100352
     args.intermediate_size = 512
     args.layer_types = [
-        "linear_attention", "linear_attention", "linear_attention", "full_attention",
+        "linear_attention",
+        "linear_attention",
+        "linear_attention",
+        "full_attention",
     ]
     args.linear_num_key_heads = 16
     args.linear_num_value_heads = 32
@@ -426,7 +445,10 @@ def test_create_mfu_context_hybrid_fields():
     assert ctx.hidden_size == 1536
     assert ctx.vocab_size == 100352
     assert ctx.layer_types == (
-        "linear_attention", "linear_attention", "linear_attention", "full_attention",
+        "linear_attention",
+        "linear_attention",
+        "linear_attention",
+        "full_attention",
     )
     assert ctx.linear_num_key_heads == 16
     assert ctx.linear_value_head_dim == 128
@@ -453,8 +475,7 @@ def test_mlp_macs_dense_vs_moe():
 def test_hybrid_moe_mfu_qwen3_5_like():
     """End-to-end MFU calculation for a Qwen3.5-MoE hybrid config."""
     layer_types = tuple(
-        "full_attention" if (i + 1) % 4 == 0 else "linear_attention"
-        for i in range(24)
+        "full_attention" if (i + 1) % 4 == 0 else "linear_attention" for i in range(24)
     )
     ctx = _make_qwen3_5_hybrid_context(
         num_hidden_layers=24,
@@ -524,7 +545,7 @@ print("\n" + "=" * 60)
 print("3. Collate Function")
 print("=" * 60)
 
-from data_loading import create_collate_fn
+from data_loading import create_collate_fn  # noqa: E402
 
 
 def test_collate_fn_generates_and_masks_labels():
@@ -583,9 +604,13 @@ print("\n" + "=" * 60)
 print("4. Sanity-Check Dataset & DataLoader")
 print("=" * 60)
 
-from data_loading import prepare_dataloaders, DataLoaderBundle, _load_sanity_check_datasets, RandomTokenDataset
-from transformers import AutoTokenizer
-
+from data_loading import (  # noqa: E402
+    DataLoaderBundle,
+    RandomTokenDataset,
+    _load_sanity_check_datasets,
+    prepare_dataloaders,
+)
+from transformers import AutoTokenizer  # noqa: E402
 
 # We use a tiny public tokenizer for tests.
 _TINY_TOKENIZER_NAME = "gpt2"
@@ -594,20 +619,22 @@ _tokenizer = AutoTokenizer.from_pretrained(_TINY_TOKENIZER_NAME)
 
 def _make_sanity_args(**overrides):
     """Return TrainingArguments configured for sanity-check mode with tiny sizes."""
-    defaults = dict(
-        sanity_check=True,
-        sanity_check_num_samples=64,
-        micro_batch_size=4,
-        eval_micro_batch_size=4,
-        pin_memory=False,
-        num_workers_for_dataloader=0,
-        prefetch_factor=None,
-        shuffle_dataset=False,
-        additional_mask_token_ids=None,
-        seed=42,
-    )
+    defaults = {
+        "sanity_check": True,
+        "sanity_check_num_samples": 64,
+        "micro_batch_size": 4,
+        "eval_micro_batch_size": 4,
+        "pin_memory": False,
+        "num_workers_for_dataloader": 0,
+        "prefetch_factor": None,
+        "shuffle_dataset": False,
+        "additional_mask_token_ids": None,
+        "seed": 42,
+    }
     defaults.update(overrides)
-    args = TrainingArguments(**{k: v for k, v in defaults.items() if k in TrainingArguments.__dataclass_fields__})
+    args = TrainingArguments(
+        **{k: v for k, v in defaults.items() if k in TrainingArguments.__dataclass_fields__}
+    )
     # Set runtime fields that would normally be set by model_setup.py
     args.max_position_embeddings = 32
     args.vocab_size = _tokenizer.vocab_size
@@ -665,7 +692,7 @@ def test_load_sanity_check_datasets():
     # Find any window of `pattern_len` elements that alternates between exactly two values.
     found_bigram = False
     for start in range(len(odd_ids) - pattern_len + 1):
-        window = odd_ids[start:start + pattern_len]
+        window = odd_ids[start : start + pattern_len]
         unique = torch.unique(window)
         if len(unique) == 2 and all(window[j] == window[j - 2] for j in range(2, len(window))):
             found_bigram = True
@@ -695,6 +722,26 @@ def test_prepare_dataloaders_sanity():
     assert val_batch["input_ids"].shape[1] == 32
 
 
+def test_prepare_dataloaders_sanity_without_tokenizer_uses_additional_mask_ids():
+    """When tokenizer is None, prepare_dataloaders still applies additional_mask_token_ids."""
+    probe_args = _make_sanity_args()
+    train_ds, _ = _load_sanity_check_datasets(probe_args)
+    token_to_mask = int(train_ds[0]["input_ids"][0].item())
+
+    args = _make_sanity_args(additional_mask_token_ids=[token_to_mask])
+    bundle = prepare_dataloaders(
+        args=args,
+        tokenizer=None,
+        world_size=1,
+        rank=0,
+    )
+
+    train_batch = next(iter(bundle.train_dataloader))
+    masked_positions = train_batch["input_ids"] == token_to_mask
+    assert masked_positions.any(), "Expected at least one occurrence of the extra masked token ID"
+    assert torch.all(train_batch["labels"][masked_positions] == -100)
+
+
 def test_dataloader_custom_collate():
     """Custom collate function is respected when passed to prepare_dataloaders."""
     args = _make_sanity_args()
@@ -703,10 +750,14 @@ def test_dataloader_custom_collate():
     def custom_collate(examples):
         custom_called[0] = True
         from transformers import default_data_collator
+
         return default_data_collator(examples)
 
     bundle = prepare_dataloaders(
-        args=args, tokenizer=_tokenizer, world_size=1, rank=0,
+        args=args,
+        tokenizer=_tokenizer,
+        world_size=1,
+        rank=0,
         collate_fn=custom_collate,
     )
     _ = next(iter(bundle.train_dataloader))
@@ -717,6 +768,7 @@ if __name__ == "__main__":
     for _fn in [
         test_load_sanity_check_datasets,
         test_prepare_dataloaders_sanity,
+        test_prepare_dataloaders_sanity_without_tokenizer_uses_additional_mask_ids,
         test_dataloader_custom_collate,
     ]:
         run_test(_fn.__name__, _fn)
@@ -732,18 +784,19 @@ print("\n" + "=" * 60)
 print("5. Model Initialization (CPU)")
 print("=" * 60)
 
-from model_setup import (
-    _resolve_checkpoint_path,
-    _build_model_from_config,
-    _create_tokenizer,
-    _compute_active_trainable_params,
-    _try_create_distributed_config,
-    _check_kernels_available,
-    _iter_transformer_blocks,
-    prepare_training_components,
+from model_setup import (  # noqa: E402
     ModelInitializationResult,
+    _build_model_from_config,
+    _check_kernels_available,
+    _compute_active_trainable_params,
+    _create_tokenizer,
+    _freeze_non_attention_blocks,
+    _iter_transformer_blocks,
+    _resolve_checkpoint_path,
+    _try_create_distributed_config,
+    prepare_training_components,
 )
-from transformers import AutoConfig
+from transformers import AutoConfig  # noqa: E402
 
 
 def test_resolve_checkpoint_path_empty_latest_and_direct():
@@ -866,9 +919,16 @@ def test_prepare_training_components_bf16():
         shutil.rmtree(tmpdir)
 
 
-def test_create_tokenizer_no_source_raises():
-    """Neither tokenizer_name_or_path nor base_model → ValueError."""
-    args = TrainingArguments()
+def test_create_tokenizer_no_source_from_scratch_returns_none():
+    """Scratch training without tokenizer_name_or_path or base_model returns None."""
+    args = TrainingArguments(continual_pretraining=False)
+    tokenizer = _create_tokenizer(args, master_process=True)
+    assert tokenizer is None
+
+
+def test_create_tokenizer_no_source_continual_raises():
+    """Continual pretraining still requires tokenizer_name_or_path or base_model."""
+    args = TrainingArguments(continual_pretraining=True)
     raised = False
     try:
         _create_tokenizer(args, master_process=True)
@@ -877,10 +937,92 @@ def test_create_tokenizer_no_source_raises():
     assert raised
 
 
+def test_prepare_training_components_cpu_without_tokenizer():
+    """Scratch training from config works with a null tokenizer and preserves config vocab size."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        config_dir = _create_tiny_model_config(tmpdir)
+        args = TrainingArguments(
+            path_to_model_config=config_dir,
+            tokenizer_name_or_path=None,
+            base_model=None,
+            continual_pretraining=False,
+            attn_implementation="eager",
+            cache_dir=tmpdir,
+            checkpoint_dir=tmpdir,
+            stage_name="test",
+            torch_compile=False,
+            use_liger_kernel=False,
+            gradient_checkpointing=False,
+            mat_mul_precision="highest",
+            tf32=False,
+            bf16=False,
+        )
+        result = prepare_training_components(
+            args=args,
+            device="cpu",
+            master_process=True,
+        )
+        assert isinstance(result, ModelInitializationResult)
+        assert result.tokenizer is None
+        assert result.args.vocab_size == 1000
+        assert result.model.config.vocab_size == 1000
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+def test_prepare_training_components_continual_resizes_embeddings_to_tokenizer():
+    """Continual pretraining resizes embeddings upward when tokenizer is larger than the base model."""
+    from transformers import AutoModelForCausalLM
+
+    tmpdir = tempfile.mkdtemp()
+    try:
+        base_model_dir = os.path.join(tmpdir, "base_model")
+        os.makedirs(base_model_dir, exist_ok=True)
+        config_dir = _create_tiny_model_config(base_model_dir)
+        base_config = AutoConfig.from_pretrained(config_dir)
+        base_model = AutoModelForCausalLM.from_config(base_config, attn_implementation="eager")
+        base_model.save_pretrained(base_model_dir)
+
+        tokenizer_dir = os.path.join(tmpdir, "tokenizer")
+        tokenizer = AutoTokenizer.from_pretrained(_TINY_TOKENIZER_NAME)
+        tokenizer.add_special_tokens({"additional_special_tokens": ["<extra_test_token>"]})
+        tokenizer.save_pretrained(tokenizer_dir)
+
+        args = TrainingArguments(
+            base_model=base_model_dir,
+            tokenizer_name_or_path=tokenizer_dir,
+            continual_pretraining=True,
+            attn_implementation="eager",
+            cache_dir=tmpdir,
+            checkpoint_dir=tmpdir,
+            stage_name="test",
+            torch_compile=False,
+            use_liger_kernel=False,
+            gradient_checkpointing=False,
+            mat_mul_precision="highest",
+            tf32=False,
+            bf16=False,
+        )
+        result = prepare_training_components(
+            args=args,
+            device="cpu",
+            master_process=True,
+        )
+
+        assert result.tokenizer is not None
+        assert result.model.get_input_embeddings().num_embeddings == len(result.tokenizer)
+        assert result.args.vocab_size == len(result.tokenizer)
+    finally:
+        shutil.rmtree(tmpdir)
+
+
 def _make_mock_config(**kwargs):
     """Create a lightweight mock config object for _compute_active_trainable_params tests."""
+
     class _Cfg:
         pass
+
     cfg = _Cfg()
     for k, v in kwargs.items():
         setattr(cfg, k, v)
@@ -954,7 +1096,10 @@ def test_try_create_distributed_config_enabled():
     # On older transformers, result will be None (graceful fallback).
     # On newer transformers (>= 5.x), result will be a DistributedConfig.
     try:
-        from transformers.distributed.configuration_utils import DistributedConfig
+        from transformers.distributed.configuration_utils import (  # noqa: F401
+            DistributedConfig,
+        )
+
         assert result is not None
     except (ImportError, ModuleNotFoundError):
         assert result is None
@@ -974,9 +1119,11 @@ def test_check_kernels_available_enabled():
     # Graceful: result is True if both dependencies are met, False otherwise.
     assert isinstance(result, bool)
     try:
-        import kernels as _k  # noqa: F401
         import inspect
+
+        import kernels as _k  # noqa: F401
         from transformers import AutoModelForCausalLM as _A
+
         sig = inspect.signature(_A.from_pretrained)
         if "use_kernels" in sig.parameters:
             assert result is True
@@ -1025,13 +1172,162 @@ def test_iter_transformer_blocks_missing_raises():
     assert raised
 
 
+def _build_fake_llama_like_model(model_type="llama", with_attention=True):
+    """Construct a tiny nn.Module hierarchy that mimics a Llama-style decoder."""
+    import torch.nn as nn
+
+    # Class name MUST match an entry in ATTENTION_CLASS_NAMES for the
+    # requested family (e.g. 'llama' -> {'LlamaAttention'}).
+    class LlamaAttention(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.q_proj = nn.Linear(8, 8, bias=False)
+            self.k_proj = nn.Linear(8, 8, bias=False)
+            self.v_proj = nn.Linear(8, 8, bias=False)
+            self.o_proj = nn.Linear(8, 8, bias=False)
+
+    class _DenseBlock(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.mlp = nn.Linear(8, 8)
+            self.norm = nn.LayerNorm(8)
+
+    class _Layer(nn.Module):
+        def __init__(self):
+            super().__init__()
+            if with_attention:
+                self.self_attn = LlamaAttention()
+            else:
+                self.self_attn = _DenseBlock()
+            self.mlp = nn.Linear(8, 16)
+            self.input_layernorm = nn.LayerNorm(8)
+            self.post_attention_layernorm = nn.LayerNorm(8)
+
+    class _Inner(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.embed_tokens = nn.Embedding(32, 8)
+            self.layers = nn.ModuleList([_Layer() for _ in range(2)])
+            self.norm = nn.LayerNorm(8)
+
+    class _Outer(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.model = _Inner()
+            self.lm_head = nn.Linear(8, 32, bias=False)
+            self.config = type("C", (), {"model_type": model_type})()
+
+    return _Outer()
+
+
+def test_freeze_non_attention_blocks_basic():
+    """Attention blocks and per-layer norms (input_layernorm, post_attention_layernorm)
+    remain trainable; everything else (MLP, embeddings, final norm, lm_head) is frozen."""
+    model = _build_fake_llama_like_model(model_type="llama", with_attention=True)
+    trainable_after, frozen_after = _freeze_non_attention_blocks(model, master_process=True)
+
+    # Track which prefixes should stay trainable per-layer.
+    trainable_prefixes = ("self_attn", "input_layernorm", "post_attention_layernorm")
+
+    for name, param in model.named_parameters():
+        # Per-layer elements (attention + norms): must stay trainable.
+        if any(prefix in name for prefix in trainable_prefixes):
+            assert param.requires_grad, f"{name} should stay trainable"
+        else:
+            assert not param.requires_grad, f"{name} should be frozen"
+
+    # Top-level model.norm (outside any decoder layer) must be frozen.
+    for name, param in model.named_parameters():
+        if "model.norm" in name and "layers" not in name:
+            assert not param.requires_grad, f"{name} (final model.norm) should be frozen"
+
+    expected_trainable = sum(
+        p.numel()
+        for n, p in model.named_parameters()
+        if any(prefix in n for prefix in trainable_prefixes)
+    )
+    expected_frozen = sum(
+        p.numel()
+        for n, p in model.named_parameters()
+        if not any(prefix in n for prefix in trainable_prefixes)
+    )
+    assert trainable_after == expected_trainable
+    assert frozen_after == expected_frozen
+
+
+def test_freeze_non_attention_blocks_unsupported_model_type_raises():
+    """Unsupported model_type values must raise rather than silently freezing."""
+    model = _build_fake_llama_like_model(model_type="gpt2", with_attention=True)
+    raised = False
+    try:
+        _freeze_non_attention_blocks(model, master_process=True)
+    except ValueError as exc:
+        raised = True
+        assert "unsupported model_type" in str(exc).lower()
+    assert raised
+
+
+def test_freeze_non_attention_blocks_no_attention_found_raises():
+    """Refuse to freeze when no attention blocks are discovered in the model."""
+    model = _build_fake_llama_like_model(model_type="llama", with_attention=False)
+    raised = False
+    try:
+        _freeze_non_attention_blocks(model, master_process=True)
+    except ValueError as exc:
+        raised = True
+        assert "attention" in str(exc).lower()
+    assert raised
+
+
+def test_active_params_moe_skips_when_non_attention_frozen():
+    """Context-extension freezing must bypass the MoE inactive-expert subtraction.
+
+    When non-attention modules (including MoE experts) are frozen, they are
+    already excluded from `trainable_params`. Subtracting them again would
+    over-count and could even push the result negative for high-sparsity MoEs.
+    """
+    cfg = _make_mock_config(
+        hidden_size=2048,
+        num_hidden_layers=24,
+        intermediate_size=5632,
+        num_experts=60,
+        num_experts_per_tok=4,
+        moe_intermediate_size=1408,
+        decoder_sparse_step=1,
+    )
+    total = 10_000_000
+    # Without the flag: classic MoE subtraction applies.
+    active = _compute_active_trainable_params(cfg, total)
+    assert active < total
+    # With the flag: pass-through (frozen experts are already excluded upstream).
+    active_frozen = _compute_active_trainable_params(cfg, total, non_attention_frozen=True)
+    assert active_frozen == total
+
+
+def test_model_initialization_result_non_attention_frozen_default():
+    """The new field must default to False so existing call sites keep working."""
+    result = ModelInitializationResult(
+        args=None,
+        tokenizer=None,
+        model=torch.nn.Linear(2, 2),
+        precision=torch.float32,
+        checkpoint_path=None,
+        trainable_params=10,
+        active_trainable_params=10,
+    )
+    assert result.non_attention_frozen is False
+
+
 if __name__ == "__main__":
     for _fn in [
         test_resolve_checkpoint_path_empty_latest_and_direct,
         test_build_model_no_config_raises,
         test_prepare_training_components_cpu,
         test_prepare_training_components_bf16,
-        test_create_tokenizer_no_source_raises,
+        test_create_tokenizer_no_source_from_scratch_returns_none,
+        test_create_tokenizer_no_source_continual_raises,
+        test_prepare_training_components_cpu_without_tokenizer,
+        test_prepare_training_components_continual_resizes_embeddings_to_tokenizer,
         test_active_params_dense_and_single_expert_models,
         test_active_params_qwen_moe,
         test_active_params_granite_moe,
@@ -1040,6 +1336,11 @@ if __name__ == "__main__":
         test_check_kernels_available_enabled,
         test_iter_transformer_blocks_returns_layers,
         test_iter_transformer_blocks_missing_raises,
+        test_freeze_non_attention_blocks_basic,
+        test_freeze_non_attention_blocks_unsupported_model_type_raises,
+        test_freeze_non_attention_blocks_no_attention_found_raises,
+        test_active_params_moe_skips_when_non_attention_frozen,
+        test_model_initialization_result_non_attention_frozen_default,
     ]:
         run_test(_fn.__name__, _fn)
 
@@ -1054,16 +1355,15 @@ print("\n" + "=" * 60)
 print("6. Optimizers & LR Schedulers (CPU)")
 print("=" * 60)
 
-from optimizers import (
-    create_lr_scheduler,
-    create_optimizer,
-    get_optimizer_summary_lines,
-    get_muon_momentum,
-    zeropower_via_newtonschulz5,
-    muon_update,
-    adam_update,
+from optimizers import (  # noqa: E402
     SingleDeviceMuon,
     SingleDeviceMuonWithAuxAdam,
+    adam_update,
+    create_lr_scheduler,
+    create_optimizer,
+    get_muon_momentum,
+    get_optimizer_summary_lines,
+    zeropower_via_newtonschulz5,
 )
 
 
@@ -1114,7 +1414,14 @@ def test_single_device_muon_with_aux_adam():
     adam_param = torch.nn.Parameter(torch.randn(4))
     groups = [
         {"params": [muon_param], "lr": 0.02, "momentum": 0.95, "weight_decay": 0, "use_muon": True},
-        {"params": [adam_param], "lr": 3e-4, "betas": (0.9, 0.95), "eps": 1e-10, "weight_decay": 0, "use_muon": False},
+        {
+            "params": [adam_param],
+            "lr": 3e-4,
+            "betas": (0.9, 0.95),
+            "eps": 1e-10,
+            "weight_decay": 0,
+            "use_muon": False,
+        },
     ]
     opt = SingleDeviceMuonWithAuxAdam(groups)
     muon_param.grad = torch.randn_like(muon_param)
@@ -1211,10 +1518,15 @@ def _make_tiny_model():
     """Return a tiny GPT2 model on CPU for optimizer tests."""
     config = AutoConfig.from_pretrained(
         "gpt2",
-        n_embd=64, n_head=2, n_layer=2, n_positions=64,
-        vocab_size=1000, n_inner=256,
+        n_embd=64,
+        n_head=2,
+        n_layer=2,
+        n_positions=64,
+        vocab_size=1000,
+        n_inner=256,
     )
     from transformers import AutoModelForCausalLM
+
     return AutoModelForCausalLM.from_config(config, attn_implementation="eager")
 
 
@@ -1230,7 +1542,9 @@ def test_create_optimizer_adamw_cpu():
         eps=1e-8,
         torch_compile=False,
     )
-    optimizer, step_fn, label = create_optimizer(model, args, device_type="cpu", master_process=True)
+    optimizer, step_fn, label = create_optimizer(
+        model, args, device_type="cpu", master_process=True
+    )
     assert label == "AdamW"
     assert optimizer is not None
     assert callable(step_fn)
@@ -1242,12 +1556,88 @@ def test_get_optimizer_summary_lines():
     lines = get_optimizer_summary_lines(args)
     assert isinstance(lines, list)
     assert len(lines) > 0
-    assert any("Optimizer type" in l for l in lines)
+    assert any("Optimizer type" in line for line in lines)
 
     # muon_adam should have extra line
     args2 = TrainingArguments(optimizer_type="muon_adam")
     lines2 = get_optimizer_summary_lines(args2)
     assert len(lines2) > len(lines)
+
+
+def _freeze_params_by_name(model, name_substrings):
+    """Set requires_grad=False for any param whose name contains one of the substrings."""
+    frozen_ids = set()
+    for n, p in model.named_parameters():
+        if any(s in n for s in name_substrings):
+            p.requires_grad = False
+            frozen_ids.add(id(p))
+    assert frozen_ids, "Test setup error: no params were frozen"
+    return frozen_ids
+
+
+def _collect_optimizer_param_ids(optimizer):
+    """Return the set of id()s for every param held by an optimizer."""
+    param_ids = set()
+    for group in optimizer.param_groups:
+        for p in group["params"]:
+            param_ids.add(id(p))
+    return param_ids
+
+
+def test_create_optimizer_adamw_excludes_frozen_params():
+    """AdamW param groups must skip params with requires_grad=False.
+
+    This makes the VRAM/optimizer-state savings from context-extension
+    freezing (`_freeze_non_attention_blocks`) actually materialize.
+    """
+    model = _make_tiny_model()
+    frozen_ids = _freeze_params_by_name(model, ["wte", "wpe"])
+
+    args = TrainingArguments(
+        optimizer_type="adamw",
+        max_learning_rate=1e-3,
+        weight_decay=0.01,
+        beta1=0.9,
+        beta2=0.95,
+        eps=1e-8,
+        torch_compile=False,
+    )
+    optimizer, _, _ = create_optimizer(model, args, device_type="cpu", master_process=True)
+
+    optimizer_ids = _collect_optimizer_param_ids(optimizer)
+    assert frozen_ids.isdisjoint(optimizer_ids), (
+        "AdamW optimizer must not include frozen (requires_grad=False) parameters"
+    )
+    assert optimizer_ids, "AdamW optimizer has no trainable params"
+
+
+def test_create_optimizer_muon_adam_excludes_frozen_params():
+    """MuonWithAuxAdam param groups must skip params with requires_grad=False.
+
+    Without this filter, MuonWithAuxAdam.step() would allocate zero-grads for
+    every frozen param (see `if p.grad is None: p.grad = torch.zeros_like(p)`),
+    defeating the point of freezing them.
+    """
+    model = _make_tiny_model()
+    frozen_ids = _freeze_params_by_name(model, ["wte", "wpe"])
+
+    args = TrainingArguments(
+        optimizer_type="muon_adam",
+        max_learning_rate=1e-3,
+        muon_learning_rate=0.02,
+        weight_decay=0.01,
+        beta1=0.9,
+        beta2=0.95,
+        eps=1e-8,
+        torch_compile=False,
+    )
+    optimizer, _, _ = create_optimizer(model, args, device_type="cpu", master_process=True)
+
+    optimizer_ids = _collect_optimizer_param_ids(optimizer)
+    assert frozen_ids.isdisjoint(optimizer_ids), (
+        "MuonWithAuxAdam must not include frozen (requires_grad=False) parameters"
+    )
+    assert optimizer_ids, "MuonWithAuxAdam has no trainable params"
 
 
 if __name__ == "__main__":
@@ -1263,6 +1653,8 @@ if __name__ == "__main__":
         test_lr_scheduler_invalid_type,
         test_create_optimizer_adamw_cpu,
         test_get_optimizer_summary_lines,
+        test_create_optimizer_adamw_excludes_frozen_params,
+        test_create_optimizer_muon_adam_excludes_frozen_params,
     ]:
         run_test(_fn.__name__, _fn)
 
@@ -1277,15 +1669,15 @@ print("\n" + "=" * 60)
 print("7. Utility Functions")
 print("=" * 60)
 
-from utils import (
-    StructuredTrainingLogger,
+from utils import (  # noqa: E402
     DistributedEnvironment,
-    compute_training_schedule,
-    load_checkpoint_state,
-    initialize_wandb,
-    create_emissions_tracker,
-    cleanup_log_file,
+    StructuredTrainingLogger,
     checkpoint_already_validated,
+    cleanup_log_file,
+    compute_training_schedule,
+    create_emissions_tracker,
+    initialize_wandb,
+    load_checkpoint_state,
 )
 
 
@@ -1300,7 +1692,9 @@ def test_compute_training_schedule_basic():
     args.max_position_embeddings = 64
     # tokens_per_step = 4 * 64 * 1 = 256
     # grad_accum = 1024 / 256 = 4
-    ga, steps_per_epoch, max_steps = compute_training_schedule(args, train_dataloader_length=100, world_size=1)
+    ga, steps_per_epoch, max_steps = compute_training_schedule(
+        args, train_dataloader_length=100, world_size=1
+    )
     assert ga == 4
     assert steps_per_epoch == math.ceil(100 / 4)
     assert max_steps == steps_per_epoch
@@ -1315,7 +1709,9 @@ def test_compute_training_schedule_max_steps_override():
         max_steps=50,
     )
     args.max_position_embeddings = 64
-    ga, steps_per_epoch, max_steps = compute_training_schedule(args, train_dataloader_length=100, world_size=1)
+    ga, steps_per_epoch, max_steps = compute_training_schedule(
+        args, train_dataloader_length=100, world_size=1
+    )
     assert max_steps == 50
 
 
@@ -1363,7 +1759,7 @@ def test_structured_logger_stats():
         with open(log_path) as f:
             lines = f.readlines()
         # Find JSON lines
-        json_lines = [l for l in lines if l.strip().startswith("{")]
+        json_lines = [line for line in lines if line.strip().startswith("{")]
         assert len(json_lines) == 2
         parsed = json.loads(json_lines[0])
         assert "loss" in parsed
@@ -1409,9 +1805,9 @@ def test_cleanup_log_file_truncates():
 
         with open(log_path) as f:
             content = f.read()
-        assert "step\": 2" in content or "step\":2" in content
+        assert 'step": 2' in content or 'step":2' in content
         # The step 3 training entry should be gone
-        assert "step\": 3" not in content and "step\":3" not in content
+        assert 'step": 3' not in content and 'step":3' not in content
     finally:
         shutil.rmtree(tmpdir)
 
@@ -1499,7 +1895,9 @@ def test_load_checkpoint_state_no_resume():
     """Returns defaults (0, 0, 1) when not resuming from checkpoint."""
     args = TrainingArguments(resume_from_checkpoint=None)
     resume_step, iter_count, epoch = load_checkpoint_state(
-        args=args, checkpoint_path=None, optimizer=None,
+        args=args,
+        checkpoint_path=None,
+        optimizer=None,
     )
     assert resume_step == 0
     assert iter_count == 0
@@ -1512,18 +1910,19 @@ def test_load_checkpoint_state_resume():
     try:
         # Create a fake checkpoint
         ckpt_data = {
-            'optimizer': {},
-            'resume_step': 50,
-            'iteration': 200,
-            'epoch': 2,
-            'config': {},
+            "optimizer": {},
+            "resume_step": 50,
+            "iteration": 200,
+            "epoch": 2,
+            "config": {},
         }
-        torch.save(ckpt_data, os.path.join(tmpdir, 'checkpoint.pt'))
+        torch.save(ckpt_data, os.path.join(tmpdir, "checkpoint.pt"))
 
         # Minimal optimizer mock with load_state_dict
         class FakeOptimizer:
             def __init__(self):
                 self.loaded = False
+
             def load_state_dict(self, state_dict):
                 self.loaded = True
 
@@ -1532,7 +1931,9 @@ def test_load_checkpoint_state_resume():
         args.begin_new_stage = False
 
         resume_step, iter_count, epoch = load_checkpoint_state(
-            args=args, checkpoint_path=tmpdir, optimizer=fake_opt,
+            args=args,
+            checkpoint_path=tmpdir,
+            optimizer=fake_opt,
         )
         assert resume_step == 50
         assert iter_count == 200
@@ -1547,17 +1948,18 @@ def test_load_checkpoint_state_new_stage():
     tmpdir = tempfile.mkdtemp()
     try:
         ckpt_data = {
-            'optimizer': {},
-            'resume_step': 50,
-            'iteration': 200,
-            'epoch': 2,
-            'config': {},
+            "optimizer": {},
+            "resume_step": 50,
+            "iteration": 200,
+            "epoch": 2,
+            "config": {},
         }
-        torch.save(ckpt_data, os.path.join(tmpdir, 'checkpoint.pt'))
+        torch.save(ckpt_data, os.path.join(tmpdir, "checkpoint.pt"))
 
         class FakeOptimizer:
             def __init__(self):
                 self.loaded = False
+
             def load_state_dict(self, state_dict):
                 self.loaded = True
 
@@ -1566,7 +1968,9 @@ def test_load_checkpoint_state_new_stage():
         args.begin_new_stage = True
 
         resume_step, iter_count, epoch = load_checkpoint_state(
-            args=args, checkpoint_path=tmpdir, optimizer=fake_opt,
+            args=args,
+            checkpoint_path=tmpdir,
+            optimizer=fake_opt,
         )
         assert resume_step == 0
         assert iter_count == 0
@@ -1595,9 +1999,9 @@ def test_create_emissions_tracker_returns_tracker():
         )
         test_logger = logging.getLogger("tracker-test")
         tracker = create_emissions_tracker(args, test_logger)
-        assert hasattr(tracker, '_total_energy')
-        assert hasattr(tracker, 'flush')
-        assert hasattr(tracker, 'stop')
+        assert hasattr(tracker, "_total_energy")
+        assert hasattr(tracker, "flush")
+        assert hasattr(tracker, "stop")
         tracker.stop()
     finally:
         shutil.rmtree(tmpdir)
@@ -1743,7 +2147,9 @@ def test_end_to_end_backward_pass():
         outputs.loss.backward()
 
         # At least some parameters should have gradients
-        grads_found = sum(1 for p in model.parameters() if p.grad is not None and p.grad.abs().sum() > 0)
+        grads_found = sum(
+            1 for p in model.parameters() if p.grad is not None and p.grad.abs().sum() > 0
+        )
         assert grads_found > 0, "No gradients were computed"
     finally:
         shutil.rmtree(tmpdir)
@@ -1789,7 +2195,9 @@ def test_end_to_end_optimizer_step():
         model = result.model
         args = result.args
 
-        optimizer, step_fn, label = create_optimizer(model, args, device_type="cpu", master_process=True)
+        optimizer, step_fn, label = create_optimizer(
+            model, args, device_type="cpu", master_process=True
+        )
 
         bundle = prepare_dataloaders(args=args, tokenizer=result.tokenizer, world_size=1, rank=0)
         batch = next(iter(bundle.train_dataloader))
@@ -1835,7 +2243,9 @@ def test_end_to_end_mfu_with_model():
         args = result.args
 
         ctx = create_mfu_context(args, "a100", num_parameters=result.trainable_params)
-        metrics = calculate_training_metrics(ctx, micro_batch_size=4, gradient_accumulation_steps=1, world_size=1, dt=0.5)
+        metrics = calculate_training_metrics(
+            ctx, micro_batch_size=4, gradient_accumulation_steps=1, world_size=1, dt=0.5
+        )
         assert metrics.mfu > 0
         assert metrics.tokens_processed == 4 * 1 * args.max_position_embeddings
     finally:
@@ -1862,19 +2272,24 @@ print("\n" + "=" * 60)
 print("9. Trainers (DDPTrainer & FSDPTrainer)")
 print("=" * 60)
 
-from trainer import DDPTrainer, FSDPTrainer
+from trainer import DDPTrainer, FSDPTrainer  # noqa: E402
 
 
 class _MockTracker:
     """Minimal stand-in for codecarbon.EmissionsTracker used by the trainers."""
+
     class _Energy:
         kWh = 0.0
+
     _total_energy = _Energy()
+
     def __init__(self):
         self.flushed = False
         self.stopped = False
+
     def flush(self):
         self.flushed = True
+
     def stop(self):
         self.stopped = True
 
@@ -1885,6 +2300,7 @@ def test_ddp_trainer_cpu_two_steps():
     Verifies the loop completes without error and that model weights change.
     """
     import logging
+
     tmpdir = tempfile.mkdtemp()
     try:
         config_dir = _create_tiny_model_config(tmpdir)
@@ -1929,12 +2345,16 @@ def test_ddp_trainer_cpu_two_steps():
         model = result.model
         args = result.args
 
-        optimizer, step_fn, _ = create_optimizer(model, args, device_type="cpu", master_process=True)
+        optimizer, step_fn, _ = create_optimizer(
+            model, args, device_type="cpu", master_process=True
+        )
 
         bundle = prepare_dataloaders(args=args, tokenizer=result.tokenizer, world_size=1, rank=0)
 
         gradient_accumulation_steps, _, max_steps = compute_training_schedule(
-            args, len(bundle.train_dataloader), world_size=1,
+            args,
+            len(bundle.train_dataloader),
+            world_size=1,
         )
         max_steps = 2  # keep the test fast
 
@@ -1994,6 +2414,7 @@ def test_fsdp_trainer_cpu_two_steps():
     Verifies the loop completes without error and that model weights change.
     """
     import logging
+
     tmpdir = tempfile.mkdtemp()
     try:
         config_dir = _create_tiny_model_config(tmpdir)
@@ -2038,12 +2459,16 @@ def test_fsdp_trainer_cpu_two_steps():
         model = result.model
         args = result.args
 
-        optimizer, step_fn, _ = create_optimizer(model, args, device_type="cpu", master_process=True)
+        optimizer, step_fn, _ = create_optimizer(
+            model, args, device_type="cpu", master_process=True
+        )
 
         bundle = prepare_dataloaders(args=args, tokenizer=result.tokenizer, world_size=1, rank=0)
 
         gradient_accumulation_steps, _, max_steps = compute_training_schedule(
-            args, len(bundle.train_dataloader), world_size=1,
+            args,
+            len(bundle.train_dataloader),
+            world_size=1,
         )
         max_steps = 2  # keep the test fast
 
@@ -2099,6 +2524,7 @@ def test_fsdp_trainer_cpu_two_steps():
 def test_ddp_trainer_eval_only_does_not_train():
     """DDPTrainer eval_only runs validation and exits without changing weights."""
     import logging
+
     tmpdir = tempfile.mkdtemp()
     try:
         config_dir = _create_tiny_model_config(tmpdir)
@@ -2143,10 +2569,14 @@ def test_ddp_trainer_eval_only_does_not_train():
         result = prepare_training_components(args=args, device="cpu", master_process=True)
         model = result.model
         args = result.args
-        optimizer, step_fn, _ = create_optimizer(model, args, device_type="cpu", master_process=True)
+        optimizer, step_fn, _ = create_optimizer(
+            model, args, device_type="cpu", master_process=True
+        )
         bundle = prepare_dataloaders(args=args, tokenizer=result.tokenizer, world_size=1, rank=0)
         gradient_accumulation_steps, _, max_steps = compute_training_schedule(
-            args, len(bundle.train_dataloader), world_size=1,
+            args,
+            len(bundle.train_dataloader),
+            world_size=1,
         )
         lr_scheduler = create_lr_scheduler(args, max_steps)
         log_file = os.path.join(tmpdir, "test.log")
@@ -2204,6 +2634,7 @@ def test_ddp_trainer_eval_only_does_not_train():
 def test_fsdp_trainer_eval_only_does_not_train():
     """FSDPTrainer eval_only runs validation and exits without changing weights."""
     import logging
+
     tmpdir = tempfile.mkdtemp()
     try:
         config_dir = _create_tiny_model_config(tmpdir)
@@ -2248,10 +2679,14 @@ def test_fsdp_trainer_eval_only_does_not_train():
         result = prepare_training_components(args=args, device="cpu", master_process=True)
         model = result.model
         args = result.args
-        optimizer, step_fn, _ = create_optimizer(model, args, device_type="cpu", master_process=True)
+        optimizer, step_fn, _ = create_optimizer(
+            model, args, device_type="cpu", master_process=True
+        )
         bundle = prepare_dataloaders(args=args, tokenizer=result.tokenizer, world_size=1, rank=0)
         gradient_accumulation_steps, _, max_steps = compute_training_schedule(
-            args, len(bundle.train_dataloader), world_size=1,
+            args,
+            len(bundle.train_dataloader),
+            world_size=1,
         )
         lr_scheduler = create_lr_scheduler(args, max_steps)
         log_file = os.path.join(tmpdir, "test.log")
@@ -2305,12 +2740,245 @@ def test_fsdp_trainer_eval_only_does_not_train():
         shutil.rmtree(tmpdir)
 
 
+def _find_step_log_line(log_file, status, step):
+    """Return the first 0-based line index of a JSON log entry with matching status/step, or -1."""
+    with open(log_file) as f:
+        lines = f.readlines()
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped.startswith("{"):
+            continue
+        try:
+            entry = json.loads(stripped)
+        except json.JSONDecodeError:
+            continue
+        if entry.get("status") == status and entry.get("step") == step:
+            return i
+    return -1
+
+
+def _run_trainer_for_ordering(trainer_cls, tmpdir, **extra_kwargs):
+    """Build and run a tiny trainer with checkpointing_steps=2 and max_steps=2."""
+    import logging
+
+    config_dir = _create_tiny_model_config(tmpdir)
+    args = TrainingArguments(
+        path_to_model_config=config_dir,
+        tokenizer_name_or_path=_TINY_TOKENIZER_NAME,
+        attn_implementation="eager",
+        cache_dir=tmpdir,
+        torch_compile=False,
+        use_liger_kernel=False,
+        gradient_checkpointing=False,
+        mat_mul_precision="highest",
+        tf32=False,
+        bf16=False,
+        sanity_check=True,
+        sanity_check_num_samples=16,
+        micro_batch_size=2,
+        eval_micro_batch_size=2,
+        pin_memory=False,
+        num_workers_for_dataloader=0,
+        prefetch_factor=None,
+        shuffle_dataset=False,
+        optimizer_type="adamw",
+        max_learning_rate=1e-3,
+        weight_decay=0.01,
+        beta1=0.9,
+        beta2=0.95,
+        eps=1e-8,
+        max_grad_norm=1.0,
+        num_train_epochs=1,
+        total_batch_size=128,
+        checkpointing_steps=2,
+        stage_name="test",
+        checkpoint_dir=tmpdir,
+        wandb_token=None,
+        push_to_hub=False,
+        begin_new_stage=True,
+        lr_decay_type="cosine",
+    )
+
+    result = prepare_training_components(args=args, device="cpu", master_process=True)
+    args = result.args
+    optimizer, step_fn, _ = create_optimizer(
+        result.model, args, device_type="cpu", master_process=True
+    )
+    bundle = prepare_dataloaders(args=args, tokenizer=result.tokenizer, world_size=1, rank=0)
+    gradient_accumulation_steps, _, _ = compute_training_schedule(
+        args,
+        len(bundle.train_dataloader),
+        world_size=1,
+    )
+    max_steps = 2
+    lr_scheduler = create_lr_scheduler(args, max_steps)
+
+    log_file = os.path.join(tmpdir, "test.log")
+    file_logger = StructuredTrainingLogger(log_file)
+    logger = logging.getLogger(f"trainer-ordering-{trainer_cls.__name__}")
+    logger.setLevel(logging.WARNING)
+    mfu_context = create_mfu_context(args, "a100", num_parameters=result.trainable_params)
+
+    common_kwargs = {
+        "args": args,
+        "model": result.model,
+        "tokenizer": result.tokenizer,
+        "optimizer": optimizer,
+        "optimizer_step": step_fn,
+        "lr_scheduler": lr_scheduler,
+        "train_dataloader": bundle.train_dataloader,
+        "validation_dataloader": bundle.val_dataloader,
+        "train_sampler": bundle.train_sampler,
+        "gradient_accumulation_steps": gradient_accumulation_steps,
+        "max_steps": max_steps,
+        "resume_step": 0,
+        "iter_count": 0,
+        "epoch": 1,
+        "device": "cpu",
+        "device_type": "cpu",
+        "world_size": 1,
+        "master_process": True,
+        "precision": torch.float32,
+        "logger": logger,
+        "file_logger": file_logger,
+        "log_file": log_file,
+        "slurm_job_id": "test-000",
+        "tracker": _MockTracker(),
+        "mfu_context": mfu_context,
+    }
+    common_kwargs.update(extra_kwargs)
+    trainer = trainer_cls(**common_kwargs)
+    trainer.train()
+    return log_file
+
+
+def test_ddp_trainer_validation_runs_after_training():
+    """Validation/checkpoint must be logged AFTER the training step for the same step."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        import logging
+
+        config_dir = _create_tiny_model_config(tmpdir)
+        args = TrainingArguments(
+            path_to_model_config=config_dir,
+            tokenizer_name_or_path=_TINY_TOKENIZER_NAME,
+            attn_implementation="eager",
+            cache_dir=tmpdir,
+            torch_compile=False,
+            use_liger_kernel=False,
+            gradient_checkpointing=False,
+            mat_mul_precision="highest",
+            tf32=False,
+            bf16=False,
+            sanity_check=True,
+            sanity_check_num_samples=16,
+            micro_batch_size=2,
+            eval_micro_batch_size=2,
+            pin_memory=False,
+            num_workers_for_dataloader=0,
+            prefetch_factor=None,
+            shuffle_dataset=False,
+            optimizer_type="adamw",
+            max_learning_rate=1e-3,
+            weight_decay=0.01,
+            beta1=0.9,
+            beta2=0.95,
+            eps=1e-8,
+            max_grad_norm=1.0,
+            num_train_epochs=1,
+            total_batch_size=128,
+            checkpointing_steps=2,
+            stage_name="test",
+            checkpoint_dir=tmpdir,
+            wandb_token=None,
+            push_to_hub=False,
+            begin_new_stage=True,
+            lr_decay_type="cosine",
+        )
+        result = prepare_training_components(args=args, device="cpu", master_process=True)
+        args = result.args
+        optimizer, step_fn, _ = create_optimizer(
+            result.model, args, device_type="cpu", master_process=True
+        )
+        bundle = prepare_dataloaders(args=args, tokenizer=result.tokenizer, world_size=1, rank=0)
+        gradient_accumulation_steps, _, _ = compute_training_schedule(
+            args,
+            len(bundle.train_dataloader),
+            world_size=1,
+        )
+        max_steps = 2
+        lr_scheduler = create_lr_scheduler(args, max_steps)
+        log_file = os.path.join(tmpdir, "test.log")
+        file_logger = StructuredTrainingLogger(log_file)
+        logger = logging.getLogger("trainer-ordering-ddp")
+        logger.setLevel(logging.WARNING)
+        mfu_context = create_mfu_context(args, "a100", num_parameters=result.trainable_params)
+        trainer = DDPTrainer(
+            args=args,
+            model=result.model,
+            raw_model=result.model,
+            tokenizer=result.tokenizer,
+            optimizer=optimizer,
+            optimizer_step=step_fn,
+            lr_scheduler=lr_scheduler,
+            train_dataloader=bundle.train_dataloader,
+            validation_dataloader=bundle.val_dataloader,
+            train_sampler=bundle.train_sampler,
+            gradient_accumulation_steps=gradient_accumulation_steps,
+            max_steps=max_steps,
+            resume_step=0,
+            iter_count=0,
+            epoch=1,
+            device="cpu",
+            device_type="cpu",
+            ddp=False,
+            world_size=1,
+            master_process=True,
+            precision=torch.float32,
+            logger=logger,
+            file_logger=file_logger,
+            log_file=log_file,
+            slurm_job_id="test-000",
+            tracker=_MockTracker(),
+            mfu_context=mfu_context,
+        )
+        trainer.train()
+
+        train_idx = _find_step_log_line(log_file, "training", 2)
+        val_idx = _find_step_log_line(log_file, "validation", 2)
+        assert train_idx >= 0, "training step 2 entry not found in log"
+        assert val_idx >= 0, "validation step 2 entry not found in log"
+        assert train_idx < val_idx, (
+            f"validation (line {val_idx}) must be logged AFTER training step 2 (line {train_idx})"
+        )
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+def test_fsdp_trainer_validation_runs_after_training():
+    """FSDP trainer must also log validation/checkpoint AFTER the training step."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        log_file = _run_trainer_for_ordering(FSDPTrainer, tmpdir, fsdp=False)
+        train_idx = _find_step_log_line(log_file, "training", 2)
+        val_idx = _find_step_log_line(log_file, "validation", 2)
+        assert train_idx >= 0, "training step 2 entry not found in log"
+        assert val_idx >= 0, "validation step 2 entry not found in log"
+        assert train_idx < val_idx, (
+            f"validation (line {val_idx}) must be logged AFTER training step 2 (line {train_idx})"
+        )
+    finally:
+        shutil.rmtree(tmpdir)
+
+
 if __name__ == "__main__":
     for _fn in [
         test_ddp_trainer_cpu_two_steps,
         test_fsdp_trainer_cpu_two_steps,
         test_ddp_trainer_eval_only_does_not_train,
         test_fsdp_trainer_eval_only_does_not_train,
+        test_ddp_trainer_validation_runs_after_training,
+        test_fsdp_trainer_validation_runs_after_training,
     ]:
         run_test(_fn.__name__, _fn)
 

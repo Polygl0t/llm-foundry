@@ -1,12 +1,12 @@
 #!/bin/bash -l
 #############################################
 # LM Evaluation Harness - Portuguese Language Models
-# 
+#
 # This script automates the evaluation of Portuguese language models using the lm-evaluation-harness framework.
 # It can evaluate either local checkpoints or HuggingFace models in parallel across GPUs.
 # Results are post-processed to YAML format for easy analysis.
 #
-# Learn more about lm-evaluation-harness at: 
+# Learn more about lm-evaluation-harness at:
 # - https://github.com/EleutherAI/lm-evaluation-harness
 #############################################
 
@@ -54,8 +54,10 @@ source $workdir/.venv_eval_pt/bin/activate # <-- Activate the virtual environmen
 
 # git clone --branch polyglot_harness_portuguese https://github.com/Polygl0t/lm-evaluation-harness.git
 # mv $workdir/lm-evaluation-harness $workdir/lm_evaluation_harness
+# pip3 install --upgrade pip
 # pip3 install -e $workdir/lm_evaluation_harness
 # pip3 install "lm_eval[hf,vllm]"          # <-- Install lm-eval with HuggingFace and vLLM support
+# pip3 install pyyaml                      # <-- Required for post-processing script (can be installed in the same virtual environment)
 
 # ===== Optional: Required for IFEval =====
 # pip3 install langdetect --no-cache-dir
@@ -64,10 +66,10 @@ source $workdir/.venv_eval_pt/bin/activate # <-- Activate the virtual environmen
 #############################################
 # Available Portuguese evaluation tasks:
 #############################################
-# - General Benchmarks: 
+# - General Benchmarks:
 #   - arc_challenge_poly_pt
 #   - mmlu_poly_pt
-#   - global_mmlu_full_pt | global_mmlu_pt 
+#   - global_mmlu_full_pt | global_mmlu_pt
 #   - hellaswag_poly_pt
 #   - lambada_poly_pt
 #   - calame_pt
@@ -76,8 +78,10 @@ source $workdir/.venv_eval_pt/bin/activate # <-- Activate the virtual environmen
 #   - assin_entailment
 #   - belebele_por_Latn
 #   - xwinograd_pt
+#   - global_piqa_nonparallel_cloze_por_latn_braz (global_piqa_nonparallel_generation_por_latn_braz for chat models)
+#   - global_piqa_parallel_cloze_por_latn_braz (global_piqa_parallel_generation_por_latn_braz for chat models)
 #
-# - Instruction Following and Math: 
+# - Instruction Following and Math:
 #   - gsm8k_pt
 #   - ifeval_pt
 #   - mmlu_pro_pt | mmlu_prox_lite_pt
@@ -128,10 +132,10 @@ if [ "$EVAL_MODE" == "models" ]; then
     echo "====================================="
     echo "Downloading HuggingFace models to cache"
     echo "====================================="
-    
+
     # Convert space-separated string to array for download
     read -ra MODEL_DOWNLOAD_LIST <<< "$MODELS_TO_EVAL"
-    
+
     for model in "${MODEL_DOWNLOAD_LIST[@]}"; do
         model_name=$(basename "$model")        # <-- Extract model name from HuggingFace ID
         # If the model path is already an existing local directory, skip download
@@ -162,7 +166,7 @@ fi
 
 #############################################
 # Discover What Needs Evaluation
-# 
+#
 # This section checks which models/checkpoints have already been evaluated (by looking for YAML files)
 # and creates a list of items that still need evaluation.
 #############################################
@@ -175,19 +179,19 @@ declare -a MODEL_NAMES=()                  # <-- Array to store model names (for
 
 if [ "$EVAL_MODE" == "checkpoints" ]; then
     echo "Discovering checkpoints in: $CHECKPOINT_DIR"
-    
+
     if [ ! -d "$CHECKPOINT_DIR" ]; then
         echo "ERROR: Checkpoint directory does not exist: $CHECKPOINT_DIR"
         exit 1
     fi
-    
+
     # Find all step_* directories
     for checkpoint in "$CHECKPOINT_DIR"/step_*; do
         if [ -d "$checkpoint" ]; then
             checkpoint_name=$(basename "$checkpoint")
             # Check if evaluation already exists (look for results file with checkpoint name)
             eval_file="$EVAL_OUTPUT_DIR/${checkpoint_name}.yaml"
-            
+
             # Check if evaluation already exists
             if [ -f "$eval_file" ]; then
                 echo "✓ $checkpoint_name already evaluated (found $eval_file)"  # <-- Skip this checkpoint
@@ -201,15 +205,15 @@ if [ "$EVAL_MODE" == "checkpoints" ]; then
 
 elif [ "$EVAL_MODE" == "models" ]; then
     echo "Evaluating HuggingFace models from cache"
-    
+
     # Convert space-separated string to array
     read -ra MODEL_LIST <<< "$MODELS_TO_EVAL"
-    
+
     for model in "${MODEL_LIST[@]}"; do
         # Extract model name for filename (get string after last /)
         model_name=$(basename "$model")
         eval_file="$EVAL_OUTPUT_DIR/${model_name}.yaml"  # <-- Check if YAML result exists
-        
+
         # Check if evaluation already exists
         if [ -f "$eval_file" ]; then
             echo "✓ $model already evaluated (found $eval_file)"  # <-- Skip this model
@@ -248,7 +252,7 @@ echo "====================================="
 
 #############################################
 # Setup Output Files
-# 
+#
 # Create separate output and error files for each evaluation job.
 # This allows for debugging individual model evaluations.
 #############################################
@@ -269,7 +273,7 @@ done
 
 #############################################
 # Main Job Execution
-# 
+#
 # This section launches evaluation jobs in parallel, one per model/checkpoint.
 # Each evaluation runs on a separate GPU.
 # Jobs run in the background (&) and we track their process IDs.
@@ -282,15 +286,15 @@ for i in $(seq 0 $((NUM_TO_EVAL - 1))); do
     model_name="${MODEL_NAMES[$i]}"         # <-- Model name for file naming
     gpu_id=$((i % NUM_GPUS_NEEDED))         # <-- Assign GPU in round-robin fashion
     ucx_device=$gpu_id                      # <-- Network device ID (matches GPU ID)
-    
+
     out_file="${OUT_FILES[$i]}"
     err_file="${ERR_FILES[$i]}"
-    
+
     echo "Launching evaluation for $model_name on GPU $gpu_id"
-    
+
     export CUDA_VISIBLE_DEVICES=$gpu_id                     # <-- Make only this GPU visible to the process
     export UCX_NET_DEVICES=mlx5_${ucx_device}:1             # <-- Set network device for GPU communication
-    
+
     # Set MODEL_PATH based on evaluation mode
     if [ "$EVAL_MODE" == "checkpoints" ]; then
         export MODEL_PATH="$model"                          # <-- Use checkpoint directory directly
@@ -299,7 +303,7 @@ for i in $(seq 0 $((NUM_TO_EVAL - 1))); do
     else
         export MODEL_PATH="$HUGGINGFACE_HUB_CACHE/$model_name"  # <-- Path to locally cached model
     fi
-    
+
     # Launch evaluation in background
     # For more details on available arguments, check the user guide:
     # https://github.com/EleutherAI/lm-evaluation-harness/blob/main/docs/interface.md
@@ -319,10 +323,10 @@ for i in $(seq 0 $((NUM_TO_EVAL - 1))); do
         --num_fewshot $NUM_FEWSHOT \
         --device "cuda" \
         --output_path "$LOGS_FOLDER" 1>"$out_file" 2>"$err_file" &  # <-- Run in background
-    
+
     # Store the PID for tracking
     PIDS[$i]=$!                             # <-- Save process ID to wait for it later
-    
+
     # Small delay to stagger launches
     sleep 2                                 # <-- Prevents overwhelming the system with simultaneous starts
 done
@@ -334,7 +338,7 @@ for i in $(seq 0 $((NUM_TO_EVAL - 1))); do
     wait ${PIDS[$i]}                        # <-- Block until this process completes
     exit_code=$?                            # <-- Capture exit code
     model_name="${MODEL_NAMES[$i]}"
-    
+
     if [ $exit_code -eq 0 ]; then
         echo "✓ Evaluation completed successfully for $model_name"
     else
@@ -344,10 +348,10 @@ done
 
 #############################################
 # Post-processing (JSON to YAML Conversion)
-# 
+#
 # Converts JSON evaluation results to YAML format for easier analysis.
 # Flattens nested result structures and extracts model metadata.
-# Requires: jq (JSON processor)
+# Uses embedded Python (requires PyYAML in the active virtual environment).
 #############################################
 echo "====================================="
 echo "Running post-processing..."
@@ -356,82 +360,91 @@ echo "====================================="
 YAML_OUTPUT_DIR="$EVAL_OUTPUT_DIR"
 mkdir -p "$YAML_OUTPUT_DIR"                 # <-- Ensure output directory exists
 
-# Find all JSON files recursively in logs folder
-json_files=()
-while IFS= read -r -d '' file; do
-    json_files+=("$file")
-done < <(find "$LOGS_FOLDER" -type f -name "*.json" -print0)
+# Post-processing: convert JSON results to YAML using embedded Python
+# (no external dependencies beyond Python's standard library + PyYAML)
+python3 - "$LOGS_FOLDER" "$YAML_OUTPUT_DIR" << 'PYEOF'
+import os, sys, json, yaml
 
-if [ ${#json_files[@]} -eq 0 ]; then
-    echo "No JSON files found in $LOGS_FOLDER"
-else
-    echo "Found ${#json_files[@]} JSON file(s) to process"
-    
-    # Check if jq is available (required for JSON parsing)
-    if ! command -v jq &> /dev/null; then
-        echo "WARNING: jq is not installed. Skipping post-processing."
-        echo "Install with: module load jq (or apt-get install jq)"
-    else
-        # Process each JSON file
-        for file in "${json_files[@]}"; do
-            echo "Processing $(basename "$file")..."
-            
-            # Extract pretrained model path from JSON config
-            pretrained=$(jq -r '.config.model_args.pretrained // empty' "$file" 2>/dev/null || echo "")
-            
-            # Determine model name (from pretrained path or filename)
-            if [ -n "$pretrained" ]; then
-                model_name=$(basename "$pretrained" | sed 's:/*$::')  # <-- Use model path
-            else
-                # Extract from filename as fallback
-                fname=$(basename "$file" .json)
-                # Remove common prefixes
-                fname="${fname#results_}"
-                fname="${fname#result_}"
-                fname="${fname#eval_}"
-                model_name="$fname"         # <-- Use filename
-            fi
-            
-            output_file="$YAML_OUTPUT_DIR/${model_name}.yaml"
-            
-            # Skip if already exists
-            if [ -f "$output_file" ]; then
-                echo "  ✓ YAML already exists, skipping"
-                continue
-            fi
-            
-            # Build YAML output
-            {
-                echo "model_name: $model_name"
-                if [ -n "$pretrained" ]; then
-                    echo "model_pretrained: $pretrained"
-                else
-                    echo "model_pretrained: null"
-                fi
-                echo "results:"
-                
-                # Extract and flatten results from nested JSON structure
-                # Prepends benchmark name to each metric and removes ",none" suffix
-                jq -r '
-                    (.results // .) | 
-                    to_entries[] | 
-                    if .value | type == "object" then
-                        .key as $parent |
-                        .value | to_entries[] | 
-                        "  " + $parent + "_" + (.key | sub(",none$"; "")) + ": " + (.value | tostring)
-                    else
-                        "  " + .key + ": " + (.value | tostring)
-                    end
-                ' "$file" 2>/dev/null || echo "  error: failed to parse results"
-                
-            } > "$output_file"
-            
-            echo "  ✓ Created $(basename "$output_file")"
-        done
-        
-        echo "✓ Post-processing completed successfully"
-    fi
-fi
+logs_dir = sys.argv[1]
+output_dir = sys.argv[2]
+os.makedirs(output_dir, exist_ok=True)
+
+json_files = []
+for root, _, files in os.walk(logs_dir):
+    for f in files:
+        if f.endswith(".json"):
+            json_files.append(os.path.join(root, f))
+
+if not json_files:
+    print(f"No JSON files found in {logs_dir}")
+else:
+    print(f"Found {len(json_files)} JSON file(s) to process")
+
+    for filepath in json_files:
+        print(f"Processing {os.path.basename(filepath)}...")
+
+        try:
+            with open(filepath, "r") as f:
+                data = json.load(f)
+        except Exception as e:
+            print(f"  ❌ Failed to read {filepath}: {e}")
+            continue
+
+        results = data.get("results", data)
+
+        # Extract pretrained model path from config
+        pretrained = None
+        config = data.get("config", {})
+        if isinstance(config, dict):
+            model_args = config.get("model_args", {})
+            if isinstance(model_args, dict):
+                pretrained = model_args.get("pretrained")
+
+        # Determine model name
+        if pretrained:
+            model_name = os.path.basename(pretrained.rstrip("/"))
+        else:
+            fname = os.path.basename(filepath)
+            for prefix in ("results_", "result_", "eval_"):
+                if fname.startswith(prefix):
+                    fname = fname[len(prefix):]
+                    break
+            model_name = os.path.splitext(fname)[0]
+
+        output_file = os.path.join(output_dir, f"{model_name}.yaml")
+
+        if os.path.exists(output_file):
+            print("  ✅ YAML already exists, skipping")
+            continue
+
+        # Flatten nested results (prepend benchmark name, strip ",none" suffix)
+        flat_results = {}
+        if isinstance(results, dict):
+            for key, value in results.items():
+                if isinstance(value, dict):
+                    for subkey, subvalue in value.items():
+                        clean_subkey = subkey.replace(",none", "")
+                        flat_results[f"{key}_{clean_subkey}"] = subvalue
+                else:
+                    flat_results[key] = value
+
+        out = {
+            "model_name": model_name,
+            "model_pretrained": pretrained,
+            "results": flat_results,
+        }
+
+        try:
+            with open(output_file, "w") as f:
+                yaml.dump(out, f, default_flow_style=False)
+        except Exception as e:
+            print(f"  ❌ Failed to write {output_file}: {e}")
+            continue
+
+        print(f"  ✅ Created {os.path.basename(output_file)}")
+
+    print("✅ Post-processing completed successfully")
+PYEOF
 
 #############################################
 # Finalize
@@ -447,14 +460,14 @@ echo "====================================="
 
 #############################################
 # Cleanup and Validation
-# 
+#
 # Check if all evaluations completed successfully and optionally clean up cache.
 #############################################
 ALL_SUCCESS=true
 for i in $(seq 0 $((NUM_TO_EVAL - 1))); do
     model_name="${MODEL_NAMES[$i]}"
     eval_file="$EVAL_OUTPUT_DIR/${model_name}.yaml"
-    
+
     # Check if the evaluation file was created (indicates success)
     if [ ! -f "$eval_file" ]; then
         ALL_SUCCESS=false
@@ -463,9 +476,9 @@ for i in $(seq 0 $((NUM_TO_EVAL - 1))); do
 done
 
 if [ "$ALL_SUCCESS" = true ]; then
-    echo "✓ All evaluations completed successfully."
+    echo "✅ All evaluations completed successfully."
 else
-    echo "⚠ Some evaluations failed. Check logs in $workdir/job_outputs for details."
+    echo "⚠️ Some evaluations failed. Check logs in $LOGS_FOLDER for details."
 fi
 
 #############################################
@@ -477,7 +490,7 @@ if [ "$CLEAN_CACHE" = "1" ]; then
     echo "Cleaning HF_DATASETS_CACHE..."
     if [ -d "$HF_DATASETS_CACHE" ]; then
         find "$HF_DATASETS_CACHE" -mindepth 1 -delete 2>/dev/null || true  # <-- Delete all cache contents
-        echo "✓ Cache cleaned"
+        echo "✅ Cache cleaned"
     fi
 else
     echo "Skipping cache cleanup (CLEAN_CACHE=$CLEAN_CACHE)"
@@ -488,5 +501,5 @@ fi
 #############################################
 echo "====================================="
 echo "Results available at: $EVAL_OUTPUT_DIR/"
-echo "Job logs available at: $workdir/job_outputs/"
+echo "Job logs available at: $LOGS_FOLDER/"
 echo "====================================="

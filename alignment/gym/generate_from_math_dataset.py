@@ -8,7 +8,7 @@ Dataset-based and synthetic problems use relaxed validation (exact match,
 numeric equivalence, or integer part of a float).
 
 Usage:
-    # Use all 12474 problems from the dataset (no synthetic): 
+    # Use all 12474 problems from the dataset (no synthetic):
     python generate_from_math_dataset.py \\
         --output_file math_tasks.jsonl \\
         --num_samples 12474
@@ -29,14 +29,14 @@ Usage:
 
 """
 
-import json
-import random
-import operator
-import hashlib
 import argparse
+import hashlib
+import json
+import operator
+import random
 from pathlib import Path
 
-# The math-problems.jsonl file is expected to be in the same directory as this script, under 
+# The math-problems.jsonl file is expected to be in the same directory as this script, under
 # an "assets" subdirectory.
 ASSETS_DIR = Path(__file__).parent / "assets"
 MATH_PROBLEMS_JSONL = ASSETS_DIR / "math-problems.jsonl"
@@ -46,10 +46,10 @@ VERIFIER_ID = "math:answer_check"
 
 # Synthetic math problem generator
 _OPS = {
-    '+': operator.add,
-    '-': operator.sub,
-    '*': operator.mul,
-    '/': operator.truediv,
+    "+": operator.add,
+    "-": operator.sub,
+    "*": operator.mul,
+    "/": operator.truediv,
 }
 
 # A variety of preambles to make the synthetic problems more natural and diverse.
@@ -59,7 +59,7 @@ _PREAMBLE = [
     "Qual é o resultado desta expressão matemática?",
     "Resolva o seguinte problema matemático:",
     "Resolva isto:",
-    "Qual é a resposta para esta expressão?"
+    "Qual é a resposta para esta expressão?",
 ]
 
 # To keep evaluation simple and fast, we limit to numbers up to 999 (3 digits).
@@ -258,7 +258,7 @@ def main(args):
     if not samples:
         raise RuntimeError("No samples generated. Use --num_samples and/or --num_synthetic.")
 
-    print(f"\nResults:")
+    print("\nResults:")
     print(f"  Total samples:      {len(samples)}")
     print(f"  Validation issues:  {total_issues}")
 
@@ -282,7 +282,7 @@ if __name__ == "__main__":
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    
+
     parser.add_argument(
         "--output_file",
         type=str,
@@ -294,8 +294,8 @@ if __name__ == "__main__":
         type=int,
         default=500,
         help="Number of dataset samples from math-problems.jsonl (default: 500). "
-            "Set to 0 to skip dataset. "
-            "Max number of samples in the dataset is: 12481."
+        "Set to 0 to skip dataset. "
+        "Max number of samples in the dataset is: 12481.",
     )
     parser.add_argument(
         "--num_synthetic",

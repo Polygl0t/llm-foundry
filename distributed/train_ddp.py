@@ -17,49 +17,56 @@ Modules:
 
 How to Use:
 
-1. Configure `specifications.yaml` with your training settings, including dataset paths, 
+1. Configure `specifications.yaml` with your training settings, including dataset paths,
     model architecture, and optimization parameters.
 
 2. Launch the training script with SLURM, specifying the number of nodes and GPUs.
     See the `train_ddp.sh` script for an example SLURM job submission.
 """
-from torch.nn.parallel import DistributedDataParallel as DDP
-import torch
 
 import argparse
 import os
 
-from model_setup import prepare_training_components
-from specifications import TrainingArguments
+import torch
 from data_loading import prepare_dataloaders
-from trainer import DDPTrainer
 from mfu import create_mfu_context
-
-from optimizers import (
-    create_lr_scheduler, 
-    create_optimizer, 
-    get_optimizer_summary_lines
-)
+from model_setup import prepare_training_components
+from optimizers import create_lr_scheduler, create_optimizer, get_optimizer_summary_lines
+from specifications import TrainingArguments
+from torch.nn.parallel import DistributedDataParallel as DDP
+from trainer import DDPTrainer
 
 from utils import (
-    StructuredTrainingLogger,
     DistributedEnvironment,
+    StructuredTrainingLogger,
+    cleanup_log_file,
     compute_training_schedule,
-    load_checkpoint_state,
-    initialize_wandb,
     create_emissions_tracker,
-    setup_triton_cache, 
-    cleanup_log_file
+    initialize_wandb,
+    load_checkpoint_state,
+    setup_triton_cache,
 )
 
+
 def main(specs, slurm_job_id, hardware):
+    # Silence noisy third-party loggers.
+    # huggingface_hub emits warnings on every HTTP request; bump to ERROR.
+    # httpx logs every single HTTP request at INFO; bump to WARNING.
+    # liger_kernel logs monkey-patch details at INFO; bump to WARNING.
+    import logging as _logging
+
+    _logging.getLogger("huggingface_hub").setLevel(_logging.ERROR)
+    _logging.getLogger("httpx").setLevel(_logging.WARNING)
+    _logging.getLogger("liger_kernel").setLevel(_logging.WARNING)
 
     # Load the training arguments from the specifications.yaml file.
     args = TrainingArguments.from_yaml(specs)
 
     # Initiate a logger for the training process.
-    logger = StructuredTrainingLogger.create_python_logger(f"DDP-Trainer-{slurm_job_id}-{args.stage_name}")
-    
+    logger = StructuredTrainingLogger.create_python_logger(
+        f"DDP-Trainer-{slurm_job_id}-{args.stage_name}"
+    )
+
     # Initialize the distributed environment.
     # See the `DistributedEnvironment` class in `utils.py` for details on what this does.
     # It returns:
@@ -81,25 +88,24 @@ def main(specs, slurm_job_id, hardware):
     setup_triton_cache()
 
     # If we are `resume_from_checkpoint`, we use the SLURM job ID from the checkpoint path.
-    # The SLURM job ID is used to create a unique checkpoint directory for this training run, 
+    # The SLURM job ID is used to create a unique checkpoint directory for this training run,
     # which allows us to avoid conflicts between different runs.
     if args.resume_from_checkpoint:
         rel = os.path.relpath(args.resume_from_checkpoint, args.checkpoint_dir)
         slurm_job_id = rel.split(os.sep)[0]
-    
+
     args.checkpoint_dir = os.path.join(args.checkpoint_dir, f"{slurm_job_id}")
     log_file = os.path.join(args.checkpoint_dir, f"{slurm_job_id}.log")
     file_logger = None
-    
-    if master_process:
 
+    if master_process:
         # Create the checkpoint directory if it doesn't exist.
         os.makedirs(args.checkpoint_dir, exist_ok=True)
-        
+
         # Clean up the log file if resuming from checkpoint.
         if args.resume_from_checkpoint:
             cleanup_log_file(log_file)
-        
+
         # Initialize a structured training logger to log metadata and stats to a file.
         file_logger = StructuredTrainingLogger(log_file)
 
@@ -152,28 +158,28 @@ def main(specs, slurm_job_id, hardware):
         #
         # Key arguments here:
         #    - device_ids: Pin each process to a specific GPU based on its rank.
-        #    - static_graph: 
+        #    - static_graph:
         #        Enables optimizations for models with a fixed forward/backward
         #        graph (no dynamic control flow). Should be False when using
         #        gradient accumulation or dynamic graphs, since it may otherwise
         #        skip needed synchronizations.
         #    - gradient_as_bucket_view:
-        #        Lets gradients be viewed directly from the communication buckets 
-        #        to save memory. More efficient, but may complicate custom 
+        #        Lets gradients be viewed directly from the communication buckets
+        #        to save memory. More efficient, but may complicate custom
         #        gradient handling.
         # Note:
         #     Gradient accumulation can break if `static_graph=True`
         #     (see https://github.com/pytorch/pytorch/issues/143580).
-        #Reference: https://pytorch.org/docs/stable/generated/torch.nn.parallel.DistributedDataParallel.html
+        # Reference: https://pytorch.org/docs/stable/generated/torch.nn.parallel.DistributedDataParallel.html
         model = DDP(
-            model, 
+            model,
             device_ids=[rank % torch.cuda.device_count()],
             static_graph=args.static_graph,
             gradient_as_bucket_view=True,
-        ) 
+        )
 
     # Unwrap version of the model if it is wrapped in DDP.
-    raw_model = model.module if ddp else model 
+    raw_model = model.module if ddp else model
 
     # See the `data_loading.py` module for details on dataset loading and dataloader creation.
     data = prepare_dataloaders(
@@ -194,8 +200,12 @@ def main(specs, slurm_job_id, hardware):
         args, len(train_dataloader), world_size
     )
     if args.max_steps is not None and master_process:
-        logger.info(f"Overriding the number of steps to {max_steps} as per the `max_steps` argument (check the YAML file if you are not sure).")
-        file_logger.log_metadata(f"Overriding the number of steps to {max_steps} as per the `max_steps` argument (check the YAML file if you are not sure).")
+        logger.info(
+            f"Overriding the number of steps to {max_steps} as per the `max_steps` argument (check the YAML file if you are not sure)."
+        )
+        file_logger.log_metadata(
+            f"Overriding the number of steps to {max_steps} as per the `max_steps` argument (check the YAML file if you are not sure)."
+        )
 
     # Create the learning rate scheduler.
     # See the `optimizers.py` script for details on what this function does.
@@ -206,7 +216,7 @@ def main(specs, slurm_job_id, hardware):
         file_logger.log_metadata(f"Using learning rate decay type: {args.lr_decay_type}")
 
     # See the `optimizers.py` script for details on what this function does.
-    # It returns: 
+    # It returns:
     # - the optimizer.
     # - the optimizer step (a function that we will call to update the optimizer).
     # - a label describing the optimizer (for logging purposes).
@@ -234,8 +244,7 @@ def main(specs, slurm_job_id, hardware):
     )
 
     if master_process:
-
-        logger.info("="*50)
+        logger.info("=" * 50)
         logger.info(f"  Training stage | {args.stage_name}")
         logger.info(f"  Run ID | {slurm_job_id}")
         logger.info(f"  Hardware | {hardware.upper()}")
@@ -244,8 +253,10 @@ def main(specs, slurm_job_id, hardware):
         logger.info(f"  Resuming from checkpoint | {args.resume_from_checkpoint is not None}")
         if args.resume_from_checkpoint:
             logger.info(f"    Checkpoint path | {args.resume_from_checkpoint}")
-            logger.info(f"    Starting from step | {resume_step if not args.begin_new_stage else None}")
-        logger.info("="*50)
+            logger.info(
+                f"    Starting from step | {resume_step if not args.begin_new_stage else None}"
+            )
+        logger.info("=" * 50)
         logger.info("Dataset Configuration:")
         logger.info(f"  Num train examples | {data.num_train_samples:,}")
         logger.info(f"  Num validation examples | {data.num_val_samples:,}")
@@ -253,79 +264,96 @@ def main(specs, slurm_job_id, hardware):
         logger.info(f"  Max position embeddings (seq length) | {args.max_position_embeddings:,}")
         logger.info(f"  Shuffle dataset | {args.shuffle_dataset}")
         logger.info(f"  Additional mask token IDs | {args.additional_mask_token_ids}")
-        logger.info("="*50)
+        logger.info("=" * 50)
         logger.info("Batch Configuration:")
         logger.info(f"  Num Epochs | {args.num_train_epochs}")
         logger.info(f"  Micro batch size per device | {args.micro_batch_size}")
         logger.info(f"  Gradient accumulation steps | {gradient_accumulation_steps}")
-        logger.info(f"  Total batch size (samples) | {args.micro_batch_size * gradient_accumulation_steps * world_size}")
+        logger.info(
+            f"  Total batch size (samples) | {args.micro_batch_size * gradient_accumulation_steps * world_size}"
+        )
         logger.info(f"  Total batch size (tokens) | {args.total_batch_size:,}")
         logger.info(f"  Total optimization steps | {max_steps:,}")
         logger.info(f"  Steps per epoch | {num_update_steps_per_epoch:,}")
         logger.info(f"  Checkpointing every | {args.checkpointing_steps} steps")
-        logger.info("="*50)
+        logger.info("=" * 50)
         logger.info("Model Architecture:")
-        logger.info(f"  Model config | {args.path_to_model_config or args.base_model or 'From checkpoint'}")
+        logger.info(
+            f"  Model config | {args.path_to_model_config or args.base_model or 'From checkpoint'}"
+        )
         logger.info(f"  Attention implementation | {args.attn_implementation}")
         logger.info(f"  Gradient checkpointing | {args.gradient_checkpointing}")
         logger.info(f"  Liger kernel | {args.use_liger_kernel}")
         logger.info(f"  Torch compile | {args.torch_compile}")
         logger.info(f"  Trainable parameters | {trainable_params:,}")
         if trainable_params != active_trainable_params:
-            logger.info(f"  Active trainable parameters (counting only experts in MoE models) | {active_trainable_params:,}")
-        logger.info("="*50)
+            logger.info(
+                f"  Active trainable parameters (counting only experts in MoE models) | {active_trainable_params:,}"
+            )
+        logger.info("=" * 50)
         optimizer_summary_lines = get_optimizer_summary_lines(args)
         logger.info(f"Optimizer Configuration ({optimizer_label}):")
         for line in optimizer_summary_lines:
             logger.info(line)
-        logger.info("="*50)
+        logger.info("=" * 50)
 
         if args.resume_from_checkpoint is None:
-            file_logger.log_metadata("="*50)
+            file_logger.log_metadata("=" * 50)
             file_logger.log_metadata(f"  Training stage | {args.stage_name}")
             file_logger.log_metadata(f"  Run ID | {slurm_job_id}")
             file_logger.log_metadata(f"  Hardware | {hardware.upper()}")
             file_logger.log_metadata(f"  World size (total GPUs) | {world_size}")
             file_logger.log_metadata(f"  Precision | {'bfloat16' if args.bf16 else 'float32'}")
-            file_logger.log_metadata("="*50)
+            file_logger.log_metadata("=" * 50)
             file_logger.log_metadata("Dataset Configuration:")
             file_logger.log_metadata(f"  Num train examples | {data.num_train_samples:,}")
             file_logger.log_metadata(f"  Num validation examples | {data.num_val_samples:,}")
             file_logger.log_metadata(f"  Length of train dataloader | {len(train_dataloader):,}")
-            file_logger.log_metadata(f"  Max position embeddings (seq length) | {args.max_position_embeddings:,}")
+            file_logger.log_metadata(
+                f"  Max position embeddings (seq length) | {args.max_position_embeddings:,}"
+            )
             file_logger.log_metadata(f"  Shuffle dataset | {args.shuffle_dataset}")
-            file_logger.log_metadata(f"  Additional mask token IDs | {args.additional_mask_token_ids}")
-            file_logger.log_metadata("="*50)
+            file_logger.log_metadata(
+                f"  Additional mask token IDs | {args.additional_mask_token_ids}"
+            )
+            file_logger.log_metadata("=" * 50)
             file_logger.log_metadata("Batch Configuration:")
             file_logger.log_metadata(f"  Num Epochs | {args.num_train_epochs}")
             file_logger.log_metadata(f"  Micro batch size per device | {args.micro_batch_size}")
-            file_logger.log_metadata(f"  Gradient accumulation steps | {gradient_accumulation_steps}")
-            file_logger.log_metadata(f"  Total batch size (samples) | {args.micro_batch_size * gradient_accumulation_steps * world_size}")
+            file_logger.log_metadata(
+                f"  Gradient accumulation steps | {gradient_accumulation_steps}"
+            )
+            file_logger.log_metadata(
+                f"  Total batch size (samples) | {args.micro_batch_size * gradient_accumulation_steps * world_size}"
+            )
             file_logger.log_metadata(f"  Total batch size (tokens) | {args.total_batch_size:,}")
             file_logger.log_metadata(f"  Total optimization steps | {max_steps:,}")
             file_logger.log_metadata(f"  Steps per epoch | {num_update_steps_per_epoch:,}")
             file_logger.log_metadata(f"  Checkpointing every | {args.checkpointing_steps} steps")
-            file_logger.log_metadata("="*50)
+            file_logger.log_metadata("=" * 50)
             file_logger.log_metadata("Model Architecture:")
-            file_logger.log_metadata(f"  Model config | {args.path_to_model_config or args.base_model or 'From checkpoint'}")
+            file_logger.log_metadata(
+                f"  Model config | {args.path_to_model_config or args.base_model or 'From checkpoint'}"
+            )
             file_logger.log_metadata(f"  Attention implementation | {args.attn_implementation}")
             file_logger.log_metadata(f"  Gradient checkpointing | {args.gradient_checkpointing}")
             file_logger.log_metadata(f"  Liger kernel | {args.use_liger_kernel}")
             file_logger.log_metadata(f"  Torch compile | {args.torch_compile}")
             file_logger.log_metadata(f"  Trainable parameters | {trainable_params:,}")
             if trainable_params != active_trainable_params:
-                file_logger.log_metadata(f"  Active trainable parameters (counting only experts in MoE models) | {active_trainable_params:,}")
-            file_logger.log_metadata("="*50)
+                file_logger.log_metadata(
+                    f"  Active trainable parameters (counting only experts in MoE models) | {active_trainable_params:,}"
+                )
+            file_logger.log_metadata("=" * 50)
             file_logger.log_metadata(f"Optimizer Configuration ({optimizer_label}):")
             for line in optimizer_summary_lines:
                 file_logger.log_metadata(line)
-            file_logger.log_metadata("="*50)
+            file_logger.log_metadata("=" * 50)
 
     tracker = None
     mfu_context = None
 
     if master_process:
-
         # Initialize W&B (if configured) and CodeCarbon.
         if args.wandb_token is not None:
             initialize_wandb(args, slurm_job_id, max_steps)
@@ -337,7 +365,9 @@ def main(specs, slurm_job_id, hardware):
         # See the `mfu.py` script for details on what this function does.
         # Use active_trainable_params so MoE models count only the experts
         # that participate in each forward pass.
-        mfu_context = create_mfu_context(args=args, hardware=hardware, num_parameters=active_trainable_params)
+        mfu_context = create_mfu_context(
+            args=args, hardware=hardware, num_parameters=active_trainable_params
+        )
 
     # Create the DDPTrainer and run the training loop.
     trainer = DDPTrainer(
@@ -374,12 +404,13 @@ def main(specs, slurm_job_id, hardware):
     # Cleanup.
     env.cleanup()
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    
+
     parser.add_argument(
         "--specs",
         type=str,

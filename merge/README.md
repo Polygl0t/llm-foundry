@@ -88,4 +88,3 @@ output_dir: ./merged_model
 
 Main supported merge methods:
 - See https://github.com/arcee-ai/mergekit#merge-methods.
-

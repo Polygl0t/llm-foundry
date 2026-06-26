@@ -21,14 +21,14 @@ Provides:
     - `create_mfu_context()` to build a context from training args.
     - `calculate_training_metrics()` to compute MFU + throughput per step.
 """
+
 from dataclasses import dataclass
-from typing import Tuple
 
-
+# Peak FLOPs (BF16) for supported hardware (Bender|Marvin|Jupiter).
 PEAK_FLOPS_BY_HARDWARE = {
-    "a100": 300e12,
-    "a40": 150e12,
-    "h100": 1671e12,
+    "a100": 312e12,  # --> https://www.nvidia.com/en-us/data-center/a100/
+    "a40": 150e12,  # --> https://www.nvidia.com/en-us/data-center/a40/
+    "gh200": 990e12,  # --> https://www.nvidia.com/en-eu/data-center/grace-hopper-superchip/
     # Extend with more hardware as needed.
 }
 
@@ -50,7 +50,7 @@ class MFUContext:
     vocab_size: int = 0
     intermediate_size: int = 0
     num_key_value_heads: int = 0
-    layer_types: Tuple[str, ...] = ()
+    layer_types: tuple[str, ...] = ()
 
     # Linear attention (Gated DeltaNet) parameters.
     linear_num_key_heads: int = 0
@@ -94,7 +94,9 @@ def _dense_transformer_flops(ctx, micro_batch_size, gradient_accumulation_steps,
         6 * ctx.num_parameters
         + 12 * ctx.num_hidden_layers * ctx.num_attention_heads * ctx.head_dim * ctx.sequence_length
     )
-    flops_per_iter = flops_per_token * ctx.sequence_length * micro_batch_size * gradient_accumulation_steps
+    flops_per_iter = (
+        flops_per_token * ctx.sequence_length * micro_batch_size * gradient_accumulation_steps
+    )
     return flops_per_iter / dt
 
 
@@ -118,6 +120,10 @@ def _full_attention_macs_per_token(ctx):
     """
     Per-token MACs for a full causal-attention layer with grouped-query
     attention (GQA) support.
+
+    We use the non-causal attention cost (`2 * d * s`) so that the
+    structural path matches the standard `6N + 12·L·H·d_head·S`
+    approximation used by `_dense_transformer_flops`.
     """
     d = ctx.hidden_size
     s = ctx.sequence_length
@@ -125,8 +131,8 @@ def _full_attention_macs_per_token(ctx):
     kv_h = ctx.num_key_value_heads if ctx.num_key_value_heads > 0 else h
     q_dim = h * ctx.head_dim
     kv_dim = kv_h * ctx.head_dim
-    projections = 2 * d * q_dim + 2 * d * kv_dim  # Q, O full; K, V scaled by GQA
-    attention = d * s                              # QK^T + attn.V (causal avg)
+    projections = 2 * d * q_dim + 2 * d * kv_dim
+    attention = 2 * d * s
     return projections + attention + _mlp_macs_per_token(ctx)
 
 
@@ -135,29 +141,65 @@ def _linear_attention_macs_per_token(ctx):
     Per-token MACs for a Gated-DeltaNet linear-attention layer
     (training, chunkwise parallel).
 
-    Combines the sequence-independent terms (in-/out- projections, conv,
-    gating) with the chunk-parallel overheads (intra-chunk kernel mixing and
-    inter-chunk state passing).
+    Counts every projection, the depthwise causal conv1d, the pre-chunk
+    element-wise transforms, the intra- and inter-chunk kernel operations,
+    the output gated-RMSNorm, and the final out-projection.
+
+    After `query` / `key` are repeated to match `num_value_heads`
+    (see `transformers.Qwen3_5GatedDeltaNet`), all chunk-level
+    work uses the *value*-head count, not the key-head count.
 
     Reference: https://arxiv.org/abs/2604.03444 (Eqs. 8 and 10)
     """
     d = ctx.hidden_size
-    k = ctx.linear_num_key_heads * ctx.linear_key_head_dim
-    v = ctx.linear_num_value_heads * ctx.linear_value_head_dim
-    h = ctx.linear_num_key_heads
+    nk = ctx.linear_num_key_heads
+    nv = ctx.linear_num_value_heads
+    dk = ctx.linear_key_head_dim
+    dv = ctx.linear_value_head_dim
+    k = nk * dk  # total key dimension (before repeat)
+    v = nv * dv  # total value dimension
     L = ctx.linear_chunk_size
+    K = ctx.linear_conv_kernel_dim
 
-    projections = d * (2 * k + v + 2 * h)
-    conv = ctx.linear_conv_kernel_dim * (2 * k + v)
-    gate_out = 2 * d * v
-    intra_chunk = L * (3 * k + 2 * v)
-    inter_chunk = 3 * k * v // h if h > 0 else 0
-    return projections + conv + gate_out + intra_chunk + inter_chunk + _mlp_macs_per_token(ctx)
+    #  1. Input projections
+    # in_proj_qkv : d → (k + k + v)      = 2k + v
+    # in_proj_z   : d → v
+    # in_proj_b   : d → nv
+    # in_proj_a   : d → nv
+    projections = d * (2 * k + 2 * v + 2 * nv)
+
+    #  2. Causal depthwise conv1d -
+    conv = K * (2 * k + v)
+
+    #  3. Chunked gated-delta-rule kernel
+    # Intra-chunk: per-chunk kernel mixing, triangular solve, value aggregation.
+    #   - k_beta @ keyᵀ  (L×L matmul)         →  nv·L·dk  / token
+    #   - triangular recurrence                →  nv·2L²/3  / token
+    #   - attn @ v_beta                        →  nv·L·dv  / token
+    #   - attn @ (k_beta ⊙ g)                  →  nv·L·dk  / token
+    intra = nv * (2 * L * dk + L * dv + (2 * L * L) // 3)
+
+    # Inter-chunk: state-passing between consecutive chunks.
+    #   - q_i @ k_iᵀ (causal average)          →  nv·L·dk/2 / token
+    #   - k_cumdecay @ last_state              →  nv·dk·dv  / token
+    #   - (q_i ⊙ g_exp) @ last_state           →  nv·dk·dv  / token
+    #   - attn @ v_new (causal average)        →  nv·L·dv/2 / token
+    #   - (k_i ⊙ decay)ᵀ @ v_new (state upd)   →  nv·dk·dv  / token
+    inter = nv * ((L * dk) // 2 + (L * dv) // 2 + 3 * dk * dv)
+
+    #  4. Pre- / post-chunk element-wise ops
+    # Q/K L2-norm, beta / g discretisation, output gated-RMSNorm.
+    elem_ops = nv * (6 * dk + 5 * dv)
+
+    #  5. Output projection
+    out_proj = d * v
+
+    return projections + conv + intra + inter + elem_ops + out_proj + _mlp_macs_per_token(ctx)
 
 
 _LAYER_MAC_FNS = {
-    "full_attention":   _full_attention_macs_per_token,
-    "attention":        _full_attention_macs_per_token,  # alias
+    "full_attention": _full_attention_macs_per_token,
+    "attention": _full_attention_macs_per_token,  # alias
     "linear_attention": _linear_attention_macs_per_token,
 }
 
@@ -170,8 +212,8 @@ def _hybrid_attention_flops(ctx, micro_batch_size, gradient_accumulation_steps, 
     """
     lm_head_macs = ctx.hidden_size * ctx.vocab_size
     total_layer_macs = sum(_LAYER_MAC_FNS[lt](ctx) for lt in ctx.layer_types)
-    flops_per_token = 2 * (lm_head_macs + total_layer_macs)         # FLOPs = 2 * MACs
-    flops_per_fwdbwd = 3 * flops_per_token * ctx.sequence_length    # fwd + bwd ~= 3 * fwd
+    flops_per_token = 2 * (lm_head_macs + total_layer_macs)  # FLOPs = 2 * MACs
+    flops_per_fwdbwd = 3 * flops_per_token * ctx.sequence_length  # fwd + bwd ~= 3 * fwd
     flops_per_iter = flops_per_fwdbwd * micro_batch_size * gradient_accumulation_steps
     return flops_per_iter / dt
 
@@ -210,7 +252,9 @@ def create_mfu_context(args, hardware, num_parameters):
     )
 
 
-def calculate_training_metrics(mfu_context, micro_batch_size, gradient_accumulation_steps, world_size, dt):
+def calculate_training_metrics(
+    mfu_context, micro_batch_size, gradient_accumulation_steps, world_size, dt
+):
     """Compute throughput + MFU for the current step."""
     if dt <= 0:
         raise ValueError("Step duration must be positive for MFU calculation.")
@@ -223,11 +267,17 @@ def calculate_training_metrics(mfu_context, micro_batch_size, gradient_accumulat
 
     if _has_linear_attention(mfu_context.layer_types):
         flops_achieved = _hybrid_attention_flops(
-            mfu_context, micro_batch_size, gradient_accumulation_steps, dt,
+            mfu_context,
+            micro_batch_size,
+            gradient_accumulation_steps,
+            dt,
         )
     else:
         flops_achieved = _dense_transformer_flops(
-            mfu_context, micro_batch_size, gradient_accumulation_steps, dt,
+            mfu_context,
+            micro_batch_size,
+            gradient_accumulation_steps,
+            dt,
         )
     mfu = (flops_achieved / mfu_context.peak_flops) * 100
 

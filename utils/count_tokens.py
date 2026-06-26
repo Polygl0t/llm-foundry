@@ -10,15 +10,24 @@ Usage:
         --main-dir data/tokenized \\
         --output-file dataset_report.txt
 """
-import os
+
 import argparse
+import os
+
 
 def main(main_dir, output_file):
     report_lines = []
     report_lines.append("=" * 140)
 
     metadata_fields = [
-        "Samples", "Tokens", "Tokens per chunk", "Block size", "Chunks", "Tokenizer"
+        "Samples",
+        "Tokens",
+        "Tokens per chunk",
+        "Block size",
+        "Chunks",
+        "Strategy",
+        "Packed columns",
+        "Tokenizer",
     ]
 
     key_aliases = {
@@ -29,17 +38,19 @@ def main(main_dir, output_file):
         "block size": "Block size",
         "block_size": "Block size",
         "chunks": "Chunks",
+        "strategy": "Strategy",
+        "packed_columns": "Packed columns",
         "tokenizer": "Tokenizer",
     }
 
     folder_metadata = {}
 
-    for root, dirs, files in os.walk(main_dir):
+    for root, _dirs, files in os.walk(main_dir):
         for file in files:
-            if file.endswith('.metadata'):
+            if file.endswith(".metadata"):
                 file_path = os.path.join(root, file)
                 rel_path = os.path.relpath(root, main_dir)
-                parts = [p for p in rel_path.split(os.sep) if p and p != '.']
+                parts = [p for p in rel_path.split(os.sep) if p and p != "."]
                 if not parts:
                     subfolder = os.path.basename(os.path.abspath(main_dir))
                     subsubfolder = None
@@ -51,11 +62,11 @@ def main(main_dir, output_file):
                     subsubfolder = parts[1]
 
                 metadata = {}
-                with open(file_path, 'r', encoding='utf-8') as f:
+                with open(file_path, encoding="utf-8") as f:
                     for line in f:
-                        if ':' not in line:
+                        if ":" not in line:
                             continue
-                        raw_key, raw_value = line.split(':', 1)
+                        raw_key, raw_value = line.split(":", 1)
                         key = raw_key.strip().lower()
                         field = key_aliases.get(key)
                         if field is None:
@@ -72,12 +83,12 @@ def main(main_dir, output_file):
 
                 if key not in folder_metadata[subfolder]:
                     folder_metadata[subfolder][key] = {}
-                    for field in metadata_fields:
-                        folder_metadata[subfolder][key][field] = 0
 
                 for field, value in metadata.items():
                     if isinstance(value, int):
-                        folder_metadata[subfolder][key][field] += value
+                        folder_metadata[subfolder][key][field] = (
+                            folder_metadata[subfolder][key].get(field, 0) + value
+                        )
                     else:
                         folder_metadata[subfolder][key][field] = value
 
@@ -98,7 +109,9 @@ def main(main_dir, output_file):
         "Tokens per chunk": 20,
         "Block size": 12,
         "Chunks": 10,
-        "Tokenizer": 50
+        "Strategy": 14,
+        "Packed columns": 30,
+        "Tokenizer": 50,
     }
 
     header = f"{'Subfolder':<{col_widths['Subfolder']}}"
@@ -108,35 +121,40 @@ def main(main_dir, output_file):
     report_lines.append("-" * 140)
 
     for subfolder in sorted(folder_metadata):
-        report_lines.append(f"\n{'='*30} {subfolder.upper()} {'='*30}")
-        
+        report_lines.append(f"\n{'=' * 30} {subfolder.upper()} {'=' * 30}")
+
         header = f"{'Subfolder':<{col_widths['Subfolder']}}"
         for field in metadata_fields:
             header += f" | {field:^{col_widths[field]}}"
         report_lines.append(header)
         report_lines.append("-" * 140)
-        
+
         subfolder_total_tokens = 0
         subfolder_total_samples = 0
         subfolder_total_chunks = 0
-        
+
         for subsubfolder in sorted(folder_metadata[subfolder]):
             metadata = folder_metadata[subfolder][subsubfolder]
-            
+
             row = f"{subsubfolder:<{col_widths['Subfolder']}}"
             for field in metadata_fields:
                 value = metadata.get(field, "N/A")
                 formatted_value = format_value(value)
-                if field == "Tokenizer" and len(formatted_value) > col_widths[field]:
-
-                    formatted_value = "..." + formatted_value[-(col_widths[field]-3):]
+                # Truncate long string fields with ellipsis.
+                if (
+                    field in ("Tokenizer", "Packed columns")
+                    and len(formatted_value) > col_widths[field]
+                ):
+                    formatted_value = "..." + formatted_value[-(col_widths[field] - 3) :]
+                elif field == "Strategy" and len(formatted_value) > col_widths[field]:
+                    formatted_value = formatted_value[: col_widths[field]]
                 row += f" | {formatted_value:>{col_widths[field]}}"
             report_lines.append(row)
-            
+
             subfolder_total_tokens += metadata.get("Tokens", 0)
             subfolder_total_samples += metadata.get("Samples", 0)
             subfolder_total_chunks += metadata.get("Chunks", 0)
-        
+
         report_lines.append("-" * 140)
         total_row = f"{'TOTAL':<{col_widths['Subfolder']}}"
         for field in metadata_fields:
@@ -150,7 +168,7 @@ def main(main_dir, output_file):
                 total_row += f" | {'':>{col_widths[field]}}"
         report_lines.append(total_row)
         report_lines.append("=" * 140)
-        
+
         total_tokens += subfolder_total_tokens
         total_samples += subfolder_total_samples
         total_chunks += subfolder_total_chunks
@@ -174,14 +192,19 @@ def main(main_dir, output_file):
         for line in report_lines:
             report_file.write(line + "\n")
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    
-    parser.add_argument("--main-dir", type=str, help="Path to the main directory containing tokenized datasets.")
-    parser.add_argument("--output-file", type=str, default="report.txt", help="Output report file name.")
+
+    parser.add_argument(
+        "--main-dir", type=str, help="Path to the main directory containing tokenized datasets."
+    )
+    parser.add_argument(
+        "--output-file", type=str, default="report.txt", help="Output report file name."
+    )
     args = parser.parse_args()
-    
+
     main(args.main_dir, output_file=args.output_file)

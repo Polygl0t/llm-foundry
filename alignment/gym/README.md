@@ -154,4 +154,3 @@ The [`assets/`](./assets/) folder includes:
 - `generate_from_email_templates.py` requires [`assets/emails.jsonl`](./assets/emails.jsonl).
 - `generate_from_tool_call_templates.py` expects [`assets/tools.json`](./assets/tools.json) by default.
 - Verification logic is centralized in [`tasks_metadata.py`](./tasks_metadata.py), [`verifier.py`](./verifier.py), and [`verifiers.py`](./verifiers.py).
-

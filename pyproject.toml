@@ -48,7 +48,7 @@ distributed = [
     "sentencepiece==0.2.0",
     "accelerate==1.9.0",
     "codecarbon==3.0.6",
-    "wandb==0.21.0",
+    "wandb==0.27.2",
     "pyyaml==6.0.2",
     "liger-kernel==0.8.0",
     "kernels==0.13.0",
@@ -70,7 +70,7 @@ trl = [
     "trl",
     "vllm==0.11.2",
     "codecarbon==3.0.6",
-    "wandb==0.21.0",
+    "wandb==0.27.2",
     "liger-kernel==0.8.0",
 ]
 tests = [
@@ -93,3 +93,27 @@ tests = [
 
 [tool.setuptools]
 packages = []
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # Pyflakes
+    "I",   # isort (import ordering)
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "SIM", # flake8-simplify
+]
+ignore = [
+    "E501", # line too long (handled by formatter)
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true

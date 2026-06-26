@@ -67,28 +67,28 @@ Usage examples:
         --docs_dir assets
 """
 
+import argparse
+import hashlib
 import json
-import uuid
 import random
 import re
 import sys
-import hashlib
-import argparse
+import uuid
 from collections import Counter
 from pathlib import Path
+
+from long_context_templates import (
+    HAYSTACK_TASK_TYPES,
+    LONG_CONTEXT_TASK_TYPES,
+    LONG_CONTEXT_TEMPLATES,
+    WORD_LIST_TASK_TYPES,
+)
+from tasks_metadata import HAYSTACK_DEFAULTS, LONG_CONTEXT_DEFAULTS
 from transformers import AutoTokenizer
 
-from utils import SUBSTANTIVOS, ADJETIVOS, VERBOS
-from long_context_templates import (
-    LONG_CONTEXT_TEMPLATES,
-    LONG_CONTEXT_TASK_TYPES,
-    WORD_LIST_TASK_TYPES,
-    HAYSTACK_TASK_TYPES,
-)
-from tasks_metadata import LONG_CONTEXT_DEFAULTS, HAYSTACK_DEFAULTS
+from utils import ADJETIVOS, SUBSTANTIVOS, VERBOS
 
-
-# Verifier ID mapping 
+# Verifier ID mapping
 TASK_TYPE_TO_VERIFIER = {
     "common_words": "long_context:common_words",
     "rare_words": "long_context:rare_words",
@@ -186,7 +186,7 @@ def make_uuid(rng):
 
 def _split_into_sentences(text):
     """Split text on sentence-ending punctuation, keeping delimiters."""
-    parts = re.split(r'(?<=[.!?])\s+', text)
+    parts = re.split(r"(?<=[.!?])\s+", text)
     return [p for p in parts if p.strip()]
 
 
@@ -215,13 +215,10 @@ def insert_needles_distributed(haystack, needles, rng):
         overflow = []
         step = len(sentences) / (n + 1)
         positions = [int(step * (i + 1)) for i in range(n)]
-        positions = [
-            max(1, min(p + rng.randint(-1, 1), len(sentences) - 1))
-            for p in positions
-        ]
+        positions = [max(1, min(p + rng.randint(-1, 1), len(sentences) - 1)) for p in positions]
 
     # Sort descending so insertions don't shift earlier positions.
-    pairs = sorted(zip(primary, positions), key=lambda x: x[1], reverse=True)
+    pairs = sorted(zip(primary, positions, strict=False), key=lambda x: x[1], reverse=True)
     for needle, pos in pairs:
         sentences.insert(pos, needle)
 
@@ -248,7 +245,7 @@ def assemble_prompt(template, context, **fmt):
     return f"{preamble}\n{context}\nPergunta: {question}"
 
 
-#  Word-list verifier kwargs generation 
+#  Word-list verifier kwargs generation
 def generate_verifier_kwargs(task_type, word_list, freq, common, **kw):
     """Produce verifier_kwargs for a word-list task type."""
 
@@ -314,7 +311,7 @@ def _build_needle_multi_number_same_key(template, documents, num_chars, rng):
     needles = [needle_fmt.format(key=key, value=v) for v in values]
     # Map needle -> value so we can rebuild expected_values from what
     # actually got inserted.
-    needle_to_value = dict(zip(needles, values))
+    needle_to_value = dict(zip(needles, values, strict=False))
 
     haystack = get_document_chunk(documents, num_chars, rng)
 
@@ -347,7 +344,7 @@ def _build_needle_multi_number_diff_keys(template, documents, num_chars, rng):
     needle_fmt = rng.choice(template["needle_formats"])
     key_order = list(kv_pairs.keys())
     needles = [needle_fmt.format(key=k, value=kv_pairs[k]) for k in key_order]
-    needle_to_key = dict(zip(needles, key_order))
+    needle_to_key = dict(zip(needles, key_order, strict=False))
 
     haystack = get_document_chunk(documents, num_chars, rng)
     text, inserted = insert_needles_distributed(haystack, needles, rng)
@@ -379,7 +376,7 @@ def _build_needle_uuid(template, documents, num_chars, rng):
     needle_fmt = rng.choice(template["needle_formats"])
     key_order = list(pairs.keys())
     needles = [needle_fmt.format(key=k, value=pairs[k]) for k in key_order]
-    needle_to_key = dict(zip(needles, key_order))
+    needle_to_key = dict(zip(needles, key_order, strict=False))
 
     if rng.random() < 0.5 and documents:
         haystack = get_document_chunk(documents, num_chars, rng)
@@ -413,7 +410,7 @@ _HAYSTACK_BUILDERS = {
 }
 
 
-#  Token-based calibration 
+#  Token-based calibration
 def calibrate_num_chars(tokenizer, max_seq_length, task_type, documents, rng, step=500):
     """Grow the document chunk size until the prompt fills the token budget (haystack tasks)."""
     tokens_reserve = _HS_TOKENS_TO_GENERATE.get(task_type, 200)
@@ -426,8 +423,10 @@ def calibrate_num_chars(tokenizer, max_seq_length, task_type, documents, rng, st
         local_rng = random.Random(rng.randint(0, 2**31))
         try:
             sample = build_sample(
-                template, documents=documents,
-                num_chars=num_chars, rng=local_rng,
+                template,
+                documents=documents,
+                num_chars=num_chars,
+                rng=local_rng,
             )
         except Exception:
             break
@@ -443,8 +442,7 @@ def calibrate_num_chars(tokenizer, max_seq_length, task_type, documents, rng, st
 
 
 #  Unified sample construction
-def build_sample(template, *, num_words=None,
-                 documents=None, num_chars=None, rng=None):
+def build_sample(template, *, num_words=None, documents=None, num_chars=None, rng=None):
     """Build one complete retrieval sample in the standardized format.
 
     For word-list tasks, provide *num_words* (target total list length).
@@ -457,12 +455,17 @@ def build_sample(template, *, num_words=None,
 
     if task_type in WORD_LIST_TASK_TYPES:
         prompt, verifier_kwargs = _build_word_list(
-            template, task_type, num_words,
+            template,
+            task_type,
+            num_words,
         )
     elif task_type in HAYSTACK_TASK_TYPES:
         builder = _HAYSTACK_BUILDERS[task_type]
         prompt, verifier_kwargs = builder(
-            template, documents, num_chars, rng,
+            template,
+            documents,
+            num_chars,
+            rng,
         )
     else:
         raise ValueError(f"Unknown task type: {task_type}")
@@ -478,8 +481,8 @@ def build_sample(template, *, num_words=None,
 
 # top_k range adapts to the target list size
 _TOP_K_RANGES = [
-    (50,  (1, 2)),   # 20-50 words
-    (100, (1, 5)),   # 50-100 words
+    (50, (1, 2)),  # 20-50 words
+    (100, (1, 5)),  # 50-100 words
 ]  # 100+ words: use defaults["top_k_range"]
 
 
@@ -517,11 +520,15 @@ def _build_word_list(template, task_type, num_words):
     #   total ≈ common_nums * cr + (num_unique - common_nums) * ur ≈ num_words
     # If the target is too small for the drawn repeat counts, halve them until
     # a viable pool size emerges.
-    num_unique = (num_words - common_nums * (common_repeats - uncommon_repeats)) // max(uncommon_repeats, 1)
+    num_unique = (num_words - common_nums * (common_repeats - uncommon_repeats)) // max(
+        uncommon_repeats, 1
+    )
     while num_unique < common_nums + 2 and common_repeats > 2:
         common_repeats = max(2, common_repeats // 2)
         uncommon_repeats = max(1, uncommon_repeats // 2)
-        num_unique = (num_words - common_nums * (common_repeats - uncommon_repeats)) // max(uncommon_repeats, 1)
+        num_unique = (num_words - common_nums * (common_repeats - uncommon_repeats)) // max(
+            uncommon_repeats, 1
+        )
 
     num_unique = max(common_nums + 2, min(num_unique, len(WORDS)))
     common_nums = min(common_nums, max(num_unique - 2, 1))
@@ -579,11 +586,7 @@ def _build_word_list(template, task_type, num_words):
     fmt = {}
     vkw = {}
 
-    if task_type == "common_words":
-        fmt["top_k"] = top_k
-        vkw = {"top_k": top_k}
-
-    elif task_type == "rare_words":
+    if task_type == "common_words" or task_type == "rare_words":
         fmt["top_k"] = top_k
         vkw = {"top_k": top_k}
 
@@ -606,14 +609,12 @@ def _build_word_list(template, task_type, num_words):
         vkw = {"word_a": wa, "word_b": wb}
 
     prompt = assemble_prompt(template, context, **fmt)
-    verifier_kwargs = generate_verifier_kwargs(
-        task_type, word_list, freq, common, **vkw
-    )
+    verifier_kwargs = generate_verifier_kwargs(task_type, word_list, freq, common, **vkw)
 
     return prompt, verifier_kwargs
 
 
-#  Validation 
+#  Validation
 def validate_sample(sample):
     """Return a list of issues (empty means valid)."""
     issues = []
@@ -626,7 +627,7 @@ def validate_sample(sample):
     return issues
 
 
-#  Main 
+#  Main
 def main(args):
     output_path = Path(args.output_file)
     seed = args.seed
@@ -636,7 +637,8 @@ def main(args):
     tokenizer = None
     if args.tokenizer:
         tokenizer = AutoTokenizer.from_pretrained(
-            args.tokenizer, trust_remote_code=True,
+            args.tokenizer,
+            trust_remote_code=True,
             cache_dir=args.cache_dir,
         )
 
@@ -699,15 +701,11 @@ def main(args):
             print(f"Calibrating context sizes for max_seq_length={seq_len}...")
             for t in hs_templates:
                 cal_rng = random.Random(seed)
-                nc = calibrate_num_chars(
-                    tokenizer, seq_len, t["task_type"], documents, cal_rng
-                )
+                nc = calibrate_num_chars(tokenizer, seq_len, t["task_type"], documents, cal_rng)
                 cc[t["task_type"]] = nc
                 print(f"  {t['task_type']}: {nc} chars")
             for t in hs_templates:
-                generation_plan.append(
-                    (t, {"num_chars": cc[t["task_type"]]}, seq_len)
-                )
+                generation_plan.append((t, {"num_chars": cc[t["task_type"]]}, seq_len))
 
     num_sizes = len({ctx_size for _, _, ctx_size in generation_plan})
     print(
@@ -755,7 +753,9 @@ def main(args):
                 retries_used += 1
 
             if sample is None:
-                print(f"  Warning: could not produce unique sample #{i + 1} for {tt} (size={ctx_size})")
+                print(
+                    f"  Warning: could not produce unique sample #{i + 1} for {tt} (size={ctx_size})"
+                )
                 continue
 
             samples.append(sample)
@@ -774,7 +774,7 @@ def main(args):
 
     unique_count = len({s["id"] for s in samples})
 
-    print(f"\nResults:")
+    print("\nResults:")
     print(f"  Generated samples:  {len(samples)}")
     print(
         f"  Unique:             {unique_count}/{len(samples)}"
@@ -807,7 +807,7 @@ if __name__ == "__main__":
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    
+
     parser.add_argument(
         "--output_file",
         type=str,

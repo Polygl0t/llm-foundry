@@ -43,7 +43,7 @@ done
 #############################################
 
 source $workdir/.modules.sh
-# python3 -m venv $workdir/.venv_synth  
+# python3 -m venv $workdir/.venv_synth
 source $workdir/.venv_synth/bin/activate
 
 # ===== LLM Foundry Install =====
@@ -55,7 +55,7 @@ source $workdir/.venv_synth/bin/activate
 # Environment Setup
 #############################################
 
-export HF_TOKEN=""                                            # <-- Change to your Hugging Face token       
+export HF_TOKEN=""                                            # <-- Change to your Hugging Face token
 export HF_DATASETS_CACHE="$workdir/.cache/$SLURM_JOB_ID"      # <-- Use a unique cache directory for this job
 export PYTHONPYCACHEPREFIX="$HF_DATASETS_CACHE/.pycache"      # <-- Use the same cache directory for Python bytecode cache
 export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE"             # <-- Use the same cache directory for Hugging Face Hub

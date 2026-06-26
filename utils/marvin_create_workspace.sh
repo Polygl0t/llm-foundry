@@ -177,7 +177,7 @@ echo "Workspace ready."
 #   source $workdir/.venv_distributed/bin/activate
 #   pip install -e /path/to/llm-foundry/.[distributed]
 #   EOF
-# - Note: Bender does not use some of the SLURM directives used on Marvin 
-#   (e.g., --account, --nodes, etc.) since it has a different resource 
+# - Note: Bender does not use some of the SLURM directives used on Marvin
+#   (e.g., --account, --nodes, etc.) since it has a different resource
 #   management setup.
 #############################################
