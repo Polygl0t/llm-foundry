@@ -102,12 +102,12 @@ def _create_langdetect_filter(languages, **_kwargs):
         if code:
             target_codes.add(code)
         else:
-            print(f"[WARNING] Unknown language '{lang}' for langdetect backend, skipping...")
+            logger.warning(f"Unknown language '{lang}' for langdetect backend, skipping...")
 
     if not target_codes:
         raise ValueError(f"No valid languages specified. Available: {sorted(LANGDETECT_CODES)}")
 
-    print(f"[INFO] langdetect target codes: {sorted(target_codes)}")
+    logger.info(f"langdetect target codes: {sorted(target_codes)}")
 
     def keep(text):
         if not text or len(text.strip()) < 10:
@@ -169,7 +169,7 @@ def _create_unicode_filter(languages, threshold=0.85, **_kwargs):
         if ranges:
             language_ranges.append(ranges)
         else:
-            print(f"[WARNING] Unknown language '{lang}' for unicode backend, skipping...")
+            logger.warning(f"Unknown language '{lang}' for unicode backend, skipping...")
 
     if not language_ranges:
         raise ValueError(f"No valid languages specified. Available: {sorted(UNICODE_RANGES)}")
@@ -206,19 +206,19 @@ def main(args):
 
     is_messages = is_messages_column(dataset, args.text_column)
     if is_messages:
-        print(f"[INFO] Detected messages format in column '{args.text_column}'")
-        print("[INFO] Messages will be flattened before filtering")
+        logger.ingo(f"Detected messages format in column '{args.text_column}'")
+        logger.info("Messages will be flattened before filtering")
 
     original_count = len(dataset)
     original_tokens = None
     if "token_count" in dataset.column_names:
         original_tokens = sum(dataset["token_count"])
-        print(f"[INFO] Original tokens: {original_tokens:,}")
+        logger.info(f"[INFO] Original tokens: {original_tokens:,}")
 
     if args.save_excluded:
-        print(f"\n[INFO] Saving EXCLUDED samples (those NOT matching: {', '.join(args.languages)})")
+        logger.info(f"\n Saving EXCLUDED samples (those NOT matching: {', '.join(args.languages)})")
     else:
-        print(f"\n[INFO] Filtering samples [{args.backend}] for: {', '.join(args.languages)}")
+        logger.info(f"\n Filtering samples [{args.backend}] for: {', '.join(args.languages)}")
 
     language_filter = _BACKEND_FACTORIES[args.backend](
         args.languages,
@@ -241,14 +241,14 @@ def main(args):
     removed_count = original_count - filtered_count
     removed_pct = (removed_count / original_count * 100) if original_count > 0 else 0.0
 
-    print("\n[INFO] ===== FILTERING RESULTS =====")
-    print(f"[INFO] Original samples: {original_count:,}")
+    logger.info("\n ===== FILTERING RESULTS =====")
+    logger.info(f" Original samples: {original_count:,}")
     if args.save_excluded:
-        print(f"[INFO] Excluded samples (saved): {filtered_count:,}")
-        print(f"[INFO] Matching samples (not saved): {removed_count:,} ({removed_pct:.2f}%)")
+        logger.info(f" Excluded samples (saved): {filtered_count:,}")
+        logger.info(f" Matching samples (not saved): {removed_count:,} ({removed_pct:.2f}%)")
     else:
-        print(f"[INFO] Filtered samples: {filtered_count:,}")
-        print(f"[INFO] Removed samples:  {removed_count:,} ({removed_pct:.2f}%)")
+        logger.info(f" Filtered samples: {filtered_count:,}")
+        logger.info(f" Removed samples:  {removed_count:,} ({removed_pct:.2f}%)")
 
     if original_tokens is not None:
         filtered_tokens = sum(filtered_dataset["token_count"])
@@ -256,14 +256,14 @@ def main(args):
         removed_tokens_pct = (
             (removed_tokens / original_tokens * 100) if original_tokens > 0 else 0.0
         )
-        print(f"[INFO] Original tokens: {original_tokens:,}")
-        print(f"[INFO] Filtered tokens: {filtered_tokens:,}")
-        print(f"[INFO] Removed tokens:  {removed_tokens:,} ({removed_tokens_pct:.2f}%)")
+        logger.info(f" Original tokens: {original_tokens:,}")
+        logger.info(f" Filtered tokens: {filtered_tokens:,}")
+        logger.info(f" Removed tokens:  {removed_tokens:,} ({removed_tokens_pct:.2f}%)")
     else:
         filtered_tokens = 0
 
     if filtered_count == 0:
-        print("[WARNING] No samples remaining after filtering. Not saving dataset.")
+        logger.warning(" No samples remaining after filtering. Not saving dataset.")
         return
 
     save_dataset(
@@ -273,7 +273,7 @@ def main(args):
         _TOKENS_PER_CHUNK,
         token_count=filtered_tokens,
     )
-    print("\n[INFO] Language filtering complete!")
+    logger.info ("\n Language filtering complete!")
 
 
 if __name__ == "__main__":
