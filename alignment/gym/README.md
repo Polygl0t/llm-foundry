@@ -1,4 +1,4 @@
-# Gym Pipelines
+# Gym
 
 Generation, validation, and verification utilities for gym-based (Reinforcement Learning-style) training and evaluation pipelines. This folder contains scripts to generate instruction, long-context, math, email, and tool-call samples from templates, as well as verifiers for validating sample correctness and formatting.
 

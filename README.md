@@ -44,6 +44,7 @@ The code base is organized into the following main folders:
 - [`evals/`](evals/) — Scripts for evaluating language models via the `lm-evaluation-harness`.
 - [`merge/`](merge/) — Scripts for running different merging techniques via `mergekit`.
 - [`synthetic/`](synthetic/) — Scripts for generating synthetic datasets with vLLM.
+  - [`synthetic/agents/`](synthetic/agents/) — Agent-based trace generation using [smolagents](https://github.com/huggingface/smolagents). Records multi-step CodeAgent reasoning traces for downstream training. See [`synthetic/agents/README.md`](synthetic/agents/README.md).
 - [`tests/`](tests/) — Unit and integration tests for our code base.
 - [`tokenizer/`](tokenizer/) — Scripts for training and evaluating tokenizers.
 - [`utils/`](utils/) — Miscellaneous utilities for our code base.
@@ -98,6 +99,7 @@ Use the [`pyproject.toml`](https://github.com/Polygl0t/llm-foundry/blob/main/pyp
 * `tokenizer` — For training and evaluating tokenizers with the pinned SentencePiece-compatible stack.
 * `distributed` — For training language models with our DDP and FSDP implementations.
 * `synth` — For generating synthetic samples with vLLM.
+* `agents` — For generating CodeAgent execution traces with smolagents (LiteLLM, Transformers, or vLLM backends).
 * `trl` — For post-training and alignment with TRL.
 * `tests` — For running our test suite.
 

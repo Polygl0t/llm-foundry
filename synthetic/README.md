@@ -4,6 +4,7 @@ This folder contains the synthetic data generation stack for creating training d
 
 ## Contents
 
+- [`agents/`](agents/) — Agent-based trace generation using [smolagents](https://github.com/huggingface/smolagents). See [`agents/README.md`](agents/README.md) for full documentation.
 - [`generate.py`](generate.py) — General-purpose synthetic text generation with vLLM inference for diverse text synthesis tasks.
 - [`generate_cai.py`](generate_cai.py) — Constitutional AI (CAI) based synthetic data generation with critique-and-revision loops for guided generation.
 - [`generate_datatrove.py`](generate_datatrove.py) — Datatrove-based inference pipeline for large-scale synthetic data generation with distributed processing support.
@@ -156,6 +157,12 @@ Before submitting, update the following variables in each script:
 ```bash
 sbatch synthetic/generate.sh
 ```
+
+## Agent Traces
+
+The [`agents/`](agents/) folder contains a separate stack for generating CodeAgent execution traces using [smolagents](https://github.com/huggingface/smolagents). It runs multi-step reasoning agents over a dataset of prompts, recording thoughts, code executions, tool calls, observations, and final answers—producing structured trace data suitable for downstream training or evaluation. Supports LiteLLM (remote APIs), Transformers, and vLLM backends.
+
+See [`agents/README.md`](agents/README.md) for full documentation, usage examples, custom tools reference, and SLURM job configuration.
 
 # Prompts, Prompts, and more Prompts
 

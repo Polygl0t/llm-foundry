@@ -10,6 +10,7 @@ This folder contains miscellaneous utility scripts and helpers for working with 
 - [`distributed_test.py`](./distributed_test.py) — GPU Communication Benchmark / LLM Gradient All-Reduce Simulation.
 - [`download.py`](./download.py) — Download and cache Hugging Face repositories using patterns and authentication.
 - [`env_doctor.sh`](./env_doctor.sh) — SLURM batch script to diagnose GPU/CUDA/PyTorch environment issues using env-doctor.
+- [`extract_reasoning_traces.py`](./extract_reasoning_traces.py) — Extract reasoning traces from a conversational dataset (i.e., has `"messages"` array) and save them in JSONL format.
 - [`inference_test.py`](./inference_test.py) — Run inference on a model using a sample dataset and save outputs.
 - [`inspect_model.py`](./inspect_model.py) — Analyze model configuration, parameter counts, and MoE routing statistics.
 - [`marvin_create_workspace.sh`](./marvin_create_workspace.sh) — Allocate a workspace and clone the repo on the Marvin HPC cluster.
@@ -131,6 +132,23 @@ source "./.venv/bin/activate" # <-- Activate the same environment you want to di
 env-doctor check
 # Or just run the full SLURM batch script to see environment details and run env-doctor:
 # sbatch utils/env_doctor.sh
+```
+
+### `extract_reasoning_traces.py`
+Extract reasoning traces from a conversational dataset and save them in JSONL format.
+
+Main parameters:
+- `input_file`: path to the input dataset file (JSON or JSONL).
+- `--output`: path to the output JSONL file for reasoning traces (default: `<input>_reasoning_traces.jsonl`).
+- `--id-column`: column name for trace IDs (default: `"id"`).
+- `--encoding`: file encoding (default: `"utf-8"`).
+
+Example:
+```bash
+python utils/extract_reasoning_traces.py "./data/conversational_dataset.jsonl" \
+ --output "./data/reasoning_traces.jsonl" \
+ --id-column "id" \
+ --encoding "utf-8"
 ```
 
 ### `inference_test.py`

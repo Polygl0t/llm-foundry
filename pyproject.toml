@@ -61,6 +61,20 @@ synth = [
     "datasets",
     "vllm",
 ]
+agents = [
+    "vllm",
+    "accelerate",
+    "transformers",
+    "smolagents[litellm]>=1.26.0",
+    "datasets>=3.0",
+    "python-dotenv>=1.0",
+    "datasets>=3.0",
+    "pyyaml>=6.0",
+    "sympy>=1.13",
+    "ddgs>=9.0.0",
+    "wikipedia-api==0.15.0",
+    "markdownify>=0.14.1",
+]
 trl = [
     "setuptools",
     "wheel",
