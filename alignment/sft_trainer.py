@@ -361,7 +361,7 @@ if __name__ == "__main__":
         "--report_to",
         type=str,
         nargs="+",
-        default=None,
+        default="none",
         help="The list of integrations to report the results and logs to. Supported platforms are 'tensorboard', 'wandb', 'comet_ml', 'mlflow', 'clearml', 'wandb' etc. See https://huggingface.co/docs/transformers/main/en/main_classes/trainer#transformers.TrainingArguments.report_to for more details.",
     )
     parser.add_argument("--wandb_project", type=str, default="Polyglot")

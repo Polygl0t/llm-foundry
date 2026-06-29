@@ -32,6 +32,29 @@ Usage:
         --model_name Qwen/Qwen2-1.5B --freeze \\
         --checkpoint_dir ckpt/ --gradient_checkpointing \\
         --hub_token TOKEN --hub_model_id username/my-classifier
+
+How to use the trained model:
+
+```python
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+
+model_id = "my-username/my-model-name"
+tokenizer = AutoTokenizer.from_pretrained(model_id)
+model = AutoModelForSequenceClassification.from_pretrained(model_id)
+
+text = "This is a test sentence."
+inputs = tokenizer(text, return_tensors="pt", padding="longest", truncation=True)
+outputs = model(**inputs)
+logits = outputs.logits.squeeze(-1).float().detach().numpy()
+score = logits.item() + 1 # scores are produced in the range [0, 4]. To convert to the range [1, 5], we add 1 to the score.
+result = {
+   "text": text,
+   "score": score,
+   "edu_score": int(round(max(0, min(score, 4)))) + 1, # scores are produced in the range [0, 4]. To convert to the range [1, 5], we add 1 to the rounded score.
+}
+
+print(result)
+```
 """
 
 import argparse
@@ -521,7 +544,7 @@ if __name__ == "__main__":
         "--report_to",
         type=str,
         nargs="+",
-        default=None,
+        default="none",
         help="The list of integrations to report the results and logs to. Supported platforms are 'tensorboard', 'wandb', 'comet_ml', 'mlflow', 'clearml', 'wandb' etc. See here: https://huggingface.co/docs/transformers/main/en/main_classes/trainer#transformers.TrainingArguments.report_to for more details.",
     )
     parser.add_argument("--wandb_project", type=str, default="Polyglot")
@@ -529,24 +552,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
-
-# How to use the trained model:
-#
-# from transformers import AutoTokenizer, AutoModelForSequenceClassification
-#
-# model_id = "my-username/my-model-name"
-# tokenizer = AutoTokenizer.from_pretrained(model_id)
-# model = AutoModelForSequenceClassification.from_pretrained(model_id)
-#
-# text = "This is a test sentence."
-# inputs = tokenizer(text, return_tensors="pt", padding="longest", truncation=True)
-# outputs = model(**inputs)
-# logits = outputs.logits.squeeze(-1).float().detach().numpy()
-# score = logits.item() + 1 # scores are produced in the range [0, 4]. To convert to the range [1, 5], we add 1 to the score.
-# result = {
-#    "text": text,
-#    "score": score,
-#    "edu_score": int(round(max(0, min(score, 4)))) + 1, # scores are produced in the range [0, 4]. To convert to the range [1, 5], we add 1 to the rounded score.
-# }
-#
-# print(result)

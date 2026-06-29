@@ -298,7 +298,7 @@ if __name__ == "__main__":
         "--report_to",
         type=str,
         nargs="+",
-        default=None,
+        default="none",
         help="The list of integrations to report the results and logs to. Supported platforms are 'tensorboard', 'wandb', 'comet_ml', 'mlflow', 'clearml', and more.",
     )
     parser.add_argument("--wandb_project", type=str, default="Polyglot")

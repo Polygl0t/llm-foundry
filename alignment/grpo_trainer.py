@@ -507,7 +507,7 @@ if __name__ == "__main__":
         "--report_to",
         type=str,
         nargs="+",
-        default=None,
+        default="none",
         help="The list of integrations to report logs to.",
     )
     parser.add_argument("--wandb_project", type=str, default="Polyglot")
