@@ -47,8 +47,8 @@ from utils import (
     setup_triton_cache,
 )
 
+def main(specs, job_id, hardware):
 
-def main(specs, slurm_job_id, hardware):
     # Silence noisy third-party loggers.
     # huggingface_hub emits warnings on every HTTP request; bump to ERROR.
     # httpx logs every single HTTP request at INFO; bump to WARNING.
@@ -64,7 +64,7 @@ def main(specs, slurm_job_id, hardware):
 
     # Initiate a logger for the training process.
     logger = StructuredTrainingLogger.create_python_logger(
-        f"DDP-Trainer-{slurm_job_id}-{args.stage_name}"
+        f"DDP-Trainer-{job_id}-{args.stage_name}"
     )
 
     # Initialize the distributed environment.
@@ -87,15 +87,15 @@ def main(specs, slurm_job_id, hardware):
     # Setup Triton cache before any GPU operations.
     setup_triton_cache()
 
-    # If we are `resume_from_checkpoint`, we use the SLURM job ID from the checkpoint path.
-    # The SLURM job ID is used to create a unique checkpoint directory for this training run,
+    # If we are `resume_from_checkpoint`, we use the job ID from the checkpoint path.
+    # The job ID is used to create a unique checkpoint directory for this training run, 
     # which allows us to avoid conflicts between different runs.
     if args.resume_from_checkpoint:
         rel = os.path.relpath(args.resume_from_checkpoint, args.checkpoint_dir)
-        slurm_job_id = rel.split(os.sep)[0]
+        job_id = rel.split(os.sep)[0]
 
-    args.checkpoint_dir = os.path.join(args.checkpoint_dir, f"{slurm_job_id}")
-    log_file = os.path.join(args.checkpoint_dir, f"{slurm_job_id}.log")
+    args.checkpoint_dir = os.path.join(args.checkpoint_dir, f"{job_id}")
+    log_file = os.path.join(args.checkpoint_dir, f"{job_id}.log")
     file_logger = None
 
     if master_process:
@@ -246,7 +246,7 @@ def main(specs, slurm_job_id, hardware):
     if master_process:
         logger.info("=" * 50)
         logger.info(f"  Training stage | {args.stage_name}")
-        logger.info(f"  Run ID | {slurm_job_id}")
+        logger.info(f"  Run ID | {job_id}")
         logger.info(f"  Hardware | {hardware.upper()}")
         logger.info(f"  World size (total GPUs) | {world_size}")
         logger.info(f"  Precision | {'bfloat16' if args.bf16 else 'float32'}")
@@ -300,7 +300,7 @@ def main(specs, slurm_job_id, hardware):
         if args.resume_from_checkpoint is None:
             file_logger.log_metadata("=" * 50)
             file_logger.log_metadata(f"  Training stage | {args.stage_name}")
-            file_logger.log_metadata(f"  Run ID | {slurm_job_id}")
+            file_logger.log_metadata(f"  Run ID | {job_id}")
             file_logger.log_metadata(f"  Hardware | {hardware.upper()}")
             file_logger.log_metadata(f"  World size (total GPUs) | {world_size}")
             file_logger.log_metadata(f"  Precision | {'bfloat16' if args.bf16 else 'float32'}")
@@ -309,41 +309,29 @@ def main(specs, slurm_job_id, hardware):
             file_logger.log_metadata(f"  Num train examples | {data.num_train_samples:,}")
             file_logger.log_metadata(f"  Num validation examples | {data.num_val_samples:,}")
             file_logger.log_metadata(f"  Length of train dataloader | {len(train_dataloader):,}")
-            file_logger.log_metadata(
-                f"  Max position embeddings (seq length) | {args.max_position_embeddings:,}"
-            )
+            file_logger.log_metadata(f"  Max position embeddings (seq length) | {args.max_position_embeddings:,}")
             file_logger.log_metadata(f"  Shuffle dataset | {args.shuffle_dataset}")
-            file_logger.log_metadata(
-                f"  Additional mask token IDs | {args.additional_mask_token_ids}"
-            )
+            file_logger.log_metadata(f"  Additional mask token IDs | {args.additional_mask_token_ids}")
             file_logger.log_metadata("=" * 50)
             file_logger.log_metadata("Batch Configuration:")
             file_logger.log_metadata(f"  Num Epochs | {args.num_train_epochs}")
             file_logger.log_metadata(f"  Micro batch size per device | {args.micro_batch_size}")
-            file_logger.log_metadata(
-                f"  Gradient accumulation steps | {gradient_accumulation_steps}"
-            )
-            file_logger.log_metadata(
-                f"  Total batch size (samples) | {args.micro_batch_size * gradient_accumulation_steps * world_size}"
-            )
+            file_logger.log_metadata(f"  Gradient accumulation steps | {gradient_accumulation_steps}")
+            file_logger.log_metadata(f"  Total batch size (samples) | {args.micro_batch_size * gradient_accumulation_steps * world_size}")
             file_logger.log_metadata(f"  Total batch size (tokens) | {args.total_batch_size:,}")
             file_logger.log_metadata(f"  Total optimization steps | {max_steps:,}")
             file_logger.log_metadata(f"  Steps per epoch | {num_update_steps_per_epoch:,}")
             file_logger.log_metadata(f"  Checkpointing every | {args.checkpointing_steps} steps")
-            file_logger.log_metadata("=" * 50)
+            file_logger.log_metadata("=" *50)
             file_logger.log_metadata("Model Architecture:")
-            file_logger.log_metadata(
-                f"  Model config | {args.path_to_model_config or args.base_model or 'From checkpoint'}"
-            )
+            file_logger.log_metadata(f"  Model config | {args.path_to_model_config or args.base_model or 'From checkpoint'}")
             file_logger.log_metadata(f"  Attention implementation | {args.attn_implementation}")
             file_logger.log_metadata(f"  Gradient checkpointing | {args.gradient_checkpointing}")
             file_logger.log_metadata(f"  Liger kernel | {args.use_liger_kernel}")
             file_logger.log_metadata(f"  Torch compile | {args.torch_compile}")
             file_logger.log_metadata(f"  Trainable parameters | {trainable_params:,}")
             if trainable_params != active_trainable_params:
-                file_logger.log_metadata(
-                    f"  Active trainable parameters (counting only experts in MoE models) | {active_trainable_params:,}"
-                )
+                file_logger.log_metadata(f"  Active trainable parameters (counting only experts in MoE models) | {active_trainable_params:,}")
             file_logger.log_metadata("=" * 50)
             file_logger.log_metadata(f"Optimizer Configuration ({optimizer_label}):")
             for line in optimizer_summary_lines:
@@ -356,7 +344,7 @@ def main(specs, slurm_job_id, hardware):
     if master_process:
         # Initialize W&B (if configured) and CodeCarbon.
         if args.wandb_token is not None:
-            initialize_wandb(args, slurm_job_id, max_steps)
+            initialize_wandb(args, job_id, max_steps)
 
         # Create and start the CodeCarbon emissions tracker.
         tracker = create_emissions_tracker(args, logger)
@@ -395,7 +383,7 @@ def main(specs, slurm_job_id, hardware):
         logger=logger,
         file_logger=file_logger,
         log_file=log_file,
-        slurm_job_id=slurm_job_id,
+        slurm_job_id=job_id,
         tracker=tracker,
         mfu_context=mfu_context,
     )
@@ -403,7 +391,6 @@ def main(specs, slurm_job_id, hardware):
 
     # Cleanup.
     env.cleanup()
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -418,10 +405,10 @@ if __name__ == "__main__":
         help="The path to the specifications file.",
     )
     parser.add_argument(
-        "--slurm-job-id",
+        "--job-id",
         type=str,
         required=True,
-        help="The SLURM job id.",
+        help="The job id.",
     )
     parser.add_argument(
         "--hardware",
@@ -431,4 +418,4 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    main(args.specs, args.slurm_job_id, args.hardware)
+    main(args.specs, args.job_id, args.hardware)
