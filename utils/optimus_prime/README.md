@@ -10,6 +10,7 @@
 
 > **📝 Note:** BAF (The Bonn Analysis Facility) is referred to as **Optimus Prime**
 
+> **📝 Note:** Before running any scripts or commands, please update the file and folder paths to match your local environment and directory structure.
 ---
 
 ## Before You Start
@@ -100,18 +101,18 @@ The tarball is saved to `${BUDDY}/venv_ddp.tar.gz` (i.e., `/cephfs/user/<user-na
 
 ### 2.1 Files you need
 
-The following files are required to run the pre-training pipeline using DDP(Distributed Data Parallel). You can find them in the [llm-foundry/distributed](../) directory of this repository.
+The following files are required to run the pre-training pipeline using DDP(Distributed Data Parallel). You can find them in the [utils/optimus_prime](./) and [distributed](../../distributed) directories of this repository.
 
-I will give a short description of each file and its purpose but for detailed information please refer to the documentation [distributed/README.md](../README.md) and [polyglot/README.md](../../README.md).
+I will give a short description of each file and its purpose but for detailed information please refer to the documentation [distributed/README.md](../../distributed/README.md) and [polyglot/README.md](../../README.md).
 
 
 | File | Purpose |
 |---|---|
-| [llm-foundry/distributed/optimus_prime/train_ddp.jdl](./train_ddp.jdl) | HTCondor job description — resources, requirements, container settings |
-| [llm-foundry/distributed/optimus_prime/train_ddp.sh](./train_ddp.sh) | The bash script that extracts the venv, sets up env vars, and launches the training script |
-| [llm-foundry/distributed/train_ddp.py](../train_ddp.py) | The python script that contains the training code |
-| [llm-foundry/distributed/specifications.yaml](../specifications.yaml) | All training hyperparameters (batch size, LR, model config, etc.) and paths for your checkpoints, training data, cache_dir etc |
-| [llm-foundry/distributed/optimus_prime/config.json](./config.json) | Model architecture (layers, hidden size, attention heads, etc.). The current config.json creates Dense Transformer of ~50M parameters. You can tweak the values to create larger or smaller models. If you want to try another architecture(e.g., MoE, Hybrid), check the section [Example Architecture Configs](../README.md#example-architecture-configs) |
+| [llm-foundry/utils/optimus_prime/train_ddp.jdl](./train_ddp.jdl) | HTCondor job description — resources, requirements, container settings |
+| [llm-foundry/utils/optimus_prime/train_ddp.sh](./train_ddp.sh) | The bash script that extracts the venv, sets up env vars, and launches the training script |
+| [llm-foundry/distributed/train_ddp.py](../../distributed/train_ddp.py) | The python script that contains the training code |
+| [llm-foundry/distributed/specifications.yaml](../../distributed/specifications.yaml) | All training hyperparameters (batch size, LR, model config, etc.) and paths for your checkpoints, training data, cache_dir etc |
+| [llm-foundry/utils/optimus_prime/config.json](./config.json) | Model architecture (layers, hidden size, attention heads, etc.). The current config.json creates Dense Transformer of ~50M parameters. You can tweak the values to create larger or smaller models. If you want to try another architecture(e.g., MoE, Hybrid), check the section [Example Architecture Configs](../README.md#example-architecture-configs) |
 | venv_ddp.tar.gz | The pre-built venv tarball (created in [Section 1](#1-create-the-python-venv)) |
 
 ### 2.2 Configure your training
@@ -133,7 +134,7 @@ Once you are done with the configuration, you can start the training job by subm
 
 ```bash
 cd ${BUDDY}                          # or wherever your llm-foundry is
-condor_submit llm-foundry/distributed/optimus_prime/train_ddp.jdl
+condor_submit llm-foundry/utils/optimus_prime/train_ddp.jdl
 ```
 
 ### 2.4 Monitor the job

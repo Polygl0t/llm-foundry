@@ -3,7 +3,7 @@
 # Step 1: start an interactive job (adjust the resources as needed, since we are only going to install packages, we don't need a lot of resources):
 # e.g. condor_submit -interactive -append '+ContainerOS = "Rocky9"' -append '+CephFS_IO = "low"' -append '+MaxRuntimeHours=1' -append 'Request_gpus = 1' -append 'requirements = (CUDADeviceName == "NVIDIA H200")' -append 'Request_cpus = 1' -append 'Request_memory = 16000 MB'
 # Step 2: Inside the the container,run this script
-# bash /cephfs/user/sfatimah/llm-foundry/distributed/optimus_prime/create_venv_training.sh
+# bash /cephfs/user/<user-id>/llm-foundry/utils/optimus_prime/create_venv_training.sh
 set -e
 
 workdir="${BUDDY}"

@@ -40,7 +40,7 @@ source "$workdir/llm-foundry/.modules.sh" > "$out" 2>&1
 cd /jwd
 tar xf "$workdir/venv_ddp.tar.gz" 2>/dev/null || {
     echo "# ERROR: venv tarball not found" >> "$out"
-    echo "# Run: bash $workdir/llm-foundry/distributed/optimus_prime/create_venv_training.sh" >> "$out"
+    echo "# Run: bash $workdir//llm-foundry/utils/optimus_prime/create_venv_training.sh" >> "$out"
     exit 1
 }
 source /jwd/venv_ddp/bin/activate
@@ -89,7 +89,7 @@ torchrun \
     --master_port="${MASTER_PORT}" \
     "$workdir/llm-foundry/distributed/train_ddp.py" \
     --specs "$SPECS_FILE" \
-    --job-id "${CLUSTER_ID}" \
+    --slurm-job-id "${CLUSTER_ID}" \
     --hardware h200 \
     1>>"$out" 2>>"$err"
 

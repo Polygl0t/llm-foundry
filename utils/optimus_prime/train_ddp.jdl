@@ -12,8 +12,8 @@
 #
 
 # --- Executable & Arguments ---
-# The shell script that runs inside the container.
-executable    = llm-foundry/distributed/optimus_prime/train_ddp.sh
+# The shell script that runs inside the container. 
+executable    = llm-foundry/utils/optimus_prime/train_ddp.sh
 # $(ClusterId) is a built-in HTCondor variable, it becomes the unique job ID.
 # The script uses this to name log files and avoid collisions between runs.
 arguments     = $(ClusterId)
