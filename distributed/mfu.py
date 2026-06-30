@@ -24,11 +24,13 @@ Provides:
 
 from dataclasses import dataclass
 
-# Peak FLOPs (BF16) for supported hardware (Bender|Marvin|Jupiter).
+# Peak FLOPs (BF16) for supported hardware (Bender|Marvin|Jupiter|OP).
 PEAK_FLOPS_BY_HARDWARE = {
     "a100": 312e12,  # --> https://www.nvidia.com/en-us/data-center/a100/
     "a40": 150e12,  # --> https://www.nvidia.com/en-us/data-center/a40/
     "gh200": 990e12,  # --> https://www.nvidia.com/en-eu/data-center/grace-hopper-superchip/
+    "h200": 989.5e12,    # H200 SXM — 1,979 TFLOPS (sparsity) / 2 = 989.5 dense (https://resources.nvidia.com/en-us-gpu-resources/hpc-datasheet-sc23)
+    "h100": 756.5e12,    # H100 PCIe — 1,513 TFLOPS (sparsity) / 2 = 756.5 dense  (https://www.megware.com/fileadmin/user_upload/LandingPage%20NVIDIA/nvidia-h100-datasheet.pdf)
     # Extend with more hardware as needed.
 }
 
