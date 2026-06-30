@@ -40,7 +40,7 @@ source "$workdir/llm-foundry/.modules.sh" > "$out" 2>&1
 cd /jwd
 tar xf "$workdir/venv_ddp.tar.gz" 2>/dev/null || {
     echo "# ERROR: venv tarball not found" >> "$out"
-    echo "# Run: bash $workdir//llm-foundry/utils/optimus_prime/create_venv_training.sh" >> "$out"
+    echo "# Run: bash $workdir/llm-foundry/utils/optimus_prime/create_venv_training.sh" >> "$out"
     exit 1
 }
 source /jwd/venv_ddp/bin/activate
