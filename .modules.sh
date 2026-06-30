@@ -1,4 +1,4 @@
-# Auto-detecting module loader for the Marvin/Bender dual-stack (AMD / Intel).
+# Auto-detecting module loader for Marvin / Bender / BAF clusters.
 #
 # Source this file from any sbatch script:
 #
@@ -14,7 +14,10 @@
 #     - Partition "a100"                                      -> AMD stack, CUDA 12.4
 #     - Partition "a40"                                       -> Intel stack, CUDA 12.4
 #
-# Override: export LLM_FOUNDRY_STACK=amd|intel before submitting to bypass auto-detection.
+#   BAF:
+#     - HTCondor cluster with containers — no partitions, no EasyBuild modules
+#
+# Override: export LLM_FOUNDRY_STACK=amd|intel|baf before submitting to bypass auto-detection.
 # Learn about Marvin|Bender dual software stacks at:
 # - https://wiki.hpc.uni-bonn.de/en/dualstacks
 
@@ -70,6 +73,11 @@ _detect_cluster() {
         return 0
     fi
 
+    if [[ "${hostname_fqdn}" == *baf* ]]; then
+        printf '%s\n' "baf"
+        return 0
+    fi
+
     return 1
 }
 
@@ -106,6 +114,17 @@ if ! _cluster="$(_detect_cluster "${_partition_lower}")"; then
 fi
 
 echo "[.modules.sh] Cluster: ${_cluster}  Partition: ${_partition:-<none>}" >&2
+
+# --- BAF (HTCondor)
+if [[ "${_cluster}" == "baf" ]]; then
+    export CUDA_HOME="/usr/local/cuda-12"
+    export PATH="${CUDA_HOME}/bin:${PATH}"
+    export LD_LIBRARY_PATH="${CUDA_HOME}/lib64:${LD_LIBRARY_PATH:-}"
+    module load miniforge/24.7.1-0-py312 2>/dev/null || true
+    echo "[.modules.sh] BAF: CUDA_HOME=${CUDA_HOME}" >&2
+    echo "[.modules.sh] BAF: $(python3 --version 2>&1)" >&2
+    return 0
+fi
 
 # Step 2: Determine stack (LLM_FOUNDRY_STACK overrides auto-detection)
 if [[ -n "${LLM_FOUNDRY_STACK:-}" ]]; then
