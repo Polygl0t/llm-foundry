@@ -1,0 +1,64 @@
+# train_ddp.jdl
+#
+# HTCondor Job Description Language (JDL) file for distributed LLM training.
+#
+# How JDL and .sh work together:
+#   1. You submit this JDL:  condor_submit train_ddp.jdl
+#   2. HTCondor matches a machine satisfying the requirements below.
+#   3. HTCondor launches the requested container on that machine, mounts CephFS inside it,
+#      and executes train_ddp.sh with the Cluster ID as its argument.
+#   4. train_ddp.sh sets up the environment (venv, CUDA, etc.) and runs torchrun.
+#   5. All output is written directly to CephFS paths (no file transfer needed).
+#
+
+# --- Executable & Arguments ---
+# The shell script that runs inside the container. 
+executable    = llm-foundry/utils/optimus_prime/train_ddp.sh
+# $(ClusterId) is a built-in HTCondor variable, it becomes the unique job ID.
+# The script uses this to name log files and avoid collisions between runs.
+arguments     = $(ClusterId)
+
+# --- Resource Requests ---
+# Before deciding on these number, make sure they are available.
+# You can run this command to check current available resourcs.
+# condor_status -compact -constraint 'GPUs > 0' -af:h Machine State GPUs Cpus Memory Disk CUDADeviceName
+# or this command to check max resources and how many of them are available
+# condor_status -compact -constraint 'GPUs > 0' -af:h Machine State TotalGPUs GPUs TotalCpus Cpus TotalMemory Memory TotalDisk Disk CUDADeviceName
+
+request_cpus  = 128
+request_memory = 200000
+request_disk  = 104857600
+# When changing request_gpus, also update CUDA_VISIBLE_DEVICES and --nproc_per_node in train_ddp.sh to match.
+request_gpus  = 2
+
+requirements = (CUDADeviceName == "NVIDIA H200")
+
+# ----------------- Container & Filesystem ----------------------
+# See the BAF HTCondor docs for all available options and their values:
+# https://confluence.team.uni-bonn.de/spaces/PHYIT/pages/10814633/HTCondor+on+BAF
+
+# ContainerOS is uised to specify which operation system you want to use. 
++ContainerOS  = "Rocky9"
+
+#CephFS_IO is used to specify how heavy file system I/O your jobs will perform to the shared file system mounted at /cephfs.
++CephFS_IO    = "high"
+
+# MaxRuntimeHours defines the maximum runtime (in hours, wallclock time) you allow for your job.
++MaxRuntimeHours = 6
+
+# -----------------  Logging & Output ------------------------------------
+
+# stdout and stderr are discarded — the .sh writes training logs directly to CephFS.
+# The HTCondor event log is kept for debugging.
+output        = /dev/null
+error         = /dev/null
+log           = ddp.log.$(ClusterId)
+
+# Pass all environment variables from the submit environment into the job.
+getenv        = True
+
+# Do not transfer files back from the container after the job ends. All persistent outputs (checkpoints, run logs) are written directly to CephFS and handled in train_ddp.sh
+transfer_output_files = ""
+
+# Submit exactly 1 instance of this job.
+Queue 1
