@@ -31,12 +31,7 @@ import argparse
 import os
 import re
 
-from utils import (
-    DatasetLoader,
-    flatten_messages,
-    is_messages_column,
-    save_dataset,
-)
+from utils import DatasetLoader, flatten_messages, get_logger, is_messages_column, save_dataset
 
 _TOKENS_PER_CHUNK = 3_000_000  # target ~100MB chunks (adjust as needed)
 
@@ -87,6 +82,7 @@ UNICODE_RANGES = {
 }
 
 SUPPORTED_LANGUAGES = sorted(set(LANGDETECT_CODES) | set(UNICODE_RANGES))
+logger = get_logger("LanguageFilter")
 
 
 # Backend: langdetect
@@ -102,12 +98,12 @@ def _create_langdetect_filter(languages, **_kwargs):
         if code:
             target_codes.add(code)
         else:
-            logger.warning(f"Unknown language '{lang}' for langdetect backend, skipping...")
+            logger.warning(f" Unknown language '{lang}' for langdetect backend, skipping...")
 
     if not target_codes:
         raise ValueError(f"No valid languages specified. Available: {sorted(LANGDETECT_CODES)}")
 
-    logger.info(f"langdetect target codes: {sorted(target_codes)}")
+    logger.info(f" langdetect target codes: {sorted(target_codes)}")
 
     def keep(text):
         if not text or len(text.strip()) < 10:
@@ -169,7 +165,7 @@ def _create_unicode_filter(languages, threshold=0.85, **_kwargs):
         if ranges:
             language_ranges.append(ranges)
         else:
-            logger.warning(f"Unknown language '{lang}' for unicode backend, skipping...")
+            logger.warning(f" Unknown language '{lang}' for unicode backend, skipping...")
 
     if not language_ranges:
         raise ValueError(f"No valid languages specified. Available: {sorted(UNICODE_RANGES)}")
@@ -206,14 +202,14 @@ def main(args):
 
     is_messages = is_messages_column(dataset, args.text_column)
     if is_messages:
-        logger.ingo(f"Detected messages format in column '{args.text_column}'")
-        logger.info("Messages will be flattened before filtering")
+        logger.info(f" Detected messages format in column '{args.text_column}'")
+        logger.info(" Messages will be flattened before filtering")
 
     original_count = len(dataset)
     original_tokens = None
     if "token_count" in dataset.column_names:
         original_tokens = sum(dataset["token_count"])
-        logger.info(f"[INFO] Original tokens: {original_tokens:,}")
+        logger.info(f" Original tokens: {original_tokens:,}")
 
     if args.save_excluded:
         logger.info(f"\n Saving EXCLUDED samples (those NOT matching: {', '.join(args.languages)})")
@@ -273,7 +269,7 @@ def main(args):
         _TOKENS_PER_CHUNK,
         token_count=filtered_tokens,
     )
-    logger.info ("\n Language filtering complete!")
+    logger.info("\n Language filtering complete!")
 
 
 if __name__ == "__main__":

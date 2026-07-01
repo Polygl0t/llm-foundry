@@ -16,7 +16,7 @@ def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     Create and return a logger with a consistent format.
 
     Args:
-        name: Logger name (typically __name__ of the calling module).
+        name: Logger name (e.g., __name__).
         level: Logging level (default: logging.INFO).
 
     Returns:
@@ -24,24 +24,22 @@ def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     """
     logger = logging.getLogger(name)
 
-    if logger.handlers:
-        # Avoid adding duplicate handlers if the logger was already configured.
-        return logger
-
+    # Always apply level and propagate settings, even if the handler was
+    # already added by a previous call.
     logger.setLevel(level)
-
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setLevel(level)
-
-    formatter = logging.Formatter(
-        fmt="[%(asctime)s] [%(levelname)s] %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-
-    # Prevent log records from propagating to the root logger.
     logger.propagate = False
+
+    if not getattr(logger, "_configured", False):
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setLevel(level)
+
+        formatter = logging.Formatter(
+            fmt="[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        logger._configured = True
 
     return logger
 

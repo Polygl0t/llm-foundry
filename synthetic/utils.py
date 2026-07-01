@@ -220,16 +220,35 @@ def generate_rollouts(
     return [seq.text for seq in outputs[0].outputs]
 
 
-def get_logger(name: str) -> logging.Logger:
-    """Create a simple logger."""
-    # See https://docs.python.org/3/library/logging.html#
+def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
+    """
+    Create and return a logger with a consistent format.
+
+    Args:
+        name: Logger name (e.g., __name__).
+        level: Logging level (default: logging.INFO).
+
+    Returns:
+        Configured Logger instance.
+    """
     logger = logging.getLogger(name)
 
-    logging.basicConfig(
-        format="%(name)s - %(message)s",
-        level=logging.INFO,
-        handlers=[logging.StreamHandler(sys.stdout)],
-    )
+    # Always apply level and propagate settings, even if the handler was
+    # already added by a previous call.
+    logger.setLevel(level)
+    logger.propagate = False
+
+    if not getattr(logger, "_configured", False):
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setLevel(level)
+
+        formatter = logging.Formatter(
+            fmt="[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        logger._configured = True
 
     return logger
 

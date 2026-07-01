@@ -6,6 +6,7 @@ import glob
 import json
 import logging
 import os
+import sys
 from typing import Any
 
 # Additional tokens beyond BOS, EOS, UNK, and PAD.
@@ -58,23 +59,36 @@ EXTRA_TOKENS = [
 ]
 
 
-def get_logger(name: str) -> logging.Logger:
-    """Create and return a logger with a standard console handler.
+def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
+    """
+    Create and return a logger with a consistent format.
 
     Args:
-        name: Logger name (e.g. 'My-Cool-Script')
+        name: Logger name (e.g., __name__).
+        level: Logging level (default: logging.INFO).
 
     Returns:
-        Configured logging.Logger instance.
+        Configured Logger instance.
     """
     logger = logging.getLogger(name)
-    if not logger.handlers:
-        handler = logging.StreamHandler()
-        handler.setFormatter(
-            logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+
+    # Always apply level and propagate settings, even if the handler was
+    # already added by a previous call.
+    logger.setLevel(level)
+    logger.propagate = False
+
+    if not getattr(logger, "_configured", False):
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setLevel(level)
+
+        formatter = logging.Formatter(
+            fmt="[%(asctime)s] [%(name)s] [%(levelname)s] %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
         )
+        handler.setFormatter(formatter)
         logger.addHandler(handler)
-        logger.setLevel(logging.INFO)
+        logger._configured = True
+
     return logger
 
 
