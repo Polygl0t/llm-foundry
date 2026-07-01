@@ -1,524 +1,457 @@
 """
-Single-node script for generating synthetic data using vLLM inference and datatrove pipelines.
+Generate agentic traces using smolagents' CodeAgent. This script allows you to
+run a CodeAgent over a dataset of prompts and record the agent's reasoning, tool calls,
+and final answers as structured execution traces.
 
-Input:  local JSONL or Parquet files.
-Output: local JSONL files.
+Usage examples:
+    # Remote model (LiteLLM — OpenAI-compatible endpoint)
+    python generate_agent_traces.py \\
+        --model-type litellm \\
+        --model-id deepseek/deepseek-v4-flash \\
+        --system-prompt-file SYSTEM.yaml \\
+        --dataset data.jsonl \\
+        --prompt-column prompt \\
+        --ground-truth-column ground_truth \\
+        --max-steps 20 \\
+        --output-dir traces/
 
-Usage:
+    # Local model (Transformers) with thinking mode
+    python generate_agent_traces.py \\
+        --model-type transformers \\
+        --model-id Qwen/Qwen3-8B \\
+        --enable-thinking \\
+        --dataset data.jsonl \\
+        --max-steps 15 \\
+        --output-dir traces/
 
-    # The prompt template (must contain [[DOCUMENT]])
-    python generate_datatrove.py \\
-        --input-path /data/documents \\
-        --prompt-column text \\
-        --prompt-template "Summarize the following document: [[DOCUMENT]]" \\
-        --model-name-or-path Qwen/Qwen3-0.6B \\
-        --output-path /data/summaries
+    # Local model (vLLM)
+    python generate_agent_traces.py \\
+        --model-type vllm \\
+        --model-id Qwen/Qwen3-8B \\
+        --dataset data.jsonl \\
+        --max-steps 15 \\
+        --output-dir traces/
 
-Notes:
-
-    - This script support resume capability via checkpoints. If the process is interrupted.
-        Simply re-run the same command and it will skip already-completed chunks.
-    - There is a bug in datatrove 0.9.0's VLLM server wrapper that causes it to pass an incompatible
-        flag to newer vLLM CLIs. See the patch in this script.
+    # Resume a previous run (skip already-processed traces)
+    python generate_agent_traces.py \\
+        --model-type litellm \\
+        --model-id deepseek/deepseek-v4-flash \\
+        --dataset data.jsonl \\
+        --output-dir traces/  # reads traces/metadata.jsonl automatically
 """
 
 import argparse
-import asyncio
+import logging
 import os
-import shlex
 import sys
-from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Any
 
-import torch
-from datatrove.data import Document
-from datatrove.executor import LocalPipelineExecutor
-from datatrove.pipeline.inference.run_inference import (
-    InferenceConfig,
-    InferenceResult,
-    InferenceRunner,
-)
-from datatrove.pipeline.readers import JsonlReader, ParquetReader
-from datatrove.pipeline.writers import JsonlWriter
-from datatrove.utils.logging import logger
-from transformers import AutoConfig, GenerationConfig
+from dotenv import load_dotenv
 
-# Import normalization and validation utils (utils.py should be in the same directory as this script)
-SCRIPT_DIR = str(Path(__file__).parent)
-sys.path.insert(0, SCRIPT_DIR)
-from utils import (  # noqa: E402
-    normalize_kvc_dtype,
-    normalize_quantization,
-    normalize_speculative,
-    validate_config,
+from utils import (
+    TRACE_STATUS_FAIL,
+    TRACE_STATUS_SUCCESS,
+    OutputManager,
+    TraceRecord,
+    append_metadata_entry,
+    build_model,
+    execute_single_trace,
+    load_dataset,
+    load_processed_ids,
+    load_system_prompt,
+    logger,
 )
 
 
-# We need to perform a monkey-patch to datatrove's VLLM server wrapper to ensure compatibility with newer vLLM CLI changes.
-# please track the following issue: https://github.com/huggingface/datatrove/issues/480
-def _patch_datatrove_vllm_server():
-    """Patch datatrove's VLLM server wrapper for newer vLLM CLIs.
+def main(args) -> None:
+    # Ensure only our own logger.info() messages are visible on stdout.
+    # Silence noisy third-party loggers.
+    logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stdout)
 
-    Datatrove 0.9.0 still passes ``--disable-log-requests``, but newer vLLM
-    releases changed request logging to the opt-in flag
-    ``--enable-log-requests``. Omitting the old flag preserves the intended
-    quiet default behavior.
-    """
-    from datatrove.pipeline.inference.servers.vllm_server import VLLMServer, logger
+    # Robust catch-all: third-party libraries (e.g. the search/Wikipedia
+    # HTTP clients that emit "response: <url> <status>") propagate their
+    # records up to the root handler.  Rather than chase every individual
+    # logger name, drop anything below WARNING that does not originate from
+    # our own logger so that chatter never reaches the console.
+    class _OwnLoggerOrWarning(logging.Filter):
+        def filter(self, record: logging.LogRecord) -> bool:
+            return record.name.startswith(logger.name) or record.levelno >= logging.WARNING
 
-    def _env_is_truthy(name: str):
-        return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+    for _handler in logging.getLogger().handlers:
+        _handler.addFilter(_OwnLoggerOrWarning())
 
-    async def _start_vllm_task_compat(self):
-        cmd = [
-            "vllm",
-            "serve",
-            self.config.model_name_or_path,
-            "--port",
-            str(self._port),
-            "--max-model-len",
-            str(self.config.model_max_context),
-            "--trust-remote-code",
-            "--disable-uvicorn-access-log",
-        ]
-
-        if _env_is_truthy("VLLM_ENABLE_LOG_REQUESTS"):
-            cmd.append("--enable-log-requests")
-
-        model_kwargs = self.config.model_kwargs.copy() if self.config.model_kwargs else {}
-        if self.config.tp > 1 and "tensor-parallel-size" not in model_kwargs:
-            model_kwargs["tensor-parallel-size"] = self.config.tp
-        if self.config.dp > 1 and "data-parallel-size" not in model_kwargs:
-            model_kwargs["data-parallel-size"] = self.config.dp
-        if self.config.pp > 1 and "pipeline-parallel-size" not in model_kwargs:
-            model_kwargs["pipeline-parallel-size"] = self.config.pp
-
-        if model_kwargs:
-            for key, value in model_kwargs.items():
-                if value is True:
-                    cmd.append(f"--{key}")
-                elif value is False:
-                    cmd.append(f"--no-{key}")
-                else:
-                    cmd.append(f"--{key}={value}")
-
-        env = os.environ.copy()
-        env.setdefault("USE_TF", "0")
-        env.setdefault("TRANSFORMERS_NO_TF", "1")
-
-        # Debug logging to verify parallelism settings and CUDA visibility.
-        world_size = self.config.tp * self.config.pp * self.config.dp
-        logger.info(
-            f"Launching vLLM server with tp={self.config.tp} pp={self.config.pp} dp={self.config.dp} (world_size={world_size})"
-        )
-        logger.info(
-            f"CUDA visibility: CUDA_VISIBLE_DEVICES={env.get('CUDA_VISIBLE_DEVICES', '<unset>')}, "
-            f"SLURM_GPUS_ON_NODE={env.get('SLURM_GPUS_ON_NODE', '<unset>')}, "
-            f"SLURM_JOB_GPUS={env.get('SLURM_JOB_GPUS', '<unset>')}"
-        )
-        logger.info(f"vLLM launch command: {shlex.join(cmd)}")
-
-        return await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env=env,
-        )
-
-    VLLMServer._start_vllm_task = _start_vllm_task_compat
-
-
-def _detect_input_format(input_path):
-    """Auto-detect input format by inspecting file extensions in the directory."""
-    p = Path(input_path)
-    if not p.is_dir():
-        raise ValueError(f"Input path is not a directory: {input_path}")
-
-    for f in p.rglob("*"):
-        if not f.is_file():
-            continue
-        name = f.name.lower()
-        if name.endswith(".parquet"):
-            return "parquet"
-        if name.endswith(".jsonl") or name.endswith(".jsonl.gz") or name.endswith(".jsonl.zst"):
-            return "jsonl"
-
-    raise ValueError(
-        f"Could not detect input format in {input_path}. "
-        "Expected .jsonl, .jsonl.gz, .jsonl.zst, or .parquet files."
-    )
-
-
-def _compute_reader_limit(max_examples, tasks):
-    """Compute per-task reader limit so max_examples is respected globally.
-
-    Each datatrove task applies ``limit`` independently. For multi-task runs
-    this would multiply total output by the number of tasks, so we split the
-    global budget evenly.
-    """
-    if max_examples <= 0:
-        return max_examples
-    if tasks < 1:
-        raise ValueError("tasks must be >= 1 when max_examples is set.")
-    reader_limit = (max_examples + tasks - 1) // tasks
-    if tasks > 1:
-        logger.info(
-            f"Applying global max_examples={max_examples} across {tasks} tasks "
-            f"({reader_limit} docs per task)"
-        )
-    return reader_limit
-
-
-def main(args):
-    # Patch the datatrove VLLM server wrapper to ensure compatibility with newer vLLM CLIs.
-    _patch_datatrove_vllm_server()
-
-    # Extract arguments as local variables
-    input_path = args.input_path
-    input_format = args.input_format
-    prompt_column = args.prompt_column
-    prompt_template = args.prompt_template
-    max_examples = args.max_examples
-    output_path = args.output_path
-    server_type = args.server_type
-    model_name_or_path = args.model_name_or_path
-    model_revision = args.model_revision
-    model_max_context = args.model_max_context
-    system_prompt = args.system_prompt
-    system_prompt_file = args.system_prompt_file
-    prompt_template_file = args.prompt_template_file
-
-    # Read system prompt / prompt template from files if provided (safer than
-    # passing via shell, which can misinterpret backticks, $, (, ), etc.)
-    if system_prompt_file:
-        with open(system_prompt_file, encoding="utf-8") as f:
-            system_prompt = f.read().strip()
-            logger.info(
-                f"Loaded system prompt from {system_prompt_file} ({len(system_prompt)} chars)"
-            )
-    if prompt_template_file:
-        with open(prompt_template_file, encoding="utf-8") as f:
-            prompt_template = f.read().strip()
-            logger.info(
-                f"Loaded prompt template from {prompt_template_file} ({len(prompt_template)} chars)"
-            )
-
-    trust_remote_code = args.trust_remote_code
-    tp = args.tp
-    pp = args.pp
-    dp = args.dp
-    max_concurrent_generations = args.max_concurrent_generations
-    max_concurrent_documents = args.max_concurrent_documents
-    max_num_seqs = args.max_num_seqs
-    max_num_batched_tokens = args.max_num_batched_tokens
-    gpu_memory_utilization = args.gpu_memory_utilization
-    block_size = args.block_size
-    speculative_config = args.speculative_config
-    quantization = args.quantization
-    kv_cache_dtype = args.kv_cache_dtype
-    optimization_level = args.optimization_level
-    metric_interval = args.metric_interval
-    temperature = args.temperature
-    top_k = args.top_k
-    top_p = args.top_p
-    max_tokens = args.max_tokens
-    rollouts_per_document = args.rollouts_per_document
-    seed = args.seed
-    examples_per_chunk = args.examples_per_chunk
-    tasks = args.tasks
-    workers = args.workers
-
-    # Check for available GPUs and adjust DP accordingly (vLLM requires at least 1 GPU)
-    available_gpus = torch.cuda.device_count()
-    if available_gpus == 0:
-        raise ValueError("At least one CUDA GPU is required.")
-    tp = min(tp, available_gpus)
-    logger.info(f"Running locally on {available_gpus} GPU(s)")
-
-    # Validate model config
-    model_config = AutoConfig.from_pretrained(
-        model_name_or_path, revision=model_revision, trust_remote_code=trust_remote_code
-    )
-    validate_config(tp=tp, pp=pp, dp=dp, config=model_config, prompt_template=prompt_template)
-
-    # Detect input format if set to auto, and initialize reader
-    if input_format == "auto":
-        input_format = _detect_input_format(input_path)
-        logger.info(f"Auto-detected input format: {input_format}")
-
-    reader_limit = _compute_reader_limit(max_examples=max_examples, tasks=tasks)
-
-    if input_format == "parquet":
-        reader = ParquetReader(
-            data_folder=input_path,
-            text_key=prompt_column,
-            limit=reader_limit,
-            glob_pattern="*.parquet",
-        )
-    elif input_format == "jsonl":
-        reader = JsonlReader(
-            data_folder=input_path,
-            text_key=prompt_column,
-            limit=reader_limit,
-            glob_pattern="*.jsonl",
-        )
-    else:
-        raise ValueError(f"Unsupported input format: {input_format}. Use 'jsonl' or 'parquet'.")
-
-    # Resolve output / checkpoint / log paths
-    output_dir = Path(output_path)
-    checkpoints_dir = str(output_dir / ".checkpoints")
-    logs_dir = str(output_dir / ".logs")
-
-    # Normalize optional configs
-    spec_raw = speculative_config
-    if isinstance(spec_raw, str) and spec_raw.strip().lower() in ("none", "null", ""):
-        spec_raw = None
-    normalized_spec = normalize_speculative(spec_raw)
-    normalized_quant = normalize_quantization(quantization)
-    normalized_kv_dtype = normalize_kvc_dtype(kv_cache_dtype)
-
-    # Resolve generation settings, falling back to model defaults if not set
-    generation_config = GenerationConfig.from_pretrained(
-        model_name_or_path, revision=model_revision, trust_remote_code=trust_remote_code
-    )
-    temperature = (
-        temperature if temperature is not None else getattr(generation_config, "temperature", 1.0)
-    )
-    top_p = top_p if top_p is not None else getattr(generation_config, "top_p", 1.0)
-    top_k = top_k if top_k is not None else getattr(generation_config, "top_k", -1)
-
-    # Rollout function for a single document
-    async def simple_rollout(
-        document: Document,
-        generate: Callable[[dict[str, Any]], Awaitable[InferenceResult]],
+    for _name in (
+        "LiteLLM",
+        "httpx",
+        "urllib3",
+        "wikipedia",
+        "wikipediaapi",
+        "datasets",
+        "huggingface_hub",
+        "requests",
+        "vllm",
+        # Torch inductor emits per-rank Triton bundler WARNINGs
+        # ("Directory ... is not empty - skipping!") that flood the logs.
+        "torch",
+        "torch._inductor",
+        "torch._inductor.triton_bundler",
     ):
-        """Send a single request per document and return the result."""
+        logging.getLogger(_name).setLevel(logging.ERROR)
+    # smolagents internals log per-step code-execution errors and model-
+    # generation failures at ERROR level; these are already captured in
+    # the trace record, so silence them entirely.
+    for _name in (
+        "smolagents",
+        "smolagents.local_python_executor",
+        "smolagents.models",
+        "smolagents.agents",
+        "smolagents.memory",
+        "smolagents.tools",
+        "smolagents.monitoring",
+    ):
+        logging.getLogger(_name).setLevel(logging.CRITICAL)
 
-        # Per-document system prompt override: if the document has a non-empty
-        # "system" metadata field, we use it instead of the global --system-prompt.
-        doc_system = (document.metadata or {}).get("system") or ""
-        doc_system = doc_system.strip()
-        effective_system_prompt = doc_system if doc_system else system_prompt
+    # Load the environment variables from .env file (if present)
+    load_dotenv()
 
-        messages = (
-            []
-            if effective_system_prompt is None
-            else [{"role": "system", "content": effective_system_prompt}]
-        )
+    # Basic validation
+    id_column = args.id_column if args.id_column else None
+    executor_timeout = args.executor_timeout if args.executor_timeout > 0 else None
 
-        if isinstance(document.text, list) and all(isinstance(msg, dict) for msg in document.text):
-            if prompt_template:
-                raise ValueError("Prompt template is not supported for message lists")
-            messages.extend(document.text)
+    # Load dataset
+    logger.info("📂 Loading dataset: %s", args.dataset)
+    rows = load_dataset(
+        path=args.dataset,
+        prompt_column=args.prompt_column,
+        id_column=id_column,
+        ground_truth_column=args.ground_truth_column,
+    )
+    logger.info("   %d example(s) loaded.", len(rows))
+
+    # Build model
+    logger.info(
+        "🤖 Building model: %s / %s",
+        args.model_type,
+        os.getenv("MODEL_ID") if not args.model_id else args.model_id,
+    )
+    model = build_model(
+        model_type=args.model_type,
+        model_id=args.model_id,
+        api_key=args.api_key,
+        api_base=args.api_base,
+        max_new_tokens=args.max_new_tokens,
+        temperature=args.temperature,
+        top_p=args.top_p,
+        top_k=args.top_k,
+        apply_chat_template_kwargs={"enable_thinking": args.enable_thinking},
+        model_kwargs={"max_model_len": args.max_new_tokens} if args.model_type == "vllm" else None,
+    )
+
+    # Load system prompt
+    prompt_templates = load_system_prompt(args.system_prompt_file)
+
+    # Prepare output directory
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Resume: skip traces already present in metadata.jsonl
+    if not args.no_resume:
+        processed_ids = load_processed_ids(output_dir)
+        if processed_ids:
+            before = len(rows)
+            rows = [r for r in rows if r["_trace_id"] not in processed_ids]
+            skipped = before - len(rows)
+            if skipped:
+                logger.info(
+                    "📋 Resume: skipping %d already-processed trace(s).  %d remaining.",
+                    skipped,
+                    len(rows),
+                )
         else:
-            content = (
-                prompt_template.replace("[[DOCUMENT]]", document.text)
-                if prompt_template
-                else document.text
+            logger.info("📋 Resume: no previous traces found — starting fresh.")
+    else:
+        logger.info("📋 Resume disabled (--no-resume).")
+
+    if not rows:
+        logger.info("🏁 All traces already processed. Nothing to do.")
+        return
+
+    # Create the consolidated output manager
+    output_mgr = OutputManager(
+        output_dir,
+        max_entries_per_file=args.max_entries_per_file,
+    )
+
+    # Execute traces
+    success_count = 0
+    fail_count = 0
+    total = len(rows)
+
+    logger.info("─" * 72)
+
+    for i, row in enumerate(rows):
+        idx = i + 1
+        trace_id = row.get("_trace_id", f"row_{i}")
+        prompt_snippet = str(row[args.prompt_column])[:100].replace("\n", " ")
+
+        try:
+            trace = execute_single_trace(
+                row=row,
+                model=model,
+                prompt_templates=prompt_templates,
+                max_steps=args.max_steps,
+                executor_timeout=executor_timeout,
+                prompt_column=args.prompt_column,
+                language=args.language,
+                enable_planning=args.enable_planning,
+                code_block_opening_tag=args.code_block_opening_tag,
+                code_block_closing_tag=args.code_block_closing_tag,
+            )
+        except Exception as e:
+            # Create a minimal failure trace
+            prompt = str(row[args.prompt_column])
+            trace = TraceRecord(
+                trace_id=trace_id,
+                prompt=prompt,
+                ground_truth=str(row.get("_ground_truth"))
+                if row.get("_ground_truth") is not None
+                else None,
+                status=TRACE_STATUS_FAIL,
+                error=f"{type(e).__name__}: {e}",
             )
 
-            # Reserve 512 tokens for system prompt, prompt template overhead,
-            # chat template special tokens, and tokenization estimation error.
-            OVERHEAD_TOKENS = 512
-            char_budget = (model_max_context - max_tokens - OVERHEAD_TOKENS) * 3
-            if len(content) > char_budget:
-                # Skip documents that would overflow the context window (~3 chars/token).
-                logger.info(
-                    f"Skipping document: content length {len(content)} chars exceeds "
-                    f"budget of {char_budget} chars (context={model_max_context}, "
-                    f"max_tokens={max_tokens}, overhead={OVERHEAD_TOKENS})"
-                )
-                return None
+        # Save formatted trace (only if successful and formatting not disabled).
+        # NOTE: save_formatted_trace may downgrade trace.status to
+        # TRACE_STATUS_FAIL if unclosed <think> tags are detected in the
+        # formatted conversation — a guard rail against malformed traces.
+        if trace.status == TRACE_STATUS_SUCCESS and not args.disable_formatting:
+            output_mgr.save_formatted_trace(
+                trace,
+                code_block_opening_tag=args.code_block_opening_tag,
+                code_block_closing_tag=args.code_block_closing_tag,
+                language=args.language,
+            )
 
-            messages.append({"role": "user", "content": content})
+        # Save raw trace (always, with final status — may have been
+        # downgraded by save_formatted_trace above).
+        output_mgr.save_raw_trace(trace)
 
-        return await generate(
-            {
-                "messages": messages,
-                "max_tokens": max_tokens,
-                "temperature": temperature,
-                "top_k": top_k,
-                "top_p": top_p,
-                **({"seed": seed} if seed is not None else {}),
-            }
-        )
+        # Append to metadata
+        append_metadata_entry(trace, output_dir)
 
-    # Build model kwargs with normalized configs
-    quant_kwargs: dict[str, Any] = {}
-    if normalized_quant == "bitsandbytes":
-        quant_kwargs["quantization"] = "bitsandbytes"
+        # Single-line status
+        if trace.status == TRACE_STATUS_SUCCESS:
+            success_count += 1
+            logger.info(
+                "[%d/%d] %s | ✅ %d steps %.1fs | %s",
+                idx,
+                total,
+                trace_id[:12],
+                trace.num_steps,
+                trace.duration_seconds,
+                prompt_snippet,
+            )
+        else:
+            fail_count += 1
+            # Collapse multi-line errors into a single line for clean display.
+            raw_err = trace.error or ""
+            # Take the first meaningful line; collapse whitespace; truncate.
+            err_first_line = raw_err.split("\n")[0].strip()
+            # Collapse runs of whitespace and limit length
+            err_clean = " ".join(err_first_line.split())[:120]
+            logger.warning(
+                "[%d/%d] %s | ❌ %d steps %.1fs | %s  -> %s",
+                idx,
+                total,
+                trace_id[:12],
+                trace.num_steps,
+                trace.duration_seconds,
+                prompt_snippet,
+                err_clean,
+            )
 
-    kv_cache_kwargs: dict[str, Any] = {}
-    if normalized_kv_dtype != "auto":
-        kv_cache_kwargs["kv_cache_dtype"] = normalized_kv_dtype
-        kv_cache_kwargs["calculate_kv_scales"] = True
-
-    model_kwargs = {
-        "revision": model_revision,
-        "dtype": "float16" if "awq" in model_name_or_path.lower() else "bfloat16",
-        "max_num_seqs": max_num_seqs,
-        "max_num_batched_tokens": max_num_batched_tokens,
-        "block-size": block_size,
-        "gpu-memory-utilization": gpu_memory_utilization,
-        **({"speculative_config": normalized_spec} if normalized_spec else {}),
-        **quant_kwargs,
-        **kv_cache_kwargs,
-        "optimization-level": optimization_level,
-    }
-
-    # Inference configuration for the runner
-    inference_config = InferenceConfig(
-        server_type=server_type,
-        model_name_or_path=model_name_or_path,
-        model_kwargs=model_kwargs,
-        model_max_context=model_max_context,
-        rollouts_per_document=rollouts_per_document,
-        max_concurrent_generations=max_concurrent_generations,
-        max_concurrent_documents=max_concurrent_documents,
-        metric_interval=metric_interval,
-        tp=tp,
-        dp=dp,
-        pp=pp,
-        server_log_folder=str(Path(logs_dir) / "server_logs"),
-    )
-
-    # Pipeline: reader -> inference -> JSONL writer
-    pipeline = [
-        reader,
-        InferenceRunner(
-            rollout_fn=simple_rollout,
-            config=inference_config,
-            records_per_chunk=examples_per_chunk,
-            checkpoints_local_dir=checkpoints_dir,
-            skip_bad_requests=True,
-            output_writer=JsonlWriter(
-                output_folder=str(output_dir),
-                output_filename="${rank}_${chunk_index}.jsonl",
-                compression=None,
-                expand_metadata=True,
-            ),
-        ),
-    ]
-
-    # Execute the pipeline
-    executor = LocalPipelineExecutor(
-        pipeline=pipeline,
-        logging_dir=logs_dir,
-        tasks=tasks,
-        workers=workers,
-    )
-    executor.run()
-    logger.info(f"Done. Output written to {output_dir}")
+    # Summary
+    logger.info("\n%s", "=" * 60)
+    logger.info("🏁 Done. %d trace(s) processed.", len(rows))
+    logger.info("   ✅ Success: %d", success_count)
+    logger.info("   ❌ Failed:  %d", fail_count)
+    logger.info("   📂 Output:  %s", output_dir.resolve())
+    logger.info("      - raw_traces/       : full trace JSON arrays")
+    if not args.disable_formatting:
+        logger.info("      - formatted_traces/ : conversation-format JSON arrays")
+    logger.info("      - metadata.jsonl    : summary of all traces")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description=__doc__,
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
 
-    # Input and prompt configuration
+    # Model arguments
     parser.add_argument(
-        "--input-path", required=True, help="Directory containing JSONL or Parquet input files"
+        "--model-type",
+        required=True,
+        choices=["litellm", "transformers", "vllm"],
+        help="Type of model to use.",
     )
     parser.add_argument(
-        "--input-format", default="auto", help="Input format: 'jsonl', 'parquet', or 'auto'"
+        "--model-id",
+        default=None,
+        help="Model identifier (e.g. 'deepseek/deepseek-v4-flash', 'Qwen/Qwen3-32B'). "
+        "Falls back to the MODEL_ID environment variable if not set.",
     )
     parser.add_argument(
-        "--prompt-column", default="text", help="Column name containing the prompt text"
+        "--api-key",
+        default=None,
+        help="API key for LiteLLM models (overrides API_KEY env var).",
     )
     parser.add_argument(
-        "--prompt-template", default=None, help="Template with [[DOCUMENT]] placeholder"
+        "--api-base",
+        default=None,
+        help="API base URL for LiteLLM models (overrides API_BASE env var).",
     )
     parser.add_argument(
-        "--max-examples", type=int, default=-1, help="Max total examples to process (-1 = all)"
-    )
-
-    # Output configuration
-    parser.add_argument(
-        "--output-path", required=True, help="Local directory for output JSONL files"
-    )
-
-    # Model and inference configuration
-    parser.add_argument("--server-type", default="vllm", help="Inference server type")
-    parser.add_argument("--model-name-or-path", required=True, help="Model name or local path")
-    parser.add_argument("--model-revision", default="main", help="Model revision")
-    parser.add_argument(
-        "--model-max-context", type=int, default=32768, help="Maximum context length"
+        "--max-new-tokens",
+        type=int,
+        default=10000,
+        help="Max new tokens to generate for local models (default: 10000).",
     )
     parser.add_argument(
-        "--system-prompt", default=None, help="Optional system prompt (inline text)"
-    )
-    parser.add_argument(
-        "--system-prompt-file", default=None, help="Path to a file containing the system prompt"
-    )
-    parser.add_argument(
-        "--prompt-template-file", default=None, help="Path to a file containing the prompt template"
-    )
-    parser.add_argument(
-        "--trust-remote-code", action="store_true", help="Trust remote code in model repo"
-    )
-
-    # Parallelism settings (adjust based on available GPUs and model size)
-    parser.add_argument("--tp", type=int, default=1, help="Tensor parallelism")
-    parser.add_argument("--pp", type=int, default=1, help="Pipeline parallelism")
-    parser.add_argument("--dp", type=int, default=1, help="Data parallelism")
-
-    # vLLM-specific optimizations and settings
-    parser.add_argument("--max-concurrent-generations", type=int, default=500)
-    parser.add_argument("--max-concurrent-documents", type=int, default=500)
-    parser.add_argument(
-        "--max-num-seqs", type=int, default=256, help="Max sequences in batch (reduce if OOM)"
-    )
-    parser.add_argument(
-        "--max-num-batched-tokens", type=int, default=8192, help="Chunked-prefill batch size"
-    )
-    parser.add_argument(
-        "--gpu-memory-utilization",
+        "--temperature",
         type=float,
-        default=0.9,
-        help="Fraction of GPU memory for KV cache",
-    )
-    parser.add_argument("--block-size", type=int, default=16, help="KV cache block size (16 or 32)")
-    parser.add_argument(
-        "--speculative-config", default=None, help="Speculative decoding config (JSON)"
+        default=None,
+        help="Sampling temperature for local models (transformers/vllm). "
+        "If unset, the model's own generation defaults are used.",
     )
     parser.add_argument(
-        "--quantization", default=None, help="Quantization method (e.g. bitsandbytes)"
+        "--top-p",
+        type=float,
+        default=None,
+        help="Nucleus-sampling (top-p) value for local models "
+        "(transformers/vllm). If unset, the model's own generation "
+        "defaults are used.",
     )
     parser.add_argument(
-        "--kv-cache-dtype", default="auto", help="KV cache dtype: auto, fp8_e4m3, fp8_e5m2"
-    )
-    parser.add_argument(
-        "--optimization-level", type=int, default=3, help="0 = fast startup, 3 = best throughput"
-    )
-    parser.add_argument(
-        "--metric-interval", type=int, default=120, help="Metric reporting interval in seconds"
+        "--top-k",
+        type=int,
+        default=None,
+        help="Top-k sampling cutoff for local models (transformers/vllm). "
+        "If unset, the model's own generation defaults are used.",
     )
 
-    # Generation settings (overrides model defaults if set)
-    parser.add_argument("--temperature", type=float, default=None)
-    parser.add_argument("--top-k", type=int, default=None)
-    parser.add_argument("--top-p", type=float, default=None)
+    # Dataset arguments
     parser.add_argument(
-        "--max-tokens", type=int, default=8192, help="Max output tokens per generation"
+        "--dataset",
+        required=True,
+        help="Path to the dataset file (.json, .jsonl, .parquet).",
     )
-    parser.add_argument("--rollouts-per-document", type=int, default=1)
     parser.add_argument(
-        "--seed", type=int, default=None, help="Random seed for reproducible generation"
+        "--prompt-column",
+        default="prompt",
+        help="Name of the column containing the prompt (default: 'prompt').",
+    )
+    parser.add_argument(
+        "--id-column",
+        default="id",
+        help="Name of the column containing trace IDs (default: 'id'). "
+        "If the column exists in the dataset, its values are used; "
+        "otherwise prompt hashes are generated. "
+        "Set to empty string to always use prompt hashes.",
+    )
+    parser.add_argument(
+        "--ground-truth-column",
+        default=None,
+        help="Name of the column containing ground-truth answers (optional).",
     )
 
-    # Processing settings
+    # Agent arguments
     parser.add_argument(
-        "--examples-per-chunk", type=int, default=500, help="Documents per checkpoint chunk"
+        "--max-steps",
+        type=int,
+        default=20,
+        help="Maximum number of agent steps per example (default: 20).",
     )
-    parser.add_argument("--tasks", type=int, default=1, help="Number of parallel tasks")
-    parser.add_argument("--workers", type=int, default=1, help="Number of worker processes")
+    parser.add_argument(
+        "--executor-timeout",
+        type=int,
+        default=120,
+        help="Max seconds per tool execution step (default: 120). Use 0 or negative to disable.",
+    )
+
+    # System prompt arguments
+    parser.add_argument(
+        "--system-prompt-file",
+        default=None,
+        help="Path to a YAML file with custom prompt templates "
+        "(same structure as smolagents' code_agent.yaml).",
+    )
+    parser.add_argument(
+        "--code-block-opening-tag",
+        default="<code>",
+        help="Opening tag for code blocks (default: '<code>').",
+    )
+    parser.add_argument(
+        "--code-block-closing-tag",
+        default="</code>",
+        help="Closing tag for code blocks (default: '</code>').",
+    )
+
+    # Output arguments
+    parser.add_argument(
+        "--output-dir",
+        default="./traces/",
+        help="Base directory for saving traces (default: './traces/').",
+    )
+
+    # Other arguments
+    parser.add_argument(
+        "--language",
+        default="en",
+        choices=["en", "pt"],
+        help="Language for tools: 'en' (default) or 'pt' "
+        "(Portuguese Wikipedia + DDG region pt-br).",
+    )
+    parser.add_argument(
+        "--disable-formatting",
+        action="store_true",
+        help="Skip saving formatted conversation traces (only save raw traces and metadata).",
+    )
+
+    # Local-model arguments
+    parser.add_argument(
+        "--enable-thinking",
+        action="store_true",
+        default=False,
+        help="Enable thinking/reasoning mode for local models "
+        "(Transformers / vLLM).  Passes "
+        "apply_chat_template_kwargs={'enable_thinking': True} to "
+        "the model.  Ignored for LiteLLM.",
+    )
+
+    # Planning argument
+    parser.add_argument(
+        "--enable-planning",
+        action="store_true",
+        default=False,
+        help="Run a single planning step at the beginning of each "
+        "trace before the agent starts executing.",
+    )
+
+    # Resume / output arguments
+    parser.add_argument(
+        "--no-resume",
+        action="store_true",
+        default=False,
+        help="Disable automatic resume.  When set, previously processed "
+        "traces (listed in metadata.jsonl) are NOT skipped.",
+    )
+    parser.add_argument(
+        "--max-entries-per-file",
+        type=int,
+        default=50_000,
+        help="Maximum number of JSON objects per consolidated output "
+        "file before rotating to a new file (default: 50000).",
+    )
 
     args = parser.parse_args()
-
-    print("Starting synthesis! 🚀")
     main(args)
-    print("Synthesis completed successfully! 🎉")
