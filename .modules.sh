@@ -115,12 +115,23 @@ fi
 
 echo "[.modules.sh] Cluster: ${_cluster}  Partition: ${_partition:-<none>}" >&2
 
-# --- BAF (HTCondor)
+# BAF is detected purely through the hostname fallback in _detect_cluster():
+#
+# BAF uses containers (HTCondor), so there are no SLURM partitions, no
+# EasyBuild modules, and no dual-stack AMD/Intel split. CUDA is hardcoded
+# to /usr/local/cuda-12 and Python comes from miniforge rather than EasyBuild.
+#
+# The entire EasyBuild/module/stack logic (Steps 2–6) is skipped via return 0.
+# Can also be forced with: export LLM_FOUNDRY_STACK=baf
 if [[ "${_cluster}" == "baf" ]]; then
     export CUDA_HOME="/usr/local/cuda-12"
     export PATH="${CUDA_HOME}/bin:${PATH}"
     export LD_LIBRARY_PATH="${CUDA_HOME}/lib64:${LD_LIBRARY_PATH:-}"
     module load miniforge/24.7.1-0-py312 2>/dev/null || true
+    if command -v module >/dev/null 2>&1; then
+        echo "[.modules.sh] Loaded modules:" >&2
+        module list 2>&1 | sed 's/^/    /' >&2
+    fi
     echo "[.modules.sh] BAF: CUDA_HOME=${CUDA_HOME}" >&2
     echo "[.modules.sh] BAF: $(python3 --version 2>&1)" >&2
     return 0

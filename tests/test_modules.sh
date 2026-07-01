@@ -59,6 +59,40 @@ _run_case "Bender a40 (A40short)"  "A40short"  "bender" "intel" "easybuild-INTEL
 _run_case "Bender a40 (A40medium)" "A40medium" "bender" "intel" "easybuild-INTEL_A40"
 
 echo ""
+echo "================================================================"
+echo " TEST SUITE: BAF (HTCondor)"
+echo "================================================================"
+
+# BAF detection relies on hostname containing "baf" (fallback in _detect_cluster).
+# We mock hostname since we're not running on a BAF node.
+_fake_bin="$(mktemp -d)"
+trap 'rm -rf "${_fake_bin}"' EXIT
+cat > "${_fake_bin}/hostname" << 'EOF'
+#!/bin/bash
+echo "node01.baf.htcondor"
+EOF
+chmod +x "${_fake_bin}/hostname"
+
+result="$(PATH="${_fake_bin}:${PATH}" bash --norc -c 'source "'"${repo_root}"'/.modules.sh" 2>/dev/null; echo "CUDA=${CUDA_HOME:-<unset>}|STACK=${LLM_FOUNDRY_STACK:-<unset>}"')"
+if [[ "${result}" == *"CUDA=/usr/local/cuda-12"* ]]; then
+    echo "  PASS  BAF hostname detection -> ${result}"
+    (( _pass++ ))
+else
+    echo "  FAIL  BAF hostname detection -> ${result}"
+    (( _fail++ ))
+fi
+
+# Override via LLM_FOUNDRY_STACK=baf (with hostname mock)
+result="$(PATH="${_fake_bin}:${PATH}" LLM_FOUNDRY_STACK=baf bash --norc -c 'source "'"${repo_root}"'/.modules.sh" 2>/dev/null; echo "CUDA=${CUDA_HOME:-<unset>}|STACK=${LLM_FOUNDRY_STACK:-<unset>}"')"
+if [[ "${result}" == *"CUDA=/usr/local/cuda-12"* ]]; then
+    echo "  PASS  BAF override (LLM_FOUNDRY_STACK=baf) -> ${result}"
+    (( _pass++ ))
+else
+    echo "  FAIL  BAF override (LLM_FOUNDRY_STACK=baf) -> ${result}"
+    (( _fail++ ))
+fi
+
+echo ""
 echo "----------------------------------------------------------------"
 echo "Results: ${_pass} passed, ${_fail} failed"
 [[ "${_fail}" -eq 0 ]] && echo "OVERALL: PASS" || echo "OVERALL: FAIL"
