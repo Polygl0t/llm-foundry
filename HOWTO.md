@@ -15,7 +15,7 @@ In short, it is much easier to use the Hugging Face Hub datasets, as they are al
 
 In [`utils/`](utils/), you can find scripts and tools to easily download datasets from the Hugging Face Hub (e.g., [`utils/download.py`](utils/download.py)). Scripts like [`data/preprocess.py`](data/preprocess.py) can help you format/enrich the data in a way that is suitable for your use case.
 
-> **Note**: Almost every Python script in the LLM Foundry is accompanied by a SLURM bash script (e.g., [`utils/download.sh`](utils/download.sh)) that can be used to run the script on a SLURM-managed cluster—which happens to be the case for almost all clusters we have access to. However, you can also run the Python scripts locally, without using SLURM, by simply executing them with Python (e.g., `python utils/download.py`). Don't forget that the SLURM bash scripts are **templates** and not ready-to-use scripts. You will need to modify them according to your specifications (e.g., cluster partition, number of nodes, all paths, etc.) before running them.
+> **Note**: Almost every Python script in the LLM Foundry is accompanied by a SLURM / bash script (e.g., [`utils/download.sh`](utils/download.sh)) that can be used to run the script on a SLURM-managed cluster—which happens to be the case for almost all clusters we have access to. However, you can also run the Python scripts locally, without using SLURM, by simply executing them with Python (e.g., `python utils/download.py`). Don't forget that the SLURM / bash scripts are **templates** and not ready-to-use scripts. You will need to modify them according to your specifications (e.g., cluster partition, number of nodes, all paths, etc.) before running them.
 
 ### The Hard Way: Common Crawl Dumps
 
@@ -137,5 +137,5 @@ After you have pretrained your model, if you want to go further than having just
 
 - The time it takes to train a model depends on several factors, such as the size of the model, the size of the dataset, the computational resources available, and the training hyperparameters. For example, training a 7B parameter model on a dataset of 1 trillion tokens with 256 A100 GPUs can take around 2 weeks. However, these numbers can vary significantly depending on the specific circumstances.
 
-2. **Are the SLURM bash scripts ready to use?**
-- No, the SLURM bash scripts provided in the LLM Foundry are templates and not ready-to-use scripts. You will need to modify them according to your specifications (e.g., cluster partition, number of nodes, all paths, etc.) before running them. Paths are the most common thing you will need to change, since the directory structure of your cluster/workspace will probably be different from the one we set in the bash script templates.
+2. **Are the SLURM / bash scripts ready to use?**
+- No, the SLURM / bash scripts provided in the LLM Foundry are templates and not ready-to-use scripts. You will need to modify them according to your specifications (e.g., cluster partition, number of nodes, all paths, etc.) before running them. Paths are the most common thing you will need to change, since the directory structure of your cluster/workspace will probably be different from the one we set in the bash script templates.

@@ -1,22 +1,22 @@
 #!/bin/bash
-# train_ddp.sh — DDP training script for HTCondor (BAF cluster)
 #
-# Launched by train_ddp.jdl. 
+# Launched by train_ddp.jdl.
 #
 # Workflow:
 #   1. Load CUDA/driver modules via .modules.sh
-#   2. Extract the pre-built Python venv from CephFS → /jwd 
+#   2. Extract the pre-built Python venv from CephFS -> /jwd
 #   3. Set environment variables (CUDA, NCCL, HuggingFace cache, etc.)
 #   4. Launch training script
 #   5. Clean up /jwd after training finishes
 #
-# All persistent outputs (logs, checkpoints) are written directly to CephFS, the filesystem is shared between container and login node.
+# All persistent outputs (logs, checkpoints) are written directly to CephFS, the
+# filesystem is shared between container and login node.
 
 #############################################
 # Working Directory Setup
 #############################################
 
-# ${BUDDY} is set by HTCondor to your CephFS home (e.g. /cephfs/user/sfatimah).
+# ${BUDDY} is set by HTCondor to your CephFS home (e.g., /cephfs/user/sfatimah).
 workdir="${BUDDY}"
 mkdir -p "$workdir/run_outputs"
 cd "$workdir"
@@ -34,9 +34,10 @@ err="$workdir/run_outputs/ddp-err.${CLUSTER_ID}"
 source "$workdir/llm-foundry/.modules.sh" > "$out" 2>&1
 
 # --- Venv Extraction ---
-# The venv tarball lives on CephFS and is extracted to /jwd 
+# The venv tarball lives on CephFS and is extracted to /jwd
 # The tarball is created once with:  bash create_venv_training.sh.
-# First login on an interactive node and run create_venv_training.sh to create the tarball, then all subsequent training jobs can use it.
+# First login on an interactive node and run create_venv_training.sh to create the tarball,
+# then all subsequent training jobs can use it.
 cd /jwd
 tar xf "$workdir/venv_ddp.tar.gz" 2>/dev/null || {
     echo "# ERROR: venv tarball not found" >> "$out"
