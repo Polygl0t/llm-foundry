@@ -9,7 +9,63 @@
 >
 > **📝 Note:** Before running any scripts or commands, please update the file and folder paths to match your local environment and directory structure (see [FAQ](../../HOWTO.md#faq-frequently-asked-questions)).
 
-## Before You Start
+## Accessing the BAF Cluster (Optimus Prime)
+
+To work on BAF (Optimus Prime!), you first need to be granted access. Contact your local administrator (for CAISA, this is Frederik) to get access. Once you have been added (through your UniID), you can log in using the following command:
+
+```bash
+ssh <your-user-id-here>@desktop.physik.uni-bonn.de
+```
+
+You will be prompted for your UniID password.
+
+By default, you must enter your password every time you connect. To avoid this, set up an SSH key pair by following the steps below.
+
+### 1. Create the SSH directory
+
+If `~/.ssh` does not already exist, create it:
+
+```bash
+mkdir -p ~/.ssh
+```
+
+### 2. Generate an SSH key pair
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_baf
+```
+
+> **Note:** You will be prompted for a passphrase. Choose something secure and memorable. To skip the passphrase, press Enter when prompted.
+
+### 3. Configure the SSH alias
+
+Open (or create) `~/.ssh/config` and add the following entry, replacing `<your-user-id-here>` with your UniID:
+
+```text
+Host baf
+  HostName desktop.physik.uni-bonn.de
+  User <your-user-id-here>
+  IdentityFile ~/.ssh/id_ed25519_baf
+  IdentitiesOnly yes
+```
+
+### 4. Copy your public key to the cluster
+
+```bash
+ssh-copy-id -i ~/.ssh/id_ed25519_baf.pub <your-user-id-here>@desktop.physik.uni-bonn.de
+```
+
+Enter your UniID password when prompted — this is the last time you will need it.
+
+### 5. Connect
+
+You can now log in without a password:
+
+```bash
+ssh baf
+```
+
+## General Documentation
 
 Once you get access to the BAF cluster, **read the official documentation first**:
 
@@ -26,6 +82,8 @@ Every user by default is equipped with a personal data storage directory at
 Within the Job-containers, this directory can be easily accessed via the environment variable `$BUDDY`. There is a quota on the **number of files (100 000) and the available space (500 GB)** for your BUDDY directory. If you need to store large numbers of files (e.g., a huge Python venv), you can turn them into a tarball and store it in your BUDDY directory.
 
 ## Table of Contents
+
+Following, in the next sections, we provide a step-by-step guide to run the distributed training pipeline on Optimus Prime. The steps are summarized in the table below:
 
 | Section                                                      | Description                                                                        |
 |--------------------------------------------------------------|------------------------------------------------------------------------------------|
