@@ -25,12 +25,24 @@ Provides:
 from dataclasses import dataclass
 
 # Peak FLOPs (BF16) for supported hardware (Bender|Marvin|Jupiter|OP).
+# Units:
+#   - Values are theoretical peak dense BF16 throughput in FLOPs/s.
+#
+# Sources:
+#   - A100  : https://www.nvidia.com/en-us/data-center/a100/
+#   - A40   : https://www.nvidia.com/en-us/data-center/a40/
+#   - GH200 : https://www.nvidia.com/en-eu/data-center/grace-hopper-superchip/
+#   - H200  : https://resources.nvidia.com/en-us-gpu-resources/hpc-datasheet-sc23
+#   - H100  : https://www.megware.com/fileadmin/user_upload/LandingPage%20NVIDIA/nvidia-h100-datasheet.pdf
+
+# Note:
+#   - Sparse throughput reported by vendors is converted to dense by dividing by 2.
 PEAK_FLOPS_BY_HARDWARE = {
-    "a100": 312e12,  # --> https://www.nvidia.com/en-us/data-center/a100/
-    "a40": 150e12,  # --> https://www.nvidia.com/en-us/data-center/a40/
-    "gh200": 990e12,  # --> https://www.nvidia.com/en-eu/data-center/grace-hopper-superchip/
-    "h200": 989.5e12,    # H200 SXM — 1,979 TFLOPS (sparsity) / 2 = 989.5 dense (https://resources.nvidia.com/en-us-gpu-resources/hpc-datasheet-sc23)
-    "h100": 756.5e12,    # H100 PCIe — 1,513 TFLOPS (sparsity) / 2 = 756.5 dense  (https://www.megware.com/fileadmin/user_upload/LandingPage%20NVIDIA/nvidia-h100-datasheet.pdf)
+    "a100": 312e12,
+    "a40": 150e12,
+    "gh200": 990e12,
+    "h200": 989.5e12,
+    "h100": 756.5e12,
     # Extend with more hardware as needed.
 }
 
