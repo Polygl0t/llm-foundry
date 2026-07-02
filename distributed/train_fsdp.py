@@ -253,7 +253,7 @@ def main(specs, slurm_job_id, hardware):
         logger.info(f"  Length of train dataloader | {len(train_dataloader):,}")
         logger.info(f"  Max position embeddings (seq length) | {args.max_position_embeddings:,}")
         logger.info(f"  Shuffle dataset | {args.shuffle_dataset}")
-        logger.info(f"  Additional mask token IDs | {args.additional_mask_token_ids}")
+        logger.info(f"  Masked token IDs | {sorted(data.mask_token_ids)}")
         logger.info("=" * 50)
         logger.info("Batch Configuration:")
         logger.info(f"  Num Epochs | {args.num_train_epochs}")
@@ -310,9 +310,7 @@ def main(specs, slurm_job_id, hardware):
                 f"  Max position embeddings (seq length) | {args.max_position_embeddings:,}"
             )
             file_logger.log_metadata(f"  Shuffle dataset | {args.shuffle_dataset}")
-            file_logger.log_metadata(
-                f"  Additional mask token IDs | {args.additional_mask_token_ids}"
-            )
+            file_logger.log_metadata(f"  Masked token IDs | {sorted(data.mask_token_ids)}")
             file_logger.log_metadata("=" * 50)
             file_logger.log_metadata("Batch Configuration:")
             file_logger.log_metadata(f"  Num Epochs | {args.num_train_epochs}")

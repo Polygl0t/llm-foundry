@@ -36,6 +36,7 @@ class DataLoaderBundle:
     train_sampler: DistributedSampler
     num_train_samples: int
     num_val_samples: int
+    mask_token_ids: set
 
 
 def create_collate_fn(mask_token_ids):
@@ -275,9 +276,10 @@ def prepare_dataloaders(
             file_logger=file_logger,
         )
 
+    mask_token_ids = set()
+
     if collate_fn is None:
         # Always mask pad, eos, and bos tokens when they are defined in the tokenizer.
-        mask_token_ids = set()
         if tokenizer is not None:
             for token_id in (
                 tokenizer.pad_token_id,
@@ -346,4 +348,5 @@ def prepare_dataloaders(
         train_sampler=train_sampler,
         num_train_samples=len(train_dataset),
         num_val_samples=len(val_dataset),
+        mask_token_ids=mask_token_ids,
     )
