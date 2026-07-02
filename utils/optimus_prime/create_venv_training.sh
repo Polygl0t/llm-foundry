@@ -4,6 +4,11 @@
 # >> condor_submit -interactive -append '+ContainerOS = "Rocky9"' -append '+CephFS_IO = "low"' -append '+MaxRuntimeHours=1' -append 'Request_gpus = 1' -append 'requirements = (CUDADeviceName == "NVIDIA H200")' -append 'Request_cpus = 1' -append 'Request_memory = 16000 MB'
 # Step 2: Inside the the container,run this script
 # >> bash /cephfs/user/<user-id>/llm-foundry/utils/optimus_prime/create_venv_training.sh
+
+
+# If you want to create a venv on your $BUDDY or outside containers, then 
+# 1. Change the paths below to point to your local $BUDDY and a local venv directory.
+# 2. remove the code for creating a tarball and the cleanup code at the end of this script.
 set -e
 
 workdir="${BUDDY}"
