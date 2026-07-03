@@ -38,7 +38,7 @@ from smolagents.models import (
 )
 from smolagents.monitoring import LogLevel
 from smolagents.tools import Tool
-from tools import get_custom_tools
+from tools import MathTool, get_custom_tools
 
 # Logger for generate_agent_traces.py and utils.py
 logger = logging.getLogger("AgentTraceRecorder")
@@ -55,6 +55,16 @@ TRITON_CACHE_CLEANUP_AGE = 3600
 
 # Maximum number of JSON objects per consolidated output file before rotation
 DEFAULT_MAX_ENTRIES_PER_FILE = 50_000
+
+# Lines matching this pattern are progress-bar / framework noise written
+# directly to stderr (tqdm bars, weight-loading shards, Triton bundler
+# spam, ...).
+_STDERR_NOISE_RE = re.compile(
+    r"it/s\]|it/s,|s/it\]|\d+%\s*\|"  # tqdm progress bars
+    r"|Processed prompts|Adding requests|Adding lora"  # vLLM generate bars
+    r"|Loading .*shards|Loading safetensors|Capturing CUDA"  # weight loading
+    r"|triton_bundler|is not empty - skipping"  # Triton bundler warnings
+)
 
 
 @dataclass
@@ -354,6 +364,10 @@ class _PatchedVLLMModel(VLLMModel):
             # applied via SamplingParams).
             for leaked in ("max_tokens", "temperature", "top_p", "top_k"):
                 gen_kwargs.pop(leaked, None)
+            # Suppress vLLM's per-call "Processed prompts" tqdm progress bar,
+            # which otherwise floods stderr (and leaks into captured error
+            # messages).
+            gen_kwargs.setdefault("use_tqdm", False)
             return original_generate(*gen_args, **gen_kwargs)
 
         vllm.SamplingParams = _sampling_params_with_extra
@@ -636,7 +650,12 @@ def build_model(
         _ensure_vllm_tokenizer_compat()
         device = _detect_device()
         dtype = "float16" if "awq" in resolved_model_id.lower() else "bfloat16"
-        vlm_kwargs: dict[str, Any] = {"tensor_parallel_size": 1, "dtype": dtype}
+        vlm_kwargs: dict[str, Any] = {
+            "tensor_parallel_size": 1,
+            "dtype": dtype,
+            # Set to False to disable the "Loading safetensors checkpoint shards" tqdm bar.
+            "use_tqdm_on_load": True,
+        }
         if device == "cuda":
             try:
                 import torch  # noqa: F401
@@ -1061,7 +1080,7 @@ def format_trace_as_conversation(
             last.get("role") == "user"
             and isinstance(last.get("content"), str)
             and last["content"].startswith("<tool_response>")
-            and second_last.get("role") == "tool"
+            and second_last.get("role") == "assistant"
             and isinstance(second_last.get("content"), str)
             and "final_answer(" in second_last["content"]
         ):
@@ -1231,6 +1250,63 @@ def _extract_step_type(step: Any) -> str:
         return type(step).__name__
 
 
+def _patch_smolagents_execution_timeout() -> None:
+    """Patch smolagents' code-execution timeout to never deadlock the run.
+
+    `smolagents.local_python_executor.timeout()` (1.26.0) wraps each code
+    step in `with ThreadPoolExecutor(max_workers=1) as executor:` and calls
+    `future.result(timeout=timeout_seconds)`.  If the wrapped call never
+    returns — e.g. a hung network request from `DuckDuckGoSearchTool` /
+    `WikipediaSearchTool` (no internet egress on some compute nodes, DNS
+    hang, upstream rate limiting, ...) or literally an LLM-generated
+    infinite loop — `future.result()` correctly raises after
+    *timeout_seconds*, but the surrounding `with` block still calls
+    `executor.shutdown(wait=True)` on exit. Since the leaked worker thread
+    can never be killed and never returns, `shutdown(wait=True)` blocks
+    *forever*, silently freezing the whole job with zero further log
+    output.
+
+    This patches the module-level `timeout` decorator (referenced by name
+    at call time inside `LocalPythonExecutor.__call__`, so replacing the
+    module attribute here takes effect immediately) to call
+    `executor.shutdown(wait=False)` instead, so a stuck call can no longer
+    block per-example progress.
+
+    See: https://github.com/huggingface/smolagents/blob/v1.26.0/src/smolagents/local_python_executor.py
+    Issue: https://github.com/huggingface/smolagents/issues/2464
+    """
+    import functools
+    from concurrent.futures import ThreadPoolExecutor
+    from concurrent.futures import TimeoutError as FuturesTimeoutError
+
+    import smolagents.local_python_executor as _lpe
+
+    def _non_deadlocking_timeout(timeout_seconds: int):
+        def decorator(func):
+            @functools.wraps(func)
+            def wrapper(*args: Any, **kwargs: Any):
+                executor = ThreadPoolExecutor(max_workers=1)
+                future = executor.submit(func, *args, **kwargs)
+                try:
+                    return future.result(timeout=timeout_seconds)
+                except FuturesTimeoutError:
+                    # Do NOT block on shutdown(wait=True): the worker thread
+                    # may be stuck forever on a hung network call.
+                    executor.shutdown(wait=False)
+                    raise _lpe.ExecutionTimeoutError(
+                        f"Code execution exceeded the maximum execution time of {timeout_seconds} seconds"
+                    ) from None
+
+            return wrapper
+
+        return decorator
+
+    _lpe.timeout = _non_deadlocking_timeout
+    logger.info(
+        "🩹 Patched smolagents execution timeout to avoid shutdown() deadlock on hung calls."
+    )
+
+
 def _build_default_tools(timeout_seconds: int | None = None, language: str = "en") -> list[Tool]:
     """Build the standard set of tools for a CodeAgent.
 
@@ -1250,6 +1326,8 @@ def _build_default_tools(timeout_seconds: int | None = None, language: str = "en
     Returns:
         List of Tool instances.
     """
+    _patch_smolagents_execution_timeout()
+
     if language == "pt":
         from tools import RegionDuckDuckGoSearchTool
 
@@ -1337,6 +1415,10 @@ def execute_single_trace(
     if additional_authorized_imports:
         authorized_imports.extend(additional_authorized_imports)
 
+    # If the MathTool is in use, it relies on sympy, so authorize it.
+    if any(isinstance(t, MathTool) for t in tools) and "sympy" not in authorized_imports:
+        authorized_imports.append("sympy")
+
     # Build full prompt templates
     # If the prompt_templates dict somehow lacks a system_prompt key,
     # fall back to the smolagents library default.
@@ -1395,12 +1477,21 @@ def execute_single_trace(
             pass
     finally:
         sys.stderr = sys.__stderr__
-        # Merge any stderr noise into the error message (one-liner, truncated)
+        # Merge any stderr noise into the error message (one-liner, truncated).
+        # tqdm/progress bars use carriage returns and flood the buffer, so we
+        # split on both \r and \n and drop framework-noise lines; otherwise a
+        # failed trace would record the vLLM progress bar instead of the real
+        # error.
         stderr_text = _stderr_capture.getvalue().strip()
         if stderr_text:
-            stderr_lines = [ln.strip() for ln in stderr_text.split("\n") if ln.strip()]
-            stderr_summary = " | ".join(stderr_lines[-3:])  # last 3 non-empty lines
-            error_msg = f"{error_msg} [{stderr_summary}]" if error_msg else stderr_summary
+            stderr_lines = [
+                ln.strip()
+                for ln in re.split(r"[\r\n]+", stderr_text)
+                if ln.strip() and not _STDERR_NOISE_RE.search(ln)
+            ]
+            if stderr_lines:
+                stderr_summary = " | ".join(stderr_lines[-3:])  # last 3 real lines
+                error_msg = f"{error_msg} [{stderr_summary}]" if error_msg else stderr_summary
 
     ended_at = datetime.now(UTC)
     duration = (ended_at - started_at).total_seconds()
