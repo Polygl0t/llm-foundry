@@ -2,13 +2,18 @@
 # One-time setup: create venv tarball for distributed training.
 # - Step 1: start an interactive job (adjust the resources as needed):
 # >> condor_submit -interactive -append '+ContainerOS = "Rocky9"' -append '+CephFS_IO = "low"' -append '+MaxRuntimeHours=1' -append 'Request_gpus = 1' -append 'requirements = (CUDADeviceName == "NVIDIA H200")' -append 'Request_cpus = 1' -append 'Request_memory = 16000 MB'
-# Step 2: Inside the the container,run this script
-# >> bash /cephfs/user/<user-id>/llm-foundry/utils/optimus_prime/create_venv_training.sh
+# - Step 2: Inside the the container, run this script
+# >> bash $BUDDY/create_venv.sh
+# Note: You CANNOT access files in your home directory (`~`) from inside the container.
+#       You can only access files in your CephFS directory (`$BUDDY`). Hence, you should make
+#       sure that the `llm-foundry`, or any other thing you need to run in the container,
+#       is in your CephFS directory (`$BUDDY`). Symlinks will not work.
 set -e
 
-workdir="${BUDDY}"
-venv_dir="/jwd/venv_ddp"
-tarball="$workdir/venv_ddp.tar.gz"
+workdir="$BUDDY"
+venv_name=".venv"
+venv_dir="/jwd/$venv_name"
+tarball="$workdir/$venv_name.tar.gz"
 
 echo "===== Setting up modules ====="
 source "$workdir/llm-foundry/.modules.sh"
@@ -67,7 +72,7 @@ PY
 
 echo "===== Creating tarball ====="
 cd /jwd
-tar czf "$tarball" venv_ddp
+tar czf "$tarball" "$venv_name"
 
 echo "===== Done ====="
 echo "Tarball: $tarball"

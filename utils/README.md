@@ -4,6 +4,8 @@ This folder contains miscellaneous utility scripts and helpers for working with 
 
 ## Contents
 
+- [`baf/`](./baf/) — Documentation for how to work with the BAF (aka, Optimus Prime) Cluster.
+- [`jupiter/`](./jupiter/) — Documentation for how to work with the JSC Jupiter booster.
 - [`compute_hyperparams.py`](./compute_hyperparams.py) — Compute training hyperparameters like learning rate, batch size, and steps based on model size and training configuration (uses the heuristics from the [DeepSeek LLM scaling laws paper](https://arxiv.org/abs/2401.02954)).
 - [`convert_dataset_to_hf.py`](./convert_dataset_to_hf.py) — Convert JSONL or Parquet dataset shards into a Hugging Face Dataset format and optionally upload it to the Hub.
 - [`count_tokens.py`](./count_tokens.py) — Create token count reports for a pretraining corpus.

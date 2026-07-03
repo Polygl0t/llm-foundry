@@ -91,7 +91,7 @@ Sourcing prints whose stack was selected, why, and the resulting module list, so
 
 > - If you are working on JSC Jupiter, things work a little differently. See [`utils/jupiter/README.md`](utils/jupiter/README.md) for JSC-specific module and installation scripts.
 >
-> - If you are working in BAF (aka, the Optimus Prime cluster), things also work a little differently. See [`utils/optimus_prime/README.md`](utils/optimus_prime/README.md) for how to run jobs on it. BAF uses containers (HTCondor) instead of SLURM.
+> - If you are working in BAF (aka, the Optimus Prime cluster), things also work a little differently. See [`utils/baf/README.md`](utils/baf/README.md) for how to run jobs on it. BAF uses containers (HTCondor) instead of SLURM.
 
 ### Installing Dependencies
 

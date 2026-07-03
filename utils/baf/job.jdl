@@ -1,0 +1,195 @@
+# =============================================================================================== #
+#  BAF HTCondor Job Template
+# =============================================================================================== #
+#  Copy this file, adjust the values below, and submit with:
+#
+#      >> condor_submit job.jdl
+#
+#  Do NOT submit from /cephfs — run condor_submit from your home directory.
+#  Put only large data / output files on CephFS for maximum performance.
+# =============================================================================================== #
+
+# -- Executable & Arguments --
+executable          = /cephfs/user/nklugeco/train_ddp.sh
+arguments           = $(ClusterId)
+
+# -- Resource Requests --
+request_cpus        = 48
+request_memory      = 200000
+request_disk        = 104857600
+request_gpus        = 2
+
+# -- Machine Selection --
+requirements        = (CUDADeviceName == "NVIDIA H200")
+
+# -- Container & Filesystem (BAF-specific) --
++ContainerOS        = "Rocky9"
++CephFS_IO          = "high"
++MaxRuntimeHours    = 4
+
+# -- Logging & Output --
+output              = /dev/null
+error               = /dev/null
+log                 = $(ClusterId).log
+
+# -- Transfer --
+getenv              = True
+transfer_output_files = ""
+
+# -- Submit exactly 1 instance of this job --
+Queue 1
+# =============================================================================================== #
+#  REFERENCE — everything you need to know to submit jobs on BAF
+# =============================================================================================== #
+
+# ---------------------------------------------------------------------- #
+#  QUICK START: How to submit and monitor
+# ---------------------------------------------------------------------- #
+#
+#   Submit a batch job:
+#     >> condor_submit job.jdl
+#
+#   Submit an interactive job (max 24 h):
+#     >> condor_submit -interactive job.jdl
+#
+#   Check your jobs (all users, all submit hosts):
+#     >> condor_q -all -global
+#
+#   Show only running jobs:
+#     >> condor_q -constraint 'JobStatus == 2'
+#
+#   Show running jobs expanded (unfold arrays):
+#     >> condor_q -nobatch
+#
+#   Find out why an IDLE job is not starting:
+#     >> condor_q -better-analyze <JobID>
+#
+#   Tail stdout of a running job:
+#     >> condor_tail -f <JobID>
+#
+#   Tail stderr of a running job:
+#     >> condor_tail -stderr <JobID>
+#
+#   Kill / remove jobs:
+#     >> condor_rm <ClusterID>          # specific cluster
+#     >> condor_rm -all                 # all your jobs
+#
+#   Release held jobs:
+#     >> condor_release <your-uni-id>
+#
+#   Check job resource usage (running jobs):
+#     >> condor_q -constraint 'JobStatus == 2' -af:hj Cmd ResidentSetSize_RAW RequestMemory DiskUsage_RAW RequestDisk RequestCPUs CPUsUsage
+#
+#   Check resource usage of finished jobs:
+#     >> condor_history -constraint 'JobStatus == 4' -af:hj Cmd ResidentSetSize_RAW RequestMemory DiskUsage_RAW RequestDisk
+#
+#   Check user priorities:
+#     >> condor_userprio -allusers -all
+#
+#   Raise priority of your job by 10:
+#     >> condor_prio -p 10 <JobID>
+#
+#   Edit resources of IDLE jobs (only JobStatus == 1):
+#     >> condor_qedit <ClusterID> -constraint 'JobStatus == 1' RequestMemory 1500 RequestCpus 4
+#
+#   Tip: Use python -u for unbuffered stdout in Python jobs.
+
+# ---------------------------------------------------------------------- #
+#  CHECKING AVAILABLE RESOURCES
+# ---------------------------------------------------------------------- #
+#
+#   GPU machines and their free slots:
+#     >> condor_status -compact -constraint 'GPUs > 0' -af:h Machine State GPUs Cpus Memory Disk CUDADeviceName
+#
+#   GPU machines — total vs. used resources:
+#     >> condor_status -compact -constraint 'GPUs > 0' -af:h Machine State TotalGPUs GPUs TotalCpus Cpus TotalMemory Memory TotalDisk Disk CUDADeviceName
+#
+#   Available (idle) slots with free CPUs / Memory / CephFS capability:
+#     >> condor_status -avail -af:h Name Memory Cpus CephFS_IO_Capability
+#
+#   Machine health and reboot status:
+#     >> condor_status -compact -af:h Machine NODE_IS_HEALTHY StartJobs NODE_HEALTH MARKED_FOR_REBOOT NODE_REBOOT_REASONS NODE_REBOOT_ACTION DRAIN_FOR_REBOOT_AFTER 'formatTime(DRAIN_FOR_REBOOT_AFTER)'
+#
+#   Draining nodes and acceptable job lengths:
+#     >> condor_status -compact -af:h Machine CPUs BackfillableMaxRuntimeHours 'formatTime(MaxLatestJobEndTime)' IMMEDIATE_DRAIN TIMED_DRAIN DRAIN_TARGET_TIME 'formatTime(DRAIN_TARGET_TIME)' DRAIN_REASONS
+#
+# ---------------------------------------------------------------------- #
+#  BAF SPECIAL ATTRIBUTES
+# ---------------------------------------------------------------------- #
+#
+#  +ContainerOS — operating system inside the container
+#  ┌──────────────────┬───────────────────────────────────────┐
+#  │ Value            │ Notes                                 │
+#  ├──────────────────┼───────────────────────────────────────┤
+#  │ "Debian13"       │ Latest Debian                         │
+#  │ "Debian12"       │                                       │
+#  │ "Debian11"       │                                       │
+#  │ "Rocky9"         │ RHEL 9 compatible (recommended)       │
+#  │ "Rocky8"         │ RHEL 8 compatible                     │
+#  └──────────────────┴───────────────────────────────────────┘
+#
+#  +CephFS_IO — I/O throughput class to /cephfs
+#  ┌──────────┬──────────────────────────────────────────────────────────┐
+#  │ Value    │ Meaning                                                  │
+#  ├──────────┼──────────────────────────────────────────────────────────┤
+#  │ "high"   │ Max throughput (56 GBit/s InfiniBand)                    │
+#  │ "medium" │ Moderate (Ethernet, e.g. simulation output)              │
+#  │ "low"    │ Minimal (status files, small text files)                 │
+#  │ "none"   │ Job does not access /cephfs at all                       │
+#  └──────────┴──────────────────────────────────────────────────────────┘
+#
+#  +MaxRuntimeHours — maximum wallclock time per job
+#  ┌─────────────────────┬──────────────────────┐
+#  │ Job Type            │ Runtime Limit        │
+#  ├─────────────────────┼──────────────────────┤
+#  │ Interactive Job     │ 24 hours (max)       │
+#  │ Batch Job           │ 7 days = 168 h (max) │
+#  └─────────────────────┴──────────────────────┘
+#  Shorter runtimes may let your job backfill draining nodes.
+#  The job is killed if it exceeds this time — always include a safety margin.
+#
+#  Environment setup files (sourced automatically):
+#    $BUDDY/.bashrc_Rocky9     $BUDDY/.bashrc_Debian13
+#    $BUDDY/.bashrc_Rocky8     $BUDDY/.bashrc_Debian12
+#                               $BUDDY/.bashrc_Debian11
+#
+# ---------------------------------------------------------------------- #
+#  GPU MACHINES — available hardware on BAF
+# ---------------------------------------------------------------------- #
+#
+#  ┌───────────────────┬──────────┬──────────┬──────────┬──────────┬──────────┐
+#  │ CUDADeviceName    │ GPUs     │ CPUs     │ RAM      │ Disk     │ VRAM/GPU │
+#  ├───────────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+#  │ "NVIDIA H200"     │ 8 total  │ 192      │ 2,322 GB │ ~ 3.3 TB │ 141 GB   │
+#  │ "NVIDIA H100 PCIe"│ 2 total  │ 128      │ 2,064 GB │ ~ 6.6 TB │ 80 GB    │
+#  └───────────────────┴──────────┴──────────┴──────────┴──────────┴──────────┘
+#
+#  When changing request_gpus, also update CUDA_VISIBLE_DEVICES and
+#  --nproc_per_node in your job script to match.
+#
+#  CPU cores per GPU (approx):  H200 → 24  |  H100 → 64
+#  (Divide TotalCpus by TotalGPUs for your allocation.)
+#
+# ---------------------------------------------------------------------- #
+#  IMPORTANT NOTES
+# ---------------------------------------------------------------------- #
+#
+#  * Only the "vanilla" universe is supported (no MPI / parallel universe).
+#  * Do NOT submit from /cephfs — use your home directory.
+#  * Do NOT put CephFS files in transfer_input_files / transfer_output_files.
+#  * HTCondor transfers back all files in the job working directory (/jwd).
+#    Put temporary files in a subdirectory of /jwd to avoid this.
+#  * The executable is copied as condor_exec.exe, so $0 is not the original
+#    script name inside the job.
+#  * set -e is recommended in scripts — but do NOT use it before setupATLAS.
+#  * For jobs > 24 h or large queues, prolong your Kerberos TGT:
+#    https://confluence.team.uni-bonn.de/spaces/PHYIT/pages/17011120/Prolonging+Kerberos+TGTs
+#  * Interactive jobs block resources — do not keep shells open unnecessarily.
+#  * Full BAF HTCondor docs:
+#    https://confluence.team.uni-bonn.de/spaces/PHYIT/pages/10814633/HTCondor+on+BAF
+#  * GPU-specific docs:
+#    https://confluence.team.uni-bonn.de/spaces/PHYIT/pages/12289903/HTCondor+GPU+jobs
+#  * Helpful commands cheatsheet:
+#    https://confluence.team.uni-bonn.de/spaces/PHYIT/pages/10814637/Helpful+HTCondor+commands
+#
+# =============================================================================================== #

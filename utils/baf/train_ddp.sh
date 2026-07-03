@@ -1,6 +1,9 @@
 #!/bin/bash
 #
-# Launched by train_ddp.jdl.
+# To lunch this bash script, you need to submit a HTCondor job with the following JDL:
+#   >> condor_submit job.jdl
+#
+# Where in job.jdl, you set the executable to this script.
 #
 # Workflow:
 #   1. Load CUDA/driver modules via .modules.sh
@@ -18,14 +21,16 @@
 
 # ${BUDDY} is set by HTCondor to your CephFS home (e.g., /cephfs/user/sfatimah).
 workdir="${BUDDY}"
-mkdir -p "$workdir/run_outputs"
+venv_name=".venv"
+venv_path="$workdir/$venv_name.tar.gz"
+mkdir -p "$workdir/logs"
 cd "$workdir"
 
 # CLUSTER_ID: unique job identifier passed from the JDL via arguments = $(ClusterId).
 # Used to name log files so multiple runs don't overwrite each other.
 CLUSTER_ID="${1:-$$}"
-out="$workdir/run_outputs/ddp-out.${CLUSTER_ID}"
-err="$workdir/run_outputs/ddp-err.${CLUSTER_ID}"
+out="$workdir/logs/out.${CLUSTER_ID}"
+err="$workdir/logs/err.${CLUSTER_ID}"
 
 #############################################
 # Modules & Libraries Setup
@@ -39,21 +44,21 @@ source "$workdir/llm-foundry/.modules.sh" > "$out" 2>&1
 # First login on an interactive node and run create_venv_training.sh to create the tarball,
 # then all subsequent training jobs can use it.
 cd /jwd
-tar xf "$workdir/venv_ddp.tar.gz" 2>/dev/null || {
+tar xf "$venv_path" 2>/dev/null || {
     echo "# ERROR: venv tarball not found" >> "$out"
-    echo "# Run: bash $workdir/llm-foundry/utils/optimus_prime/create_venv_training.sh" >> "$out"
+    echo "# Run the create_venv.sh script first (see the llm-foundry)" >> "$out"
     exit 1
 }
-source /jwd/venv_ddp/bin/activate
+source /jwd/$venv_name/bin/activate
 
 #############################################
 # 3. Environment Setup
 #############################################
 
-export SPECS_FILE="$workdir/llm-foundry/distributed/specifications.yaml"
+export SPECS_FILE="$workdir/specifications.yaml"
 export CUDA_VISIBLE_DEVICES=0,1
-export OMP_NUM_THREADS=16
-export HF_DATASETS_CACHE="/jwd/.cache"
+export OMP_NUM_THREADS=24
+export HF_DATASETS_CACHE="$workdir/.cache"
 export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE"
 export WANDB_DIR="$HF_DATASETS_CACHE/wandb"
 export TRITON_CACHE_DIR="$HF_DATASETS_CACHE/triton_cache/${CLUSTER_ID}"
