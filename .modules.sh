@@ -73,7 +73,14 @@ _detect_cluster() {
         return 0
     fi
 
+    #BAF: Inside a container
     if [[ "${hostname_fqdn}" == *baf* ]]; then
+        printf '%s\n' "baf"
+        return 0
+    fi
+
+    # BAF login nodes: exp199, theo199
+    if [[ "${hostname_fqdn}" == exp199.* ]] || [[ "${hostname_fqdn}" == theo199.* ]]; then
         printf '%s\n' "baf"
         return 0
     fi
@@ -115,14 +122,10 @@ fi
 
 echo "[.modules.sh] Cluster: ${_cluster}  Partition: ${_partition:-<none>}" >&2
 
-# BAF is detected purely through the hostname fallback in _detect_cluster():
+# BAF is detected through the hostname in _detect_cluster():
 #
 # BAF uses containers (HTCondor), so there are no SLURM partitions, no
-# EasyBuild modules, and no dual-stack AMD/Intel split. CUDA is hardcoded
-# to /usr/local/cuda-12 and Python comes from miniforge rather than EasyBuild.
-#
-# The entire EasyBuild/module/stack logic (Steps 2–6) is skipped via return 0.
-# Can also be forced with: export LLM_FOUNDRY_STACK=baf
+# EasyBuild modules, and no dual-stack AMD/Intel split.
 if [[ "${_cluster}" == "baf" ]]; then
     export CUDA_HOME="/usr/local/cuda-12"
     export PATH="${CUDA_HOME}/bin:${PATH}"
