@@ -20,6 +20,12 @@ from typing import Any
 
 import datasets
 import yaml
+from patches import (
+    _ensure_vllm_tokenizer_compat,
+    _patch_smolagents_binop_guard,
+    _patch_smolagents_execution_timeout,
+    _PatchedVLLMModel,
+)
 from smolagents import CodeAgent
 from smolagents.agents import EMPTY_PROMPT_TEMPLATES, PromptTemplates, populate_template
 from smolagents.default_tools import (
@@ -294,142 +300,42 @@ class OutputManager:
         return path
 
 
-class _PatchedVLLMModel(VLLMModel):
-    """VLLMModel patch that fixes generation-time sampling-parameter handling.
-
-    smolagents 1.26.0 forwards unrecognized kwargs (such as `max_tokens`)
-    straight into `vllm.LLM.generate()`, which rejects them and crashes
-    the run.
-
-    This subclass keeps the requested generation settings working by:
-
-    * storing `max_tokens`, `temperature`, `top_p` and `top_k` separately (so
-      they never land in `self.kwargs` and leak into `LLM.generate()`),
-    * injecting `max_tokens` and `temperature` into each `generate()` call so
-      the `SamplingParams` built by smolagents honours them,
-    * temporarily wrapping `vllm.SamplingParams` to inject `top_p`/`top_k`
-      (which smolagents never forwards), and
-    * temporarily wrapping the underlying `LLM.generate()` to drop the leaked
-      sampling kwargs before vLLM sees them.
-
-    You can see the discussion here:
-    - https://github.com/huggingface/smolagents/issues/2417
-    """
-
-    def __init__(
-        self,
-        *args: Any,
-        max_tokens: int | None = None,
-        temperature: float | None = None,
-        top_p: float | None = None,
-        top_k: int | None = None,
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(*args, **kwargs)
-        self._generation_max_tokens = max_tokens
-        self._generation_temperature = temperature
-        self._generation_top_p = top_p
-        self._generation_top_k = top_k
-
-    def generate(self, messages, **kwargs):  # type: ignore[override]
-        if self._generation_max_tokens is not None:
-            kwargs.setdefault("max_tokens", self._generation_max_tokens)
-        # `temperature` is the only sampling param read from the generate
-        # kwargs by smolagents' SamplingParams construction.
-        if self._generation_temperature is not None:
-            kwargs.setdefault("temperature", self._generation_temperature)
-
-        # smolagents never forwards `top_p`/`top_k` to SamplingParams, so we
-        # inject them by wrapping the SamplingParams constructor for the
-        # duration of this call.
-        import vllm  # type: ignore
-
-        original_sampling_params = vllm.SamplingParams
-        extra_sampling: dict[str, Any] = {}
-        if self._generation_top_p is not None:
-            extra_sampling["top_p"] = self._generation_top_p
-        if self._generation_top_k is not None:
-            extra_sampling["top_k"] = self._generation_top_k
-
-        def _sampling_params_with_extra(*sp_args: Any, **sp_kwargs: Any):
-            for key, value in extra_sampling.items():
-                sp_kwargs.setdefault(key, value)
-            return original_sampling_params(*sp_args, **sp_kwargs)
-
-        original_generate = self.model.generate
-
-        def _generate_without_leaked_kwargs(*gen_args: Any, **gen_kwargs: Any):
-            # smolagents leaks sampling kwargs into LLM.generate(); strip the
-            # ones the vLLM offline engine does not accept (they are already
-            # applied via SamplingParams).
-            for leaked in ("max_tokens", "temperature", "top_p", "top_k"):
-                gen_kwargs.pop(leaked, None)
-            # Suppress vLLM's per-call "Processed prompts" tqdm progress bar,
-            # which otherwise floods stderr (and leaks into captured error
-            # messages).
-            gen_kwargs.setdefault("use_tqdm", False)
-            return original_generate(*gen_args, **gen_kwargs)
-
-        vllm.SamplingParams = _sampling_params_with_extra
-        self.model.generate = _generate_without_leaked_kwargs
-        try:
-            return super().generate(messages, **kwargs)
-        finally:
-            self.model.generate = original_generate
-            vllm.SamplingParams = original_sampling_params
-
-
-def _ensure_vllm_tokenizer_compat() -> None:
-    """Restore the legacy `vllm.transformers_utils.tokenizer` import path.
-
-    smolagents 1.26.0 imports `get_tokenizer` from
-    `vllm.transformers_utils.tokenizer`, but vLLM >= ~0.11 moved that
-    function to `vllm.tokenizers`. When running against the newer vLLM we
-    register an alias module so the import keeps working without pinning
-    an older vLLM build.
-
-    You can see the discussion here:
-    - https://github.com/huggingface/smolagents/issues/2417
-    """
-    import importlib
-    import sys
-    import types
-
-    legacy_path = "vllm.transformers_utils.tokenizer"
-    if legacy_path in sys.modules:
-        return
-    try:
-        importlib.import_module(legacy_path)
-        return  # Legacy path already exists on this vLLM version.
-    except ModuleNotFoundError:
-        pass
-
-    try:
-        from vllm.tokenizers import cached_get_tokenizer, get_tokenizer
-    except Exception as exc:
-        logger.warning("Could not set up vLLM tokenizer compatibility shim: %s", exc)
-        return
-
-    shim = types.ModuleType(legacy_path)
-    shim.get_tokenizer = get_tokenizer
-    shim.cached_get_tokenizer = cached_get_tokenizer
-    sys.modules[legacy_path] = shim
-    logger.info(
-        "🩹 Applied vLLM tokenizer compatibility shim (%s -> vllm.tokenizers).", legacy_path
-    )
-
-
 def setup_triton_cache() -> None:
     """Setup a per-rank Triton cache directory with stale-file cleanup.
 
+    Determines the local rank using (in order of preference):
+    1. torch.distributed.get_rank() if distributed is initialized
+    2. LOCAL_RANK environment variable
+    3. CUDA_VISIBLE_DEVICES environment variable (comma-joined values
+       replaced with hyphens)
+    4. Falls back to "0"
+
     Creates a directory scoped to the SLURM job (if running under SLURM)
-    and the local CUDA_VISIBLE_DEVICES rank, then cleans up cache files
-    older than TRITON_CACHE_CLEANUP_AGE seconds.
+    and the determined rank, then cleans up cache files older than
+    TRITON_CACHE_CLEANUP_AGE seconds.
     """
     cache_dir = os.environ.get("TRITON_CACHE_DIR", "./.cache/triton_cache")
     slurm_job_id = os.environ.get("SLURM_JOB_ID", "local")
-    cuda_visible_device = os.environ.get("CUDA_VISIBLE_DEVICES", "0").replace(",", "-")
-    rank_cache_dir = f"{cache_dir}/{slurm_job_id}/rank_{cuda_visible_device}"
+
+    # Determine rank: prefer torch.distributed, then env vars, then default.
+    try:
+        import torch
+
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
+            rank = str(torch.distributed.get_rank())
+        elif "LOCAL_RANK" in os.environ:
+            rank = os.environ["LOCAL_RANK"]
+        elif "CUDA_VISIBLE_DEVICES" in os.environ:
+            rank = os.environ["CUDA_VISIBLE_DEVICES"].replace(",", "-")
+        else:
+            rank = "0"
+    except ImportError:
+        rank = os.environ.get(
+            "LOCAL_RANK",
+            os.environ.get("CUDA_VISIBLE_DEVICES", "0").replace(",", "-"),
+        )
+
+    rank_cache_dir = f"{cache_dir}/{slurm_job_id}/rank_{rank}"
 
     os.makedirs(rank_cache_dir, exist_ok=True)
     os.environ["TRITON_CACHE_DIR"] = rank_cache_dir
@@ -1250,63 +1156,6 @@ def _extract_step_type(step: Any) -> str:
         return type(step).__name__
 
 
-def _patch_smolagents_execution_timeout() -> None:
-    """Patch smolagents' code-execution timeout to never deadlock the run.
-
-    `smolagents.local_python_executor.timeout()` (1.26.0) wraps each code
-    step in `with ThreadPoolExecutor(max_workers=1) as executor:` and calls
-    `future.result(timeout=timeout_seconds)`.  If the wrapped call never
-    returns — e.g. a hung network request from `DuckDuckGoSearchTool` /
-    `WikipediaSearchTool` (no internet egress on some compute nodes, DNS
-    hang, upstream rate limiting, ...) or literally an LLM-generated
-    infinite loop — `future.result()` correctly raises after
-    *timeout_seconds*, but the surrounding `with` block still calls
-    `executor.shutdown(wait=True)` on exit. Since the leaked worker thread
-    can never be killed and never returns, `shutdown(wait=True)` blocks
-    *forever*, silently freezing the whole job with zero further log
-    output.
-
-    This patches the module-level `timeout` decorator (referenced by name
-    at call time inside `LocalPythonExecutor.__call__`, so replacing the
-    module attribute here takes effect immediately) to call
-    `executor.shutdown(wait=False)` instead, so a stuck call can no longer
-    block per-example progress.
-
-    See: https://github.com/huggingface/smolagents/blob/v1.26.0/src/smolagents/local_python_executor.py
-    Issue: https://github.com/huggingface/smolagents/issues/2464
-    """
-    import functools
-    from concurrent.futures import ThreadPoolExecutor
-    from concurrent.futures import TimeoutError as FuturesTimeoutError
-
-    import smolagents.local_python_executor as _lpe
-
-    def _non_deadlocking_timeout(timeout_seconds: int):
-        def decorator(func):
-            @functools.wraps(func)
-            def wrapper(*args: Any, **kwargs: Any):
-                executor = ThreadPoolExecutor(max_workers=1)
-                future = executor.submit(func, *args, **kwargs)
-                try:
-                    return future.result(timeout=timeout_seconds)
-                except FuturesTimeoutError:
-                    # Do NOT block on shutdown(wait=True): the worker thread
-                    # may be stuck forever on a hung network call.
-                    executor.shutdown(wait=False)
-                    raise _lpe.ExecutionTimeoutError(
-                        f"Code execution exceeded the maximum execution time of {timeout_seconds} seconds"
-                    ) from None
-
-            return wrapper
-
-        return decorator
-
-    _lpe.timeout = _non_deadlocking_timeout
-    logger.info(
-        "🩹 Patched smolagents execution timeout to avoid shutdown() deadlock on hung calls."
-    )
-
-
 def _build_default_tools(timeout_seconds: int | None = None, language: str = "en") -> list[Tool]:
     """Build the standard set of tools for a CodeAgent.
 
@@ -1327,6 +1176,7 @@ def _build_default_tools(timeout_seconds: int | None = None, language: str = "en
         List of Tool instances.
     """
     _patch_smolagents_execution_timeout()
+    _patch_smolagents_binop_guard()
 
     if language == "pt":
         from tools import RegionDuckDuckGoSearchTool
