@@ -190,9 +190,13 @@ condor_history <-USERID->            # See your completed jobs
 
 For other useful commands, check the [BAF documentation](https://confluence.team.uni-bonn.de/spaces/PHYIT/pages/10814637/Helpful+HTCondor+commands).
 
-## mCommon issues
+## Common Issues
 
-| Issue                                    | Possible Fix                                                                                                         |
-|------------------------------------------|----------------------------------------------------------------------------------------------------------------------|
-| Job stays idle (`condor_q` shows `IDLE`) | Check `condor_q -better-analyze <JOBID>`. Usually the resources you requested in job.jdl are not available.    |
-| OOM Error                                | Reduce both `total_batch_size` and `micro_batch_size` equally, or reduce model architecture values in `config.json`. |
+
+### Job stays idle (`condor_q` shows `IDLE`)
+
+Check `condor_q -better-analyze <JOBID>`. Usually the resources you requested in job.jdl are not available.
+
+### OOM Error
+
+Reduce both `total_batch_size` and `micro_batch_size` equally, or reduce model architecture values in `config.json`. Also, increasing the `request_memory` in your jdl script may help.
