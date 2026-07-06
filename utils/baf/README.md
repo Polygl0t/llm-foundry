@@ -3,15 +3,13 @@
 
 ## Table of Contents
 
-| Section | Description |
-|---|---|
-| [Accessing the BAF Cluster](#accessing-the-baf-cluster-aka-the-optimus-prime-cluster) | SSH setup, key pair, and login |
-| [General Documentation](#general-documentation) | Official docs, storage layout, quotas |
-| [Running Jobs on BAF](#running-jobs-on-baf) | Create venv, submit training jobs, monitor |
-| [Working with Datasets](#working-with-datasets) | Downloading and preparing datasets on BAF |
-| [Common Issues](#common-issues) | Troubleshooting idle jobs, OOM, and other problems |
-
----
+| Section                                                                               | Description                                        |
+|---------------------------------------------------------------------------------------|----------------------------------------------------|
+| [Accessing the BAF Cluster](#accessing-the-baf-cluster-aka-the-optimus-prime-cluster) | SSH setup, key pair, and login                     |
+| [General Documentation](#general-documentation)                                       | Official docs, storage layout, quotas              |
+| [Running Jobs on BAF](#running-jobs-on-baf)                                           | Create venv, submit training jobs, monitor         |
+| [Working with Datasets](#working-with-datasets)                                       | Downloading and preparing datasets on BAF          |
+| [Common Issues](#common-issues)                                                       | Troubleshooting idle jobs, OOM, and other problems |
 
 ## Accessing the BAF Cluster (aka, the Optimus Prime Cluster)
 
@@ -206,40 +204,38 @@ condor_history <-USERID->            # See your completed jobs
 
 For other useful commands, check the [BAF documentation](https://confluence.team.uni-bonn.de/spaces/PHYIT/pages/10814637/Helpful+HTCondor+commands).
 
----
-
 ## Working with Datasets
 
-### 1. Downloading 
+### 1. Downloading
 
-According to the BAF IT-support team, large dataset downloads should not be submitted as cluster jobs. Instead, download directly from a login node (desktop12.physik.uni-bonn.de) and write the output to your $BUDDY directory (`/cephfs/user/<user-name>/`).
+According to the BAF IT-support team, large dataset downloads should not be submitted as cluster jobs. Instead, download directly from a login node (desktop12.physik.uni-bonn.de) and write the output to your $BUDDY directory (`/cephfs/user/<-USERID->/`).
 No condor_submit, just run the download right from the login node.
 
 Why:
 - Downloading from inside a cluster job goes through the shared cluster gateway, which limits the number of concurrent outbound connections. This can makes large downloads slow or stuck.
-- Downloading to your home directory (`/home/<user-name>/`) puts heavy load on the shared home file system, which impacts other users and can easily be avoided by writing directly to CephFS instead.
+- Downloading to your home directory (`/home/<-USERID->/`) puts heavy load on the shared home file system, which impacts other users and can easily be avoided by writing directly to CephFS instead.
 
 ```bash
-# On the login node 
-
+# On the login node
 # If you need a small venv for downloading for example if downloading from HuggingFace, we would need libraries like huggingface_hub
 module load miniforge/24.7.1-0-py312
 source venv  # or your venv
 ```
+
 Run in `screen` to survive disconnects:
+
 ```bash
 screen -S download
 
-# Example: downloading a dataset from HuggingFace. You can change the repo_name, output_dir(point to $BUDDY), cache_dir(point to $BUDDY), hf_token, repo_type and allow_patterns as needed.
+# Example: downloading a dataset from HuggingFace. You can change the repo_name, output_dir (point to $BUDDY), cache_dir (point to $BUDDY), hf_token, repo_type and allow_patterns as needed.
 python3 llm-foundry/utils/download.py \
     --repo_name "Polygl0t/gigalekh-v1" \
     --output_dir "$BUDDY/gigalekh" \
     --cache_dir "$BUDDY/.cache" \
     --token "$HF_TOKEN" \
     --repo_type "dataset" \
-    --allow_patterns "default/*.parquet" 
+    --allow_patterns "default/*.parquet"
 ```
----
 
 ## Common Issues
 
