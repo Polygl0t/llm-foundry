@@ -56,7 +56,6 @@ source /jwd/$venv_name/bin/activate
 #############################################
 
 export SPECS_FILE="$workdir/specifications.yaml"
-export CUDA_VISIBLE_DEVICES=0,1
 export OMP_NUM_THREADS=24
 export HF_DATASETS_CACHE="$workdir/.cache"
 export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE"

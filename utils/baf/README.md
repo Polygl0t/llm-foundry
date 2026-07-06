@@ -9,17 +9,17 @@
 | [General Documentation](#general-documentation)                                       | Official docs, storage layout, quotas              |
 | [Running Jobs on BAF](#running-jobs-on-baf)                                           | Create venv, submit training jobs, monitor         |
 | [Working with Datasets](#working-with-datasets)                                       | Downloading and preparing datasets on BAF          |
-| [Common Issues](#common-issues)                                                       | Troubleshooting idle jobs, OOM, and other problems |
+| [Common Issues](#common-issues)                                                       | Problems you may encounter and how to resolve them |
 
 ## Accessing the BAF Cluster (aka, the Optimus Prime Cluster)
 
 To work on BAF, you first need to be granted access. Contact your local administrator to get access. Once you have been added (through your UniID), you can log in using the following command:
 
 ```bash
-ssh <-USERID->@desktop.physik.uni-bonn.de
+ssh <-Uni-ID->@desktop.physik.uni-bonn.de
 ```
 
-You will be prompted for your UniID password.
+You will be prompted for your Uni-ID password.
 
 By default, you must enter your password every time you connect. To avoid this, set up an SSH key pair by following the steps below.
 
@@ -41,12 +41,12 @@ ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_baf
 
 ### 3. Configure the SSH alias
 
-Open (or create) `~/.ssh/config` and add the following entry, replacing `<-USERID->` with your UniID:
+Open (or create) `~/.ssh/config` and add the following entry, replacing `<-Uni-ID->` with your UniID:
 
 ```text
 Host baf
   HostName desktop.physik.uni-bonn.de
-  User <-USERID->
+  User <-Uni-ID->
   IdentityFile ~/.ssh/id_ed25519_baf
   IdentitiesOnly yes
 ```
@@ -54,7 +54,7 @@ Host baf
 ### 4. Copy your public key to the cluster
 
 ```bash
-ssh-copy-id -i ~/.ssh/id_ed25519_baf.pub <-USERID->@desktop.physik.uni-bonn.de
+ssh-copy-id -i ~/.ssh/id_ed25519_baf.pub <-Uni-ID->@desktop.physik.uni-bonn.de
 ```
 
 Enter your UniID password when prompted — this is the last time you will need it.
@@ -79,7 +79,7 @@ Some information there may be outdated, but it gives you the essential backgroun
 Every user by default is equipped with a personal data storage directory at
 
 ```
-/cephfs/user/<-USERID->/
+/cephfs/user/<-Uni-ID->/
 ```
 
 Within the Job-containers, this directory can be easily accessed via the environment variable `$BUDDY`. There is a quota on the **number of files (100,000) and the available space (500 GB)** for your BUDDY directory.
@@ -149,7 +149,7 @@ bash $BUDDY/create_venv.sh
 | Verify           | Prints all installed package versions                                                  |
 | Package tarball  | Creates `.venv.tar.gz` on CephFS                                                       |
 
-The tarball is saved to `${BUDDY}/.venv.tar.gz` (i.e., `/cephfs/user/<-USERID->/.venv.tar.gz`). You can change the name of the tarball in the script if you want. This tarball will be used by all subsequent training jobs to extract the venv into their jwd.
+The tarball is saved to `${BUDDY}/.venv.tar.gz` (i.e., `/cephfs/user/<-Uni-ID->/.venv.tar.gz`). You can change the name of the tarball in the script if you want. This tarball will be used by all subsequent training jobs to extract the venv into their jwd.
 
 ## 2. Run the Training Pipeline
 
@@ -166,7 +166,7 @@ We provide example files in:
 
 > - **Note:** Remember to submit jobs from your home directory, not from `/cephfs`. For optimal performance, you should lunch the jdl from your home directory, and use the BUDDY directory for storing the executables, data, checkpoints, logs, etc. See [the docs](https://confluence.team.uni-bonn.de/spaces/PHYIT/pages/10814633/HTCondor+on+BAF#HTCondoronBAF-SubmittingaClusterJob%2FJobArray) for more information.
 >
-> - **Note:** Due to some default configurations in the BAF cluster, you cannot directly clone repositories from GitHub inside `$BUDDY`. Therefore, you should clone the repository in your home directory (i.e., `/home/<-USERID->/physik/llm-foundry`) and copy it to `$BUDDY`. When you already have the repository in your `$BUDDY`, you go into the said repository, and set this configuration: `git config fetch.unpackLimit 10000`. This will allow you to do regular `git fetch` and `git pull` commands straight from your `$BUDDY` directory.
+> - **Note:** Due to some default configurations in the BAF cluster, you cannot directly clone repositories from GitHub inside `$BUDDY`. Therefore, you should clone the repository in your home directory (i.e., `/home/<-Uni-ID->/physik/llm-foundry`) and copy it to `$BUDDY`. When you already have the repository in your `$BUDDY`, you go into the said repository, and set this configuration: `git config fetch.unpackLimit 10000`. This will allow you to do regular `git fetch` and `git pull` commands straight from your `$BUDDY` directory.
 
 
 ### 2.2 Configure your training
@@ -199,7 +199,7 @@ condor_q # see all your jobs
 condor_q -better-analyze <JOBID>    # If your job is not running or if you want to know detailed information about your job, you can use this command. <JOBID> is the number you get under BATCH_NAME
 condor_rm <JOBID>                   # cancel a job
 condor_release <JOBID>              # Release a held job
-condor_history <-USERID->            # See your completed jobs
+condor_history <-Uni-ID->            # See your completed jobs
 ```
 
 For other useful commands, check the [BAF documentation](https://confluence.team.uni-bonn.de/spaces/PHYIT/pages/10814637/Helpful+HTCondor+commands).
@@ -208,12 +208,12 @@ For other useful commands, check the [BAF documentation](https://confluence.team
 
 ### 1. Downloading
 
-According to the BAF IT-support team, large dataset downloads should not be submitted as cluster jobs. Instead, download directly from a login node (desktop12.physik.uni-bonn.de) and write the output to your $BUDDY directory (`/cephfs/user/<-USERID->/`).
+According to the BAF IT-support team, large dataset downloads should not be submitted as cluster jobs. Instead, download directly from a login node (desktop12.physik.uni-bonn.de) and write the output to your $BUDDY directory (`/cephfs/user/<-Uni-ID->/`).
 No condor_submit, just run the download right from the login node.
 
 Why:
 - Downloading from inside a cluster job goes through the shared cluster gateway, which limits the number of concurrent outbound connections. This can makes large downloads slow or stuck.
-- Downloading to your home directory (`/home/<-USERID->/`) puts heavy load on the shared home file system, which impacts other users and can easily be avoided by writing directly to CephFS instead.
+- Downloading to your home directory (`/home/<-Uni-ID->/`) puts heavy load on the shared home file system, which impacts other users and can easily be avoided by writing directly to CephFS instead.
 
 ```bash
 # On the login node
@@ -247,3 +247,9 @@ Check `condor_q -better-analyze <JOBID>`. Usually the resources you requested in
 ### OOM Error
 
 Reduce both `total_batch_size` and `micro_batch_size` equally, or reduce model architecture values in `config.json`. Also, increasing the `request_memory` in your jdl script may help.
+
+### Do not set `CUDA_VISIBLE_DEVICES` in bash scripts
+
+HTCondor handles GPU assignment automatically. If you manually override this variable in your bash scripts, you may end up indexing GPUs that are already assigned to other jobs running on the same node. This can cause your job to **leech** GPUs and resources from other jobs, leading to conflicts and degraded performance.
+
+Therefore, **never set `CUDA_VISIBLE_DEVICES` explicitly** in any script submitted via HTCondor on BAF. Let HTCondor manage GPU visibility for you.
