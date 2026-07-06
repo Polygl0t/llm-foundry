@@ -1,3 +1,4 @@
+
 # BAF Support
 
 ## Accessing the BAF Cluster (aka, the Optimus Prime Cluster)
@@ -154,6 +155,9 @@ We provide example files in:
 - [`utils/baf/train_ddp.sh`](./train_ddp.sh) — bash script that extracts the venv, sets up env vars, and launches the training script. You can modify it to change the packages you need to install in the venv.
 
 > - **Note:** Remember to submit jobs from your home directory, not from `/cephfs`. For optimal performance, you should lunch the jdl from your home directory, and use the BUDDY directory for storing the executables, data, checkpoints, logs, etc. See [the docs](https://confluence.team.uni-bonn.de/spaces/PHYIT/pages/10814633/HTCondor+on+BAF#HTCondoronBAF-SubmittingaClusterJob%2FJobArray) for more information.
+>
+> - **Note:** Due to some default configurations in the BAF cluster, you cannot directly clone repositories from GitHub inside `$BUDDY`. Therefore, you should clone the repository in your home directory (i.e., `/home/<-USERID->/physik/llm-foundry`) and copy it to `$BUDDY`. When you already have the repository in your `$BUDDY`, you go into the said repository, and set this configuration: `git config fetch.unpackLimit 10000`. This will allow you to do regular `git fetch` and `git pull` commands straight from your `$BUDDY` directory.
+
 
 ### 2.2 Configure your training
 
