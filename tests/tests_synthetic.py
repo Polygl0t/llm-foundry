@@ -196,16 +196,19 @@ def test_chunk_text_splits_on_token_boundaries_and_can_keep_first_chunk_only():
 def test_setup_triton_cache_sets_rank_directory_and_removes_stale_files():
     original_env = {
         key: os.environ.get(key)
-        for key in ["TRITON_CACHE_DIR", "SLURM_JOB_ID", "CUDA_VISIBLE_DEVICES"]
+        for key in ["TRITON_CACHE_DIR", "SLURM_JOB_ID", "LOCAL_RANK", "CUDA_VISIBLE_DEVICES"]
     }
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
             cache_root = os.path.join(tmpdir, "triton")
             os.environ["TRITON_CACHE_DIR"] = cache_root
             os.environ["SLURM_JOB_ID"] = "99"
+            # LOCAL_RANK takes priority over CUDA_VISIBLE_DEVICES when both are set.
+            os.environ["LOCAL_RANK"] = "2"
             os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
-            rank_dir = os.path.join(cache_root, "99", "rank_0-1")
+            # The rank should come from LOCAL_RANK, not CUDA_VISIBLE_DEVICES.
+            rank_dir = os.path.join(cache_root, "99", "rank_2")
             os.makedirs(rank_dir, exist_ok=True)
             stale_file = os.path.join(rank_dir, "stale_kernel.so")
             fresh_file = os.path.join(rank_dir, "fresh_kernel.so")
