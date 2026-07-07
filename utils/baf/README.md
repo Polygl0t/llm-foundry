@@ -230,12 +230,14 @@ screen -S download
 # Example: downloading a dataset from HuggingFace. You can change the repo_name, output_dir (point to $BUDDY), cache_dir (point to $BUDDY), hf_token, repo_type and allow_patterns as needed.
 python3 llm-foundry/utils/download.py \
     --repo_name "Polygl0t/gigalekh-v1" \
-    --output_dir "$BUDDY/gigalekh" \
+    --output_dir "$BUDDY" \
     --cache_dir "$BUDDY/.cache" \
     --token "$HF_TOKEN" \
     --repo_type "dataset" \
     --allow_patterns "default/*.parquet"
 ```
+
+A working example of downloading a dataset from HuggingFace is provided in the [`./download.sh`](./download.sh) script. You can modify it to download other datasets (and models) as needed.
 
 ## Common Issues
 
