@@ -44,7 +44,7 @@ from smolagents.models import (
 )
 from smolagents.monitoring import LogLevel
 from smolagents.tools import Tool
-from tools import MathTool, get_custom_tools
+from tools import get_custom_tools
 
 # Logger for generate_agent_traces.py and utils.py
 logger = logging.getLogger("AgentTraceRecorder")
@@ -1264,10 +1264,6 @@ def execute_single_trace(
     # - "unicodedata"
     if additional_authorized_imports:
         authorized_imports.extend(additional_authorized_imports)
-
-    # If the MathTool is in use, it relies on sympy, so authorize it.
-    if any(isinstance(t, MathTool) for t in tools) and "sympy" not in authorized_imports:
-        authorized_imports.append("sympy")
 
     # Build full prompt templates
     # If the prompt_templates dict somehow lacks a system_prompt key,

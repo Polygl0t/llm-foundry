@@ -12,6 +12,8 @@ All tools subclass smolagents.Tool and follow its standard contract.
 """
 
 import contextlib
+import io
+import multiprocessing as mp
 import re
 import time
 from pathlib import Path
@@ -459,55 +461,28 @@ class FileInfoTool(Tool):
         return "\n".join(lines)
 
 
-class MathTool(Tool):
-    """Solve advanced mathematical problems using sympy.
+# Timeout for math tool subprocesses.  This is a hard wall-clock timeout
+# that kills the subprocess if it exceeds this duration.  This is necessary
+# because sympy can get stuck in big-integer arithmetic or other symbolic
+# computations that cannot be preempted by a thread-based timeout.
+MATH_TOOL_TIMEOUT_SECONDS = 30
 
-    This tool uses Python's sympy library for symbolic mathematics:
-    equation solving, calculus, linear algebra, simplification, etc.
-    The agent writes a sympy code snippet that is executed in this tool's
-    own sandbox.  The snippet must print() the final answer.
 
-    Available imports: sympy (as sp), math, fractions, decimal.
+def _math_worker(code: str, problem: str, result_queue: "mp.Queue") -> None:
+    """Execute *code* against a sympy-backed namespace in a fresh process.
+
+    Runs in a `multiprocessing` **spawn** subprocess (started fresh via
+    `spawn`, i.e. NOT a `fork()` of the parent — forking would be unsafe
+    here since the parent process has an active CUDA/vLLM context). Puts a
+    `(status, payload)` tuple on *result_queue*, where `status` is
+    `"ok"` or `"error"`.
     """
-
-    name = "solve_math"
-    description = (
-        "Solve a mathematical problem using sympy (symbolic mathematics).  "
-        "Write a short Python code snippet that uses sympy (available as "
-        "'sp') to compute the answer and PRINT it.  "
-        "Examples:\n"
-        "  - 'sp.solve(sp.Eq(x**2 + 2*x + 1, 0), x)'\n"
-        "  - 'sp.integrate(sp.sin(x), x)'\n"
-        "  - 'sp.limit(sp.sin(x)/x, x, 0)'\n"
-        "  - 'sp.Matrix([[1,2],[3,4]]).eigenvals()'\n"
-        "The *problem* description is for context; the actual computation "
-        "happens inside *code*."
-    )
-    inputs = {
-        "problem": {
-            "type": "string",
-            "description": "Natural-language description of the mathematical problem.",
-        },
-        "code": {
-            "type": "string",
-            "description": (
-                "Python/sympy code that solves the problem and prints the answer. "
-                "sympy is pre-imported as 'sp'."
-            ),
-        },
-    }
-    output_type = "string"
-
-    def forward(self, problem: str, code: str) -> str:
-        # Build a safe execution namespace
-        try:
-            import sympy
-        except ImportError:
-            return "Error: sympy is not installed in this environment. Run: pip install sympy"
-
+    try:
         import math as _math
         from decimal import Decimal
         from fractions import Fraction
+
+        import sympy
 
         namespace: dict[str, Any] = {
             "sp": sympy,
@@ -553,30 +528,113 @@ class MathTool(Tool):
             "N": sympy.N,
         }
 
-        import io
-
         stdout = io.StringIO()
-
-        with contextlib.suppress(Exception):
-            exec(
-                "import sys; sys.stdout = _capture_stdout\n",
-                {**namespace, "_capture_stdout": stdout},
-            )
-
-        try:
-            exec(code, namespace)
-        except Exception as exc:
-            return f"Math execution error: {type(exc).__name__}: {exc}"
+        with contextlib.redirect_stdout(stdout):
+            try:
+                exec(code, namespace)
+            except Exception as exc:
+                result_queue.put(("error", f"{type(exc).__name__}: {exc}"))
+                return
 
         captured = stdout.getvalue().strip()
-        # Also check if the code assigned to a variable named 'result'
         result = namespace.get("result")
         if result is not None and not captured:
             captured = str(result)
 
         if not captured:
-            return "The code ran without printing anything. Make sure to print() the answer."
-        return f"Problem: {problem}\nResult: {captured}"
+            result_queue.put(
+                (
+                    "error",
+                    "The code ran without printing anything. Make sure to print() the answer.",
+                )
+            )
+            return
+        result_queue.put(("ok", f"Problem: {problem}\nResult: {captured}"))
+    except Exception as exc:  # pragma: no cover - defensive catch-all
+        result_queue.put(("error", f"{type(exc).__name__}: {exc}"))
+
+
+class MathTool(Tool):
+    """Solve advanced mathematical problems using sympy.
+
+    This tool uses Python's sympy library for symbolic mathematics:
+    equation solving, calculus, linear algebra, simplification, etc.
+    The agent writes a sympy code snippet that is executed in this tool's
+    own sandbox.
+
+    Available imports: sympy (as sp), math, fractions, decimal.
+    """
+
+    name = "solve_math"
+    description = (
+        "Solve a mathematical problem using sympy (symbolic mathematics).  "
+        "Write a short Python code snippet that uses sympy (available as "
+        "'sp') to compute the answer and PRINT it.  "
+        "Examples:\n"
+        "  - 'sp.solve(sp.Eq(x**2 + 2*x + 1, 0), x)'\n"
+        "  - 'sp.integrate(sp.sin(x), x)'\n"
+        "  - 'sp.limit(sp.sin(x)/x, x, 0)'\n"
+        "  - 'sp.Matrix([[1,2],[3,4]]).eigenvals()'\n"
+        "The *problem* description is for context; the actual computation "
+        "happens inside *code*."
+    )
+    inputs = {
+        "problem": {
+            "type": "string",
+            "description": "Natural-language description of the mathematical problem.",
+        },
+        "code": {
+            "type": "string",
+            "description": (
+                "Python/sympy code that solves the problem and prints the answer. "
+                "sympy is pre-imported as 'sp'."
+            ),
+        },
+    }
+    output_type = "string"
+
+    def __init__(self, timeout_seconds: int = MATH_TOOL_TIMEOUT_SECONDS, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.timeout_seconds = timeout_seconds
+
+    def forward(self, problem: str, code: str) -> str:
+        try:
+            import sympy  # noqa: F401  (fail fast if sympy is missing)
+        except ImportError:
+            return "Error: sympy is not installed in this environment. Run: pip install sympy"
+
+        # Run the actual computation in an isolated *subprocess* (spawn, not
+        # fork) with a hard wall-clock timeout. This guarantees the call can
+        # be killed even if it gets stuck holding the GIL inside sympy/CPython
+        # C-level big-integer arithmetic, which a thread-based timeout cannot
+        # preempt. See MATH_TOOL_TIMEOUT_SECONDS docstring for details.
+        ctx = mp.get_context("spawn")
+        result_queue: mp.Queue = ctx.Queue()
+        proc = ctx.Process(target=_math_worker, args=(code, problem, result_queue), daemon=True)
+        proc.start()
+        proc.join(self.timeout_seconds)
+
+        if proc.is_alive():
+            proc.kill()
+            proc.join(5)
+            return (
+                f"Error: computation exceeded the {self.timeout_seconds}s time limit and was "
+                "terminated. Try a faster approach (e.g. numeric solving with sp.nsolve() "
+                "instead of symbolic sp.solve(), or simplify the equation first)."
+            )
+
+        try:
+            status, payload = result_queue.get_nowait()
+        except Exception:
+            exit_code = proc.exitcode
+            return (
+                f"Error: math subprocess exited unexpectedly (exit code {exit_code}) "
+                "without returning a result."
+            )
+
+        if status == "error":
+            return f"Math execution error: {payload}"
+        return payload
 
 
 def get_custom_tools() -> list[Tool]:
@@ -590,13 +648,13 @@ def get_custom_tools() -> list[Tool]:
         List of instantiated Tools
     """
     return [
-        ReadFileTool(),
-        WriteFileTool(),
-        EditFileTool(),
-        ListDirectoryTool(),
-        SearchFilesTool(),
-        GrepFilesTool(),
-        FileInfoTool(),
+        # ReadFileTool(),
+        # WriteFileTool(),
+        # EditFileTool(),
+        # ListDirectoryTool(),
+        # SearchFilesTool(),
+        # GrepFilesTool(),
+        # FileInfoTool(),
         MathTool(),
     ]
 

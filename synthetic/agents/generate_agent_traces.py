@@ -67,6 +67,19 @@ def main(args) -> None:
     # Ensure only our own logger.info() messages are visible on stdout.
     # Silence noisy third-party loggers.
     logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stdout)
+
+    # Robust catch-all: third-party libraries (e.g. the search/Wikipedia
+    # HTTP clients that emit "response: <url> <status>") propagate their
+    # records up to the root handler.  Rather than chase every individual
+    # logger name, drop anything below WARNING that does not originate from
+    # our own logger so that chatter never reaches the console.
+    class _OwnLoggerOrWarning(logging.Filter):
+        def filter(self, record: logging.LogRecord) -> bool:
+            return record.name.startswith(logger.name) or record.levelno >= logging.WARNING
+
+    for _handler in logging.getLogger().handlers:
+        _handler.addFilter(_OwnLoggerOrWarning())
+
     for _name in (
         "LiteLLM",
         "httpx",
@@ -77,8 +90,13 @@ def main(args) -> None:
         "huggingface_hub",
         "requests",
         "vllm",
+        # Torch inductor emits per-rank Triton bundler WARNINGs
+        # ("Directory ... is not empty - skipping!") that flood the logs.
+        "torch",
+        "torch._inductor",
+        "torch._inductor.triton_bundler",
     ):
-        logging.getLogger(_name).setLevel(logging.WARNING)
+        logging.getLogger(_name).setLevel(logging.ERROR)
     # smolagents internals log per-step code-execution errors and model-
     # generation failures at ERROR level; these are already captured in
     # the trace record, so silence them entirely.
