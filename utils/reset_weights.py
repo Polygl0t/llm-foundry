@@ -1,14 +1,17 @@
 """
 Reset non-attention weights in Llama and Qwen3.5 causal language models.
 
-This keeps attention blocks untouched while re-initializing embeddings,
-layer norms, MLPs, and any other non-attention modules via the model's own
-`_init_weights` implementation.
+By default this keeps attention blocks untouched while re-initializing
+embeddings, layer norms, MLPs, and any other non-attention modules via the
+model's own `_init_weights` implementation. With `--embeddings_only`, only
+the token embeddings (and the lm_head when untied) are re-initialized and
+everything else is preserved.
 
 Usage:
         python reset_weights.py --model Qwen/Qwen3.5-0.6B
         python reset_weights.py --model meta-llama/Llama-2-7b-hf --output_dir ./reset-model
         python reset_weights.py --model ./local-checkpoint --dry_run
+        python reset_weights.py --model ./ckpt --seed 1337 --resize_vocab 49152 --embeddings_only --output_dir ./reset-model
 """
 
 import argparse
@@ -129,6 +132,43 @@ def reset_non_attention_weights(
     return reset_modules, kept_modules
 
 
+def reset_embedding_weights(
+    model: AutoModelForCausalLM,
+    *,
+    dry_run: bool = False,
+) -> tuple[list[str], list[str]]:
+    """Reset ONLY the token-embedding layers, keeping every other module.
+
+    Re-initializes the input embeddings and, when `tie_word_embeddings` is
+    False, the output embeddings (lm_head). With tied embeddings the lm_head
+    shares its weight tensor with the input embedding, so resetting the input
+    embedding covers both.
+    """
+    tie_word_embeddings = getattr(model.config, "tie_word_embeddings", False)
+    input_embeddings = model.get_input_embeddings()
+    output_embeddings = model.get_output_embeddings()
+
+    reset_modules: list[str] = []
+    kept_modules: list[str] = []
+    for name, module in model.named_modules():
+        is_input = module is input_embeddings
+        is_output = output_embeddings is not None and module is output_embeddings
+        if not (is_input or is_output):
+            kept_modules.append(name)
+            continue
+        if is_output and not is_input and tie_word_embeddings:
+            # lm_head shares its weight with embed_tokens; resetting the
+            # input embedding already re-initializes it.
+            print(f"[Info]    Skipping tied module: {name}")
+            kept_modules.append(name)
+            continue
+        reset_modules.append(name)
+        if not dry_run:
+            model._init_weights(module)
+
+    return reset_modules, kept_modules
+
+
 def main(args) -> None:
     """Load a model, reset non-attention weights, and optionally save the result."""
     torch_dtype = resolve_dtype(args.dtype)
@@ -145,11 +185,26 @@ def main(args) -> None:
     )
     model.to(args.device)
 
-    model_type = detect_model_type(model)
-    print(f"    Detected model type: {model_type}")
+    if args.seed is not None:
+        torch.manual_seed(args.seed)
+        print(f"    Seeded re-initialization RNG with: {args.seed}")
 
-    print(f"\n[2] {'Inspecting' if args.dry_run else 'Resetting'} non-attention modules")
-    reset_modules, kept_modules = reset_non_attention_weights(model, dry_run=args.dry_run)
+    if args.resize_vocab is not None:
+        old_vocab = model.get_input_embeddings().weight.shape[0]
+        if not args.dry_run:
+            model.resize_token_embeddings(args.resize_vocab)
+            print(f"    Resized token embeddings: {old_vocab:,} -> {args.resize_vocab:,}")
+        else:
+            print(f"    Would resize token embeddings: {old_vocab:,} -> {args.resize_vocab:,}")
+
+    if args.embeddings_only:
+        print(f"\n[2] {'Inspecting' if args.dry_run else 'Resetting'} embedding modules only")
+        reset_modules, kept_modules = reset_embedding_weights(model, dry_run=args.dry_run)
+    else:
+        model_type = detect_model_type(model)
+        print(f"    Detected model type: {model_type}")
+        print(f"\n[2] {'Inspecting' if args.dry_run else 'Resetting'} non-attention modules")
+        reset_modules, kept_modules = reset_non_attention_weights(model, dry_run=args.dry_run)
     print(f"    Reset modules: {len(reset_modules):,}")
     print(f"    Kept modules:  {len(kept_modules):,}")
 
@@ -204,6 +259,28 @@ if __name__ == "__main__":
         "--dry_run",
         action="store_true",
         help="Print what would be reset without modifying the model.",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Seed for the random re-initialization (torch.manual_seed). "
+        "Set this to make the reset reproducible and to share the exact "
+        "initialization across experimental conditions.",
+    )
+    parser.add_argument(
+        "--embeddings_only",
+        action="store_true",
+        help="Reset only the token embeddings (and lm_head when untied), "
+        "keeping attention, MLPs, and norms intact.",
+    )
+    parser.add_argument(
+        "--resize_vocab",
+        type=int,
+        default=None,
+        help="Resize the model's token embeddings (and tied lm_head) to this "
+        "vocabulary size before resetting, e.g. the downstream tokenizer's "
+        "vocab size.",
     )
     args = parser.parse_args()
 
