@@ -10,6 +10,7 @@
 | [Running Jobs on BAF](#running-jobs-on-baf)                                           | Create venv, submit training jobs, monitor         |
 | [Working with Datasets](#working-with-datasets)                                       | Downloading and preparing datasets on BAF          |
 | [Common Issues](#common-issues)                                                       | Problems you may encounter and how to resolve them |
+| [Dos and Don'ts](#dos-and-donts)                                                      | Common practices to follow for cluster             |
 
 ## Accessing the BAF Cluster (aka, the Optimus Prime Cluster)
 
@@ -164,9 +165,7 @@ We provide example files in:
 - [`utils/baf/job.jdl`](./job.jdl) — HTCondor job description file. You can modify it to change the resources you need for your training job (e.g., GPUs, CPUs, memory). Check the script for details.
 - [`utils/baf/train_ddp.sh`](./train_ddp.sh) — bash script that extracts the venv, sets up env vars, and launches the training script. You can modify it to change the packages you need to install in the venv.
 
-> - **Note:** Remember to submit jobs from your home directory, not from `/cephfs`. For optimal performance, you should lunch the jdl from your home directory, and use the BUDDY directory for storing the executables, data, checkpoints, logs, etc. See [the docs](https://confluence.team.uni-bonn.de/spaces/PHYIT/pages/10814633/HTCondor+on+BAF#HTCondoronBAF-SubmittingaClusterJob%2FJobArray) for more information.
->
-> - **Note:** Due to some default configurations in the BAF cluster, you cannot directly clone repositories from GitHub inside `$BUDDY`. Therefore, you should clone the repository in your home directory (i.e., `/home/<-Uni-ID->/physik/llm-foundry`) and copy it to `$BUDDY`. When you already have the repository in your `$BUDDY`, you go into the said repository, and set this configuration: `git config fetch.unpackLimit 10000`. This will allow you to do regular `git fetch` and `git pull` commands straight from your `$BUDDY` directory.
+>  **Note:** Before doing a git-clone, check this section: [git-clone fails with Permission error on $BUDDY](#git-clone-fails-with-permission-error-on-buddy)
 
 
 ### 2.2 Configure your training
@@ -239,6 +238,22 @@ python3 llm-foundry/utils/download.py \
 
 A working example of downloading a dataset from HuggingFace is provided in the [`./download.sh`](./download.sh) script. You can modify it to download other datasets (and models) as needed.
 
+### 2. Prefer non-GPU machines for data-heavy, CPU-only tasks
+
+If your task is data-heavy and does not require a GPU (e.g., dataset downloading, tokenization, preprocessing, filtering), prefer submitting to **non-GPU machines**. Non-GPU nodes tend to have more CPUs, slightly more memory, and there are about **90 non-GPU nodes compared to only 3 GPU nodes** (at the time of writing this documentation), so you are far more likely to get allocated one quickly. Using non-GPU nodes for CPU-only work also leaves GPU machines free for others who need them for training.
+
+
+To see all non-GPU machines, their total resources, and what is currently available:
+
+```bash
+# Non-GPU machines — total vs. available CPUs, memory, and disk
+condor_status -compact \
+    -constraint 'isUndefined(Gpus) || Gpus == 0' \
+    -af:h Machine State TotalCpus Cpus TotalMemory Memory TotalDisk Disk
+```
+
+In your .jdl file, put `request_gpus = 0`
+
 ## Common Issues
 
 
@@ -250,8 +265,41 @@ Check `condor_q -better-analyze <JOBID>`. Usually the resources you requested in
 
 Reduce both `total_batch_size` and `micro_batch_size` equally, or reduce model architecture values in `config.json`. Also, increasing the `request_memory` in your jdl script may help.
 
+### `condor_q` does not show my job but I know it is running (e.g. logs keep updating)
+
+This happens because BAF has **multiple HTCondor schedds**, and `condor_q` by default only queries the schedd associated with your current login node. Each login node (e.g., `theo198`, `exp198`) talks to its own schedd.
+
+The shift from one host to another happens **automatically**: when you SSH into your login node, the load balancer routes you to an available login node. If you submitted a job while connected to `exp198`, then later reconnected and got placed on `theo198`, `condor_q` will only see the `theo` schedd — so your job appears missing even though it is still running.
+
+**Workaround:** Query all schedds at once:
+
+```bash
+for sd in $(condor_status -schedd -af Name 2>/dev/null); do
+    condor_q sfatimah -name "$sd" 2>/dev/null
+done
+```
+
+This will generate a long list of all jobs submitted by you across all schedds. It is annoying but this is the only way we know so far.
+
+### git-clone fails with Permission error on $BUDDY
+
+Due to some default configurations in the BAF cluster, you cannot directly clone repositories from GitHub inside `$BUDDY`. Therefore, you should clone the repository in your home directory (i.e., `/home/<-Uni-ID->/physik/llm-foundry`) and copy it to `$BUDDY`. When you already have the repository in your `$BUDDY`, you go into the said repository, and set this configuration: `git config fetch.unpackLimit 10000`. This will allow you to do regular `git fetch` and `git pull` commands straight from your `$BUDDY` directory.
+
+
+## Dos and Don'ts
+
+### Do not run jobs from CephFS, but from your home directory.
+According to this [BAF documentation](https://confluence.team.uni-bonn.de/spaces/PHYIT/pages/10814633/HTCondor+on+BAF#HTCondoronBAF-SubmittingaClusterJob%2FJobArray), it's not recommended to run condor_submit in a CephFS directory. Ideally, put only large output, data files, input data on CephFS. 
+
+In our structure, we put our code ('llm-foundry'), logs, checkpoints and dataset in CephFS(`$BUDDY`) because you can access the files in `$BUDDY` from inside the container but you cannot access your home directory. We put .jdl files in home directory and submit from there.
+
 ### Do not set `CUDA_VISIBLE_DEVICES` in bash scripts
 
 HTCondor handles GPU assignment automatically. If you manually override this variable in your bash scripts, you may end up indexing GPUs that are already assigned to other jobs running on the same node. This can cause your job to **leech** GPUs and resources from other jobs, leading to conflicts and degraded performance.
 
 Therefore, **never set `CUDA_VISIBLE_DEVICES` explicitly** in any script submitted via HTCondor on BAF. Let HTCondor manage GPU visibility for you.
+
+### Do not override thread-count environment variables (`OMP_NUM_THREADS`, `MKL_NUM_THREADS`, `TF_NUM_THREADS`, etc.)
+
+ These are all set by the HT condor scheduling system.  If you manually override these in your bash scripts, (for example, hardcoding `export OMP_NUM_THREADS=$(nproc)`), it will cause large inefficiencies for your code, as it will spawn more threads than cores you have reserved. So do not override these variables.
+
