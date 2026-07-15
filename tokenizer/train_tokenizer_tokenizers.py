@@ -6,15 +6,15 @@ tokenizers library. Designed for creating custom tokenizers optimized for specif
 domains, or mixed content (code, natural language, etc.).
 
 Example usage:
-    python train_tokenizer_tokenizers.py \
-        --data_path data/training_corpus \
-        --data_type jsonl \
-        --text_column text \
-        --vocab_size 32000 \
-        --output_dir checkpoints/my_tokenizer \
-        --add_bos_token \
-        --byte_fallback \
-        --hub_repo_id username/my-tokenizer \
+    python train_tokenizer_tokenizers.py \\
+        --data_path data/training_corpus \\
+        --data_type jsonl \\
+        --text_column text \\
+        --vocab_size 32000 \\
+        --output_dir checkpoints/my_tokenizer \\
+        --add_bos_token \\
+        --byte_fallback \\
+        --hub_repo_id username/my-tokenizer \\
         --token hf_xxx
 
 Only BOS, EOS, UNK, and PAD are registered as special tokens. Chat/control markers
@@ -187,7 +187,9 @@ def main(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Train a BPE tokenizer.")
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
 
     # Required arguments
     parser.add_argument(

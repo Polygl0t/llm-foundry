@@ -10,16 +10,16 @@ Algorithm Options:
 - Unigram: Probabilistic subword segmentation (better for Asian languages)
 
 Example usage:
-    python train_tokenizer_sentencepiece.py \
-        --train_dataset_dir data/corpus \
-        --dataset_type jsonl \
-        --text_column text \
-        --vocab_size 32000 \
-        --model_type bpe \
-        --output_dir checkpoints/llama_tokenizer \
-        --add_bos_token --add_eos_token \
-        --num_samples 10000000 \
-        --tokenizer_name username/llama-tokenizer \
+    python train_tokenizer_sentencepiece.py \\
+        --train_dataset_dir data/corpus \\
+        --dataset_type jsonl \\
+        --text_column text \\
+        --vocab_size 32000 \\
+        --model_type bpe \\
+        --output_dir checkpoints/llama_tokenizer \\
+        --add_bos_token --add_eos_token \\
+        --num_samples 10000000 \\
+        --tokenizer_name username/llama-tokenizer \\
         --token hf_xxx
 
 Only BOS, EOS, UNK, and PAD are registered as special tokens. Chat/control markers
@@ -210,7 +210,10 @@ def main(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Train a Llama tokenizer using SentencePiece")
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+
     parser.add_argument(
         "--dataset_file", type=str, default=None, help="The path to the dataset file"
     )
