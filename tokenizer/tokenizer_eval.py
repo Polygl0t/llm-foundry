@@ -88,7 +88,7 @@ def main(args):
         # Load the tokenizer from Hugging Face Hub or local path
         # use_fast=True enables the Rust-based fast tokenizer implementation
         tokenizer = AutoTokenizer.from_pretrained(
-            tokenizer_name, token=token, cache_dir=cache_dir, use_fast=True
+            tokenizer_name, token=token if token else None, cache_dir=cache_dir, use_fast=True
         )
 
         # Set to a very large value to avoid truncation warnings

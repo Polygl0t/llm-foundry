@@ -33,13 +33,14 @@ import os
 import sentencepiece as spm
 from tokenizers import AddedToken
 from tqdm import tqdm
-from transformers import LlamaTokenizer, LlamaTokenizerFast
+from transformers import LlamaTokenizer
 
 from utils import (
     EXTRA_TOKENS,
     get_logger,
     load_text_dataset,
     push_tokenizer_to_hub,
+    save_fast_tokenizer,
     update_tokenizer_config,
     validate_saved_tokenizer,
     write_special_tokens_map,
@@ -89,7 +90,7 @@ def main(args):
         input=args.dataset_file,
         input_format="text",  # This script is designed to work with plain text files. However, the SentencePieceTrainer also supports other formats, like `tsv`
         num_threads=args.num_threads,  # Speed up your training by using more threads.
-        model_prefix=f"{args.output_dir}/spm_tokenizer",  # You can use `model_prefix` to specify where the model files will be saved.
+        model_prefix=f"{args.output_dir}/tokenizer",  # You can use `model_prefix` to specify where the model files will be saved.
         vocab_size=args.vocab_size
         - (
             len(EXTRA_TOKENS) + 1
@@ -114,9 +115,12 @@ def main(args):
         == "unigram",  # Set this to True when training a unigram tokenizer on a large corpus to avoid SEGFAULTs
     )
 
-    # Get a slow Llama tokenizer
-    tokenizer = LlamaTokenizer(
-        os.path.join(args.output_dir, "spm_tokenizer.model"),
+    # Build the tokenizer via `LlamaTokenizer.from_pretrained` method.
+    # This will automatically load the SentencePiece model and create
+    # a tokenizer object that is compatible with the Tokenizer API in
+    # Hugging Face Transformers.
+    tokenizer = LlamaTokenizer.from_pretrained(
+        args.output_dir,
         bos_token=args.bos_token,
         unk_token=args.unk_token,
         eos_token=args.eos_token,
@@ -153,33 +157,6 @@ def main(args):
     )
 
     tokenizer.save_pretrained(args.output_dir)
-
-    # Get a fast Llama tokenizer
-    tokenizer = LlamaTokenizerFast(
-        os.path.join(args.output_dir, "tokenizer.model"),
-        bos_token=args.bos_token,
-        unk_token=args.unk_token,
-        eos_token=args.eos_token,
-        padding_side=args.padding_side,
-        truncation_side=args.truncation_side,
-        add_bos_token=args.add_bos_token,
-        add_eos_token=args.add_eos_token,
-        clean_up_tokenization_spaces=args.clean_up_tokenization_spaces,
-        add_prefix_space=args.add_prefix_space,
-        legacy=False,
-    )
-    tokenizer.add_special_tokens({"pad_token": args.pad_token})
-    num_added_tokens = tokenizer.add_tokens(regular_added_tokens)
-    if num_added_tokens != len(EXTRA_TOKENS):
-        raise ValueError(
-            f"Expected to add {len(EXTRA_TOKENS)} regular tokens, but added {num_added_tokens}."
-        )
-    logger.info(f"LlamaTokenizerFast vocab size: {len(tokenizer)}")
-    assert len(tokenizer) == args.vocab_size, (
-        f"Tokenizer vocab size {len(tokenizer)} does not match the expected vocab size {args.vocab_size}."
-    )
-
-    tokenizer.save_pretrained(args.output_dir)
     write_special_tokens_map(
         args.output_dir,
         bos_token=args.bos_token,
@@ -203,6 +180,9 @@ def main(args):
     validate_saved_tokenizer(args.output_dir)
 
     logger.info(f"Tokenizer trained and saved to: {args.output_dir}")
+
+    fast_output_dir = save_fast_tokenizer(args.output_dir)
+    logger.info(f"Generic PreTrainedTokenizerFast copy saved to: {fast_output_dir}")
 
     # Push the folder to the hub.
     if args.tokenizer_name is not None and args.token is not None:

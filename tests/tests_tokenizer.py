@@ -161,12 +161,28 @@ def _assert_special_token_contract(output_dir: str) -> None:
     assert set(special_tokens_map.keys()) == CORE_SPECIAL_TOKEN_KEYS
     assert "additional_special_tokens" not in special_tokens_map
 
-    tokenizer_json = _read_json(os.path.join(output_dir, "tokenizer.json"))
-    added_tokens = tokenizer_json.get("added_tokens", [])
-    added_by_content = {token["content"]: token for token in added_tokens}
+    # HuggingFace tokenizers (BPE) store added tokens in tokenizer.json with
+    # {"content": ..., "special": ...} entries; SentencePiece tokenizers store
+    # them in added_tokens.json as {token_str: token_id}.
+    tokenizer_json_path = os.path.join(output_dir, "tokenizer.json")
+    if os.path.exists(tokenizer_json_path):
+        tokenizer_json = _read_json(tokenizer_json_path)
+        added_tokens = tokenizer_json.get("added_tokens", [])
+        added_by_content = {token["content"]: token for token in added_tokens}
+    else:
+        added_tokens_json = _read_json(os.path.join(output_dir, "added_tokens.json"))
+        # SentencePiece format: {"<think>": 101, ...}.  Mark tokens as special
+        # when they are referenced in special_tokens_map.json.
+        special_token_values = {
+            v["content"] if isinstance(v, dict) else v for v in special_tokens_map.values()
+        }
+        added_by_content = {
+            content: {"content": content, "special": content in special_token_values}
+            for content in added_tokens_json
+        }
 
     for token in EXTRA_TOKENS:
-        assert token in added_by_content, f"Missing extra token in tokenizer.json: {token!r}"
+        assert token in added_by_content, f"Missing extra token: {token!r}"
         assert added_by_content[token]["special"] is False, (
             f"Extra token should not be special: {token!r}"
         )
@@ -177,7 +193,10 @@ def _assert_special_token_contract(output_dir: str) -> None:
             if isinstance(special_tokens_map[token_key], dict)
             else special_tokens_map[token_key]
         )
-        assert added_by_content[token_value]["special"] is True
+        # Special tokens may already be in the base vocabulary (e.g. SentencePiece
+        # unk/bos/eos pieces) and therefore absent from added_tokens.json.
+        if token_value in added_by_content:
+            assert added_by_content[token_value]["special"] is True
 
     tokenizer = AutoTokenizer.from_pretrained(output_dir, use_fast=True)
     assert len(tokenizer) == VOCAB_SIZE
@@ -239,7 +258,6 @@ def test_03_train_sentencepiece_saves_regular_extra_tokens():
         args = _sentencepiece_training_args(output_dir, corpus_path)
         train_tokenizer_sentencepiece.main(args)
 
-        assert os.path.exists(os.path.join(output_dir, "spm_tokenizer.model"))
         assert os.path.exists(os.path.join(output_dir, "tokenizer.model"))
         _assert_special_token_contract(output_dir)
     print("Test 3 — train_tokenizer_sentencepiece BPE: OK ✅")

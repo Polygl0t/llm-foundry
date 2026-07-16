@@ -160,6 +160,40 @@ def write_special_tokens_map(
         json.dump(special_tokens_map, f, indent=2)
 
 
+def save_fast_tokenizer(output_dir: str) -> str:
+    """Load the tokenizer saved in *output_dir* as a generic `PreTrainedTokenizerFast`
+    and save a copy of it under `output_dir/fast`.
+
+    Loading through `PreTrainedTokenizerFast` (rather than the architecture-specific
+    class, e.g. `LlamaTokenizer`) resets `tokenizer_class` in the resulting
+    `tokenizer_config.json` to `"PreTrainedTokenizerFast"`. This is useful for
+    downstream tools that only expect the generic fast tokenizer class.
+
+    For SentencePiece-based tokenizers (which lack a direct slow->fast converter
+    in some versions of transformers), this falls back to loading via `AutoTokenizer` with
+    `use_fast=True`, which resolves the correct architecture-specific fast class
+    (e.g. `LlamaTokenizerFast`).
+
+    Args:
+        output_dir: Directory containing the already-saved tokenizer files.
+
+    Returns:
+        The path to the directory containing the copy (`output_dir/fast`).
+    """
+    from transformers import AutoTokenizer, PreTrainedTokenizerFast
+
+    fast_output_dir = os.path.join(output_dir, "fast")
+    os.makedirs(fast_output_dir, exist_ok=True)
+
+    try:
+        tokenizer = PreTrainedTokenizerFast.from_pretrained(output_dir)
+    except ValueError:
+        tokenizer = AutoTokenizer.from_pretrained(output_dir, use_fast=True)
+    tokenizer.save_pretrained(fast_output_dir)
+
+    return fast_output_dir
+
+
 def validate_saved_tokenizer(output_dir: str) -> None:
     """Assert that the tokenizer in *output_dir* loads correctly in both slow and fast modes.
 

@@ -64,6 +64,11 @@ def main(args):
     dataset = dataset.map(normalize_to_nfkc, num_proc=args.num_proc)
     logger.info(f"Loaded dataset with {len(dataset):,} samples")
 
+    # Necessary for tokenizers to use multiple threads. Uses `setdefault` so an
+    # explicit value already set in the environment (e.g. by the launching shell
+    # script) is respected instead of being silently overwritten.
+    os.environ.setdefault("TOKENIZERS_PARALLELISM", "true")
+
     # Define a Model
     # See https://huggingface.co/docs/tokenizers/api/models#tokenizers.models.BPE
     tokenizer = Tokenizer(models.BPE(byte_fallback=args.byte_fallback))
@@ -178,6 +183,14 @@ def main(args):
         add_bos_token=args.add_bos_token,
         add_eos_token=args.add_eos_token,
     )
+
+    # Reload and re-save the tokenizer so the on-disk JSON files (tokenizer_config.json,
+    # special_tokens_map.json, etc.) end up with the standard key ordering/format that
+    # `save_pretrained` produces from a freshly loaded tokenizer, rather than whatever
+    # order was left by the manual `write_special_tokens_map` / `update_tokenizer_config`
+    # patches above.
+    tokenizer = PreTrainedTokenizerFast.from_pretrained(args.output_dir)
+    tokenizer.save_pretrained(args.output_dir)
 
     validate_saved_tokenizer(args.output_dir)
 

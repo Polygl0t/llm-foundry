@@ -36,7 +36,7 @@ import datasets
 
 from utils import get_logger, list_matching_files
 
-logger = get_logger(__name__)
+logger = get_logger("MakeValidationSplit")
 
 
 def read_metadata(metadata_path):
