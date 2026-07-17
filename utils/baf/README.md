@@ -175,7 +175,7 @@ To configure the training, you need to follow the instructions in the [distribut
 - `config.json` — defines the model architecture (see "[Example Architecture Configs](../../distributed/README.md#example-architecture-configs)").
 - `specifications.yaml` — defines the training hyperparameters (see [`distributed/specifications.yaml`](../../distributed/specifications.yaml) for an example).
 
->  **Note:** Be careful about your `cache_dir` path. If your training run is long and requires multiple jobs submissions, it is wise to put your `cache_dir` in your CephFS directory. Otherwise, if you put it in your jwd, it will be cleaned up after the job is done and you will lose your cache.
+>  **Note:** Be careful about your `cache_dir` path. If your training run is long and requires multiple jobs submissions, it is wise to put your `cache_dir` in your CephFS directory. Otherwise, if you put it in your jwd, it will be cleaned up after the job is done and you will lose your cache. However, I/O speed is faster if you put it in your jwd.
 
 ### 2.3 Submit the job
 
@@ -184,6 +184,8 @@ Once you are done with the configuration, you can start the training job by subm
 ```bash
 condor_submit ~/scripts/job.jdl # or whatever path you put your job.jdl
 ```
+
+> **Note:** Remember to submit the job from your home directory, not from `/cephfs`. The executable bash script (e.g., `train_ddp.sh`) can also be in your home directory. Treat the CephFS directory (`$BUDDY`) as a persistent storage for your data, and things you will not be modifying there.
 
 ### 2.4 Monitor the job
 
@@ -289,9 +291,10 @@ Due to some default configurations in the BAF cluster, you cannot directly clone
 ## Dos and Don'ts
 
 ### Do not run jobs from CephFS, but from your home directory.
-According to this [BAF documentation](https://confluence.team.uni-bonn.de/spaces/PHYIT/pages/10814633/HTCondor+on+BAF#HTCondoronBAF-SubmittingaClusterJob%2FJobArray), it's not recommended to run condor_submit in a CephFS directory. Ideally, put only large output, data files, input data on CephFS. 
 
-In our structure, we put our code ('llm-foundry'), logs, checkpoints and dataset in CephFS(`$BUDDY`) because you can access the files in `$BUDDY` from inside the container but you cannot access your home directory. We put .jdl files in home directory and submit from there.
+According to this [BAF documentation](https://confluence.team.uni-bonn.de/spaces/PHYIT/pages/10814633/HTCondor+on+BAF#HTCondoronBAF-SubmittingaClusterJob%2FJobArray), it's not recommended to run condor_submit in a CephFS directory. Ideally, put only large output, data files, input data on CephFS.
+
+While you should keep your codebase in CephFS(`$BUDDY`), since you cannot see your home directory from inside the container, for better container isolation, it is better to move the codebase to the working directory (`/jwd`) of the job container. Especially if you are planning to run multiple jobs that use the same codebase. In these cases, it is strongly recommended to move the codebase (`llm-foundry`) from the CephFS (`$BUDDY`) to the working directory (`/jwd`) of the job container. This will avoid multiple jobs reading the same codebase from CephFS, which can cause I/O bottlenecks. It will also make sure that all jobs you are running are isolated from each other and will not interfere with each other.
 
 ### Do not set `CUDA_VISIBLE_DEVICES` in bash scripts
 
@@ -302,4 +305,3 @@ Therefore, **never set `CUDA_VISIBLE_DEVICES` explicitly** in any script submitt
 ### Do not override thread-count environment variables (`OMP_NUM_THREADS`, `MKL_NUM_THREADS`, `TF_NUM_THREADS`, etc.)
 
  These are all set by the HT condor scheduling system.  If you manually override these in your bash scripts, (for example, hardcoding `export OMP_NUM_THREADS=$(nproc)`), it will cause large inefficiencies for your code, as it will spawn more threads than cores you have reserved. So do not override these variables.
-

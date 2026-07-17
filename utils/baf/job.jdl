@@ -3,14 +3,14 @@
 # =============================================================================================== #
 #  Copy this file, adjust the values below, and submit with:
 #
-#      >> condor_submit job.jdl
+#      >> condor_submit ~/scripts/job.jdl
 #
 #  Do NOT submit from /cephfs — run condor_submit from your home directory.
 #  Put only large data / output files on CephFS for maximum performance.
 # =============================================================================================== #
 
 # -- Executable & Arguments --
-executable          = /cephfs/user/nklugeco/train_ddp.sh
+executable          = /home/nklugeco/physik/scripts/train_ddp.sh
 arguments           = $(ClusterId)
 
 # -- Resource Requests --
@@ -33,7 +33,10 @@ error               = /dev/null
 log                 = $(ClusterId).log
 
 # -- Transfer --
-getenv              = True
+# BUDDY is a shell env var (your CephFS home) that the script relies on for
+# datadir; it must be explicitly whitelisted since we don't import the full
+# submit-host environment.
+getenv                = BUDDY
 transfer_output_files = ""
 
 # -- Submit exactly 1 instance of this job --
