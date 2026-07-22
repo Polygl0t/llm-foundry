@@ -62,6 +62,12 @@ from utils import (
     logger,
 )
 
+# Marker string identifying an unrecoverable inference-engine crash (e.g. a
+# dead vLLM EngineCore). Once this happens every subsequent trace will fail
+# instantly too, so we abort the whole run instead of burning through the
+# remaining rows.
+FATAL_ERROR_MARKERS = ("EngineDeadError",)
+
 
 def main(args) -> None:
     # Ensure only our own logger.info() messages are visible on stdout.
@@ -269,6 +275,23 @@ def main(args) -> None:
                 prompt_snippet,
                 err_clean,
             )
+
+            fatal_marker = (
+                next((m for m in FATAL_ERROR_MARKERS if m in trace.error), None)
+                if trace.error
+                else None
+            )
+            if fatal_marker:
+                logger.error(
+                    "💀 Fatal inference-engine error detected (%s) — aborting run at "
+                    "[%d/%d] %s. The engine is dead and every remaining trace would "
+                    "fail too; fix/restart the engine and resume this run later.",
+                    fatal_marker,
+                    idx,
+                    total,
+                    trace_id[:12],
+                )
+                sys.exit(1)
 
     # Summary
     logger.info("\n%s", "=" * 60)
