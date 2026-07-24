@@ -62,11 +62,23 @@ from utils import (
     logger,
 )
 
-# Marker string identifying an unrecoverable inference-engine crash (e.g. a
+# Marker strings identifying an unrecoverable inference-engine crash (e.g. a
 # dead vLLM EngineCore). Once this happens every subsequent trace will fail
 # instantly too, so we abort the whole run instead of burning through the
 # remaining rows.
-FATAL_ERROR_MARKERS = ("EngineDeadError",)
+FATAL_ERROR_MARKERS = (
+    "EngineDeadError",
+    "EngineCore encountered an issue",
+)
+
+# Secondary, error-message-agnostic guardrail: a dead/unresponsive engine
+# typically makes every subsequent trace fail near-instantly (no real
+# generation happens), e.g. duration_seconds ~ 0.01s, regardless of the exact
+# error text (which can change between vLLM/smolagents versions). If we see
+# this many consecutive failures that each complete faster than the
+# threshold below, treat it as a systemic failure and abort.
+FAST_FAIL_DURATION_THRESHOLD_SECONDS = 2.0
+MAX_CONSECUTIVE_FAST_FAILURES = 5
 
 
 def main(args) -> None:
@@ -191,6 +203,7 @@ def main(args) -> None:
     # Execute traces
     success_count = 0
     fail_count = 0
+    consecutive_fast_failures = 0
     total = len(rows)
 
     logger.info("─" * 72)
@@ -248,6 +261,7 @@ def main(args) -> None:
         # Single-line status
         if trace.status == TRACE_STATUS_SUCCESS:
             success_count += 1
+            consecutive_fast_failures = 0
             logger.info(
                 "[%d/%d] %s | ✅ %d steps %.1fs | %s",
                 idx,
@@ -287,6 +301,28 @@ def main(args) -> None:
                     "[%d/%d] %s. The engine is dead and every remaining trace would "
                     "fail too; fix/restart the engine and resume this run later.",
                     fatal_marker,
+                    idx,
+                    total,
+                    trace_id[:12],
+                )
+                sys.exit(1)
+
+            # Duration-agnostic fallback: catches the same systemic breakdown
+            # even when the error text doesn't match any known marker (e.g. a
+            # new/unseen exception class wrapping the engine crash).
+            if trace.duration_seconds < FAST_FAIL_DURATION_THRESHOLD_SECONDS:
+                consecutive_fast_failures += 1
+            else:
+                consecutive_fast_failures = 0
+
+            if consecutive_fast_failures >= MAX_CONSECUTIVE_FAST_FAILURES:
+                logger.error(
+                    "💀 %d consecutive near-instant failures (<%.1fs each) detected "
+                    "ending at [%d/%d] %s — this looks like a dead/unresponsive "
+                    "inference engine rather than genuine task failures. Aborting "
+                    "run; fix/restart the engine and resume this run later.",
+                    consecutive_fast_failures,
+                    FAST_FAIL_DURATION_THRESHOLD_SECONDS,
                     idx,
                     total,
                     trace_id[:12],
