@@ -394,15 +394,52 @@ def checkpoint_already_validated(checkpoint_dir, stage_name, step, log_file):
 
 def initialize_wandb(args, slurm_job_id, max_steps):
     """
-    Login to W&B and initialize a run.
+    Login to W&B (or trackio, in offline mode) and initialize a run.
+
+    When `args.offline_mode` is True (for HPC clusters without internet access on
+    compute nodes), trackio is used instead of W&B. trackio exposes a W&B-compatible
+    API, so `trainer.py` keeps calling `wandb.log(...)` / `wandb.finish()` unchanged;
+    here we simply patch the `wandb` name that `trainer.py` already imported to point
+    at trackio instead. trackio's log directory is set to `{checkpoint_dir}/.trackio`,
+    isolating each run's local trackio data alongside its checkpoints.
 
     Only call this on the master process and when `args.wandb_token` is not None.
 
     References:
-        - See https://docs.wandb.ai/ref/python/sdk/functions/login
-        - See https://docs.wandb.ai/ref/python/sdk/functions/init/
+        - See https://docs.wandb.ai/models/ref/python/functions/login
+        - See https://docs.wandb.ai/models/ref/python/functions/init
+        - See https://github.com/gradio-app/trackio
     """
     import time as _time
+
+    run_name = (
+        f"""{args.wandb_id}-{args.stage_name}-{_time.strftime("%d-%m-%Y")}"""
+        f"""-bs-{args.total_batch_size}-epochs-{args.num_train_epochs}"""
+        f"""-steps-{max_steps}-lr-{args.max_learning_rate}-sch-{args.lr_decay_type}"""
+    )
+
+    if args.offline_mode:
+        # trackio's log directory is controlled by the TRACKIO_DIR environment variable.
+        # We nest it inside `args.checkpoint_dir` so that concurrent runs never collide,
+        # and can be joined together later.
+        os.environ["TRACKIO_DIR"] = os.path.join(args.checkpoint_dir, ".trackio")
+
+        import trackio
+
+        # `trainer.py` does `import wandb` at module load time. Since trackio's API
+        # is W&B-compatible, we patch that already-imported reference in place so the
+        # rest of the codebase does not need to change.
+        import trainer
+
+        trainer.wandb = trackio
+
+        trackio.init(
+            project=args.wandb_project if args.wandb_project is not None else "default",
+            name=run_name,
+            config=args.to_dict(),
+            resume="allow",
+        )
+        return
 
     import wandb
 
@@ -411,7 +448,7 @@ def initialize_wandb(args, slurm_job_id, max_steps):
     wandb.init(
         project=args.wandb_project if args.wandb_project is not None else "default",
         notes=args.wandb_desc if args.wandb_desc is not None else "N/A",
-        name=f"""{args.wandb_id}-{args.stage_name}-{_time.strftime("%d-%m-%Y")}-bs-{args.total_batch_size}-epochs-{args.num_train_epochs}-steps-{max_steps}-lr-{args.max_learning_rate}-sch-{args.lr_decay_type}""",
+        name=run_name,
         config=args.to_dict(),
         resume="allow",
         id=f"{args.wandb_id}-{slurm_job_id}" if args.wandb_id is not None else f"{slurm_job_id}",
@@ -420,23 +457,39 @@ def initialize_wandb(args, slurm_job_id, max_steps):
 
 def create_emissions_tracker(args, logger):
     """
-    Create and start a CodeCarbon EmissionsTracker.
+    Create and start a CodeCarbon EmissionsTracker (or OfflineEmissionsTracker).
+
+    When `args.offline_mode` is True (for HPC clusters without internet access on
+    compute nodes, which the default EmissionsTracker needs for IP-based geolocation),
+    the OfflineEmissionsTracker is used instead, with the country/region supplied
+    explicitly via `args.codecarbon_country_iso_code` / `args.codecarbon_region`.
 
     Only call this on the master process.
 
     References:
-        - See https://mlco2.github.io/codecarbon/usage.html#explicit-object
-        - See https://github.com/mlco2/codecarbon/issues/544
+        - See https://docs.codecarbon.io/latest/reference/api/?h=Emission#emissionstracker-baseemissionstracker
+        - See https://docs.codecarbon.io/latest/reference/api/?h=Emission#offlineemissionstracker-additional-parameters
     """
-    from codecarbon import EmissionsTracker
+    common_kwargs = {
+        "project_name": args.wandb_project if args.wandb_project is not None else "default",
+        "log_level": "critical",
+        "output_dir": args.checkpoint_dir,
+        "output_file": "emissions.csv",
+        "tracking_mode": "machine",
+    }
 
-    tracker = EmissionsTracker(
-        project_name=args.wandb_project if args.wandb_project is not None else "default",
-        log_level="critical",
-        output_dir=args.checkpoint_dir,
-        output_file="emissions.csv",
-        tracking_mode="machine",
-    )
+    if args.offline_mode:
+        from codecarbon import OfflineEmissionsTracker
+
+        tracker = OfflineEmissionsTracker(
+            country_iso_code=args.codecarbon_country_iso_code,
+            region=args.codecarbon_region,
+            **common_kwargs,
+        )
+    else:
+        from codecarbon import EmissionsTracker
+
+        tracker = EmissionsTracker(**common_kwargs)
 
     logger.info(
         f"Geo Location: ISO: {tracker._geo.country_iso_code} "

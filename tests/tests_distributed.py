@@ -2007,6 +2007,54 @@ def test_create_emissions_tracker_returns_tracker():
         shutil.rmtree(tmpdir)
 
 
+def test_create_emissions_tracker_offline_mode_uses_offline_tracker():
+    """create_emissions_tracker returns an OfflineEmissionsTracker when offline_mode is True."""
+    try:
+        from codecarbon import OfflineEmissionsTracker  # noqa: F401
+    except ImportError:
+        return  # codecarbon not installed, skip test
+    tmpdir = tempfile.mkdtemp()
+    try:
+        args = TrainingArguments(
+            wandb_project="test-project",
+            checkpoint_dir=tmpdir,
+            offline_mode=True,
+            codecarbon_country_iso_code="DEU",
+            codecarbon_region="north rhine-westphalia",
+        )
+        test_logger = logging.getLogger("tracker-test-offline")
+        tracker = create_emissions_tracker(args, test_logger)
+        assert isinstance(tracker, OfflineEmissionsTracker)
+        tracker.stop()
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+def test_initialize_wandb_offline_mode_patches_trainer_wandb():
+    """initialize_wandb patches trainer.wandb to point at trackio when offline_mode is True."""
+    try:
+        import trackio  # noqa: F401
+    except ImportError:
+        return  # trackio not installed, skip test
+
+    import trainer as trainer_module
+
+    original_wandb = trainer_module.wandb
+    original_init = trackio.init
+    trackio.init = lambda **kwargs: None  # avoid launching a dashboard / writing files
+    try:
+        args = TrainingArguments(
+            wandb_id="run-id",
+            wandb_project="test-project",
+            offline_mode=True,
+        )
+        initialize_wandb(args, slurm_job_id="123", max_steps=10)
+        assert trainer_module.wandb is trackio
+    finally:
+        trackio.init = original_init
+        trainer_module.wandb = original_wandb
+
+
 if __name__ == "__main__":
     for _fn in [
         test_compute_training_schedule_basic,
@@ -2028,6 +2076,8 @@ if __name__ == "__main__":
         test_load_checkpoint_state_new_stage,
         test_initialize_wandb_import,
         test_create_emissions_tracker_returns_tracker,
+        test_create_emissions_tracker_offline_mode_uses_offline_tracker,
+        test_initialize_wandb_offline_mode_patches_trainer_wandb,
     ]:
         run_test(_fn.__name__, _fn)
 

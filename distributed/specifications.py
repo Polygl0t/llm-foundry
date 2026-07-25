@@ -498,6 +498,36 @@ class TrainingArguments:
         metadata={"help": "The description of the W&B run or project."},
     )
 
+    # Offline mode settings (for HPC clusters without internet on compute nodes)
+    offline_mode: bool | None = field(
+        default=False,
+        metadata={
+            "help": (
+                "Whether to run in offline mode, for HPC clusters without internet access on"
+                " compute nodes. When True, uses CodeCarbon's OfflineEmissionsTracker instead of"
+                " EmissionsTracker, and trackio instead of W&B."
+            )
+        },
+    )
+    codecarbon_country_iso_code: str | None = field(
+        default="DEU",
+        metadata={
+            "help": (
+                "3-letter ISO code of the country where the experiment is being run."
+                " Only used by CodeCarbon's OfflineEmissionsTracker when `offline_mode` is True."
+            )
+        },
+    )
+    codecarbon_region: str | None = field(
+        default="north rhine-westphalia",
+        metadata={
+            "help": (
+                "Province/State/City where the infrastructure is hosted."
+                " Only used by CodeCarbon's OfflineEmissionsTracker when `offline_mode` is True."
+            )
+        },
+    )
+
     # Miscellaneous settings
     sanity_check: bool | None = field(
         default=False,

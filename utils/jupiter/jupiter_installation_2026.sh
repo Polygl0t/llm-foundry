@@ -87,8 +87,9 @@ install_core_packages() {
         datasets==4.0.0 \
         sentencepiece==0.2.1 \
         accelerate==1.9.0 \
-        codecarbon==3.0.6 \
+        codecarbon==3.2.9 \
         wandb==0.27.2 \
+        trackio \
         pyyaml==6.0.2 \
         liger-kernel==0.8.0 \
         kernels==0.13.0 \
