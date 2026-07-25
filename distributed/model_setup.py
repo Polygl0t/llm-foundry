@@ -50,6 +50,7 @@ class ModelInitializationResult:
     trainable_params: int
     active_trainable_params: int
     non_attention_frozen: bool = False
+    fp8_enabled: bool = False
 
 
 def _log_message(master_process, logger, file_logger, message):
@@ -501,6 +502,159 @@ def _apply_liger_kernels(model, args):
     apply_liger_kernel(model=model, **liger_kwargs)
 
 
+# Modules that are never converted to fp8. `lm_head` is either fused into
+# Liger's `fused_linear_cross_entropy` (converting it would break the fusion)
+# or is the numerically most sensitive projection in the network, so both
+# torchtitan and the torchao examples keep it in high precision.
+FP8_EXCLUDED_MODULE_SUFFIXES = ("lm_head",)
+
+# fp8 gemms require both matmul dimensions to be divisible by 16.
+FP8_DIM_ALIGNMENT = 16
+
+# Minimum CUDA compute capability with hardware fp8 support
+# (8.9 = Ada, 9.0 = Hopper / Grace Hopper, 10.0+ = Blackwell).
+FP8_MIN_COMPUTE_CAPABILITY = (8, 9)
+
+
+def _fp8_module_filter_fn(module, fqn):
+    """
+    Decide whether a module is eligible for conversion to `Float8Linear`.
+
+    Skips the excluded modules (see `FP8_EXCLUDED_MODULE_SUFFIXES`) and any
+    linear whose `in_features` / `out_features` are not divisible by
+    `FP8_DIM_ALIGNMENT`, since the fp8 gemms require that alignment.
+    """
+    if any(fqn == suffix or fqn.endswith(f".{suffix}") for suffix in FP8_EXCLUDED_MODULE_SUFFIXES):
+        return False
+
+    return not (
+        isinstance(module, torch.nn.Linear)
+        and (
+            module.in_features % FP8_DIM_ALIGNMENT != 0
+            or module.out_features % FP8_DIM_ALIGNMENT != 0
+        )
+    )
+
+
+def _apply_fp8_training(model, args, master_process, logger=None, file_logger=None):
+    """
+    Convert eligible `torch.nn.Linear` modules to `Float8Linear` for fp8
+    mixed precision training via `torchao.float8`.
+
+    Only the matmuls in the forward/backward of a linear are computed in fp8;
+    parameters, gradients, optimizer states, and every non-linear op stay in
+    bf16/fp32, so the rest of the training logic is unchanged.
+
+    This is a best-effort optimization: if `torchao` is not installed, the GPU
+    does not support fp8, or the requested recipe is unknown, a warning is
+    logged and training proceeds with the default precision configuration
+    (tf32 / bf16).
+
+    IMPORTANT: this must be called AFTER every other model-level optimization
+    (Liger kernels, gradient checkpointing) so that fp8 wraps the final module
+    tree, and BEFORE DDP / FSDP wrapping and `torch.compile`.
+
+    Reference: https://docs.pytorch.org/ao/stable/workflows/training.html
+
+    Returns True when the conversion was applied, False otherwise.
+    """
+    if not args.fp8:
+        return False
+
+    try:
+        from torchao.float8 import Float8LinearConfig, convert_to_float8_training
+    except (ImportError, ModuleNotFoundError):
+        _log_message(
+            master_process,
+            logger,
+            file_logger,
+            "WARNING: fp8 is True but `torchao` is not installed. "
+            "Install it with `pip install torchao`. "
+            "Continuing with the default precision configuration (tf32 / bf16).",
+        )
+        return False
+
+    if not torch.cuda.is_available():
+        _log_message(
+            master_process,
+            logger,
+            file_logger,
+            "WARNING: fp8 is True but no CUDA device is available. "
+            "Continuing with the default precision configuration (tf32 / bf16).",
+        )
+        return False
+
+    compute_capability = torch.cuda.get_device_capability()
+    if compute_capability < FP8_MIN_COMPUTE_CAPABILITY:
+        _log_message(
+            master_process,
+            logger,
+            file_logger,
+            f"WARNING: fp8 is True but the GPU compute capability is "
+            f"{compute_capability[0]}.{compute_capability[1]}, below the "
+            f"{FP8_MIN_COMPUTE_CAPABILITY[0]}.{FP8_MIN_COMPUTE_CAPABILITY[1]} required for "
+            "hardware fp8 (Ada / Hopper / Grace Hopper / Blackwell). "
+            "Continuing with the default precision configuration (tf32 / bf16).",
+        )
+        return False
+
+    try:
+        config = Float8LinearConfig.from_recipe_name(args.fp8_recipe)
+    except Exception as error:
+        _log_message(
+            master_process,
+            logger,
+            file_logger,
+            f"WARNING: fp8 is True but the recipe {args.fp8_recipe!r} could not be resolved "
+            f"({error}). Valid recipes are `tensorwise`, `rowwise`, and `rowwise_with_gw_hp`. "
+            "Continuing with the default precision configuration (tf32 / bf16).",
+        )
+        return False
+
+    if not args.bf16:
+        _log_message(
+            master_process,
+            logger,
+            file_logger,
+            "WARNING: fp8 is enabled but `bf16` is False. fp8 training is designed to run on "
+            "top of a bf16 model; running it on fp32 parameters wastes memory and bandwidth.",
+        )
+
+    convert_to_float8_training(model, config=config, module_filter_fn=_fp8_module_filter_fn)
+
+    converted = sum(1 for module in model.modules() if type(module).__name__ == "Float8Linear")
+    if converted == 0:
+        _log_message(
+            master_process,
+            logger,
+            file_logger,
+            "WARNING: fp8 is True but no `torch.nn.Linear` module was eligible for conversion "
+            f"(all were excluded or had dimensions not divisible by {FP8_DIM_ALIGNMENT}). "
+            "Continuing with the default precision configuration (tf32 / bf16).",
+        )
+        return False
+
+    _log_message(
+        master_process,
+        logger,
+        file_logger,
+        f"Enabled fp8 mixed precision training via torchao (recipe={args.fp8_recipe}, "
+        f"converted {converted} linear module(s) to Float8Linear).",
+    )
+
+    if not args.torch_compile:
+        _log_message(
+            master_process,
+            logger,
+            file_logger,
+            "NOTE: fp8 is enabled without `torch_compile`. torchao recommends `torch.compile` "
+            "for competitive fp8 performance; without it the casting/scaling overhead may "
+            "offset the fp8 gemm speedup.",
+        )
+
+    return True
+
+
 def _try_create_distributed_config(
     enable_expert_parallelism, master_process, logger=None, file_logger=None
 ):
@@ -805,7 +959,6 @@ def prepare_training_components(args, device, master_process, logger=None, file_
         _log_message(master_process, logger, file_logger, "Applied Liger kernels to the model.")
 
     model.config.name_or_path = args.hub_model_id
-
     trainable_params = sum(
         parameter.numel() for parameter in model.parameters() if parameter.requires_grad
     )
@@ -848,6 +1001,16 @@ def prepare_training_components(args, device, master_process, logger=None, file_
             }
         )
 
+    # fp8 mixed precision (torchao). Applied AFTER every other model-level
+    # optimization (Liger kernels, gradient checkpointing) so the fp8 swap sees
+    # the final module tree, and BEFORE `torch.compile` / DDP / FSDP wrapping.
+    # The model is moved to the device first so `Float8Linear` is built directly
+    # on the accelerator. No-op (with a warning) when `torchao` is unavailable or
+    # the hardware does not support fp8.
+    model.to(device)
+
+    fp8_enabled = _apply_fp8_training(model, args, master_process, logger, file_logger)
+
     # Torch Compile
     # See https://docs.pytorch.org/docs/stable/generated/torch.compile.html
     # WARNING: Torch compile is not working good with liger kernel: https://github.com/linkedin/Liger-Kernel/issues/174
@@ -855,8 +1018,6 @@ def prepare_training_components(args, device, master_process, logger=None, file_
         if master_process and logger is not None:
             logger.info("Compiling model with torch.compile.")
         model = torch.compile(model)
-
-    model.to(device)
 
     return ModelInitializationResult(
         args=args,
@@ -867,6 +1028,7 @@ def prepare_training_components(args, device, master_process, logger=None, file_
         trainable_params=trainable_params,
         active_trainable_params=active_trainable_params,
         non_attention_frozen=non_attention_frozen,
+        fp8_enabled=fp8_enabled,
     )
 
 

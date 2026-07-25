@@ -51,6 +51,16 @@ rm -f /tmp/cutlass.txt
 echo "===== Installing flash-linear-attention ====="
 pip3 install flash-linear-attention --no-cache-dir
 
+echo "===== Installing torchao ====="
+# torchao powers the optional `fp8: true` mixed precision path in the
+# distributed trainers. The H100 / H200 GPUs on this cluster have hardware
+# fp8 support (compute capability 9.0). Pull from the PyTorch cu128 index so
+# the prebuilt kernels match the CUDA version of the installed torch wheel,
+# falling back to PyPI if that index has no matching wheel.
+pip3 install torchao --index-url https://download.pytorch.org/whl/cu128 --no-cache-dir || \
+    pip3 install torchao --no-cache-dir || \
+    echo "WARNING: torchao failed (non-fatal). fp8 training will be unavailable."
+
 echo "===== Verifying installation ====="
 python3 - <<'PY'
 from importlib.metadata import version
@@ -59,7 +69,7 @@ import torch
 packages = [
     "torch", "transformers", "datasets", "accelerate", "sentencepiece",
     "wandb", "pyyaml", "kernels", "liger-kernel", "flash-attn-4",
-    "flash-linear-attention", "causal-conv1d", "codecarbon",
+    "flash-linear-attention", "causal-conv1d", "codecarbon", "torchao",
 ]
 for pkg in packages:
     try:

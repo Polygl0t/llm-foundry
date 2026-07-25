@@ -333,6 +333,38 @@ class TrainingArguments:
         default=False,
         metadata={"help": "Whether to use bf16 mode."},
     )
+    fp8: bool | None = field(
+        default=False,
+        metadata={
+            "help": (
+                "Whether to use fp8 mixed precision training via `torchao.float8`. "
+                "When True, eligible `torch.nn.Linear` modules are swapped for `Float8Linear`, "
+                "so the forward/backward matmuls run in fp8 while parameters, gradients, "
+                "optimizer states, and all non-linear ops stay in bf16/fp32. "
+                "Requires an fp8-capable GPU (compute capability >= 8.9, i.e. Ada / Hopper / "
+                "Grace Hopper / Blackwell) and the `torchao` package. If `torchao` is not "
+                "installed, or the hardware does not support fp8, a warning is logged and "
+                "training falls back to the default configuration (tf32 / bf16)."
+                "\n\nNOTES: fp8 is applied AFTER every other model-level optimization "
+                "(Liger kernels, gradient checkpointing) so it wraps the final module tree. "
+                "The `lm_head` is never converted (it is either fused by Liger's "
+                "fused_linear_cross_entropy or numerically sensitive), and linears whose "
+                "`in_features`/`out_features` are not divisible by 16 are skipped because "
+                "the fp8 gemms require 16-element alignment. fp8 speedups grow with GEMM "
+                "size and are largest when combined with `torch_compile`."
+            )
+        },
+    )
+    fp8_recipe: str | None = field(
+        default="tensorwise",
+        metadata={
+            "help": (
+                "The `torchao.float8` scaling recipe to use when `fp8` is True. "
+                "Options: `tensorwise` (fastest), `rowwise` (more robust to outliers), "
+                "`rowwise_with_gw_hp` (most accurate, keeps grad_weight in high precision)."
+            )
+        },
+    )
     gradient_checkpointing: bool | None = field(
         default=False,
         metadata={"help": "Whether to use gradient checkpointing."},

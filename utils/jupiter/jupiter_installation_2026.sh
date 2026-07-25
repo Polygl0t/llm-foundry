@@ -169,6 +169,21 @@ PY
 }
 
 
+install_torchao() {
+    echo "[$(date)] Installing torchao..."
+    # torchao powers the optional `fp8: true` mixed precision path in the
+    # distributed trainers. The GH200 (Grace Hopper, compute capability 9.0)
+    # nodes on JUPITER have hardware fp8 support.
+    # Prefer the PyTorch cu130 index so the prebuilt kernels match the CUDA
+    # version of the pinned torch wheel; fall back to PyPI otherwise.
+    pip install --ignore-installed --no-cache-dir \
+        --index-url https://download.pytorch.org/whl/cu130 \
+        torchao \
+    || pip install --ignore-installed --no-cache-dir torchao \
+    || echo "WARNING: torchao install failed (non-fatal); fp8 training will be unavailable." >&2
+}
+
+
 print_final_status() {
     python3 - <<'PY'
 import importlib.util
@@ -185,6 +200,7 @@ checks = {
     "flash_attn_4": "flash_attn.cute",
     "flash_linear_attention": "fla",
     "causal_conv1d": "causal_conv1d",
+    "torchao": "torchao",
 }
 
 print("=== Installation complete ===")
@@ -208,6 +224,9 @@ install_core_packages
 
 # 2. Attention stack for GH200.
 install_attention_stack
+
+# 3. torchao for fp8 mixed precision training on GH200.
+install_torchao
 
 # And we are done!
 print_final_status

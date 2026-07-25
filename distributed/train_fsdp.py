@@ -133,6 +133,7 @@ def main(specs, slurm_job_id, hardware):
     checkpoint_path = model_state.checkpoint_path
     trainable_params = model_state.trainable_params
     active_trainable_params = model_state.active_trainable_params
+    fp8_enabled = model_state.fp8_enabled
 
     if fsdp:
         # Apply FSDP2 wrapping (fully_shard) to the model.
@@ -275,6 +276,9 @@ def main(specs, slurm_job_id, hardware):
         logger.info(f"  Gradient checkpointing | {args.gradient_checkpointing}")
         logger.info(f"  Liger kernel | {args.use_liger_kernel}")
         logger.info(f"  Torch compile | {args.torch_compile}")
+        logger.info(
+            f"  fp8 (torchao) | {fp8_enabled}{'' if fp8_enabled else f' (requested: {args.fp8})'}"
+        )
         logger.info(f"  Trainable parameters | {trainable_params:,}")
         if trainable_params != active_trainable_params:
             logger.info(
@@ -334,6 +338,9 @@ def main(specs, slurm_job_id, hardware):
             file_logger.log_metadata(f"  Gradient checkpointing | {args.gradient_checkpointing}")
             file_logger.log_metadata(f"  Liger kernel | {args.use_liger_kernel}")
             file_logger.log_metadata(f"  Torch compile | {args.torch_compile}")
+            file_logger.log_metadata(
+                f"  fp8 (torchao) | {fp8_enabled}{'' if fp8_enabled else f' (requested: {args.fp8})'}"
+            )
             file_logger.log_metadata(f"  Trainable parameters | {trainable_params:,}")
             if trainable_params != active_trainable_params:
                 file_logger.log_metadata(
