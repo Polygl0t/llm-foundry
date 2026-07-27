@@ -25,6 +25,14 @@ source "$venv_dir/bin/activate"
 echo "===== Upgrading pip ====="
 pip3 install --upgrade pip
 
+echo "===== Installing PyTorch 2.12.0+cu128 (pinned) ====="
+# Install torch first and explicitly so the rest of the stack binds to this
+# version (torchao requires torch >= 2.11.0). The H200 nodes use CUDA 12, so
+# pull from the cu128 index.
+pip3 install --no-cache-dir \
+    --index-url https://download.pytorch.org/whl/cu128 \
+    torch==2.12.0+cu128
+
 echo "===== Installing LLM Foundry ====="
 pip3 install -e "$workdir/llm-foundry/.[distributed]" --no-cache-dir
 

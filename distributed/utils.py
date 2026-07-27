@@ -486,15 +486,19 @@ def create_emissions_tracker(args, logger):
             region=args.codecarbon_region,
             **common_kwargs,
         )
+        logger.info(
+            f"Geo Location (offline): ISO: {args.codecarbon_country_iso_code} "
+            f"| Region: {args.codecarbon_region}"
+        )
     else:
         from codecarbon import EmissionsTracker
 
         tracker = EmissionsTracker(**common_kwargs)
+        logger.info(
+            f"Geo Location: ISO: {tracker._geo.country_iso_code} "
+            f"| Country: {tracker._geo.country_name} "
+            f"| Region : {tracker._geo.region}"
+        )
 
-    logger.info(
-        f"Geo Location: ISO: {tracker._geo.country_iso_code} "
-        f"| Country: {tracker._geo.country_name} "
-        f"| Region : {tracker._geo.region}"
-    )
     tracker.start()
     return tracker
