@@ -201,6 +201,7 @@ checks = {
     "flash_linear_attention": "fla",
     "causal_conv1d": "causal_conv1d",
     "torchao": "torchao",
+    "trackio": "trackio",
 }
 
 print("=== Installation complete ===")

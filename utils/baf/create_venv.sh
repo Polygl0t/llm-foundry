@@ -70,6 +70,7 @@ packages = [
     "torch", "transformers", "datasets", "accelerate", "sentencepiece",
     "wandb", "pyyaml", "kernels", "liger-kernel", "flash-attn-4",
     "flash-linear-attention", "causal-conv1d", "codecarbon", "torchao",
+    "trackio",
 ]
 for pkg in packages:
     try:
