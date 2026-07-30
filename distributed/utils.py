@@ -492,19 +492,19 @@ def create_emissions_tracker(args, logger):
             region=args.codecarbon_region,
             **common_kwargs,
         )
-        logger.info(
-            f"Geo Location (offline): ISO: {args.codecarbon_country_iso_code} "
-            f"| Region: {args.codecarbon_region}"
-        )
+        country_iso = args.codecarbon_country_iso_code or "unknown"
+        region = args.codecarbon_region or "unknown"
     else:
         from codecarbon import EmissionsTracker
 
+        # EmissionsTracker uses IP-based geolocation.
+        # On air-gapped HPC nodes the lookup may fail, leaving _geo as None.
         tracker = EmissionsTracker(**common_kwargs)
-        logger.info(
-            f"Geo Location: ISO: {tracker._geo.country_iso_code} "
-            f"| Country: {tracker._geo.country_name} "
-            f"| Region : {tracker._geo.region}"
-        )
+        country = getattr(tracker, "_geo", None)
+        country_iso = getattr(country, "country_iso_code", None) or "unknown"
+        region = getattr(country, "region", None) or "unknown"
+
+    logger.info(f"Geo Location: ISO: {country_iso} | Region: {region}")
 
     tracker.start()
     return tracker
