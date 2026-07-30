@@ -77,7 +77,7 @@ def _log_validation(
     val_time,
     tracker,
     stage_name,
-    wandb_token,
+    wandb_enabled,
 ):
     """Log validation results to console, file logger, and optionally W&B."""
     logger.info(
@@ -94,8 +94,8 @@ def _log_validation(
         }
     )
 
-    if wandb_token is not None:
-        wandb.log({"val_loss": val_loss_accum.item()})
+    if wandb_enabled:
+        wandb.log({"val_loss": val_loss_accum.item()}, step=completed_steps)
 
 
 def _save_checkpoint(
@@ -159,7 +159,7 @@ def _log_training_step(
     world_size,
     device,
     stage_name,
-    wandb_token,
+    wandb_enabled,
 ):
     """Calculate MFU and log training step metrics to console, file logger, and W&B."""
     # Calculate the MFU and other performance metrics.
@@ -212,12 +212,11 @@ def _log_training_step(
         training_stats["muon_lr"] = muon_lr
     file_logger.log_stats(training_stats)
 
-    if wandb_token is not None:
+    if wandb_enabled:
         metrics = {
             "loss": accumulated_loss.item(),
-            "step": completed_steps,
             "adam_lr": adam_lr,
-            "grad_norm": norm,
+            "grad_norm": norm_val,
             "dt_ms": dt * 1000,
             "global_tokens_per_sec": global_tokens_per_sec,
             "tokens_per_sec_per_gpu": tokens_per_sec_per_gpu,
@@ -225,13 +224,13 @@ def _log_training_step(
         }
         if muon_lr is not None:
             metrics["muon_lr"] = muon_lr
-        wandb.log(metrics)
+        wandb.log(metrics, step=completed_steps)
 
 
-def _finalize_training(*, tracker, wandb_token):
+def _finalize_training(*, tracker, wandb_enabled):
     """Stop the CodeCarbon tracker and finish the W&B run."""
     tracker.stop()
-    if wandb_token is not None:
+    if wandb_enabled:
         wandb.finish()
 
 
@@ -274,10 +273,10 @@ def _run_eval_only(
             val_time=val_time,
             tracker=tracker,
             stage_name=args.stage_name,
-            wandb_token=args.wandb_token,
+            wandb_enabled=args.wandb_enabled,
         )
         tracker.flush()
-        _finalize_training(tracker=tracker, wandb_token=args.wandb_token)
+        _finalize_training(tracker=tracker, wandb_enabled=args.wandb_enabled)
 
     if distributed_enabled:
         dist.barrier()
@@ -565,7 +564,7 @@ class DDPTrainer:
                     world_size=world_size,
                     device=device,
                     stage_name=args.stage_name,
-                    wandb_token=args.wandb_token,
+                    wandb_enabled=args.wandb_enabled,
                 )
 
             # Evaluate the model AFTER the training step when:
@@ -618,7 +617,7 @@ class DDPTrainer:
                             val_time=val_time,
                             tracker=tracker,
                             stage_name=args.stage_name,
-                            wandb_token=args.wandb_token,
+                            wandb_enabled=args.wandb_enabled,
                         )
 
                         # Create the checkpoint directory.
@@ -661,7 +660,7 @@ class DDPTrainer:
 
         # Terminate the W&B tracker and the CodeCarbon tracker at the end of the training loop.
         if master_process:
-            _finalize_training(tracker=tracker, wandb_token=args.wandb_token)
+            _finalize_training(tracker=tracker, wandb_enabled=args.wandb_enabled)
 
 
 class FSDPTrainer:
@@ -939,7 +938,7 @@ class FSDPTrainer:
                     world_size=world_size,
                     device=device,
                     stage_name=args.stage_name,
-                    wandb_token=args.wandb_token,
+                    wandb_enabled=args.wandb_enabled,
                 )
 
             # Evaluate the model AFTER the training step when:
@@ -999,7 +998,7 @@ class FSDPTrainer:
                             val_time=val_time,
                             tracker=tracker,
                             stage_name=args.stage_name,
-                            wandb_token=args.wandb_token,
+                            wandb_enabled=args.wandb_enabled,
                         )
 
                         # Create the checkpoint directory.
@@ -1043,4 +1042,4 @@ class FSDPTrainer:
 
         # Terminate the W&B tracker and the CodeCarbon tracker at the end of the training loop.
         if master_process:
-            _finalize_training(tracker=tracker, wandb_token=args.wandb_token)
+            _finalize_training(tracker=tracker, wandb_enabled=args.wandb_enabled)

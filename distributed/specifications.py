@@ -47,6 +47,15 @@ class TrainingArguments:
             for dataclass_field in fields(self)
         }
 
+    @property
+    def wandb_enabled(self) -> bool:
+        """Whether W&B (or trackio, in offline mode) logging is enabled.
+
+        True when either a `wandb_token` is provided (real W&B) or `offline_mode`
+        is set (trackio, which needs no token).
+        """
+        return self.wandb_token is not None or bool(self.offline_mode)
+
     # Directory settings
     checkpoint_dir: str | None = field(
         default="./checkpoints",
@@ -538,6 +547,16 @@ class TrainingArguments:
                 "Whether to run in offline mode, for HPC clusters without internet access on"
                 " compute nodes. When True, uses CodeCarbon's OfflineEmissionsTracker instead of"
                 " EmissionsTracker, and trackio instead of W&B."
+            )
+        },
+    )
+    trackio_dir: str | None = field(
+        default=None,
+        metadata={
+            "help": (
+                "Directory for the trackio database. When set, overrides the TRACKIO_DIR "
+                "environment variable. If neither is provided, defaults to ~/.trackio so "
+                "multiple runs share a single database."
             )
         },
     )

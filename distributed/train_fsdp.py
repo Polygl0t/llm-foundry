@@ -366,7 +366,7 @@ def main(specs, slurm_job_id, hardware):
 
     if master_process:
         # Initialize W&B (if configured) and CodeCarbon.
-        if args.wandb_token is not None:
+        if args.wandb_enabled:
             initialize_wandb(args, slurm_job_id, max_steps)
 
         # Create and start the CodeCarbon emissions tracker.

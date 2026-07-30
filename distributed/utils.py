@@ -276,7 +276,9 @@ def compute_training_schedule(args, train_dataloader_length, world_size):
     if args.max_steps is not None:
         max_steps = args.max_steps
         args.num_train_epochs = (
-            max_steps // num_update_steps_per_epoch if max_steps > num_update_steps_per_epoch else 1
+            math.ceil(max_steps / num_update_steps_per_epoch)
+            if max_steps > num_update_steps_per_epoch
+            else 1
         )
 
     return gradient_accumulation_steps, num_update_steps_per_epoch, max_steps
@@ -419,10 +421,14 @@ def initialize_wandb(args, slurm_job_id, max_steps):
     )
 
     if args.offline_mode:
-        # trackio's log directory is controlled by the TRACKIO_DIR environment variable.
-        # We nest it inside `args.checkpoint_dir` so that concurrent runs never collide,
-        # and can be joined together later.
-        os.environ["TRACKIO_DIR"] = os.path.join(args.checkpoint_dir, ".trackio")
+        # Resolve TRACKIO_DIR with a three-tier precedence:
+        #   1. args.trackio_dir  (explicit config)
+        #   2. TRACKIO_DIR env var
+        #   3. ~/.trackio  (default fallback)
+        if args.trackio_dir is not None:
+            os.environ["TRACKIO_DIR"] = str(args.trackio_dir)
+        elif "TRACKIO_DIR" not in os.environ:
+            os.environ["TRACKIO_DIR"] = os.path.expanduser("~/.trackio")
 
         import trackio
 

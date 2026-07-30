@@ -90,6 +90,7 @@ wandb_id: "llm-670m-wsd"
 wandb_project: "Polyglot"
 wandb_desc: "Developing LLMs for low-resource languages."
 offline_mode: false
+trackio_dir: null
 codecarbon_country_iso_code: "DEU"
 codecarbon_region: "north rhine-westphalia"
 
