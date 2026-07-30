@@ -89,7 +89,7 @@ install_core_packages() {
         accelerate==1.9.0 \
         codecarbon==3.2.9 \
         wandb==0.27.2 \
-        trackio \
+        trackio==0.32.2 \
         pyyaml==6.0.2 \
         liger-kernel==0.8.0 \
         kernels==0.13.0 \
