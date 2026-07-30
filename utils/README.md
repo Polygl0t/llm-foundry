@@ -15,6 +15,7 @@ This folder contains miscellaneous utility scripts and helpers for working with 
 - [`extract_reasoning_traces.py`](./extract_reasoning_traces.py) — Extract reasoning traces from a conversational dataset (i.e., has `"messages"` array) and save them in JSONL format.
 - [`inference_test.py`](./inference_test.py) — Run inference on a model using a sample dataset and save outputs.
 - [`inspect_model.py`](./inspect_model.py) — Analyze model configuration, parameter counts, and MoE routing statistics.
+- [`launch_trackio.py`](./launch_trackio.py) — Launch a Trackio dashboard for logging and visualizing training metrics.
 - [`marvin_create_workspace.sh`](./marvin_create_workspace.sh) — Allocate a workspace and clone the repo on the Marvin HPC cluster.
 - [`parse_run.py`](./parse_run.py) — Parse and summarize distributed training logs and emissions files.
 - [`pdf2markdown.sh`](./pdf2markdown.sh) — Example SLURM batch job for converting PDFs to Markdown using Marker.
@@ -196,6 +197,32 @@ Main parameters:
 - `--precision`: model dtype, `bfloat16` or `float32`.
 - `--device`: device to load the model onto.
 
+## `launch_trackio.py`
+Launch a Trackio dashboard for logging and visualizing training metrics.
+
+Example:
+```bash
+python utils/launch_trackio.py \
+  --project MyProjectName \
+  --db-dir ./MyProjectName
+```
+
+Main parameters:
+- `--project`: name of the Trackio project.
+- `--db-dir`: directory to store the Trackio database.
+
+You can also launch trackio dashboards as a Space on Hugging Face Hub. See the `launch_trackio.py` script for more details.
+
+### `marvin_create_workspace.sh`
+Create and prepare a Marvin HPC workspace.
+
+Key variables to customize inside the script:
+- `username`, `file_system`, `work_group`, `email`
+- `remainder`, `num_days`, `workspace_name`
+- `workdir`: resulting workspace path
+
+This script allocates the workspace, clones the repo, and documents environment setup steps.
+
 ### `parse_run.py`
 Parse training logs and optional emissions data.
 
@@ -224,16 +251,6 @@ Key variables to customize inside the script:
 - `OUTPUT_DIR`: directory for Markdown output.
 - `NUM_DEVICES` / `NUM_WORKERS`: GPUs and workers used by the job.
 - `CLEAN_CACHE`: whether to clean the HF cache after completion.
-
-### `marvin_create_workspace.sh`
-Create and prepare a Marvin HPC workspace.
-
-Key variables to customize inside the script:
-- `username`, `file_system`, `work_group`, `email`
-- `remainder`, `num_days`, `workspace_name`
-- `workdir`: resulting workspace path
-
-This script allocates the workspace, clones the repo, and documents environment setup steps.
 
 ### `reset_weights.py`
 Reset model weights in place or save the modified model.
