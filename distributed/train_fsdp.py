@@ -57,6 +57,14 @@ def main(specs, slurm_job_id, hardware):
     _logging.getLogger("httpx").setLevel(_logging.WARNING)
     _logging.getLogger("liger_kernel").setLevel(_logging.WARNING)
 
+    # Configure torch.compile dynamo settings BEFORE any model creation.
+    # Prevents recompile limit warnings when transformer layers differ only
+    # by layer_idx (an integer attribute that torch.compile treats as static).
+    import torch._dynamo as _dynamo
+
+    _dynamo.config.allow_unspec_int_on_nn_module = True
+    _dynamo.config.recompile_limit = 32
+
     # Load the training arguments from the specifications.yaml file.
     args = TrainingArguments.from_yaml(specs)
 
