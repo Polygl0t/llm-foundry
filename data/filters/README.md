@@ -4,6 +4,7 @@ Dataset filtering and annotation pipelines for text corpus curation. This folder
 
 ## Contents
 
+- [`/slurm`](./slurm) — Folder containing SLURM job scripts for cluster-managed environments. Before submitting, update the scripts with your cluster-specific settings and correct paths for your artifacts/workspace. **These are templates, not ready-to-run scripts.**
 - [`language_filter.py`](./language_filter.py) — Filters datasets by language using one of two backends: `langdetect` (probabilistic) or `unicode` (Unicode character-range heuristics).
 - [`minhash.py`](./minhash.py) — MinHash-based fuzzy deduplication pipeline using DataTrove and LSH.
 - [`quality_filters.py`](./quality_filters.py) — Multi-stage quality filtering pipeline using FastText, GlotLID, Gopher, and FineWeb quality checks.
@@ -199,17 +200,3 @@ Main parameters:
 - `--max_length` — maximum token length for tokenization.
 - `--float_score` / `--int_score` — output column names for scores.
 - `--output_folder` — output directory for annotated results.
-
-## SLURM Cluster Jobs
-
-The `.sh` scripts in this folder are configured for SLURM-based GPU clusters. Before submitting, update the following variables in each script:
-
-- `--account` — your SLURM account
-- `--partition` — target partition
-- `username`, `file_system`, `workspace_name` — workspace-specific paths
-
-Example:
-
-```bash
-sbatch data/filters/minhash.sh
-```

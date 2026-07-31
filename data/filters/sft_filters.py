@@ -37,7 +37,7 @@ Usage:
 
 TODO: Currently focused on Portuguese SFT datasets, but we should add support for
 other languages in the future. Many of the filters are language-agnostic, but
-some (like repetition loops) may need language-specific adjustments.
+some (like repetition loops) need language-specific adjustments.
 """
 
 import argparse
@@ -45,9 +45,12 @@ import glob
 import os
 import re
 
-import datasets
 import matplotlib.pyplot as plt
 import numpy as np
+
+from utils import DatasetLoader, flatten_messages, get_logger, save_dataset, write_metadata
+
+logger = get_logger("SFTFilter")
 
 # CONSTANTS & PATTERNS
 # Valid programming language tags for code block validation.
@@ -378,29 +381,6 @@ PORTUGUESE_STOPWORDS = {
 }
 
 
-# TODO: This is (I think) equivalent to the `flatten_messages` in
-# `data/filters/langdetect_language_filter.py`, but we should verify that and consolidate if possible.
-# If it is, this is something we should move to a shared utils.py to avoid code duplication.
-def get_all_content(example, messages_column="messages"):
-    """
-    Extract and concatenate all text content from a sample's messages.
-
-    Args:
-        example: A dataset sample containing a messages field with conversation data.
-        messages_column: The name of the column containing messages.
-
-    Returns:
-        str: All message contents joined by newlines, or empty string if no content.
-    """
-    try:
-        messages = example.get(messages_column, [])
-        if not messages:
-            return ""
-        return "\n".join(msg.get("content", "") for msg in messages if msg.get("content"))
-    except (KeyError, TypeError, AttributeError):
-        return ""
-
-
 def filter_malformed_code_blocks(example, messages_column="messages"):
     """
     Filter out samples containing malformed code blocks.
@@ -416,7 +396,7 @@ def filter_malformed_code_blocks(example, messages_column="messages"):
     Returns:
         bool: True if sample is valid (should be kept), False if malformed.
     """
-    content = get_all_content(example, messages_column)
+    content = flatten_messages(example.get(messages_column, []))
     if not content:
         return True  # Keep empty samples (will be filtered by other rules)
 
@@ -468,7 +448,7 @@ def filter_corrupted_code_content(example, messages_column="messages"):
     Returns:
         bool: True if sample is valid (should be kept), False if corrupted.
     """
-    content = get_all_content(example, messages_column)
+    content = flatten_messages(example.get(messages_column, []))
     if not content:
         return True
 
@@ -505,7 +485,7 @@ def filter_undecoded_sequences(example, messages_column="messages"):
     Returns:
         bool: True if sample is valid (should be kept), False if contains escapes.
     """
-    content = get_all_content(example, messages_column)
+    content = flatten_messages(example.get(messages_column, []))
     if not content:
         return True
 
@@ -530,7 +510,7 @@ def filter_invalid_structural_markers(example, messages_column="messages"):
     Returns:
         bool: True if sample is valid (should be kept), False if contains markers.
     """
-    content = get_all_content(example, messages_column)
+    content = flatten_messages(example.get(messages_column, []))
     if not content:
         return True
 
@@ -579,7 +559,7 @@ def filter_repetition_loops(
     Returns:
         bool: True if sample is valid (should be kept), False if contains repetition loops.
     """
-    content = get_all_content(example, messages_column)
+    content = flatten_messages(example.get(messages_column, []))
     if not content:
         return True
 
@@ -825,40 +805,6 @@ def filter_token_count(example, max_tokens, token_count_column="token_count"):
         return False
 
 
-# TODO: Create a unified loader that can handle both JSONL and Parquet, and HF Datasets.
-# We already have a working example in `synthetic/utils.py` and `data/tokenization/utils.py`.
-def load_dataset(input_dir, input_type="jsonl", cache_dir=None):
-    """
-    Load dataset from JSONL or Parquet files in the specified directory.
-
-    Args:
-        input_dir: Path to directory containing dataset files.
-        input_type: File format, either 'jsonl' or 'parquet'.
-        cache_dir: Optional cache directory for HuggingFace datasets.
-
-    Returns:
-        tuple: (dataset, num_files) - The loaded dataset and count of input files.
-
-    Raises:
-        ValueError: If no files of the specified type are found.
-    """
-    data_files = glob.glob(f"{input_dir}/*.{input_type}")
-    if not data_files:
-        raise ValueError(f"No {input_type.upper()} files found in '{input_dir}'.")
-
-    print(f"[INFO] Found {len(data_files)} {input_type} file(s)")
-
-    dataset = datasets.load_dataset(
-        "json" if input_type == "jsonl" else "parquet",
-        data_files=data_files,
-        split="train",
-        cache_dir=cache_dir,
-        num_proc=len(data_files),
-    )
-
-    return dataset, len(data_files)
-
-
 def plot_token_distribution(dataset, output_dir, token_count_column="token_count"):
     """
     Generate and save a histogram of the token count distribution.
@@ -875,7 +821,7 @@ def plot_token_distribution(dataset, output_dir, token_count_column="token_count
         Skips if token count column is not present in the dataset.
     """
     if token_count_column not in dataset.column_names:
-        print(f"[WARNING] '{token_count_column}' column not found. Skipping histogram.")
+        logger.warning("'%s' column not found. Skipping histogram.", token_count_column)
         return
 
     token_counts = dataset[token_count_column]
@@ -912,181 +858,114 @@ def plot_token_distribution(dataset, output_dir, token_count_column="token_count
     plt.savefig(plot_path, dpi=300, bbox_inches="tight")
     plt.close()
 
-    print(f"[INFO] Token distribution histogram saved to {plot_path}")
-    print(
-        f"[INFO] Token statistics: Mean={mean_tokens:.0f}, Median={median_tokens:.0f}, Min={min_tokens}, Max={max_tokens}"
+    logger.info("Token distribution histogram saved to %s", plot_path)
+    logger.info(
+        "Token statistics: Mean=%.0f, Median=%.0f, Min=%s, Max=%s",
+        mean_tokens,
+        median_tokens,
+        min_tokens,
+        max_tokens,
     )
-
-
-# TODO: Chunking and saving logic is duplicated from `unicode_language_filter.py`.
-# We should unify this in a shared utility function.
-# See `data/tokenization/utils.py` for an example of how to implement this in a reusable way.
-def save_dataset(dataset, output_dir, output_type="jsonl", num_chunks=1, total_tokens=None):
-    """
-    Save dataset to disk, optionally splitting into multiple chunks.
-
-    Saves the dataset in the specified format with consistent naming:
-    - Single chunk: train.{ext}
-    - Multiple chunks: train-00000-of-NNNNN.{ext}, train-00001-of-NNNNN.{ext}, ...
-
-    Also creates a .metadata file with dataset statistics.
-
-    Args:
-        dataset: The dataset to save.
-        output_dir: Directory where files will be written.
-        output_type: Output format, either 'jsonl' or 'parquet'.
-        num_chunks: Number of chunks to split the dataset into.
-        total_tokens: Optional total token count for metadata.
-    """
-    os.makedirs(output_dir, exist_ok=True)
-
-    sample_count = len(dataset)
-    print(f"[INFO] Saving {sample_count:,} samples in {num_chunks} chunk(s)")
-
-    extension = output_type if output_type == "parquet" else "jsonl"
-
-    if num_chunks > 1:
-        # Split into chunks
-        indices = np.array_split(np.arange(sample_count), num_chunks)
-        chunks = [dataset.select(idx) for idx in indices]
-
-        # Save each chunk
-        for i, chunk in enumerate(chunks):
-            filename = f"{output_dir}/train-{i:05d}-of-{num_chunks:05d}.{extension}"
-            print(f"[INFO] Saving chunk {i + 1}/{num_chunks}: {filename} ({len(chunk):,} samples)")
-
-            if output_type == "parquet":
-                chunk.to_parquet(filename)
-            else:
-                chunk.to_json(filename)
-    else:
-        # Save as single file
-        filename = f"{output_dir}/train.{extension}"
-        print(f"[INFO] Saving to {filename}")
-
-        if output_type == "parquet":
-            dataset.to_parquet(filename)
-        else:
-            dataset.to_json(filename)
-
-    # Save metadata
-    metadata_path = f"{output_dir}/.metadata"
-    with open(metadata_path, "w") as meta_file:
-        meta_file.write(f"Samples: {sample_count}\n")
-        meta_file.write(f"Chunks: {num_chunks}\n")
-        meta_file.write(f"Output type: {output_type}\n")
-        if total_tokens is not None:
-            meta_file.write(f"Total tokens: {total_tokens:,}\n")
-        meta_file.write(f"Columns: {dataset.column_names}\n")
-
-    print(f"[INFO] Metadata saved to {metadata_path}")
 
 
 def main(args):
-    # TODO: Create a unified loader that can handle both JSONL and Parquet, and HF Datasets.
-    # We already have a working example in `synthetic/utils.py` and `data/tokenization/utils.py`.
-    assert args.input_type in ["jsonl", "parquet"], (
-        "Input type must be either 'jsonl' or 'parquet'."
-    )
-    assert args.output_type in ["jsonl", "parquet"], (
-        "Output type must be either 'jsonl' or 'parquet'."
-    )
-
     # Get the column names
     messages_column = args.messages_column
     token_count_column = args.token_count_column
 
     # Load dataset
-    print(f"[INFO] Loading dataset from {args.input_dir}")
-    dataset, num_input_files = load_dataset(args.input_dir, args.input_type, args.cache_dir)
-    print(f"[INFO] Loaded dataset with {len(dataset):,} examples")
-    print(f"[INFO] Columns: {dataset.column_names}")
-    print(f"[INFO] Messages column: {messages_column}\n")
+    logger.info("Loading dataset from %s", args.input_dir)
+    dataset = DatasetLoader(args.input_dir, cache_dir=args.cache_dir).load()
+    logger.info("Loaded dataset with %d examples", len(dataset))
+    logger.info("Columns: %s", dataset.column_names)
+    logger.info("Messages column: %s", messages_column)
 
     initial_count = len(dataset)
 
     # Default preprocessing: Strip whitespace from all message content
     if messages_column in dataset.column_names:
-        print("[INFO] Stripping whitespace from message content...")
+        logger.info("Stripping whitespace from message content...")
         dataset = dataset.map(
             lambda x: strip_message_content(x, messages_column), num_proc=args.num_proc
         )
-        print(f"[INFO] Whitespace stripped from {len(dataset):,} samples\n")
+        logger.info("Whitespace stripped from %d samples", len(dataset))
 
     # Preprocessing: Remove system messages if enabled
     if args.remove_system_messages and messages_column in dataset.column_names:
-        print("[INFO] Removing system messages from all samples...")
+        logger.info("Removing system messages from all samples...")
         dataset = dataset.map(
             lambda x: remove_system_messages(x, messages_column), num_proc=args.num_proc
         )
-        print(f"[INFO] System messages removed from {len(dataset):,} samples\n")
+        logger.info("System messages removed from %d samples", len(dataset))
 
     # Apply filters
     if args.filter_incomplete_sentences and messages_column in dataset.column_names:
-        print("[INFO] Filtering samples with incomplete sentences...")
+        logger.info("Filtering samples with incomplete sentences...")
         dataset = dataset.filter(
             lambda x: filter_incomplete_sentences(x, messages_column), num_proc=args.num_proc
         )
         filtered_incomplete = initial_count - len(dataset)
-        print(f"[INFO] Removed {filtered_incomplete:,} samples with incomplete sentences")
-        print(f"[INFO] Remaining samples: {len(dataset):,}\n")
+        logger.info("Removed %d samples with incomplete sentences", filtered_incomplete)
+        logger.info("Remaining samples: %d", len(dataset))
 
     if args.filter_malformed_code_blocks and messages_column in dataset.column_names:
-        print("[INFO] Filtering samples with malformed code blocks...")
+        logger.info("Filtering samples with malformed code blocks...")
         before_filter = len(dataset)
         dataset = dataset.filter(
             lambda x: filter_malformed_code_blocks(x, messages_column), num_proc=args.num_proc
         )
         filtered_count = before_filter - len(dataset)
-        print(f"[INFO] Removed {filtered_count:,} samples with malformed code blocks")
-        print(f"[INFO] Remaining samples: {len(dataset):,}\n")
+        logger.info("Removed %d samples with malformed code blocks", filtered_count)
+        logger.info("Remaining samples: %d", len(dataset))
 
     if args.filter_corrupted_code and messages_column in dataset.column_names:
-        print("[INFO] Filtering samples with corrupted/mistranslated code content...")
+        logger.info("Filtering samples with corrupted/mistranslated code content...")
         before_filter = len(dataset)
         dataset = dataset.filter(
             lambda x: filter_corrupted_code_content(x, messages_column), num_proc=args.num_proc
         )
         filtered_count = before_filter - len(dataset)
-        print(f"[INFO] Removed {filtered_count:,} samples with corrupted code content")
-        print(f"[INFO] Remaining samples: {len(dataset):,}\n")
+        logger.info("Removed %d samples with corrupted code content", filtered_count)
+        logger.info("Remaining samples: %d", len(dataset))
 
     if args.filter_undecoded_sequences and messages_column in dataset.column_names:
-        print("[INFO] Filtering samples with undecoded Unicode escape sequences...")
+        logger.info("Filtering samples with undecoded Unicode escape sequences...")
         before_filter = len(dataset)
         dataset = dataset.filter(
             lambda x: filter_undecoded_sequences(x, messages_column), num_proc=args.num_proc
         )
         filtered_count = before_filter - len(dataset)
-        print(f"[INFO] Removed {filtered_count:,} samples with undecoded sequences")
-        print(f"[INFO] Remaining samples: {len(dataset):,}\n")
+        logger.info("Removed %d samples with undecoded sequences", filtered_count)
+        logger.info("Remaining samples: %d", len(dataset))
 
     if args.filter_invalid_markers and messages_column in dataset.column_names:
-        print(
-            "[INFO] Filtering samples with invalid structural markers (#### followed by number)..."
+        logger.info(
+            "Filtering samples with invalid structural markers (#### followed by number)..."
         )
         before_filter = len(dataset)
         dataset = dataset.filter(
             lambda x: filter_invalid_structural_markers(x, messages_column), num_proc=args.num_proc
         )
         filtered_count = before_filter - len(dataset)
-        print(f"[INFO] Removed {filtered_count:,} samples with invalid structural markers")
-        print(f"[INFO] Remaining samples: {len(dataset):,}\n")
+        logger.info("Removed %d samples with invalid structural markers", filtered_count)
+        logger.info("Remaining samples: %d", len(dataset))
 
     if args.filter_repetition_loops and messages_column in dataset.column_names:
-        print("[INFO] Filtering samples with word repetition loops...")
+        logger.info("Filtering samples with word repetition loops...")
         before_filter = len(dataset)
         dataset = dataset.filter(
             lambda x: filter_repetition_loops(x, messages_column), num_proc=args.num_proc
         )
         filtered_count = before_filter - len(dataset)
-        print(f"[INFO] Removed {filtered_count:,} samples with repetition loops")
-        print(f"[INFO] Remaining samples: {len(dataset):,}\n")
+        logger.info("Removed %d samples with repetition loops", filtered_count)
+        logger.info("Remaining samples: %d", len(dataset))
 
     if args.min_quality_score is not None and args.quality_score_column:
         if args.quality_score_column in dataset.column_names:
-            print(
-                f"[INFO] Filtering samples with {args.quality_score_column} < {args.min_quality_score}..."
+            logger.info(
+                "Filtering samples with %s < %s...",
+                args.quality_score_column,
+                args.min_quality_score,
             )
             before_filter = len(dataset)
             dataset = dataset.filter(
@@ -1096,73 +975,90 @@ def main(args):
                 num_proc=args.num_proc,
             )
             filtered_count = before_filter - len(dataset)
-            print(f"[INFO] Removed {filtered_count:,} samples below quality score threshold")
-            print(f"[INFO] Remaining samples: {len(dataset):,}\n")
+            logger.info("Removed %d samples below quality score threshold", filtered_count)
+            logger.info("Remaining samples: %d", len(dataset))
         else:
-            print(
-                f"[WARNING] Quality score column '{args.quality_score_column}' not found in dataset. Skipping filter."
+            logger.warning(
+                "Quality score column '%s' not found in dataset. Skipping filter.",
+                args.quality_score_column,
             )
 
     if args.min_token_count is not None and token_count_column in dataset.column_names:
-        print(f"[INFO] Filtering samples with {token_count_column} < {args.min_token_count:,}...")
+        logger.info("Filtering samples with %s < %d...", token_count_column, args.min_token_count)
         before_filter = len(dataset)
         dataset = dataset.filter(
             lambda x: filter_minimum_tokens(x, args.min_token_count, token_count_column),
             num_proc=args.num_proc,
         )
         filtered_count = before_filter - len(dataset)
-        print(f"[INFO] Removed {filtered_count:,} samples below minimum token threshold")
-        print(f"[INFO] Remaining samples: {len(dataset):,}\n")
+        logger.info("Removed %d samples below minimum token threshold", filtered_count)
+        logger.info("Remaining samples: %d", len(dataset))
 
     if args.max_token_count and token_count_column in dataset.column_names:
-        print(f"[INFO] Filtering samples with {token_count_column} > {args.max_token_count:,}...")
+        logger.info("Filtering samples with %s > %d...", token_count_column, args.max_token_count)
         before_token_filter = len(dataset)
         dataset = dataset.filter(
             lambda x: filter_token_count(x, args.max_token_count, token_count_column),
             num_proc=args.num_proc,
         )
         filtered_tokens = before_token_filter - len(dataset)
-        print(f"[INFO] Removed {filtered_tokens:,} samples exceeding token limit")
-        print(f"[INFO] Remaining samples: {len(dataset):,}\n")
+        logger.info("Removed %d samples exceeding token limit", filtered_tokens)
+        logger.info("Remaining samples: %d", len(dataset))
 
     # Check if any samples remain
     if len(dataset) == 0:
-        print("[ERROR] No samples remaining after filtering. Exiting.")
+        logger.error("No samples remaining after filtering. Exiting.")
         return
 
     # Calculate total tokens if available
     total_tokens = None
     if token_count_column in dataset.column_names:
         total_tokens = sum(dataset[token_count_column])
-        print(f"[INFO] Total tokens in filtered dataset: {total_tokens:,}")
+        logger.info("Total tokens in filtered dataset: %d", total_tokens)
 
     # Determine number of chunks based on total tokens after filtering
     if total_tokens is not None:
         num_chunks = max(
             1, (total_tokens + args.max_tokens_per_chunk - 1) // args.max_tokens_per_chunk
         )
-        print(
-            f"[INFO] Calculating chunks based on token count (~{args.max_tokens_per_chunk:,} tokens per chunk, {num_chunks} chunk(s))"
+        logger.info(
+            "Calculating chunks based on token count (~%d tokens per chunk, %d chunk(s))",
+            args.max_tokens_per_chunk,
+            num_chunks,
         )
     else:
         # Fallback to number of input files if token count not available
-        num_chunks = num_input_files
-        print(
-            f"[INFO] Token count not available, using {num_chunks} chunk(s) based on input file count"
+        num_chunks = max(1, len(glob.glob(f"{args.input_dir}/*.{args.input_type}")))
+        logger.info(
+            "Token count not available, using %d chunk(s) based on input file count", num_chunks
         )
 
     # Save dataset
-    save_dataset(dataset, args.output_dir, args.output_type, num_chunks, total_tokens)
+    n_chunks_written = save_dataset(
+        dataset,
+        args.output_dir,
+        args.output_type,
+        args.max_tokens_per_chunk,
+        token_count=total_tokens or 0,
+        n_chunks=num_chunks,
+    )
+    metadata = {
+        "Samples": len(dataset),
+        "Chunks": n_chunks_written,
+        "Output_type": args.output_type,
+        "Columns": dataset.column_names,
+    }
+    if total_tokens is not None:
+        metadata["Total_tokens"] = f"{total_tokens:,}"
+    write_metadata(os.path.join(args.output_dir, ".metadata"), metadata)
 
-    # TODO: We should stop using print statements and instead use a proper logger.
-    # See `data/tokenization/utils.py` for an example of how to set up logging.
     # Plot token distribution
-    print("\n[INFO] Generating token distribution histogram...")
+    logger.info("Generating token distribution histogram...")
     plot_token_distribution(dataset, args.output_dir, token_count_column)
 
-    print(f"\n[SUCCESS] Dataset saved to {args.output_dir}")
-    print(f"[SUCCESS] Total samples: {len(dataset):,}")
-    print(f"[SUCCESS] Format: {args.input_type} → {args.output_type}")
+    logger.info("Dataset saved to %s", args.output_dir)
+    logger.info("Total samples: %d", len(dataset))
+    logger.info("Format: %s → %s", args.input_type, args.output_type)
 
 
 if __name__ == "__main__":

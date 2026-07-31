@@ -5,6 +5,7 @@ This folder contains the tokenizer training and evaluation stack for creating cu
 ## Contents
 
 - [`assets/`](assets/) — Directory containing Jinja2 chat template configurations for various use cases (reasoning, non-reasoning, text, hybrid).
+- [`/slurm`](./slurm) — Folder containing SLURM job scripts for cluster-managed environments. Before submitting, update the scripts with your cluster-specific settings and correct paths for your artifacts/workspace. **These are templates, not ready-to-run scripts.**
 - [`chat_template.ipynb`](chat_template.ipynb) — Jupyter notebook for configuring and testing chat templates with different tokenizers.
 - [`tokenizer_eval.py`](tokenizer_eval.py) — Evaluation script for comparing and analyzing tokenizer performance, compression ratios, and token efficiency.
 - [`train_tokenizer_sentencepiece.py`](train_tokenizer_sentencepiece.py) — SentencePiece tokenizer training script for creating custom subword tokenizers with configurable vocabulary and merge operations.
@@ -90,18 +91,6 @@ Features:
 - Apply chat templates to conversation samples
 - Visualize token sequences and special tokens
 - Compare template outputs across different formats
-
-## SLURM Cluster Jobs
-
-The `.sh` scripts are configured for SLURM-based GPU clusters (when applicable). Before submitting, update the following variables in each script:
-
-- `--account` — Your SLURM account
-- `--partition` — Your target partition
-- `username`, `file_system`, `workspace_name` — Paths to your working directory
-
-```bash
-sbatch tokenizer/train_tokenizer_sentencepiece.sh
-```
 
 ## Chat Templates
 

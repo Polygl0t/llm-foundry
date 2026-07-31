@@ -1,5 +1,5 @@
 """
-Dataset Parsing / Preprocessing
+Dataset Parsing / Preprocessing / Formatting
 
 This script runs a single-pass DataTrove pipeline over a parquet dataset and lets
 you route, filter, or enrich samples with a user-defined parser.

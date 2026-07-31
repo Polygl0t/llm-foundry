@@ -4,6 +4,7 @@ This folder contains distributed training scripts for large language models usin
 
 ## Contents
 
+- [`/slurm`](./slurm) — Folder containing SLURM job scripts for cluster-managed environments. Before submitting, update the scripts with your cluster-specific settings and correct paths for your artifacts/workspace. **These are templates, not ready-to-run scripts.**
 - [train_ddp.py](train_ddp.py) — Distributed Data Parallel (DDP) training script for transformer-based causal language models. Handles multi-GPU synchronization with gradient accumulation and checkpointing.
 - [train_fsdp.py](train_fsdp.py) — Fully Sharded Data Parallel (FSDP) training script for larger models requiring parameter and optimizer state sharding across nodes.
 - [trainer.py](trainer.py) — Contains `DDPTrainer` and `FSDPTrainer` classes that encapsulate the training and validation loops, checkpointing, and per-step logging.
@@ -30,7 +31,7 @@ torchrun --nproc_per_node=4 distributed/train_ddp.py \
     --hardware a100
 
 # DDP training with multi-node setup via SLURM
-sbatch distributed/train_ddp.sh
+sbatch train_ddp.sh
 ```
 
 Main parameters:
@@ -50,7 +51,7 @@ torchrun --nproc_per_node=4 distributed/train_fsdp.py \
     --hardware a100
 
 # FSDP training with multi-node setup via SLURM
-sbatch distributed/train_fsdp.sh
+sbatch train_fsdp.sh
 ```
 
 Main parameters:

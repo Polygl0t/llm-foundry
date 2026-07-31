@@ -2,8 +2,11 @@
 
 Generation, validation, and verification utilities for gym-based (Reinforcement Learning-style) training and evaluation pipelines. This folder contains scripts to generate instruction, long-context, math, email, and tool-call samples from templates, as well as verifiers for validating sample correctness and formatting.
 
+These generators are very lightweight and do not require significant compute to run. You can use them to generate thousands of samples in a few minutes on a single CPU. The generated samples are intended for use in training and evaluation pipelines, and are formatted to work with our GRPO implementation (see [`alignment/`](../)).
+
 ## Contents
 
+- [`assets/`](./assets/) — Input assets for generation workflows, including documents, email data, and tool definitions.
 - [`generate_from_instruction_templates.py`](./generate_from_instruction_templates.py) — Builds instruction-following samples from template definitions.
 - [`generate_from_long_context_templates.py`](./generate_from_long_context_templates.py) — Creates long-context and haystack-style samples from local documents.
 - [`generate_from_math_dataset.py`](./generate_from_math_dataset.py) — Builds math answer/check samples from a math dataset.
@@ -15,7 +18,6 @@ Generation, validation, and verification utilities for gym-based (Reinforcement 
 - [`verifier.py`](./verifier.py) — Verifier entry point and registry usage.
 - [`verifiers.py`](./verifiers.py) — Concrete verifier implementations.
 - [`utils.py`](./utils.py) — Shared helper functions used across gym scripts.
-- [`assets/`](./assets/) — Input assets for generation workflows, including documents, email data, and tool definitions.
 
 ## Usage Summary
 
@@ -150,6 +152,7 @@ The [`assets/`](./assets/) folder includes:
 
 ## Notes
 
+- The whole gym is designed to create samples in Portuguese. In the future, we plan to modularize the generation scripts to support multiple languages.
 - Long-context and haystack generation use local documents in [`assets/`](./assets/).
 - `generate_from_email_templates.py` requires [`assets/emails.jsonl`](./assets/emails.jsonl).
 - `generate_from_tool_call_templates.py` expects [`assets/tools.json`](./assets/tools.json) by default.

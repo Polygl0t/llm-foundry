@@ -377,7 +377,10 @@ def main(specs, slurm_job_id, hardware):
         # Use active_trainable_params so MoE models count only the experts
         # that participate in each forward pass.
         mfu_context = create_mfu_context(
-            args=args, hardware=hardware, num_parameters=active_trainable_params
+            args=args,
+            hardware=hardware,
+            num_parameters=active_trainable_params,
+            fp8_enabled=fp8_enabled,
         )
 
     # Create the FSDPTrainer and run the training loop.

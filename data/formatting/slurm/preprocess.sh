@@ -68,7 +68,7 @@ echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --ve
 # Main Job Execution
 #############################################
 
-python3 "$workdir/llm-foundry/data/preprocess.py" \
+python3 "$workdir/data/formatting/preprocess.py" \
     --datasets_dir "$workdir/portuguese/gigaverbo-v2/default" \
     --output_dir "$workdir/portuguese/gigaverbo-v2-edu-split" \
     --output_type "parquet" \

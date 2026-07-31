@@ -4,6 +4,8 @@ CommonCrawl WARC archive processing for multilingual text extraction with option
 
 ## Contents
 
+- [`/.configs`](./.configs) — per-language filter configuration files.
+- [`/slurm`](./slurm) — Folder containing SLURM job scripts for cluster-managed environments. Before submitting, update the scripts with your cluster-specific settings and correct paths for your artifacts/workspace. **These are templates, not ready-to-run scripts.**
 - [`process_cc_dump_all_languages.py`](process_cc_dump_all_languages.py) — single-stage extraction + language filtering.
 - [`process_cc_dump_with_quality_filters.py`](process_cc_dump_with_quality_filters.py) — two-stage extraction + per-language quality filtering.
 - [`splitter.py`](splitter.py) — chunk large JSONL files using token counts.
@@ -129,18 +131,6 @@ To add a new language:
 - `--output_folder` for [`process_cc_dump_all_languages.py`](./process_cc_dump_all_languages.py) contains per-language directories and JSONL files.
 - `--warc_extraction_output` and `--quality_filter_output` are intermediate folders for the two-stage pipeline.
 - `--final_output_folder` contains the final filtered per-language outputs.
-
-## SLURM Cluster Jobs
-
-The `.sh` scripts are configured for SLURM-based GPU clusters. Before submitting, update the following variables in each script:
-
-- `--account` — Your SLURM account
-- `--partition` — Your target partition
-- `username`, `file_system`, `workspace_name` — Paths to your working directory
-
-```bash
-sbatch process_cc_dump_all_languages.sh
-```
 
 ## Notes
 

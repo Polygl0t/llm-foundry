@@ -1,6 +1,6 @@
 # Data Parsers
 
-Parser modules for [`../preprocess.py`](../preprocess.py).
+Parsers and formatters for [`../preprocess.py`](../preprocess.py).
 
 A parser is responsible for sample-level logic such as:
 
@@ -58,13 +58,13 @@ The parser receives runtime arguments from `preprocess.py`. Common fields includ
 
 ## Usage Summary
 
-### Running `data/preprocess.py` with a parser
+### Running `data/formatting/preprocess.py` with a parser
 
 ```bash
-python data/preprocess.py \
+python data/formatting/preprocess.py \
     --datasets_dir data/raw_parquet \
     --output_dir data/parsed \
-    --parser_path ./data/parsers/<parser>.py \
+    --parser_path ./data/formatting/parsers/<parser>.py \
     --parser_config '{...}'
 ```
 
@@ -98,10 +98,10 @@ Optional config:
 
 Example:
 ```bash
-python data/preprocess.py \
+python data/formatting/preprocess.py \
     --datasets_dir data/raw_parquet \
     --output_dir data/parsed \
-    --parser_path ./data/parsers/add_uuid_parser.py
+    --parser_path ./data/formatting/parsers/add_uuid_parser.py
 ```
 
 ### `score_threshold_filter_parser.py`
@@ -126,10 +126,10 @@ Required config:
 
 Example:
 ```bash
-python data/preprocess.py \
+python data/formatting/preprocess.py \
     --datasets_dir data/raw_parquet \
     --output_dir data/parsed \
-    --parser_path ./data/parsers/score_threshold_filter_parser.py \
+    --parser_path ./data/formatting/parsers/score_threshold_filter_parser.py \
     --parser_config '{"score_column": "edu_int_score", "minimum_score": 3}'
 ```
 
@@ -145,11 +145,11 @@ In that mode:
 
 Example:
 ```bash
-python data/preprocess.py \
+python data/formatting/preprocess.py \
     --datasets_dir data/raw_parquet \
     --output_dir data/parsed \
     --stratify_by_column edu_int_score \
-    --parser_path ./data/parsers/add_uuid_parser.py
+    --parser_path ./data/formatting/parsers/add_uuid_parser.py
 ```
 
 ## Notes

@@ -210,7 +210,8 @@ print("2. MFU Calculation")
 print("=" * 60)
 
 from mfu import (  # noqa: E402
-    PEAK_FLOPS_BY_HARDWARE,
+    PEAK_BF16_FLOPS_BY_HARDWARE,
+    PEAK_FP8_FLOPS_BY_HARDWARE,
     MFUContext,
     TrainingPerformanceMetrics,
     _full_attention_macs_per_token,
@@ -223,9 +224,9 @@ from mfu import (  # noqa: E402
 
 def test_peak_flops_registry():
     """Known hardware entries exist in the registry."""
-    assert "a100" in PEAK_FLOPS_BY_HARDWARE
-    assert "a40" in PEAK_FLOPS_BY_HARDWARE
-    assert PEAK_FLOPS_BY_HARDWARE["a100"] == 312e12
+    assert "a100" in PEAK_BF16_FLOPS_BY_HARDWARE
+    assert "a40" in PEAK_BF16_FLOPS_BY_HARDWARE
+    assert PEAK_BF16_FLOPS_BY_HARDWARE["a100"] == 312e12
 
 
 def test_calculate_training_metrics_moe_uses_active_params():
@@ -273,6 +274,36 @@ def test_create_mfu_context_unsupported_hardware():
     except ValueError:
         raised = True
     assert raised, "Expected ValueError for unsupported hardware"
+
+
+def test_create_mfu_context_fp8_uses_fp8_peak():
+    """When fp8_enabled=True and the hardware has an FP8 entry, the FP8 peak is used."""
+    args = TrainingArguments()
+    args.num_hidden_layers = 12
+    args.num_attention_heads = 12
+    args.head_dim = 64
+    args.max_position_embeddings = 512
+
+    ctx = create_mfu_context(args, "h100", num_parameters=125_000_000, fp8_enabled=True)
+    assert ctx.peak_flops == PEAK_FP8_FLOPS_BY_HARDWARE["h100"]
+    assert ctx.peak_flops != PEAK_BF16_FLOPS_BY_HARDWARE["h100"]
+
+
+def test_create_mfu_context_fp8_falls_back_to_bf16():
+    """When fp8_enabled=True but the hardware is not in the FP8 table, fall back to BF16."""
+    args = TrainingArguments()
+    args.num_hidden_layers = 12
+    args.num_attention_heads = 12
+    args.head_dim = 64
+    args.max_position_embeddings = 512
+
+    # A100 has no FP8 entry, so it must fall back to its BF16 peak.
+    ctx = create_mfu_context(args, "a100", num_parameters=125_000_000, fp8_enabled=True)
+    assert ctx.peak_flops == PEAK_BF16_FLOPS_BY_HARDWARE["a100"]
+
+    # Verify fp8_enabled=False still uses BF16 (existing behaviour).
+    ctx_no_fp8 = create_mfu_context(args, "a100", num_parameters=125_000_000)
+    assert ctx_no_fp8.peak_flops == PEAK_BF16_FLOPS_BY_HARDWARE["a100"]
 
 
 def test_calculate_training_metrics():
@@ -521,6 +552,8 @@ if __name__ == "__main__":
         test_calculate_training_metrics_moe_uses_active_params,
         test_create_mfu_context,
         test_create_mfu_context_unsupported_hardware,
+        test_create_mfu_context_fp8_uses_fp8_peak,
+        test_create_mfu_context_fp8_falls_back_to_bf16,
         test_calculate_training_metrics,
         test_calculate_training_metrics_rejects_invalid_inputs,
         test_full_attention_macs_formula,

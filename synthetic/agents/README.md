@@ -6,8 +6,8 @@ Agent-based trace generation using [smolagents](https://github.com/huggingface/s
 
 - [`data/`](./data/) — Sample input datasets for trace generation.
 - [`prompts/`](./prompts/) — YAML system-prompt templates for the CodeAgent.
+- [`/slurm`](./slurm) — Folder containing SLURM job scripts for cluster-managed environments. Before submitting, update the scripts with your cluster-specific settings and correct paths for your artifacts/workspace. **These are templates, not ready-to-run scripts.**
 - [`generate_agent_traces.py`](./generate_agent_traces.py) — Main entry point for generating CodeAgent execution traces from a dataset.
-- [`generate_agent_traces.sh`](./generate_agent_traces.sh) — SLURM batch script for launching distributed trace generation on HPC clusters.
 - [`tools.py`](./tools.py) — Custom `smolagents.Tool` implementations for filesystem operations (read, write, edit, list, search, grep) and mathematical problem solving.
 - [`utils.py`](./utils.py) — Shared utilities including `TraceRecord`, `OutputManager` (with JSON-array file rotation), trace formatting/validation, and vLLM compatibility patches.
 
@@ -32,6 +32,9 @@ python generate_agent_traces.py \
   --temperature 0.7 \
   --top-p 0.80 \
   --top-k 20
+
+# Or, via the SLURM batch script:
+sbatch generate_agent_traces.sh
 ```
 
 Main parameters:
@@ -58,15 +61,6 @@ Main parameters:
 - `--disable-formatting`: Skip saving formatted conversation traces (raw traces only).
 - `--max-entries-per-file`: Max JSON objects per consolidated output file before rotation (default 50,000).
 - `--no-resume`: Disable auto-resume (always start fresh).
-
-### `generate_agent_traces.sh`
-
-SLURM batch script for launching distributed trace generation on HPC clusters. Configures environment variables for model, dataset, agent, and output parameters, then invokes `generate_agent_traces.py`.
-
-Example:
-```bash
-sbatch generate_agent_traces.sh
-```
 
 ## Custom Tools
 

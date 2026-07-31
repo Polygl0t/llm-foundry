@@ -24,9 +24,9 @@ Provides:
 
 from dataclasses import dataclass
 
-# Peak FLOPs (BF16) for supported hardware (Bender|Marvin|Jupiter|OP).
+# Peak FLOPs (BF16/FP8) for supported hardware (Bender|Marvin|Jupiter|BAF).
 # Units:
-#   - Values are theoretical peak dense BF16 throughput in FLOPs/s.
+#   - Values are theoretical peak dense BF16/FP8 throughput in FLOPs/s.
 #
 # Sources:
 #   - A100  : https://www.nvidia.com/en-us/data-center/a100/
@@ -37,12 +37,19 @@ from dataclasses import dataclass
 
 # Note:
 #   - Sparse throughput reported by vendors is converted to dense by dividing by 2.
-PEAK_FLOPS_BY_HARDWARE = {
+PEAK_BF16_FLOPS_BY_HARDWARE = {
     "a100": 312e12,
     "a40": 150e12,
     "gh200": 990e12,
     "h200": 989.5e12,
     "h100": 756.5e12,
+    # Extend with more hardware as needed.
+}
+
+PEAK_FP8_FLOPS_BY_HARDWARE = {
+    "gh200": 1979e12,
+    "h200": 1979e12,
+    "h100": 1513e12,
     # Extend with more hardware as needed.
 }
 
@@ -236,11 +243,23 @@ def _has_linear_attention(layer_types):
     return any(lt == "linear_attention" for lt in layer_types)
 
 
-def create_mfu_context(args, hardware, num_parameters):
-    """Build an :class:`MFUContext` from runtime training args and hardware."""
-    peak_flops = PEAK_FLOPS_BY_HARDWARE.get(hardware.lower())
+def create_mfu_context(args, hardware, num_parameters, fp8_enabled=False):
+    """Build an :class:`MFUContext` from runtime training args and hardware.
+
+    When `fp8_enabled` is True the theoretical peak is taken from
+    :data:`PEAK_FP8_FLOPS_BY_HARDWARE`; if the hardware is not present in that
+    table the function falls back to :data:`PEAK_BF16_FLOPS_BY_HARDWARE`.
+    """
+    hardware_lower = hardware.lower()
+    if fp8_enabled:
+        peak_flops = PEAK_FP8_FLOPS_BY_HARDWARE.get(hardware_lower)
+        if peak_flops is None:
+            peak_flops = PEAK_BF16_FLOPS_BY_HARDWARE.get(hardware_lower)
+    else:
+        peak_flops = PEAK_BF16_FLOPS_BY_HARDWARE.get(hardware_lower)
+
     if peak_flops is None:
-        supported = ", ".join(sorted(PEAK_FLOPS_BY_HARDWARE))
+        supported = ", ".join(sorted(PEAK_BF16_FLOPS_BY_HARDWARE))
         raise ValueError(f"Hardware '{hardware}' not supported for MFU. Supported: {supported}.")
 
     return MFUContext(

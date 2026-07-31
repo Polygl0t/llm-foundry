@@ -58,7 +58,6 @@ print(result)
 """
 
 import argparse
-import glob
 import os
 
 import accelerate
@@ -75,6 +74,10 @@ from transformers import (
     Trainer,
     TrainingArguments,
 )
+
+from utils import DatasetLoader, get_logger
+
+logger = get_logger("AnnotatorTrainer")
 
 
 def compute_metrics(eval_pred):
@@ -103,8 +106,8 @@ def compute_metrics(eval_pred):
     # See https://scikit-learn.org/stable/modules/generated/sklearn.metrics.confusion_matrix.html
     cm = confusion_matrix(labels, preds)
 
-    print("Validation Report:\n" + report)
-    print("Confusion Matrix:\n" + str(cm))
+    logger.info("Validation Report:\n%s", report)
+    logger.info("Confusion Matrix:\n%s", str(cm))
 
     return {
         "precision": precision,
@@ -120,43 +123,19 @@ def main(args):
     # print the state of every process
     master_process = int(state.process_index) == 0
     if master_process:
-        print(f"{state}")
+        logger.info("%s", state)
 
-    # Load our training dataset.
-    # We expect the dataset to be in a specific format: jsonl or parquet.
-    assert args.dataset_type in ["jsonl", "parquet"], (
-        f"Dataset type must be either 'jsonl' or 'parquet', got {args.dataset_type}."
-    )
-
-    train_dataset_files = []
-    train_dirs = args.train_dataset_dir
-    if isinstance(train_dirs, str):
-        train_dirs = [train_dirs]
-
-    # Below, we loop over all training directories and collect the dataset files that
-    # have the correct file extension.
-    for train_dir in train_dirs:
-        if os.path.isfile(train_dir) and train_dir.endswith(f".{args.dataset_type}"):
-            train_dataset_files.append(train_dir)
-        elif os.path.isdir(train_dir):
-            train_dataset_files += glob.glob(f"{train_dir}/*.{args.dataset_type}")
-
-    # Ensure all processes have the same file list (synchronize before loading)
-    train_dataset_files = sorted(train_dataset_files)
+    # Load our training dataset via DatasetLoader, which auto-detects
+    # .jsonl / .parquet files inside each directory, loads individual files,
+    # and concatenates results when multiple paths are provided.
     state.wait_for_everyone()
 
-    # Load the datasets from disk
-    # See https://huggingface.co/docs/datasets/main/en/package_reference/loading_methods#datasets.load_dataset
-    dataset = datasets.load_dataset(
-        "json" if args.dataset_type == "jsonl" else args.dataset_type,
-        data_files=train_dataset_files,
-        split="train",
-        num_proc=min(len(train_dataset_files), args.num_proc),
+    dataset = DatasetLoader(
+        path=args.train_dataset_dir,
         cache_dir=args.cache_dir,
-    )
-
-    if args.shuffle_dataset:
-        dataset = dataset.shuffle(seed=args.seed)
+        seed=args.seed if args.shuffle_dataset else None,
+        num_proc=args.num_proc,
+    ).load()
 
     # Given that the scores we generated in `llm_filter.py` are in the range [1, 5],
     # we need to convert them to the range [0, 4] for training.
@@ -311,8 +290,8 @@ def main(args):
                 #    for param in model.model.layers.parameters():
                 #        param.requires_grad = False
             else:
-                print(
-                    f"Warning: model.model not found in {type(model)}. No encoder/embedding frozen."
+                logger.warning(
+                    "model.model not found in %s. No encoder/embedding frozen.", type(model)
                 )
 
         else:
@@ -400,7 +379,7 @@ def main(args):
             # that `resume_from_checkpoint` is already set to the latest checkpoint.
             pass
         if master_process:
-            print(f"Resuming training from checkpoint: {checkpoint_path}")
+            logger.info("Resuming training from checkpoint: %s", checkpoint_path)
 
     # Start the training
     try:
@@ -411,15 +390,15 @@ def main(args):
         save_path = os.path.join(args.checkpoint_dir, "last")
         trainer.save_model(save_path)
         if master_process:
-            print(f"Training failed with error: {e}")
-            print(f"Model saved to 'last' checkpoint at {save_path}")
+            logger.error("Training failed with error: %s", e)
+            logger.info("Model saved to 'last' checkpoint at %s", save_path)
 
     try:
         trainer.evaluate()
     except Exception as e:
         if master_process:
-            print(f"Evaluation failed with error: {e}")
-            print("Skipping final evaluation...")
+            logger.error("Evaluation failed with error: %s", e)
+            logger.info("Skipping final evaluation...")
 
     # Save the final model
     trainer.save_model(os.path.join(args.checkpoint_dir, "final"))

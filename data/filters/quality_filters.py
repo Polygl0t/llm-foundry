@@ -42,7 +42,6 @@ import json
 import os
 from functools import partial
 
-import datasets
 import yaml
 from datatrove.executor import LocalPipelineExecutor
 from datatrove.pipeline.filters import (
@@ -57,43 +56,12 @@ from datatrove.pipeline.readers import JsonlReader
 from datatrove.pipeline.tokens import TokensCounter
 from datatrove.pipeline.writers.jsonl import JsonlWriter
 
-
-# TODO: We should off-load the metadata reading and writing to a separate utility module.
-# See `data/cc/utils.py` for an example.
-def read_metadata(metadata_file):
-    """Read metadata from file in YAML-like format."""
-    if not os.path.exists(metadata_file):
-        return None
-
-    metadata = {}
-    with open(metadata_file, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if line and ":" in line:
-                key, value = line.split(":", 1)
-                key = key.strip()
-                value = value.strip()
-                # Convert numeric values
-                try:
-                    if "." in value:
-                        metadata[key] = float(value)
-                    else:
-                        metadata[key] = int(value)
-                except ValueError:
-                    metadata[key] = value
-    return metadata
-
-
-# TODO: We should off-load the metadata reading and writing to a separate utility module.
-# See `data/cc/utils.py` for an example.
-def write_metadata(metadata_file, metadata):
-    """Write metadata to file in YAML-like format."""
-    with open(metadata_file, "w", encoding="utf-8") as f:
-        for key, value in metadata.items():
-            f.write(f"{key}: {value}\n")
+from utils import DatasetLoader, get_logger, write_metadata
 
 
 def main(args):
+    logger = get_logger("QualityFilters")
+
     TASKS = args.tasks
     WORKERS = args.workers
     CONFIG_FOLDER = args.config_folder
@@ -218,25 +186,25 @@ def main(args):
         logging_dir=LOGS_FOLDER + "/quality_filters",
     )
 
-    print(f"[INFO] Running quality filters for: '{LANGUAGE}'")
+    logger.info(f"Running quality filters for: '{LANGUAGE}'")
     quality_filters.run()
-    print(
-        f"[INFO] Quality filters for '{LANGUAGE}' completed successfully. Output saved to: {FINAL_OUTPUT_FOLDER}"
+    logger.info(
+        f"Quality filters for '{LANGUAGE}' completed successfully. Output saved to: {FINAL_OUTPUT_FOLDER}"
     )
 
     # Post-processing: Calculate and save metadata
-    print(f"\n{'=' * 80}")
-    print(f"[POST-PROCESSING] {LANGUAGE.upper()}")
-    print(f"{'=' * 80}")
+    logger.info(f"{'=' * 80}")
+    logger.info(f"[POST-PROCESSING] {LANGUAGE.upper()}")
+    logger.info(f"{'=' * 80}")
 
     # Get all JSONL files in the output folder
     all_files = glob.glob(f"{FINAL_OUTPUT_FOLDER}/*.jsonl")
 
     if not all_files:
-        print(f"⚠️  No JSONL files found in {FINAL_OUTPUT_FOLDER}")
+        logger.warning(f"No JSONL files found in {FINAL_OUTPUT_FOLDER}")
         return
 
-    print(f"📂 Found {len(all_files)} JSONL files")
+    logger.info(f"Found {len(all_files)} JSONL files")
 
     # Calculate statistics from output files
     total_documents = 0
@@ -244,20 +212,15 @@ def main(args):
 
     try:
         # Try to load with datasets library for efficiency
-        data = datasets.load_dataset(
-            "json",
-            data_files=all_files,
-            split="train",
-            cache_dir=args.cache_dir,
-            num_proc=len(all_files),
-        )
+        loader = DatasetLoader(FINAL_OUTPUT_FOLDER, cache_dir=args.cache_dir)
+        data = loader.load()
 
         total_documents = len(data)
         if "token_count" in data.column_names:
             total_tokens = sum(data["token_count"])
     except Exception as e:
         # Fallback to file-by-file, line-by-line parsing
-        print(f"⚠️  Using fallback parsing for statistics due to error: {e}")
+        logger.warning(f"Using fallback parsing for statistics due to error: {e}")
         for file_path in all_files:
             with open(file_path, encoding="utf-8") as f:
                 for line in f:
@@ -276,20 +239,17 @@ def main(args):
     metadata_file = os.path.join(FINAL_OUTPUT_FOLDER, ".metadata")
     write_metadata(metadata_file, metadata)
 
-    # TODO: We should stop using print statements and instead use a proper logger.
-    # See `data/tokenization/utils.py` for an example of how to set up logging.
-    # Print formatted statistics
-    print(f"\n{'─' * 80}")
-    print(f"📊 STATISTICS FOR '{LANGUAGE.upper()}'")
-    print(f"{'─' * 80}")
-    print(f"  Total Documents        : {total_documents:>15,}")
-    print(f"  Total Tokens           : {total_tokens:>15,}")
+    logger.info(f"{'─' * 80}")
+    logger.info(f"STATISTICS FOR '{LANGUAGE.upper()}'")
+    logger.info(f"{'─' * 80}")
+    logger.info(f"  Total Documents        : {total_documents:>15,}")
+    logger.info(f"  Total Tokens           : {total_tokens:>15,}")
     if total_documents > 0:
         avg_tokens_per_doc = total_tokens / total_documents
-        print(f"  Avg Tokens/Document    : {avg_tokens_per_doc:>15,.2f}")
-    print(f"{'─' * 80}")
-    print(f"✅ Metadata saved to: {metadata_file}")
-    print(f"✅ Post-processing for '{LANGUAGE}' completed.\n")
+        logger.info(f"  Avg Tokens/Document    : {avg_tokens_per_doc:>15,.2f}")
+    logger.info(f"{'─' * 80}")
+    logger.info(f"Metadata saved to: {metadata_file}")
+    logger.info(f"Post-processing for '{LANGUAGE}' completed.\n")
 
 
 if __name__ == "__main__":

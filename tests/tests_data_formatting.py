@@ -31,7 +31,7 @@ import pyarrow.parquet as pq
 sys.pycache_prefix = os.path.join(tempfile.gettempdir(), "pycache")
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
-DATA_DIR = os.path.join(REPO_ROOT, "data")
+DATA_DIR = os.path.join(REPO_ROOT, "data", "formatting")
 if DATA_DIR not in sys.path:
     sys.path.insert(0, DATA_DIR)
 

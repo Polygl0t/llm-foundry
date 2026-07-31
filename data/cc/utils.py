@@ -92,15 +92,15 @@ def initialize_or_load_metadata(lang_output_path: str) -> dict:
     """
     Return metadata for a language output folder.
 
-    Loads from an existing ``.metadata`` file if present. Otherwise scans all
+    Loads from an existing `.metadata` file if present. Otherwise scans all
     JSONL files in the folder to rebuild the statistics and writes the result
-    to ``.metadata`` for future calls.
+    to `.metadata` for future calls.
 
     Args:
         lang_output_path: Path to the language-specific output folder.
 
     Returns:
-        Dictionary with at least ``lines`` and ``tokens`` keys.
+        Dictionary with at least `lines` and `tokens` keys.
     """
     metadata_file = os.path.join(lang_output_path, ".metadata")
 

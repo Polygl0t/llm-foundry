@@ -5,6 +5,7 @@ This folder contains the synthetic data generation stack for creating training d
 ## Contents
 
 - [`agents/`](agents/) — Agent-based trace generation using [smolagents](https://github.com/huggingface/smolagents). See [`agents/README.md`](agents/README.md) for full documentation.
+- [`/slurm`](./slurm) — Folder containing SLURM job scripts for cluster-managed environments. Before submitting, update the scripts with your cluster-specific settings and correct paths for your artifacts/workspace. **These are templates, not ready-to-run scripts.**
 - [`generate.py`](generate.py) — General-purpose synthetic text generation with vLLM inference for diverse text synthesis tasks.
 - [`generate_cai.py`](generate_cai.py) — Constitutional AI (CAI) based synthetic data generation with critique-and-revision loops for guided generation.
 - [`generate_datatrove.py`](generate_datatrove.py) — Datatrove-based inference pipeline for large-scale synthetic data generation with distributed processing support.
@@ -143,20 +144,6 @@ Main parameters:
 Cool Features:
 - **Automatic resume**: Interrupted jobs resume from last checkpoint by re-running the same command.
 - **Distributed support**: Configurable tensor, pipeline, and data parallelism for multi-GPU inference.
-
-## SLURM Cluster Jobs
-
-The `.sh` scripts are configured for SLURM-based GPU clusters. These wrap the Python scripts with SLURM resource allocation.
-
-Before submitting, update the following variables in each script:
-
-- `--account` — Your SLURM account
-- `--partition` — Your target partition
-- `username`, `file_system`, `workspace_name` — Paths to your working directory
-
-```bash
-sbatch synthetic/generate.sh
-```
 
 ## Agent Traces
 

@@ -5,6 +5,7 @@ Tokenization, packing, decontamination, and validation split utilities for pretr
 
 ## Contents
 
+- [`/slurm`](./slurm) — Folder containing SLURM job scripts for cluster-managed environments. Before submitting, update the scripts with your cluster-specific settings and correct paths for your artifacts/workspace. **These are templates, not ready-to-run scripts.**
 - [`decontaminate.py`](decontaminate.py) — Removes training examples that overlap with reference/evaluation sets via k-token matching.
 - [`make_validation_split.py`](make_validation_split.py) — Extracts a validation split from tokenized training files.
 - [`pack.py`](pack.py) — Packs pre-tokenized sequences into fixed-length chunks using concatenation or Best-Fit Decreasing (BFD) strategies.
@@ -138,18 +139,6 @@ Main parameters:
 ### `utils.py`
 
 Shared utilities for tokenization and packing scripts, including dataset loading, logging, saving, and file management.
-
-## SLURM Cluster Jobs
-
-The `.sh` scripts are configured for SLURM-based GPU clusters. Before submitting, update the following variables in each script:
-
-- `--account` — Your SLURM account
-- `--partition` — Your target partition
-- `username`, `file_system`, `workspace_name` — Paths to your working directory
-
-```bash
-sbatch run_tokenization.sh
-```
 
 ## Notes
 

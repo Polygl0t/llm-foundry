@@ -4,12 +4,13 @@ Alignment-related training scripts and utilities for the post-training phase and
 
 ## Contents
 
+- [`/gym`](./gym) — Codebase to generate tasks with verifiable rewards for RLVR-style training.
+- [`/slurm`](./slurm) — Folder containing SLURM job scripts for cluster-managed environments. Before submitting, update the scripts with your cluster-specific settings and correct paths for your artifacts/workspace. **These are templates, not ready-to-run scripts.**
 - [`dpo_trainer.py`](./dpo_trainer.py) — DPO training with chosen/rejected response pairs.
 - [`grpo_trainer.py`](./grpo_trainer.py) — GRPO training using verifier-based rewards from `alignment/gym/`.
 - [`reward_trainer.py`](./reward_trainer.py) — Reward model training using TRL's `RewardTrainer`.
 - [`sft_trainer.py`](./sft_trainer.py) — Supervised fine-tuning of LLMs using Transformers and TRL.
 - [`utils.py`](./utils.py) — Shared helper functions used by the alignment scripts.
-- [`gym/README.md`](./gym/README.md) — Details on gym generation, verification, and task metadata.
 
 ## Usage Summary
 
@@ -142,18 +143,6 @@ Main parameters:
 - `--use_vllm`, `--vllm_mode` — Enable vLLM-based rollout generation.
 - `--per_device_train_batch_size` — Training batch size per device.
 - `--learning_rate`, `--weight_decay`, `--adam_beta1`, `--adam_beta2`, `--adam_epsilon` — Optimizer settings.
-
-## SLURM Cluster Jobs
-
-The `.sh` helper scripts are configured for SLURM-based GPU clusters. Before submitting, update the values in each script for:
-
-- `--account`
-- `--partition`
-- `username`, `file_system`, `workspace_name`
-
-```bash
-sbatch alignment/sft_trainer.sh
-```
 
 ## Dataset Formats
 

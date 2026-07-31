@@ -1,33 +1,63 @@
-# LLM Foundry
+# LLM Foundry 🏭
 
-LLM Foundry is the source repository for the development of models, datasets, and accompanying artifacts of the **Polyglot** project at the University of Bonn. It bundles training, evaluation, post-training, data processing, and tokenization pipelines into a single, cluster-ready code base.
+LLM Foundry is the source repository for the development of models, datasets, and other artifacts related to the development of Large Language Models. It bundles training, evaluation, post-training, data processing, and tokenization pipelines into a single, cluster-ready code base.
+
+This repository contains all source code used for the development of the artifacts tied to the Polyglot project at the University of Bonn. It is primarily designed to run on both the [Marvin cluster](https://www.hpc.uni-bonn.de/) and [Bender](https://www.hpc.uni-bonn.de/en/systems/bender) (University of Bonn), which have dual software stacks (AMD and Intel) that the code base is aware of. We also offer documentation to work with our code base on other clusters, such as JSC Jupiter and BAF (Bonn Analysis Facility).
+
+## Main Features
+
+### 🏋️ Pretraining
+
+- **PyTorch-native distributed training** — Full implementations for both **DDP** and **FSDP2**, giving you flexibility across single-node and multi-node setups. Our code base scales almost linearly across hundreds of GPUs.
+- **Flash Attention** — Support up to **Flash Attention 4** for Hopper/Blackwell GPUs, plus **[Liger Kernel](https://github.com/linkedin/Liger-Kernel)** integration for additional fused kernel efficiency.
+- **Expert Parallelism** — First-class support for **Mixture-of-Experts (MoE)** training.
+- **Hybrid architectures** — Ready for models combining attention with state-space blocks. Includes specialized kernels like **[flash-linear-attention](https://github.com/fla-org/flash-linear-attention)** and **[causal-conv1d](https://github.com/Dao-AILab/causal-conv1d)**.
+- **FP8 training** — Native FP8 mixed-precision support on Hopper/Blackwell GPUs for faster, more memory-efficient pretraining.
+- **Modern optimizers** — AdamW, plus a **Muon + AdamW** mixed optimizer setup for improved convergence.
+- **Experiment tracking** — Log metrics and artifacts via **[Weights & Biases](https://wandb.ai/)** or **[TrackIO](https://github.com/AnswerDotAI/trackio)** (online and offline modes).
+- **Carbon tracking** — Built-in **[CodeCarbon](https://codecarbon.io/)** integration to monitor and log the carbon footprint of your training runs.
+
+### 🎯 Post-Training & Alignment
+
+- **Multiple alignment strategies** — From simple **SFT** and **DPO** to more advanced RL-based methods like **GRPO** with verifier-based rewards, and **Reward Model** training.
+- **Toy Gym** — A lightweight environment for generating tasks with **verifiable rewards/solutions** (currently in Portuguese, easily adaptable to other languages).
+
+### 📊 Data & Tokenization
+
+- **Large-scale text processing** — Scalable, multi-node pipelines for processing massive corpora (e.g., Common Crawl dumps) via **[DataTrove](https://github.com/huggingface/datatrove)**. We provide implementations of the FineWeb-2 pipeline, which offers support for thousands of languages.
+- **Learned quality filters** — Working implementations for training and running learned classifiers for data quality control.
+- **Tokenization & packing** — Full support for pretraining and post-training tokenization with advanced features: **BFD packing**, **selective loss masking** for SFT samples, decontamination, and more.
+- **Tokenizer training** — Train tokenizers with **[🤗 Tokenizers](https://github.com/huggingface/tokenizers)** or **[SentencePiece](https://github.com/google/sentencepiece)**, with automatic conversion to Hugging Face-compatible objects.
+
+### 🤖 Synthetic Data
+
+- **Scalable generation** — Large-scale synthetic data pipelines for both pretraining and more elaborate workflows (e.g., **[Constitutional AI](https://arxiv.org/abs/2212.08073)**) via **vLLM + DataTrove**.
+- **Agent-based traces** — Generate multi-step CodeAgent reasoning traces with **[smolagents](https://github.com/huggingface/smolagents)** for downstream training.
+
+### 📈 Evaluation & Merging
+
+- **Standardized evaluation** — Run our full evaluation suite through the **[lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness)**.
+- **Model merging** — Simple merging strategies like **tokenizer transplantation**, which powers our continual pretraining workflows, via **[mergekit](https://github.com/arcee-ai/mergekit)**.
+
+### 🛠️ Supporting Tools
+
+A rich collection of utilities for data downloading, dataset conversion to Hugging Face format, token counting, weight resetting, embedding layer resizing, checkpoint uploading, model inspection, inference testing, and more—everything we use day-to-day to develop models and run experiments.
+
+**All in a single repository.**
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Code of Conduct](#code-of-conduct)
-- [How to Train a Model](#how-to-train-a-model)
 - [Repository Structure](#repository-structure)
 - [Installation](#installation)
   - [Workspace Setup on Marvin](#workspace-setup-on-marvin)
   - [Module Stack Selection](#module-stack-selection)
   - [Installing Dependencies](#installing-dependencies)
 - [Running the Tests](#running-the-tests)
+- [How to Train a Model](#how-to-train-a-model)
+- [Code of Conduct](#code-of-conduct)
 - [Contributing](#contributing)
 - [License](#license)
 - [Acknowledgments](#acknowledgments)
-
-## Overview
-
-This repository contains all source code used for the development of the models, datasets, and all other accompanying artifacts tied to the Polyglot project at the University of Bonn. It is designed to run on both the [Marvin cluster](https://www.hpc.uni-bonn.de/) and [Bender](https://www.hpc.uni-bonn.de/en/systems/bender) (University of Bonn), which have dual software stacks (AMD and Intel) that the code base is aware of.
-
-## Code of Conduct
-
-This project adheres to a [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Please report unacceptable behavior to [polyglot@uni-bonn.de](mailto:polyglot@uni-bonn.de).
-
-## How to Train a Model
-
-For a step-by-step walkthrough of the LLM Foundry—covering data collection, tokenization, evaluation harness setup, pretraining, and post-training/alignment—see [HOWTO.md](HOWTO.md).
 
 ## Repository Structure
 
@@ -38,7 +68,7 @@ The code base is organized into the following main folders:
 - [`data/`](data/) — Scripts for working with text preprocessing (i.e., filtering, tokenization, etc.).
   - [`data/cc/`](data/cc/) — Scripts for working with Common Crawl data.
   - [`data/filters/`](data/filters/) — Dataset filtering and annotation pipelines for text corpus curation.
-  - [`data/parsers/`](data/parsers/) — Parsers for converting raw datasets into a standardized format or to perform stratification for evaluation.
+  - [`data/formatting/`](data/formatting/) — Parsers for converting raw datasets into a standardized format or to perform stratification for evaluation.
   - [`data/tokenization/`](data/tokenization/) — Tokenization, packing, decontamination, and validation split utilities for pretraining and SFT datasets.
 - [`distributed/`](distributed/) — Scripts for training and evaluating language models with DDP and FSDP.
 - [`evals/`](evals/) — Scripts for evaluating language models via the `lm-evaluation-harness`.
@@ -51,16 +81,16 @@ The code base is organized into the following main folders:
 
 ## Installation
 
-All of our codebase is designed to run on Marvin or Bender, i.e., the University of Bonn HPC clusters. You will only need to set things up on the cluster itself - not on your local machine. For your local machine, you can just clone the repository and work with the files (e.g., editing code, writing new scripts, etc.) without worrying too much about dual stack setups or module loading.
+All of our codebase is designed primarily to run on Marvin or Bender, i.e., the University of Bonn HPC clusters. You will only need to set things up on the cluster itself - not on your local machine. For your local machine, you can just clone the repository and work with the files (e.g., editing code, writing new scripts, etc.) without worrying too much about dual stack setups or module loading.
 
 ### Workspace Setup
 
 On Marvin, we work with [workspaces](https://wiki.hpc.uni-bonn.de/en/marvin/workspaces) that are allocated with a specific [file system](https://wiki.hpc.uni-bonn.de/en/marvin/filesystems).
 
-Use [`utils/marvin_create_workspace.sh`](utils/marvin_create_workspace.sh) to allocate a workspace, clone the repository, and prepare the directory layout. Open the script first and edit the user customization section at the top (`username`, `file_system`, `work_group`, `email`, `workspace_name`) to match your account, then run it from a Marvin login node:
+Use [`utils/slurm/marvin_create_workspace.sh`](utils/slurm/marvin_create_workspace.sh) to allocate a workspace, clone the repository, and prepare the directory layout. Open the script first and edit the user customization section at the top (`username`, `file_system`, `work_group`, `email`, `workspace_name`) to match your account, then run it from a Marvin login node:
 
 ```bash
-bash utils/marvin_create_workspace.sh
+bash utils/slurm/marvin_create_workspace.sh
 ```
 
 For Bender users, `/home/$USER` is the default workspace directory, so you can just clone the repository there and start working.
@@ -91,7 +121,7 @@ Sourcing prints whose stack was selected, why, and the resulting module list, so
 
 > - If you are working on JSC Jupiter, things work a little differently. See [`utils/jupiter/README.md`](utils/jupiter/README.md) for JSC-specific module and installation scripts.
 >
-> - If you are working in BAF (aka, the Optimus Prime cluster), things also work a little differently. See [`utils/baf/README.md`](utils/baf/README.md) for how to run jobs on it. BAF uses containers (HTCondor) instead of SLURM.
+> - If you are working in BAF, things also work a little differently. See [`utils/baf/README.md`](utils/baf/README.md) for how to run jobs on it. BAF uses containers (HTCondor) instead of SLURM.
 
 ### Installing Dependencies
 
@@ -108,10 +138,14 @@ Use the [`pyproject.toml`](https://github.com/Polygl0t/llm-foundry/blob/main/pyp
 For example:
 
 ```bash
-pip install -e "./llm-foundry/.[distributed]"  # for DDP/FSDP training
+pip install -e "./llm-foundry/.[distributed]"
 ```
 
+> - **IMPORTANT:** We are constantly updating our dependencies so this stack is up to date with the latest developments of the LLM ecosystem.
+
 ## Running the Tests
+
+If you are a developer or contributor, you can run our test suite to verify that your changes do not break anything. The tests are organized into unit and integration tests, and they cover the main functionalities of the code base.
 
 Install the test dependencies first:
 
@@ -131,6 +165,14 @@ Or run a specific script (e.g., the distributed training tests):
 python tests/tests_distributed.py
 ```
 
+## How to Train a Model
+
+For a step-by-step walkthrough of the LLM Foundry—covering data collection, tokenization, evaluation harness setup, pretraining, and post-training/alignment—see [HOWTO.md](HOWTO.md).
+
+## Code of Conduct
+
+This project adheres to a [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Please report unacceptable behavior to [polyglot@uni-bonn.de](mailto:polyglot@uni-bonn.de).
+
 ## Contributing
 
 Contributions are welcome! Please see [`CONTRIBUTING.md`](CONTRIBUTING.md) for details on how to set up your development environment, the contribution workflow (forking, branching, squashing commits, opening a pull request), and the project's style guide.
@@ -143,4 +185,4 @@ This project is licensed under the Apache License 2.0. See [`LICENSE`](LICENSE) 
 
 Polyglot is a project funded by the Federal Ministry of Education and Research (BMBF) and the Ministry of Culture and Science of the State of North Rhine-Westphalia (MWK) as part of TRA Sustainable Futures (University of Bonn) and the Excellence Strategy of the federal and state governments.
 
-We also gratefully acknowledge access to the Marvin and Bender clusters, hosted by the University of Bonn, and maintained by the university's High Performance Computing Team.
+We also gratefully acknowledge access to the Marvin and Bender clusters, hosted by the University of Bonn, and maintained by the university's High Performance Computing Team. We also appreciate the work of the support team that maintains the Bonn Analysis Facility (BAF) for providing constant support and maintenance to the infrastructure we all share.

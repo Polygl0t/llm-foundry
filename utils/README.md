@@ -6,19 +6,20 @@ This folder contains miscellaneous utility scripts and helpers for working with 
 
 - [`baf/`](./baf/) — Documentation for how to work with the BAF (aka, Optimus Prime) Cluster.
 - [`jupiter/`](./jupiter/) — Documentation for how to work with the JSC Jupiter booster.
+- [`/slurm`](./slurm) — Folder containing SLURM job scripts for cluster-managed environments. Before submitting, update the scripts with your cluster-specific settings and correct paths for your artifacts/workspace. **These are templates, not ready-to-run scripts.**
 - [`compute_hyperparams.py`](./compute_hyperparams.py) — Compute training hyperparameters like learning rate, batch size, and steps based on model size and training configuration (uses the heuristics from the [DeepSeek LLM scaling laws paper](https://arxiv.org/abs/2401.02954)).
 - [`convert_dataset_to_hf.py`](./convert_dataset_to_hf.py) — Convert JSONL or Parquet dataset shards into a Hugging Face Dataset format and optionally upload it to the Hub.
 - [`count_tokens.py`](./count_tokens.py) — Create token count reports for a pretraining corpus.
 - [`distributed_test.py`](./distributed_test.py) — GPU Communication Benchmark / LLM Gradient All-Reduce Simulation.
 - [`download.py`](./download.py) — Download and cache Hugging Face repositories using patterns and authentication.
-- [`env_doctor.sh`](./env_doctor.sh) — SLURM batch script to diagnose GPU/CUDA/PyTorch environment issues using env-doctor.
+- [`env_doctor.sh`](./slurm/env_doctor.sh) — SLURM batch script to diagnose GPU/CUDA/PyTorch environment issues using env-doctor.
 - [`extract_reasoning_traces.py`](./extract_reasoning_traces.py) — Extract reasoning traces from a conversational dataset (i.e., has `"messages"` array) and save them in JSONL format.
 - [`inference_test.py`](./inference_test.py) — Run inference on a model using a sample dataset and save outputs.
 - [`inspect_model.py`](./inspect_model.py) — Analyze model configuration, parameter counts, and MoE routing statistics.
 - [`launch_trackio.py`](./launch_trackio.py) — Launch a Trackio dashboard for logging and visualizing training metrics.
-- [`marvin_create_workspace.sh`](./marvin_create_workspace.sh) — Allocate a workspace and clone the repo on the Marvin HPC cluster.
+- [`marvin_create_workspace.sh`](./slurm/marvin_create_workspace.sh) — Allocate a workspace and clone the repo on the Marvin HPC cluster.
 - [`parse_run.py`](./parse_run.py) — Parse and summarize distributed training logs and emissions files.
-- [`pdf2markdown.sh`](./pdf2markdown.sh) — Example SLURM batch job for converting PDFs to Markdown using Marker.
+- [`pdf2markdown.sh`](./slurm/pdf2markdown.sh) — Example SLURM batch job for converting PDFs to Markdown using Marker.
 - [`reset_weights.py`](./reset_weights.py) — Reset selected model weights while optionally preserving or saving the modified model.
 - [`resize_embedding_layer.py`](./resize_embedding_layer.py) — Validate and resize a model embedding layer to match tokenizer vocabulary size.
 - [`upload_ckpts_to_hf.py`](./upload_ckpts_to_hf.py) — Upload checkpoint directories to the Hugging Face Hub, one branch per training step.
@@ -126,7 +127,7 @@ Main parameters:
 - `--seq-length`: sequence length controlling activation/logits tensor sizes (default: 4096).
 - `--dtype`: data type for gradients — `float32`, `bfloat16`, or `float16` (default: `bfloat16`).
 
-### `env_doctor.sh`
+### `slurm/env_doctor.sh`
 Diagnose GPU/CUDA/PyTorch environment issues using env-doctor.
 
 Example:
@@ -134,7 +135,7 @@ Example:
 source "./.venv/bin/activate" # <-- Activate the same environment you want to diagnose with env-doctor
 env-doctor check
 # Or just run the full SLURM batch script to see environment details and run env-doctor:
-# sbatch utils/env_doctor.sh
+# sbatch utils/slurm/env_doctor.sh
 ```
 
 ### `extract_reasoning_traces.py`
@@ -213,7 +214,7 @@ Main parameters:
 
 You can also launch trackio dashboards as a Space on Hugging Face Hub. See the `launch_trackio.py` script for more details.
 
-### `marvin_create_workspace.sh`
+### `slurm/marvin_create_workspace.sh`
 Create and prepare a Marvin HPC workspace.
 
 Key variables to customize inside the script:
@@ -243,7 +244,7 @@ Main parameters:
 - `--output-dir`: output directory for parsed files.
 - `--plot`: generate PNG plots for statistics.
 
-### `pdf2markdown.sh`
+### `slurm/pdf2markdown.sh`
 SLURM batch helper for PDF-to-Markdown conversion using Marker.
 
 Key variables to customize inside the script:

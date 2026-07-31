@@ -48,27 +48,15 @@ Configure the following in the script before submission:
 - `--partition` — Target GPU partition
 - `--nodes` — Number of compute nodes
 - `--ntasks-per-node` — Number of GPUs per node
-- `model_path` — Path or HuggingFace hub ID of the model to modify
-- `output_dir` — Directory to save the modified model
-- `operation` — Token surgery operation to perform (e.g., `extend`, `resize`, `merge_vocab`)
-- `target_vocab_size` — Target vocabulary size after token surgery
+- `base_model` — Path to the base model
+- `donor_model` — Path to the donor model
+- `output_model` — Desired output path
+- `k` — Sparsity level or number of neighbors
+- `approximation_method` — Desired approximation method (e.g., `omp`)
+- `device` — Device to use (e.g., `cuda`, `cpu`)
+- `num_threads` — Number of threads for CPU operations
 
-## SLURM Cluster Jobs
-
-The `.sh` scripts are configured for SLURM-based GPU clusters. Before submitting, update the following variables in each script:
-
-- `--account` — Your SLURM account
-- `--partition` — Your target partition
-- `--nodes` — Number of nodes required
-- `--ntasks-per-node` — Number of GPUs per node
-- `--cpus-per-task` — CPU cores per GPU task
-- `--mem` — Memory per node
-- `--time` — Maximum job runtime
-
-Submit a job with:
-```bash
-sbatch merge.sh
-```
+> **Important:** For the tokensurgeon tool to work correctly, ensure that the donor model has a `tokenizer_class` in the `tokenizer_config.json` file that matches one of the following: `GPT2Tokenizer`, `GPT2TokenizerFast`, `OpenAIGPTTokenizer`, `OpenAIGPTTokenizerFast`, `Qwen2Tokenizer`, `Qwen2TokenizerFast`, `LlamaTokenizer`, `LlamaTokenizerFast`, `T5Tokenizer`, `T5TokenizerFast`, `GemmaTokenizer`, or `GemmaTokenizerFast`. This determines the normalization scheme used for the token embeddings. If not identified correctly, the tool defaults to a GPT2Tokenizer-style normalization, which may not be appropriate for all models/tokenizers.
 
 ## MergeKit Configuration
 
