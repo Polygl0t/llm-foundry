@@ -51,6 +51,7 @@ class ModelInitializationResult:
     active_trainable_params: int
     non_attention_frozen: bool = False
     fp8_enabled: bool = False
+    linear_attention_fast_path: bool = False
 
 
 def _log_message(master_process, logger, file_logger, message):
@@ -931,6 +932,7 @@ def prepare_training_components(args, device, master_process, logger=None, file_
     # path when BOTH `flash-linear-attention` (chunk / fused gated-delta-rule)
     # AND `causal-conv1d` (the short-conv branch of GatedDeltaNet) are
     # importable; missing either falls back to a slow PyTorch reference path.
+    linear_attention_fast_path = False
     if "linear_attention" in args.layer_types:
         missing = []
         try:
@@ -952,6 +954,14 @@ def prepare_training_components(args, device, master_process, logger=None, file_
                 "    pip install flash-linear-attention causal-conv1d\n"
                 "See https://github.com/fla-org/flash-linear-attention#installation and "
                 "https://github.com/Dao-AILab/causal-conv1d for details.",
+            )
+        else:
+            linear_attention_fast_path = True
+            _log_message(
+                master_process,
+                logger,
+                file_logger,
+                "Linear-attention fast path is enabled: flash-linear-attention and causal-conv1d are both installed.",
             )
 
     if args.use_liger_kernel:
@@ -1029,6 +1039,7 @@ def prepare_training_components(args, device, master_process, logger=None, file_
         active_trainable_params=active_trainable_params,
         non_attention_frozen=non_attention_frozen,
         fp8_enabled=fp8_enabled,
+        linear_attention_fast_path=linear_attention_fast_path,
     )
 
 

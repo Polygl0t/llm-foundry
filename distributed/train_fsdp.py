@@ -134,6 +134,8 @@ def main(specs, slurm_job_id, hardware):
     # - the checkpoint path (if resuming from checkpoint, otherwise None).
     # - the number of trainable parameters in the model (int).
     # - the number of active trainable parameters in the model (int, counts only experts in MoE models).
+    # - a boolean indicating if FP8 is enabled (torchao).
+    # - a boolean indicating if the linear attention fast path is enabled (requires both `flash-linear-attention` and `causal-conv1d` to be importable).
     args = model_state.args
     tokenizer = model_state.tokenizer
     model = model_state.model
@@ -142,6 +144,7 @@ def main(specs, slurm_job_id, hardware):
     trainable_params = model_state.trainable_params
     active_trainable_params = model_state.active_trainable_params
     fp8_enabled = model_state.fp8_enabled
+    linear_attention_fast_path = model_state.linear_attention_fast_path
 
     if fsdp:
         # Apply FSDP2 wrapping (fully_shard) to the model.
@@ -287,6 +290,7 @@ def main(specs, slurm_job_id, hardware):
         logger.info(
             f"  fp8 (torchao) | {fp8_enabled}{'' if fp8_enabled else f' (requested: {args.fp8})'}"
         )
+        logger.info(f"  Linear-attention fast path | {linear_attention_fast_path}")
         logger.info(f"  Trainable parameters | {trainable_params:,}")
         if trainable_params != active_trainable_params:
             logger.info(
@@ -349,6 +353,7 @@ def main(specs, slurm_job_id, hardware):
             file_logger.log_metadata(
                 f"  fp8 (torchao) | {fp8_enabled}{'' if fp8_enabled else f' (requested: {args.fp8})'}"
             )
+            file_logger.log_metadata(f"  Linear-attention fast path | {linear_attention_fast_path}")
             file_logger.log_metadata(f"  Trainable parameters | {trainable_params:,}")
             if trainable_params != active_trainable_params:
                 file_logger.log_metadata(
