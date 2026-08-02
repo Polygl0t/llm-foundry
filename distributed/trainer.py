@@ -114,10 +114,10 @@ def _save_checkpoint(
     os.makedirs(output_dir, exist_ok=True)
 
     # Save the model and tokenizer.
+    save_kwargs = {"max_shard_size": "5GB"}
     if model_save_kwargs:
-        model_to_save.save_pretrained(output_dir, **model_save_kwargs)
-    else:
-        model_to_save.save_pretrained(output_dir)
+        save_kwargs.update(model_save_kwargs)
+    model_to_save.save_pretrained(output_dir, **save_kwargs)
     if tokenizer is not None:
         tokenizer.save_pretrained(output_dir)
 

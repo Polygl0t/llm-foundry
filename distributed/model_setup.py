@@ -208,7 +208,7 @@ def _build_model_from_config(
             config,
             attn_implementation=args.attn_implementation,
         )
-        random_model.save_pretrained(bootstrap_dir)
+        random_model.save_pretrained(bootstrap_dir, max_shard_size="5GB")
         # Free memory before all ranks reload via `from_pretrained`.
         del random_model
 
