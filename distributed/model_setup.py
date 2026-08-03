@@ -1021,14 +1021,6 @@ def prepare_training_components(args, device, master_process, logger=None, file_
 
     fp8_enabled = _apply_fp8_training(model, args, master_process, logger, file_logger)
 
-    # Torch Compile
-    # See https://docs.pytorch.org/docs/stable/generated/torch.compile.html
-    # WARNING: Some versions of PyTorch/torch.compile will not work well with liger kernel. E.g., https://github.com/linkedin/Liger-Kernel/issues/174
-    if args.torch_compile and not args.use_liger_kernel:
-        if master_process and logger is not None:
-            logger.info("Compiling model with torch.compile.")
-        model = torch.compile(model)
-
     return ModelInitializationResult(
         args=args,
         tokenizer=tokenizer,
@@ -1109,7 +1101,10 @@ def apply_fsdp_wrapping(
 
     This function shards each decoder layer individually, then shards the root
     model.  It supports mixed precision, CPU offload, HSDP (2-D device mesh),
-    and explicit prefetching — all controlled by the fields on `args`.
+    and explicit prefetching — all controlled by the fields on `args`. When
+    `args.torch_compile` is set (and Liger kernel is not in use), each decoder
+    layer is also `torch.compile`-d individually, right before it is sharded
+    (the torchtitan pattern); the root module is left uncompiled.
 
     Returns:
         effective_world_size (int): The data-parallel world size after accounting
@@ -1182,15 +1177,48 @@ def apply_fsdp_wrapping(
         fsdp_kwargs["offload_policy"] = CPUOffloadPolicy(pin_memory=True)
         _log_message(master_process, logger, file_logger, "Enabled CPU offload policy for FSDP.")
 
+    # Per-block torch.compile. Following the torchtitan pattern, each
+    # transformer block is compiled individually and BEFORE it is sharded, so
+    # the compiled-region boundaries line up with FSDP's all-gather/reshard
+    # boundaries instead of Dynamo having to graph-break around FSDP hooks
+    # inside one giant whole-model graph. All blocks share a single compiled
+    # graph (same class, same shape), which is what collapses compile time.
+    compile_blocks = args.torch_compile
+    if compile_blocks:
+        if args.use_liger_kernel:
+            _log_message(
+                master_process,
+                logger,
+                file_logger,
+                "WARNING: torch_compile + Liger kernel is enabled together. Some versions of "
+                "PyTorch/Liger kernel don't play well combined (e.g. "
+                "https://github.com/linkedin/Liger-Kernel/issues/174) and this combination may fail.",
+            )
+        _log_message(
+            master_process,
+            logger,
+            file_logger,
+            "Compiling each transformer block individually with torch.compile before FSDP sharding "
+            "(root module stays uncompiled).",
+        )
+
     # Per-layer sharding (bottom-up, as required by FSDP2). We wrap every
     # block in `model.model.layers` regardless of its concrete class. This is
     # architecture-agnostic and supports dense (Llama, Qwen3, Qwen3.5), MoE
     # (Qwen3.5-MoE), and Qwen3.5 linear-attention hybrid models without
     # needing to register their decoder-layer class first.
+    layers = _iter_transformer_blocks(model)
     layer_classes = set()
-    for layer in _iter_transformer_blocks(model):
-        fully_shard(layer, **fsdp_kwargs)
+    for layer_id, layer in layers.named_children():
         layer_classes.add(type(layer).__name__)
+        if compile_blocks:
+            layer = torch.compile(layer)
+            # Swap the compiled block back into the ModuleList in place so
+            # `model.model.layers[i]` (and `_set_modules_to_forward_prefetch` /
+            # `_set_modules_to_backward_prefetch` below) see the compiled
+            # `OptimizedModule`, which `fully_shard` then wraps directly.
+            layers.register_module(layer_id, layer)
+        fully_shard(layer, **fsdp_kwargs)
     _log_message(
         master_process,
         logger,
@@ -1198,7 +1226,7 @@ def apply_fsdp_wrapping(
         f"FSDP per-layer sharding applied to block classes: {sorted(layer_classes)}.",
     )
 
-    # Shard the root model (covers embeddings, output projection, etc.).
+    # Shard the root model (embeddings, lm_head, etc.).
     fully_shard(model, **fsdp_kwargs)
 
     # Explicit prefetching

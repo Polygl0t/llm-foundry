@@ -190,7 +190,26 @@ def main(specs, slurm_job_id, hardware):
             gradient_as_bucket_view=True,
         )
 
-    # Unwrap version of the model if it is wrapped in DDP.
+    # Torch Compile.
+    # See https://docs.pytorch.org/docs/stable/generated/torch.compile.html
+    # IMPORTANT: `torch.compile` must be applied AFTER the DDP wrapper,
+    # so Dynamo's DDPOptimizer can insert graph breaks aligned to DDP's gradient
+    # buckets and overlap all-reduce with backward compute. Compiling first and then
+    # wrapping in DDP silently loses that overlap (still correct, just slower).
+    if args.torch_compile:
+        if args.use_liger_kernel and master_process:
+            logger.warning(
+                "torch_compile + Liger kernel is enabled together. Some versions of "
+                "PyTorch/Liger kernel don't play well combined (e.g. "
+                "https://github.com/linkedin/Liger-Kernel/issues/174) and this combination may fail."
+            )
+        if master_process:
+            logger.info("Compiling model with torch.compile.")
+        model = torch.compile(model)
+
+    # Unwrap version of the model if it is wrapped in DDP (and/or torch.compile).
+    # `OptimizedModule.__getattr__` proxies attribute access through to the wrapped
+    # DDP module, so `.module` still resolves to the raw model even when compiled.
     raw_model = model.module if ddp else model
 
     # See the `data_loading.py` module for details on dataset loading and dataloader creation.

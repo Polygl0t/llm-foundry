@@ -27,6 +27,7 @@ How to Use:
 import argparse
 import os
 
+import torch
 from data_loading import prepare_dataloaders
 from mfu import create_mfu_context
 from model_setup import apply_fsdp_wrapping, prepare_training_components
@@ -179,6 +180,19 @@ def main(specs, slurm_job_id, hardware):
         # For HSDP, the effective world_size is smaller than the total world_size.
         # We use the effective world_size for gradient accumulation and data loading.
         world_size = effective_world_size
+    elif args.torch_compile:
+        # Single-device fallback: no FSDP sharding happens, so there is no
+        # per-block boundary to align with — compile the whole model, as we
+        # would for a plain (non-distributed) run.
+        if args.use_liger_kernel and master_process:
+            logger.warning(
+                "torch_compile + Liger kernel is enabled together. Some versions of "
+                "PyTorch/Liger kernel don't play well combined (e.g. "
+                "https://github.com/linkedin/Liger-Kernel/issues/174) and this combination may fail."
+            )
+        if master_process:
+            logger.info("Compiling model with torch.compile.")
+        model = torch.compile(model)
 
     # Compute the sampler rank, adjusting for HSDP if applicable.
     sampler_rank = rank // args.dp_shard if args.dp_shard else rank
