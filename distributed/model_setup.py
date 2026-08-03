@@ -1023,7 +1023,7 @@ def prepare_training_components(args, device, master_process, logger=None, file_
 
     # Torch Compile
     # See https://docs.pytorch.org/docs/stable/generated/torch.compile.html
-    # WARNING: Torch compile is not working good with liger kernel: https://github.com/linkedin/Liger-Kernel/issues/174
+    # WARNING: Some versions of PyTorch/torch.compile will not work well with liger kernel. E.g., https://github.com/linkedin/Liger-Kernel/issues/174
     if args.torch_compile and not args.use_liger_kernel:
         if master_process and logger is not None:
             logger.info("Compiling model with torch.compile.")

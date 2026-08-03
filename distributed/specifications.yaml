@@ -55,7 +55,6 @@ eps: 0.00000001
 max_grad_norm: 1.0
 
 # Precision and optimization settings
-# `torch_compile` is slower than `use_liger_kernel`
 torch_compile: false
 mat_mul_precision: "highest"
 tf32: true
