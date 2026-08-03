@@ -141,6 +141,7 @@ eval python3 $workdir/synth/generate_datatrove.py \
     --top-p "$TOP_P" \
     --rollouts-per-document "$ROLLOUTS_PER_DOCUMENT" \
     --examples-per-chunk "$EXAMPLES_PER_CHUNK" \
+    --chunk \
     $OPTIONAL_ARGS \
     1>>"$out" 2>>"$err"
 
