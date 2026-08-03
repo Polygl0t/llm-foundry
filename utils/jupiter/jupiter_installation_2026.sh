@@ -71,11 +71,11 @@ create_fresh_venv() {
 
 
 install_core_packages() {
-    echo "[$(date)] Installing PyTorch 2.12.0+cu130 (pinned)..."
+    echo "[$(date)] Installing PyTorch 2.13.0+cu130 (pinned)..."
     # Install torch first and explicitly so the rest of the stack binds to this version.
     pip install --ignore-installed --no-cache-dir \
         --index-url https://download.pytorch.org/whl/cu130 \
-        torch==2.12.0+cu130
+        torch==2.13.0+cu130
 
     echo "[$(date)] Installing core packages..."
     # --ignore-installed: don't try to uninstall packages from the read-only
@@ -83,7 +83,7 @@ install_core_packages() {
     pip install --ignore-installed \
         "fsspec[http]==2025.3.0" \
         numpy==2.3.2 \
-        transformers==5.6.2 \
+        transformers==5.14.0 \
         datasets==4.0.0 \
         sentencepiece==0.2.1 \
         accelerate==1.9.0 \
