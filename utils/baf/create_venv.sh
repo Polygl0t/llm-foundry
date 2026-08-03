@@ -11,7 +11,7 @@
 set -e
 
 workdir="$BUDDY"
-venv_name=".venv_exp"
+venv_name=".venv"
 venv_dir="/jwd/$venv_name"
 tarball="$workdir/$venv_name.tar.gz"
 
@@ -47,7 +47,7 @@ pip3 install --no-cache-dir -c "$torch_constraints" \
     "wheel==0.45.1" \
     "packaging==25.0" \
     "numpy==2.3.2" \
-    "transformers==5.6.2" \
+    "transformers==5.14.0" \
     "datasets==4.0.0" \
     "sentencepiece==0.2.0" \
     "accelerate==1.9.0" \
