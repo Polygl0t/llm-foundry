@@ -34,16 +34,15 @@ tokenizer = [
     "ftfy",
     "jinja2",
 ]
-# NOTE: flash_attn requires --no-build-isolation and must be installed separately:
+# NOTE: flash_attn (2) requires --no-build-isolation and must be installed separately:
 #   pip3 install flash_attn==2.8.3 --no-build-isolation
 distributed = [
     "wheel==0.45.1",
     "packaging==25.0",
-    "torch==2.8.0",
-    "torchaudio==2.8.0",
-    "torchvision==0.23.0",
+    "torch==2.13.0",
+    "torchvision",
     "numpy==2.3.2",
-    "transformers==5.6.2",
+    "transformers==5.14.0",
     "datasets==4.0.0",
     "sentencepiece==0.2.0",
     "accelerate==1.9.0",
@@ -76,11 +75,8 @@ agents = [
 trl = [
     "setuptools",
     "wheel",
-    "torch==2.8.0",
-    "torchaudio==2.8.0",
-    "torchvision==0.23.0",
     "trl",
-    "vllm==0.11.2",
+    "vllm>=0.17.0,<=0.25.1",
     "codecarbon==3.2.9",
     "wandb==0.27.2",
     "trackio==0.32.2",
@@ -88,7 +84,7 @@ trl = [
 ]
 tests = [
     "torch>=2.0",
-    "transformers==4.57.6",
+    "transformers==5.14.0",
     "datasets>=2.0",
     "tokenizers==0.22.2",
     "sentencepiece==0.2.1",

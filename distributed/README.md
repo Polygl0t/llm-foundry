@@ -118,7 +118,7 @@ torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 \
 
 pip3 install \
 numpy==2.3.2 \
-transformers==5.6.2 \
+transformers==5.14.0 \
 datasets==4.0.0 \
 sentencepiece==0.2.0 \
 accelerate==1.9.0 \

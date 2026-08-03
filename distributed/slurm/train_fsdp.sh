@@ -67,7 +67,7 @@ source $workdir/.venv_distributed/bin/activate
 #                                         instead of silently falling back to a source build
 # Example:
 # FLASH_ATTENTION_SKIP_CUDA_BUILD=TRUE pip3 install \
-#    https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.7.16/flash_attn-2.8.3+cu126torch2.8-cp312-cp312-linux_x86_64.whl \
+#    https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.9.47/flash_attn-2.8.3+cu126torch2.13-cp312-cp312-linux_x86_64.whl \
 #    --no-cache-dir
 #
 # Option B – Build from source.

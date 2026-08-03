@@ -59,7 +59,7 @@ source $workdir/.venv_eval_pt_old/bin/activate   # <-- Activate the virtual envi
 # git checkout e44c7e26cbface8b3a1b54cad7792b6431670a61 # <-- Commit hash for the used version
 # pip3 install -e .
 # pip3 install -e ".[vllm]"
-# pip3 install transformers==4.53.2
+# pip3 install transformers==5.14.0
 # pip3 install pyyaml
 # cd $workdir
 
