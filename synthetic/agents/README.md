@@ -105,5 +105,4 @@ The [`data/`](./data/) folder includes:
 
 ## Notes
 
-- The [`utils.py`](./utils.py) module includes a `_PatchedVLLMModel` class that fixes sampling-parameter handling for vLLM when used with smolagents 1.26.0+.
-- A vLLM tokenizer compatibility shim (`_ensure_vllm_tokenizer_compat`) is applied at startup for vLLM ≥ 0.11.
+- The current version of smolagents is `1.26.0`. This version had some bugs that we have patched in our [`patches.py`](patches.py) module of this folder. If you are using smolagents 1.26.0 or later, please ensure that you apply the patches in `patches.py` to avoid the certain issues (e.g., timeout handling, sampling parameter handling, etc.) that were present in the original smolagents release. The patches are applied automatically when you lunch `generate_agent_traces.py`, so you don't need to worry about it.
