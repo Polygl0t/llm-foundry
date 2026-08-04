@@ -41,61 +41,10 @@ err="$workdir/run_outputs/ddp-err.$SLURM_JOB_ID"
 #############################################
 
 source $workdir/.modules.sh > "$out" 2>&1
-# python3 -m venv $workdir/.venv_distributed
 source $workdir/.venv_distributed/bin/activate
 
-# ===== Upgrade PIP =====
-# pip3 install --upgrade pip
-
-# ===== LLM Foundry Install =====
-# git clone --depth 1 --branch main https://github.com/Polygl0t/llm-foundry.git
-# pip3 install -e "$workdir/llm-foundry/.[distributed]" --no-cache-dir
-
-# ===== ALL HAIL FLASH-ATTN! =====
-# Option A – Use a prebuilt wheel, no nvcc or compilation needed.
-#
-#   Step 1: Find the right wheel for your environment using the search tool:
-#           https://mjunya.com/flash-attention-prebuild-wheels/
-#           Filter by: flash_attn version, Python version, PyTorch version, CUDA version.
-#           The community repo (https://github.com/mjun0812/flash-attention-prebuild-wheels)
-#           covers many more CUDAxtorch combinations than the official releases.
-#
-#   Step 2: Copy the direct-install URL and replace the one below.
-#           Wheel name format: flash_attn-<FA>+cu<CUDA>torch<torch>-cp<py>-cp<py>-linux_x86_64.whl
-#
-#   FLASH_ATTENTION_SKIP_CUDA_BUILD=TRUE  fail fast if no matching wheel is found
-#                                         instead of silently falling back to a source build
-# Example:
-# FLASH_ATTENTION_SKIP_CUDA_BUILD=TRUE pip3 install \
-#    https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.9.47/flash_attn-2.8.3+cu126torch2.13-cp312-cp312-linux_x86_64.whl \
-#    --no-cache-dir
-#
-# Option B – Build from source.
-#            This takes time ... However, it can be the only option if no
-#            compatible wheel exists for your environment.
-#            The build process requires a working nvcc setup and a compatible PyTorch installation.
-#            The following environment variables and pip options can help ensure a smooth build:
-#
-#   FLASH_ATTENTION_FORCE_BUILD=TRUE  flash-attn's setup.py skips its wheel search
-#   --no-binary :flash-attn:          pip-level guard: never use a prebuilt wheel
-#   --no-build-isolation              keep the current venv active (avoids reinstalling torch)
-#   MAX_JOBS                          cap parallel C++ compilation to avoid OOM
-#   FLASH_ATTN_CUDA_ARCHS              specify your GPU architectures to speed up the build
-#
-# Example:
-# FLASH_ATTENTION_FORCE_BUILD=TRUE MAX_JOBS=4 FLASH_ATTN_CUDA_ARCHS="80;90" \
-#   pip3 install flash-attn==2.8.3 --no-binary :flash-attn: --no-build-isolation --no-cache-dir
-
-# ===== OPTIONAL: Specialized Attention Packages =====
-# These packages provide optimized CUDA kernels for specific attention mechanisms.
-# Uncomment only if your model uses the corresponding attention type.
-
-# Flash Linear Attention (for fast linear attention implementations)
-# Causal Conv1D (for models using causal convolutional layers instead of standard attention)
-# - Note: flash-linear-attention requires PyTorch >= 2.7.0. However, on Bender, the latest CUDA
-#         available is CUDA 12.4, which is not compatible with the release versions of PyTorch 2.7.x.
-# pip3 install flash-linear-attention --no-cache-dir
-# pip3 install causal-conv1d --no-build-isolation --no-cache-dir
+# ===== Installation =====
+# See distributed/slurm/create_venv_marvin.sh for the installation of the venv and packages.
 
 #############################################
 # Environment Setup

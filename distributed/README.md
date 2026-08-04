@@ -102,93 +102,19 @@ For Marvin update the following in each shell script before submission:
 
 On Bender, set the `--partition`, `--gpus`, and `--cpus-per-task` directives according to your job requirements.
 
-## Bender Installation
+## Installation
 
-To run distributed training jobs on Bender, you need to set up your environment with a very specific set of package versions to ensure compatibility with the cluster's maximum CUDA version (12.4) and it's GLIBC version (2.28). The following `pip install` command will set up the necessary environment:
+Before running the training scripts, ensure that the required Python packages are installed in your environment. Use the provided `create_venv_marvin.sh` or `create_venv_bender.sh` scripts to create a virtual environment and install dependencies.
 
 ```bash
-# ===== Upgrade PIP =====
-pip3 install --upgrade pip
+# For Marvin:
+bash distributed/slurm/create_venv_marvin.sh
 
-# ===== LLM Foundry Install (for Bender) =====
-pip3 install wheel==0.45.1 packaging==25.0 --no-cache-dir
-pip3 install \
-torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 \
---index-url https://download.pytorch.org/whl/cu124 --no-cache-dir
-
-pip3 install \
-numpy==2.3.2 \
-transformers==5.14.0 \
-datasets==4.0.0 \
-sentencepiece==0.2.0 \
-accelerate==1.9.0 \
-codecarbon==3.2.9 \
-wandb==0.27.2 \
-trackio==0.32.2 \
-pyyaml==6.0.2 \
-liger-kernel==0.8.0 \
-kernels==0.13.0 \
---no-cache-dir
-
-# ===== ALL HAIL FLASH-ATTN! =====
-FLASH_ATTENTION_SKIP_CUDA_BUILD=TRUE pip3 install \
-https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.7.16/flash_attn-2.8.3+cu124torch2.6-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl \
---no-cache-dir
-
-# ===== Specialized Attention Packages =====
-# - Note: flash-linear-attention requires PyTorch >= 2.7.0. However, on Bender, the lates Cuda
-# available is Cuda 12.4, which is not compatible with the release versions of PyTorch 2.7.x.
-# Hence, we cannot currently use flash-linear-attention on Bender with the official PyTorch releases.
-```
-### MoE Error on Bender
-
-If your training a MoE model on Bender and encounter this error:
-
-```
-ValueError: atomic_add does not support bf16
+# For Bender:
+bash distributed/slurm/create_venv_bender.sh
 ```
 
-This happens because Liger-Kernel uses `tl.atomic_add` to accumulate gradients ([source](https://github.com/linkedin/Liger-Kernel/blob/v0.8.0/src/liger_kernel/ops/fused_moe.py)), but Triton's `atomic_add` does not support bfloat16 with the version of Triton we use in this stack (3.2.0). Since we train our models in bf16 precision, the training crashes on the first backward pass.
-
-- **Note:** Support for bf16 in `atomic_add` is added in Triton 3.4.0 ([source](https://github.com/triton-lang/triton/releases/tag/v3.4.0)).
-
-**Possible Solution 1:**
-
-Upgrade Triton to 3.4.0 or later to get bf16 support in `atomic_add`. However, this may require upgrading PyTorch to a version that supports Triton 3.4.0, which may not be possible on Bender because of CUDA version constraints (max is 12.4 in Bender), the old GLIBC version that Bender is running (2.28), and flash attention's pickyness.
-
-**Possible Solution 2:**
-
-Disable swiglu when applying the liger kernel to MoE models.
-
-in [`model_setup.py`](./model_setup.py):
-
-```python
-...
-
-def _apply_liger_kernels(model, args):
-    """
-    Apply Liger kernels to the model for optimized performance.
-
-    Liger's RoPE replacement is only valid for HF rotary embedding modules
-    with the standard interface (Llama / Qwen3 / Qwen2.5 ...). Qwen3.5 uses
-    a customized rotary embedding (partial rotation, per-layer shapes) that
-    is not compatible with Liger's RoPE kernel, so we disable it there.
-    """
-    liger_transformers = importlib.import_module("liger_kernel.transformers")
-    apply_liger_kernel = getattr(liger_transformers, "_apply_liger_kernel_to_instance")
-    model_type = str(getattr(model.config, "model_type", "") or "")
-    rope_compatible = not model_type.startswith("qwen3_5")
-    liger_kwargs = {
-        "rope": rope_compatible,
-        "cross_entropy": False,
-        "fused_linear_cross_entropy": True,
-        "rms_norm": True,
-        "swiglu": False,  # Set to False to avoid atomic_add bf16 error in MoE models on Bender
-    }
-    apply_liger_kernel(model=model, **liger_kwargs)
-
-...
-```
+Remember to adapt the scripts (especially the paths!) to your specific cluster environment.
 
 ## Example Architecture Configs
 
@@ -509,7 +435,65 @@ Training throughput measured on 2-GPU nodes (seq len 4096, bfloat16). TPS and dt
 | `Qwen3MoeForCausalLM`   (full attention) | A40 2×48 GB  | 4096           | 64 total (32/GPU)   | 79.7 M       | 51.4 M        | 35.75 GB | 39.54 % | 83,385    | 1,571 ms |
 
 
-
 > - **Note:** The table values are rounded from the raw benchmark logs. `LlamaForCausalLM` was benchmarked at 2× the total batch size of the other models. Active params equal total params for dense models; MoE models activate 2 of 8 experts per token.
->
-> - **Bug:** For reasons of divine mystery, when we set `Qwen3_5ForCausalLM` or `Qwen3MoeForCausalLM` to use linear attention on ALL layers, on some seeds, the loss becomes `NaN` after the first step. This is very strange, since the same config with 7 linear layers + 1 full-attention layer works fine, and the linear attention implementation is identical in both cases. I suspect there is an issue with the liger + conv1d kernels when all layers are linear, but I haven't had time to investigate yet.
+
+
+## Expected Bugs and Quirks
+
+### MoE Error on Bender
+
+If your training a MoE model on Bender and encounter this error:
+
+```
+ValueError: atomic_add does not support bf16
+```
+
+This happens because Liger-Kernel uses `tl.atomic_add` to accumulate gradients ([source](https://github.com/linkedin/Liger-Kernel/blob/v0.8.0/src/liger_kernel/ops/fused_moe.py)), but Triton's `atomic_add` does not support bfloat16 with the version of Triton we use in this stack (3.2.0). Since we train our models in bf16 precision, the training crashes on the first backward pass.
+
+- **Note:** Support for bf16 in `atomic_add` is added in Triton 3.4.0 ([source](https://github.com/triton-lang/triton/releases/tag/v3.4.0)).
+
+**Possible Solution 1:**
+
+Upgrade Triton to 3.4.0 or later to get bf16 support in `atomic_add`. However, this may require upgrading PyTorch to a version that supports Triton 3.4.0, which may not be possible on Bender because of CUDA version constraints (max is 12.4 in Bender), the old GLIBC version that Bender is running (2.28), and flash attention's pickyness.
+
+**Possible Solution 2:**
+
+Disable swiglu when applying the liger kernel to MoE models.
+
+in [`model_setup.py`](./model_setup.py):
+
+```python
+...
+
+def _apply_liger_kernels(model, args):
+    """
+    Apply Liger kernels to the model for optimized performance.
+
+    Liger's RoPE replacement is only valid for HF rotary embedding modules
+    with the standard interface (Llama / Qwen3 / Qwen2.5 ...). Qwen3.5 uses
+    a customized rotary embedding (partial rotation, per-layer shapes) that
+    is not compatible with Liger's RoPE kernel, so we disable it there.
+    """
+    liger_transformers = importlib.import_module("liger_kernel.transformers")
+    apply_liger_kernel = getattr(liger_transformers, "_apply_liger_kernel_to_instance")
+    model_type = str(getattr(model.config, "model_type", "") or "")
+    rope_compatible = not model_type.startswith("qwen3_5")
+    liger_kwargs = {
+        "rope": rope_compatible,
+        "cross_entropy": False,
+        "fused_linear_cross_entropy": True,
+        "rms_norm": True,
+        "swiglu": False,  # Set to False to avoid atomic_add bf16 error in MoE models on Bender
+    }
+    apply_liger_kernel(model=model, **liger_kwargs)
+
+...
+```
+
+### Qwen3.5 Linear Attention NaN Loss
+
+For reasons of divine mystery, when we set `Qwen3_5ForCausalLM` or `Qwen3MoeForCausalLM` to use linear attention on ALL layers, on some seeds, the loss becomes `NaN` after the first step. This is very strange, since the same config with 7 linear layers + 1 full-attention layer works fine, and the linear attention implementation is identical in both cases. We are investigating this issue, but for now, if you want to train a Qwen3.5 model with linear attention, be prepared to join the lottery and try different seeds until you find one that doesn't produce NaN loss.
+
+### Bender + Linear Attention Kernels
+
+We currently cannot get the `flash-linear-attention` and `causal-conv1d` packages to install on Bender due to CUDA version constraints. Flash-linear-attention requires PyTorch >= 2.7.0, but the latest CUDA available on Bender is CUDA 12.4, which is not compatible with the release versions of PyTorch 2.7.x. As a result, we cannot use the optimized kernels for linear attention on Bender at this time.

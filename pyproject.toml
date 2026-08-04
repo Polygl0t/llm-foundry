@@ -39,8 +39,6 @@ tokenizer = [
 distributed = [
     "wheel==0.45.1",
     "packaging==25.0",
-    "torch==2.13.0",
-    "torchvision",
     "numpy==2.3.2",
     "transformers==5.14.0",
     "datasets==4.0.0",
