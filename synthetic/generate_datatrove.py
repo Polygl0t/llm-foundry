@@ -7,11 +7,11 @@ Output: local JSONL files.
 Usage:
 
     # The prompt template (must contain [[DOCUMENT]])
-    python generate_datatrove.py \
-        --input-path /data/documents \
+    python generate_datatrove.py \\
+        --input-path /data/documents \\
         --prompt-column text \
-        --prompt-template "Summarize the following document: [[DOCUMENT]]" \
-        --model-name-or-path Qwen/Qwen3-0.6B \
+        --prompt-template "Summarize the following document: [[DOCUMENT]]" \\
+        --model-name-or-path Qwen/Qwen3-0.6B \\
         --output-path /data/summaries
 
 Note: This script support resume capability via checkpoints. If the process is interrupted.
@@ -422,8 +422,8 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Generate synthetic data using vLLM and Datatrove pipelines on a single node with local I/O",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
     # Input and prompt configuration
