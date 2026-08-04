@@ -104,7 +104,7 @@ On Bender, set the `--partition`, `--gpus`, and `--cpus-per-task` directives acc
 
 ## Installation
 
-Before running the training scripts, ensure that the required Python packages are installed in your environment. Use the provided `create_venv_marvin.sh` or `create_venv_bender.sh` scripts to create a virtual environment and install dependencies.
+Before running the training scripts, ensure that the required Python packages are installed in your environment. Use the provided [`create_venv_marvin.sh`](slurm/create_venv_marvin.sh) or [`create_venv_bender.sh`](slurm/create_venv_bender.sh) scripts to create a virtual environment and install dependencies.
 
 ```bash
 # For Marvin:
