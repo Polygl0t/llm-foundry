@@ -387,6 +387,8 @@ def create_lr_scheduler(args, max_steps):
             return max_lr * (it + 1) / args.warmup_steps, "warmup"
         if it > lr_decay_iters:
             return args.min_learning_rate, "stable"
+        if lr_decay_iters <= args.warmup_steps:
+            return args.min_learning_rate, "stable"
 
         decay_ratio = (it - args.warmup_steps) / (lr_decay_iters - args.warmup_steps)
         assert 0 <= decay_ratio <= 1
