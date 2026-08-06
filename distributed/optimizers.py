@@ -387,8 +387,6 @@ def create_lr_scheduler(args, max_steps):
             return max_lr * (it + 1) / args.warmup_steps, "warmup"
         if it > lr_decay_iters:
             return args.min_learning_rate, "stable"
-        if lr_decay_iters <= args.warmup_steps:
-            return args.min_learning_rate, "stable"
 
         decay_ratio = (it - args.warmup_steps) / (lr_decay_iters - args.warmup_steps)
         assert 0 <= decay_ratio <= 1
@@ -434,33 +432,41 @@ def create_optimizer(model, args, device_type, master_process, logger=None):
     """
     Create an optimizer based on the provided model and arguments. Supports both AdamW and MuonWithAuxAdam.
     """
-    no_decay = ["bias", "layer_norm.weight", "embed_tokens.weight"]
+    # Substring match on parameter names. `norm.weight` catches Llama/Qwen RMSNorms
+    # (`input_layernorm.weight`, `q_norm.weight`); `A_log`/`dt_bias` are GDN decay gains.
+    no_decay = ["bias", "norm.weight", "embed_tokens.weight", "A_log", "dt_bias"]
 
     if args.optimizer_type == "muon_adam":
+        # Muon orthogonalizes 2-D update slices, batched over any leading dims —
+        # correct for MoE expert stacks, meaningless for depthwise conv filters
+        # (whose 2-D slices are 1 x kernel_size). Embeddings and the output head
+        # are excluded per the Muon guidance in `MuonWithAuxAdam`'s docstring.
+        muon_excluded = ["embed_tokens.weight", "lm_head.weight", "conv1d.weight"]
+
         # Only include trainable parameters. When non-attention is frozen for
         # context-extension fine-tuning (see `_freeze_non_attention_blocks` in
         # `model_setup.py`), this prevents AdamW from allocating m/v buffers
         # for frozen weights and stops `MuonWithAuxAdam` from forcing a
         # synchronization pass on frozen params (it allocates zero-grads for
         # any param with `grad is None`).
-        hidden_matrix_params = [
-            p
-            for n, p in model.named_parameters()
-            if p.requires_grad and p.ndim >= 2 and "embed_tokens.weight" not in n
-        ]
-        embed_params = [
-            p for n, p in model.named_parameters() if p.requires_grad and "embed_tokens.weight" in n
-        ]
-        scalar_params_with_decay = [
-            p
-            for n, p in model.named_parameters()
-            if p.requires_grad and p.ndim < 2 and not any(nd in n for nd in no_decay)
-        ]
-        scalar_params_no_decay = [
-            p
-            for n, p in model.named_parameters()
-            if p.requires_grad and p.ndim < 2 and any(nd in n for nd in no_decay)
-        ]
+        #
+        # Partition in a single pass so every trainable parameter lands in
+        # exactly one group and none can be silently dropped.
+        hidden_matrix_params = []
+        embed_params = []
+        adam_params_with_decay = []
+        adam_params_no_decay = []
+        for name, parameter in model.named_parameters():
+            if not parameter.requires_grad:
+                continue
+            if "embed_tokens.weight" in name:
+                embed_params.append(parameter)
+            elif parameter.ndim >= 2 and not any(ex in name for ex in muon_excluded):
+                hidden_matrix_params.append(parameter)
+            elif any(nd in name for nd in no_decay):
+                adam_params_no_decay.append(parameter)
+            else:
+                adam_params_with_decay.append(parameter)
 
         optimizer_grouped_parameters = [
             {
@@ -472,7 +478,7 @@ def create_optimizer(model, args, device_type, master_process, logger=None):
                 "use_muon": False,
             },
             {
-                "params": scalar_params_no_decay,
+                "params": adam_params_no_decay,
                 "weight_decay": 0.0,
                 "lr": args.max_learning_rate,
                 "betas": (args.beta1, args.beta2),
@@ -480,7 +486,7 @@ def create_optimizer(model, args, device_type, master_process, logger=None):
                 "use_muon": False,
             },
             {
-                "params": scalar_params_with_decay,
+                "params": adam_params_with_decay,
                 "weight_decay": args.weight_decay,
                 "lr": args.max_learning_rate,
                 "betas": (args.beta1, args.beta2),
