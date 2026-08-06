@@ -107,6 +107,9 @@ Queue 1
 #   GPU machines — total vs. used resources:
 #     >> condor_status -compact -constraint 'GPUs > 0' -af:h Machine State TotalGPUs GPUs TotalCpus Cpus TotalMemory Memory TotalDisk Disk CUDADeviceName
 #
+#   Get information on what users are running on GPU machines (specifically the H200):
+#    >> condor_q -all -global -constraint 'JobStatus == 2' -af:h Owner RemoteHost RequestGPUs 'formatTime(QDate)' MaxRuntimeHours 2>&1 | grep -i "gpu003"
+#
 #   Available (idle) slots with free CPUs / Memory / CephFS capability:
 #     >> condor_status -avail -af:h Name Memory Cpus CephFS_IO_Capability
 #
