@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import torch
+from debug_instrumentation import debug_enabled, install_debug_instrumentation
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 # Attention (and attention-like) module class names per supported model family.
@@ -1020,6 +1021,22 @@ def prepare_training_components(args, device, master_process, logger=None, file_
     model.to(device)
 
     fp8_enabled = _apply_fp8_training(model, args, master_process, logger, file_logger)
+
+    # Numerical debugging probes (opt-in via LLMF_DEBUG=1). Installed last so the
+    # hooks see the module tree that actually runs, and before FSDP/DDP wrapping
+    # so they survive sharding. See `debug_instrumentation.py` for the env knobs.
+    if debug_enabled():
+        if args.torch_compile:
+            # The probes call `.item()`, which Dynamo cannot trace without graph breaks.
+            args.torch_compile = False
+            _log_message(
+                master_process,
+                logger,
+                file_logger,
+                "Debug instrumentation is enabled (LLMF_DEBUG=1): forcing torch_compile=False "
+                "so the probes are not traced away by Dynamo.",
+            )
+        install_debug_instrumentation(model, logger=logger if master_process else None)
 
     return ModelInitializationResult(
         args=args,

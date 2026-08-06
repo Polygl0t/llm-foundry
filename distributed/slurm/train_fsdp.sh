@@ -76,6 +76,11 @@ export NCCL_IB_TIMEOUT=20
 export NCCL_IB_RETRY_CNT=7
 # export NCCL_DEBUG=INFO # Uncomment for NCCL debugging
 
+# ===== Debug the GDN =====
+export LLMF_DEBUG=1
+export LLMF_DEBUG_VERBOSE_STEPS=2
+export LLMF_DEBUG_FILE="$workdir/run_outputs/gdn-debug.${SLURM_JOB_ID}"
+
 # Slurm gives us the first allocated node name. On Marvin this is usually already
 # resolvable as returned, while on Bender Slurm may return a short hostname such
 # as "node-03". If the short name does not resolve, append the local DNS domain
