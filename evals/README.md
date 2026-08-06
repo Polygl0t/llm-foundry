@@ -2,12 +2,13 @@
 
 Evaluation scripts for running language model evaluations on multiple language benchmarks using the Language Model Evaluation Harness.
 
+> **Run evaluations on Colab for free 🤗** <a href="https://colab.research.google.com/drive/1A37MAJ9SU3bMukdLgOW-uNd4v8S_juIT" target="_blank"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"></a>
+
 ## Contents
 
 - [`eval_harness_bn.sh`](eval_harness_bn.sh) — SLURM job submission script for evaluating models on Bengali language benchmarks.
 - [`eval_harness_hi.sh`](eval_harness_hi.sh) — SLURM job submission script for evaluating models on Hindi language benchmarks.
 - [`eval_harness_pt.sh`](eval_harness_pt.sh) — SLURM job submission script for evaluating models on Portuguese language benchmarks.
-- [`eval_harness_pt_old.sh`](eval_harness_pt_old.sh) — SLURM job submission script for evaluating models on Garcia's Portuguese evaluation harness.
 - [`eval_parallel.sh`](eval_parallel.sh) — generic SLURM job submission script for evaluating multiple models in parallel on a list of tasks.
 - [`eval_sequential.sh`](eval_sequential.sh) — generic SLURM job submission script for evaluating multiple models sequentially on a list of tasks.
 

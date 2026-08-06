@@ -11,6 +11,39 @@
 #############################################
 
 #############################################
+# Available Bengali Evaluation Tasks
+#
+# This reference lists all Bengali-language benchmarks supported
+# by the polyglot_harness_bengali fork of lm-evaluation-harness.
+# Set the TASKS variable below to select which ones to run.
+#
+# ┌──────────────────────────────────────────────────────────────────┬──────────┬──────────────────────────┬──────────────────────────────────────────────────────┐
+# │ Task Name                                                        │ Format   │ Source                   │ Description                                          │
+# ├──────────────────────────────────────────────────────────────────┼──────────┼──────────────────────────┼──────────────────────────────────────────────────────┤
+# │                        GENERAL KNOWLEDGE (Translated)            │          │                          │                                                      │
+# ├──────────────────────────────────────────────────────────────────┼──────────┼──────────────────────────┼──────────────────────────────────────────────────────┤
+# │ arc_challenge_poly_bn                                            │ cloze    │ Machine translated       │ ARC science questions (multiple choice)              │
+# │ mmlu_poly_bn                                                     │ cloze    │ Machine translated       │ MMLU — 57 subjects, multitask language understanding │
+# │ hellaswag_poly_bn                                                │ cloze    │ Machine translated       │ HellaSwag commonsense NLI (sentence completion)      │
+# ├──────────────────────────────────────────────────────────────────┼──────────┼──────────────────────────┼──────────────────────────────────────────────────────┤
+# │                        GENERAL KNOWLEDGE (Native)                │          │                          │                                                      │
+# ├──────────────────────────────────────────────────────────────────┼──────────┼──────────────────────────┼──────────────────────────────────────────────────────┤
+# │ bangla_mmlu                                                      │ cloze    │ Native Bengali           │ BanglaMMLU — Bengali multitask language understanding│
+# │ boolq_bn                                                         │ cloze    │ Native Bengali           │ BoolQ — yes/no reading comprehension                 │
+# │ commonsenseqa_bn                                                 │ cloze    │ Native Bengali           │ CommonsenseQA — everyday commonsense reasoning       │
+# │ piqa_bn                                                          │ cloze    │ Native Bengali           │ PIQA — physical commonsense reasoning                │
+# │ openbookqa_bn                                                    │ cloze    │ Native Bengali           │ OpenBookQA — elementary science questions            │
+# │ global_piqa_nonparallel_cloze_ben_beng                           │ cloze    │ Native Bengali           │ Global PIQA physical commonsense (non-parallel)      │
+# │ global_piqa_nonparallel_generation_ben_beng                      │ gen      │ Native Bengali           │ Global PIQA physical commonsense (non-parallel, gen) │
+# │ global_piqa_parallel_cloze_ben_beng                              │ cloze    │ Native Bengali           │ Global PIQA physical commonsense (parallel)          │
+# │ global_piqa_parallel_generation_ben_beng                         │ gen      │ Native Bengali           │ Global PIQA physical commonsense (parallel, gen)     │
+# └──────────────────────────────────────────────────────────────────┴──────────┴──────────────────────────┴──────────────────────────────────────────────────────┘
+#
+# Format key:  cloze = multiple-choice / completion   |   gen = free-form generation
+# Source key:  MT = machine translated   |   NB = Native Bengali
+#############################################
+
+#############################################
 # SLURM Job Configuration
 #############################################
 # Learn about SLURM sbatch options at:
@@ -59,20 +92,6 @@ source $workdir/.venv_eval_bengali/bin/activate  # <-- Activate the virtual envi
 # pip3 install -e $workdir/lm_evaluation_harness_bengali
 # pip3 install "lm_eval[hf,vllm]"          # <-- Install lm-eval with HuggingFace and vLLM support
 # pip3 install pyyaml                      # <-- Required for post-processing script (can be installed in the same virtual environment)
-
-#############################################
-# Available Bengali evaluation tasks:
-#############################################
-# - arc_challenge_poly_bn
-# - mmlu_poly_bn
-# - hellaswag_poly_bn
-# - bangla_mmlu
-# - boolq_bn
-# - commonsenseqa_bn
-# - piqa_bn
-# - openbookqa_bn
-# - global_piqa_nonparallel_cloze_ben_beng (global_piqa_nonparallel_generation_ben_beng for chat models)
-# - global_piqa_parallel_cloze_ben_beng (global_piqa_parallel_generation_ben_beng for chat models)
 
 #############################################
 # Environment Setup

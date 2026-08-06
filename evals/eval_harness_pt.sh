@@ -11,6 +11,60 @@
 #############################################
 
 #############################################
+# Available Portuguese Evaluation Tasks
+#
+# This reference lists all Portuguese-language benchmarks supported
+# by the polyglot_harness_portuguese fork of lm-evaluation-harness.
+# Set the TASKS variable below to select which ones to run.
+#
+# ┌─────────────────────────────────────────────────────────────────────┬──────────┬──────────────────────────┬───────────────────────────────────────────────────────────┐
+# │ Task Name                                                           │ Format   │ Source                   │ Description                                               │
+# ├─────────────────────────────────────────────────────────────────────┼──────────┼──────────────────────────┼───────────────────────────────────────────────────────────┤
+# │                           GENERAL KNOWLEDGE                         │          │                          │                                                           │
+# ├─────────────────────────────────────────────────────────────────────┼──────────┼──────────────────────────┼───────────────────────────────────────────────────────────┤
+# │ arc_challenge_poly_pt                                               │ cloze    │ Machine translated       │ ARC science questions (multiple choice)                   │
+# │ mmlu_poly_pt                                                        │ cloze    │ Machine translated       │ MMLU — 57 subjects, multitask language understanding      │
+# │ global_mmlu_pt                                                      │ cloze    │ MT + human post-edit     │ MMLU with professional & crowd-sourced corrections        │
+# │ hellaswag_poly_pt                                                   │ cloze    │ Machine translated       │ HellaSwag commonsense NLI (sentence completion)           │
+# │ lambada_poly_pt                                                     │ cloze    │ Machine translated       │ LAMBADA word prediction (broad-context language modeling) │
+# │ calame_pt                                                           │ cloze    │ Native Portuguese        │ CALAME — Portuguese language modeling benchmark           │
+# │ belebele_por_Latn                                                   │ cloze    │ Native Portuguese        │ Belebele reading comprehension (PT subset)                │
+# │ xwinograd_pt                                                        │ cloze    │ Native Portuguese        │ XWinograd pronoun resolution (PT subset)                  │
+# │ global_piqa_nonparallel_cloze_por_latn_braz                         │ cloze    │ Native Portuguese        │ Global PIQA physical commonsense (non-parallel, cloze)    │
+# │ global_piqa_parallel_cloze_por_latn_braz                            │ cloze    │ Native Portuguese        │ Global PIQA physical commonsense (parallel, cloze)        │
+# │ global_piqa_nonparallel_generation_por_latn_braz                    │ gen      │ Native Portuguese        │ Global PIQA physical commonsense (non-parallel, gen)      │
+# │ global_piqa_parallel_generation_por_latn_braz                       │ gen      │ Native Portuguese        │ Global PIQA physical commonsense (parallel, gen)          │
+# │ global_piqa_completions_por_latn_braz                               │ cloze    │ Native Portuguese        │ Global PIQA completions (shorthand alias)                 │
+# │ bluex_cloze                                                         │ cloze    │ Native Portuguese        │ BLUEX — Brazilian university entrance exam questions      │
+# │ bluex_generative                                                    │ gen      │ Native Portuguese        │ BLUEX (generative format)                                 │
+# │ enem_cloze                                                          │ cloze    │ Native Portuguese        │ ENEM — Brazilian national high school exam                │
+# │ enem_generative                                                     │ gen      │ Native Portuguese        │ ENEM (generative format)                                  │
+# │ oab_exams_cloze                                                     │ cloze    │ Native Portuguese        │ OAB — Brazilian Bar Association exam                      │
+# │ oab_exams_generative                                                │ gen      │ Native Portuguese        │ OAB (generative format)                                   │
+# ├─────────────────────────────────────────────────────────────────────┼──────────┼──────────────────────────┼───────────────────────────────────────────────────────────┤
+# │                           NLP / SEMANTICS                           │          │                          │                                                           │
+# ├─────────────────────────────────────────────────────────────────────┼──────────┼──────────────────────────┼───────────────────────────────────────────────────────────┤
+# │ assin_paraphrase                                                    │ —        │ Native Portuguese        │ ASSIN 2 — semantic textual similarity / paraphrase        │
+# │ assin_entailment                                                    │ —        │ Native Portuguese        │ ASSIN 2 — recognizing textual entailment                  │
+# ├─────────────────────────────────────────────────────────────────────┼──────────┼──────────────────────────┼───────────────────────────────────────────────────────────┤
+# │                           INSTRUCTION FOLLOWING                     │          │                          │                                                           │
+# ├─────────────────────────────────────────────────────────────────────┼──────────┼──────────────────────────┼───────────────────────────────────────────────────────────┤
+# │ ifeval_pt                                                           │ gen      │ Native Portuguese        │ IFEval — verifiable instruction following                 │
+# ├─────────────────────────────────────────────────────────────────────┼──────────┼──────────────────────────┼───────────────────────────────────────────────────────────┤
+# │                           MATH                                      │          │                          │                                                           │
+# ├─────────────────────────────────────────────────────────────────────┼──────────┼──────────────────────────┼───────────────────────────────────────────────────────────┤
+# │ gsm8k_pt                                                            │ gen      │ MT + human post-edit     │ GSM8K — grade-school math word problems                   │
+# ├─────────────────────────────────────────────────────────────────────┼──────────┼──────────────────────────┼───────────────────────────────────────────────────────────┤
+# │                           LONG CONTEXT                              │          │                          │                                                           │
+# ├─────────────────────────────────────────────────────────────────────┼──────────┼──────────────────────────┼───────────────────────────────────────────────────────────┤
+# │ ruler_pt                                                            │ gen      │ Native Portuguese        │ RULER — long-context retrieval & reasoning                │
+# └─────────────────────────────────────────────────────────────────────┴──────────┴──────────────────────────┴───────────────────────────────────────────────────────────┘
+#
+# Format key:  cloze = multiple-choice / completion   |   gen = free-form generation
+# Source key:  MT = machine translated   |   MT + human post-edit = translated & corrected
+#############################################
+
+#############################################
 # SLURM Job Configuration
 #############################################
 # Learn about SLURM sbatch options at:
@@ -62,33 +116,6 @@ source $workdir/.venv_eval_pt/bin/activate # <-- Activate the virtual environmen
 # ===== Optional: Required for IFEval =====
 # pip3 install langdetect --no-cache-dir
 # pip3 install immutabledict --no-cache-dir
-
-#############################################
-# Available Portuguese evaluation tasks:
-#############################################
-# - General Benchmarks:
-#   - arc_challenge_poly_pt
-#   - mmlu_poly_pt
-#   - global_mmlu_full_pt | global_mmlu_pt
-#   - hellaswag_poly_pt
-#   - lambada_poly_pt
-#   - calame_pt
-#   - global_piqa_completions_por_latn_braz
-#   - assin_paraphrase
-#   - assin_entailment
-#   - belebele_por_Latn
-#   - xwinograd_pt
-#   - global_piqa_nonparallel_cloze_por_latn_braz (global_piqa_nonparallel_generation_por_latn_braz for chat models)
-#   - global_piqa_parallel_cloze_por_latn_braz (global_piqa_parallel_generation_por_latn_braz for chat models)
-#
-# - Instruction Following and Math:
-#   - gsm8k_pt
-#   - ifeval_pt
-#   - mmlu_pro_pt | mmlu_prox_lite_pt
-#   - global_piqa_prompted_por_latn_braz
-#
-# - Long context
-#   - ruler_pt
 
 #############################################
 # Configuration Variables

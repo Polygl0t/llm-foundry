@@ -9,6 +9,43 @@
 #############################################
 
 #############################################
+# Available Hindi Evaluation Tasks
+#
+# This reference lists all Hindi-language benchmarks supported
+# by the polyglot_harness_hindi fork of lm-evaluation-harness.
+# Set the TASKS variable below to select which ones to run.
+#
+# ┌──────────────────────────────────────────────────────────────────┬──────────┬──────────────────────────┬───────────────────────────────────────────────────────┐
+# │ Task Name                                                        │ Format   │ Source                   │ Description                                           │
+# ├──────────────────────────────────────────────────────────────────┼──────────┼──────────────────────────┼───────────────────────────────────────────────────────┤
+# │                        GENERAL KNOWLEDGE (Translated)            │          │                          │                                                       │
+# ├──────────────────────────────────────────────────────────────────┼──────────┼──────────────────────────┼───────────────────────────────────────────────────────┤
+# │ arc_challenge_poly_hi                                            │ cloze    │ Machine translated       │ ARC science questions (multiple choice)               │
+# │ mmlu_poly_hi                                                     │ cloze    │ Machine translated       │ MMLU — 57 subjects, multitask language understanding  │
+# │ hellaswag_poly_hi                                                │ cloze    │ Machine translated       │ HellaSwag commonsense NLI (sentence completion)       │
+# ├──────────────────────────────────────────────────────────────────┼──────────┼──────────────────────────┼───────────────────────────────────────────────────────┤
+# │                        GENERAL KNOWLEDGE (Native)                │          │                          │                                                       │
+# ├──────────────────────────────────────────────────────────────────┼──────────┼──────────────────────────┼───────────────────────────────────────────────────────┤
+# │ csqa_hi                                                          │ cloze    │ Native Hindi             │ CommonsenseQA — everyday commonsense reasoning        │
+# │ copa_hi                                                          │ cloze    │ Native Hindi             │ COPA — causal reasoning (cause/effect)                │
+# │ global_piqa_nonparallel_cloze_hin_deva                           │ cloze    │ Native Hindi             │ Global PIQA physical commonsense (non-parallel)       │
+# │ global_piqa_nonparallel_generation_hin_deva                      │ gen      │ Native Hindi             │ Global PIQA physical commonsense (non-parallel, gen)  │
+# ├──────────────────────────────────────────────────────────────────┼──────────┼──────────────────────────┼───────────────────────────────────────────────────────┤
+# │                        NLP / SEMANTICS                           │          │                          │                                                       │
+# ├──────────────────────────────────────────────────────────────────┼──────────┼──────────────────────────┼───────────────────────────────────────────────────────┤
+# │ iitp_mr_hi                                                       │ cloze    │ Native Hindi             │ IITP Movie Reviews — sentiment classification         │
+# │ indicxnli                                                        │ cloze    │ Native Hindi             │ IndicXNLI — cross-lingual natural language inference  │
+# ├──────────────────────────────────────────────────────────────────┼──────────┼──────────────────────────┼───────────────────────────────────────────────────────┤
+# │                        MULTITASK                                 │          │                          │                                                       │
+# ├──────────────────────────────────────────────────────────────────┼──────────┼──────────────────────────┼───────────────────────────────────────────────────────┤
+# │ milu_hi                                                          │ cloze    │ Native Hindi             │ MILU — multitask Indic language understanding         │
+# └──────────────────────────────────────────────────────────────────┴──────────┴──────────────────────────┴───────────────────────────────────────────────────────┘
+#
+# Format key:  cloze = multiple-choice / completion   |   gen = free-form generation
+# Source key:  MT = machine translated   |   NH = Native Hindi
+#############################################
+
+#############################################
 # SLURM Job Configuration
 #############################################
 # Learn about SLURM sbatch options at:
@@ -57,19 +94,6 @@ source $workdir/.venv_eval_hindi/bin/activate    # <-- Activate the virtual envi
 # pip3 install -e $workdir/lm_evaluation_harness_hindi
 # pip3 install "lm_eval[hf,vllm]"          # <-- Install lm-eval with HuggingFace and vLLM support
 # pip3 install pyyaml                      # <-- Required for post-processing script (can be installed in the same virtual environment)
-
-#############################################
-# Available Hindi evaluation tasks:
-#############################################
-# - arc_challenge_poly_hi
-# - mmlu_poly_hi
-# - hellaswag_poly_hi
-# - global_piqa_nonparallel_cloze_hin_deva (global_piqa_nonparallel_generation_hin_deva for chat models)
-# - csqa_hi
-# - copa_hi
-# - iitp_mr_hi
-# - indicxnli_hi
-# - milu_hi
 
 #############################################
 # Environment Setup
