@@ -50,7 +50,7 @@ pip3 install --no-cache-dir -c "$torch_constraints" \
     "transformers==5.14.0" \
     "datasets==4.0.0" \
     "sentencepiece==0.2.0" \
-    "accelerate==1.9.0" \
+    "accelerate==1.13.0" \
     "codecarbon==3.2.9" \
     "wandb==0.27.2" \
     "trackio==0.32.2" \
