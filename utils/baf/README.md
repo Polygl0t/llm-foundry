@@ -343,9 +343,14 @@ if [[ -n "$CUDA_VISIBLE_DEVICES" && ! "$CUDA_VISIBLE_DEVICES" =~ ^[0-9]+(,[0-9]+
         exit 1
     fi
 
-    gpu_table="$(nvidia-smi --query-gpu=index,uuid --format=csv,noheader,nospace)"
+    gpu_table="$(nvidia-smi --query-gpu=index,uuid --format=csv,noheader | tr -d ' ')"
     echo "# [${CLUSTER_ID}] nvidia-smi GPU table:" >> "$out"
     echo "$gpu_table" >> "$out"
+
+    if [[ "$gpu_table" != *"GPU-"* ]]; then
+        echo "# ERROR: nvidia-smi did not return a usable GPU UUID table (got: '$gpu_table')" >> "$out"
+        exit 1
+    fi
 
     resolved_indices=()
     IFS=',' read -ra visible_ids <<< "$CUDA_VISIBLE_DEVICES"
@@ -361,6 +366,13 @@ if [[ -n "$CUDA_VISIBLE_DEVICES" && ! "$CUDA_VISIBLE_DEVICES" =~ ^[0-9]+(,[0-9]+
     export CUDA_VISIBLE_DEVICES="$(IFS=,; echo "${resolved_indices[*]}")"
     echo "# [${CLUSTER_ID}] Resolved CUDA_VISIBLE_DEVICES (short GPU IDs) -> physical indices: $CUDA_VISIBLE_DEVICES" >> "$out"
 fi
+
+# TODO: BAF now provides a shell function "expand_cuda_visible_devices"
+# (via `source /etc/profile`) that rewrites CUDA_VISIBLE_DEVICES to full
+# UUIDs directly, which may let us drop this block entirely. To use it,
+# uncomment the following two lines and remove the above block:
+# source /etc/profile
+# expand_cuda_visible_devices
 ```
 
 ### Do not override thread-count environment variables (`OMP_NUM_THREADS`, `MKL_NUM_THREADS`, `TF_NUM_THREADS`, etc.)
