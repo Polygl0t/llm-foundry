@@ -287,6 +287,10 @@ This will generate a long list of all jobs submitted by you across all schedds. 
 
 Due to some default configurations in the BAF cluster, you cannot directly clone repositories from GitHub inside `$BUDDY`. Therefore, you should clone the repository in your home directory (i.e., `/home/<-Uni-ID->/physik/llm-foundry`) and copy it to `$BUDDY`. When you already have the repository in your `$BUDDY`, you go into the said repository, and set this configuration: `git config fetch.unpackLimit 10000`. This will allow you to do regular `git fetch` and `git pull` commands straight from your `$BUDDY` directory.
 
+### vLLM fails with `NVMLError_NotFound` (non-integer GPU IDs)
+
+If a tool such as vLLM fails to resolve the GPU with an error like `NVMLError_NotFound` or a CUDA device lookup failure, it's usually because BAF exports `CUDA_VISIBLE_DEVICES` as short, non-standard IDs (e.g. `GPU-af7b61d8`) instead of integer indices. See [Non-integer GPU IDs break vLLM (and other tools)](#non-integer-gpu-ids-break-vllm-and-other-tools) for the workaround.
+
 
 ## Dos and Don'ts
 
@@ -301,6 +305,41 @@ While you should keep your codebase in CephFS(`$BUDDY`), since you cannot see yo
 HTCondor handles GPU assignment automatically. If you manually override this variable in your bash scripts, you may end up indexing GPUs that are already assigned to other jobs running on the same node. This can cause your job to **leech** GPUs and resources from other jobs, leading to conflicts and degraded performance.
 
 Therefore, **never set `CUDA_VISIBLE_DEVICES` explicitly** in any script submitted via HTCondor on BAF. Let HTCondor manage GPU visibility for you.
+
+### Non-integer GPU IDs break vLLM (and other tools)
+
+HTCondor on BAF exports `CUDA_VISIBLE_DEVICES` as short, non-standard GPU IDs (e.g. `GPU-af7b61d8`) instead of plain integer indices (`0,1,2`). PyTorch and `torchrun` handle this transparently, but tools that resolve device IDs themselves — most notably **vLLM** — fail.
+
+**Why it fails.** vLLM's CUDA platform code first tries `int(device_id)`, then falls back to `pynvml.nvmlDeviceGetHandleByUUID(device_id)`. That call requires an exact match against the *full* 36-char NVML UUID and fails (`NVMLError_NotFound`) on the truncated/non-UUID form HTCondor provides. Worse, vLLM re-does this resolution inside short-lived subprocesses it spawns to probe model architectures, so any fix must live in the **environment** (which subprocesses inherit), not in-process Python monkeypatching.
+
+**The fix.** The container's device cgroup already restricts CUDA/NVML to exactly the GPUs HTCondor assigned, in the order listed here — so regardless of what these opaque IDs mean, they always correspond 1:1 with physical indices `0..N-1` inside this job. We don't need to resolve them at all: just replace them with a plain sequential range of the same length. Add the block below near the top of any script that launches a tool needing integer GPU IDs (e.g. vLLM):
+
+```bash
+#############################################
+# GPU Device ID Translation
+#############################################
+# BAF/HTCondor exports CUDA_VISIBLE_DEVICES as short, non-standard GPU IDs
+# (e.g. "GPU-af7b61d8") instead of integer indices. vLLM's CUDA platform
+# code tries int(device_id), then falls back to
+# pynvml.nvmlDeviceGetHandleByUUID(device_id) -- which requires an exact
+# match against the *full* 36-char NVML UUID and fails
+# ("NVMLError_NotFound") on this truncated/non-UUID form. Worse, vLLM
+# re-does this resolution inside short-lived subprocesses it spawns to
+# probe model architectures, so any fix must live in the environment
+# (which subprocesses inherit), not in-process Python monkeypatching.
+#
+# The container's device cgroup already restricts CUDA/NVML to exactly the
+# GPUs HTCondor assigned, in the order listed here -- so regardless of what
+# these opaque IDs mean, they always correspond 1:1 with physical indices
+# 0..N-1 inside this job. We don't need to resolve them at all: just
+# replace them with a plain sequential range of the same length.
+if [[ -n "$CUDA_VISIBLE_DEVICES" && ! "$CUDA_VISIBLE_DEVICES" =~ ^[0-9]+(,[0-9]+)*$ ]]; then
+    IFS=',' read -ra visible_ids <<< "$CUDA_VISIBLE_DEVICES"
+    num_devices="${#visible_ids[@]}"
+    export CUDA_VISIBLE_DEVICES="$(seq -s, 0 $((num_devices - 1)))"
+    echo "# [${CLUSTER_ID}] Rewrote CUDA_VISIBLE_DEVICES (non-integer IDs, $num_devices devices) -> $CUDA_VISIBLE_DEVICES"
+fi
+```
 
 ### Do not override thread-count environment variables (`OMP_NUM_THREADS`, `MKL_NUM_THREADS`, `TF_NUM_THREADS`, etc.)
 
