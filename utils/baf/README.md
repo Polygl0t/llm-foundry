@@ -289,7 +289,7 @@ Due to some default configurations in the BAF cluster, you cannot directly clone
 
 ### vLLM fails with `NVMLError_NotFound` (non-integer GPU IDs)
 
-If a tool such as vLLM fails to resolve the GPU with an error like `NVMLError_NotFound` or a CUDA device lookup failure, it's usually because BAF exports `CUDA_VISIBLE_DEVICES` as short, non-standard IDs (e.g. `GPU-af7b61d8`) instead of integer indices. See [Non-integer GPU IDs break vLLM (and other tools)](#non-integer-gpu-ids-break-vllm-and-other-tools) for the workaround.
+If a tool such as vLLM fails to resolve the GPU with an error like `NVMLError_NotFound` or a CUDA device lookup failure, it's usually because BAF exports `CUDA_VISIBLE_DEVICES` as short GPU UUIDs (e.g. `GPU-af7b61d8`) instead of integer indices. See [Non-integer GPU IDs break vLLM (and other tools)](#non-integer-gpu-ids-break-vllm-and-other-tools) for the workaround.
 
 
 ## Dos and Don'ts
@@ -308,36 +308,58 @@ Therefore, **never set `CUDA_VISIBLE_DEVICES` explicitly** in any script submitt
 
 ### Non-integer GPU IDs break vLLM (and other tools)
 
-HTCondor on BAF exports `CUDA_VISIBLE_DEVICES` as short, non-standard GPU IDs (e.g. `GPU-af7b61d8`) instead of plain integer indices (`0,1,2`). PyTorch and `torchrun` handle this transparently, but tools that resolve device IDs themselves — most notably **vLLM** — fail.
+HTCondor on BAF exports `CUDA_VISIBLE_DEVICES` as abbreviated GPU UUIDs (e.g. `GPU-af7b61d8`) instead of plain integer indices (`0,1,2`). This short form is NVIDIA-documented as valid for `CUDA_VISIBLE_DEVICES` and is a genuine prefix of the full hardware UUID — BAF is not exporting a synthetic token or violating any documented contract. PyTorch and `torchrun` handle it transparently, but tools that resolve device IDs themselves — most notably **vLLM** — fail.
 
-**Why it fails.** vLLM's CUDA platform code first tries `int(device_id)`, then falls back to `pynvml.nvmlDeviceGetHandleByUUID(device_id)`. That call requires an exact match against the *full* 36-char NVML UUID and fails (`NVMLError_NotFound`) on the truncated/non-UUID form HTCondor provides. Worse, vLLM re-does this resolution inside short-lived subprocesses it spawns to probe model architectures, so any fix must live in the **environment** (which subprocesses inherit), not in-process Python monkeypatching.
+**Why it fails.** vLLM's CUDA platform code first tries `int(device_id)`, then falls back to `pynvml.nvmlDeviceGetHandleByUUID(device_id)`. That call requires an exact match against the *full* 36-char NVML UUID and never falls back to a prefix search the way `libcuda` itself apparently does, so it fails (`NVMLError_NotFound`) on the short prefix form HTCondor provides. This is a bug in vLLM/pynvml, not a problem with BAF's export format. Worse, vLLM re-does this resolution inside short-lived subprocesses it spawns to probe model architectures, so any fix must live in the **environment** (which subprocesses inherit), not in-process Python monkeypatching.
 
-**The fix.** The container's device cgroup already restricts CUDA/NVML to exactly the GPUs HTCondor assigned, in the order listed here — so regardless of what these opaque IDs mean, they always correspond 1:1 with physical indices `0..N-1` inside this job. We don't need to resolve them at all: just replace them with a plain sequential range of the same length. Add the block below near the top of any script that launches a tool needing integer GPU IDs (e.g. vLLM):
+**The fix.** There is no cgroup isolating GPUs on BAF — `nvidia-smi` inside a job sees *all* physical GPUs on the node, not just the one(s) HTCondor assigned. So we cannot assume that the position of a short ID in `CUDA_VISIBLE_DEVICES` equals its physical index: blindly substituting a sequential `0..N-1` range could silently point the job at a GPU that belongs to someone else's running job. Instead, resolve each short ID to its real physical device index by matching it as a literal prefix against the full UUID reported by `nvidia-smi --query-gpu=index,uuid`, then rewrite `CUDA_VISIBLE_DEVICES` with the resolved integer indices — that way `int(device_id)` succeeds trivially everywhere vLLM needs it. Add the block below near the top of any script that launches a tool needing integer GPU IDs (e.g. vLLM):
 
 ```bash
 #############################################
 # GPU Device ID Translation
 #############################################
-# BAF/HTCondor exports CUDA_VISIBLE_DEVICES as short, non-standard GPU IDs
-# (e.g. "GPU-af7b61d8") instead of integer indices. vLLM's CUDA platform
-# code tries int(device_id), then falls back to
-# pynvml.nvmlDeviceGetHandleByUUID(device_id) -- which requires an exact
-# match against the *full* 36-char NVML UUID and fails
-# ("NVMLError_NotFound") on this truncated/non-UUID form. Worse, vLLM
-# re-does this resolution inside short-lived subprocesses it spawns to
-# probe model architectures, so any fix must live in the environment
-# (which subprocesses inherit), not in-process Python monkeypatching.
+# BAF/HTCondor exports CUDA_VISIBLE_DEVICES as abbreviated GPU UUIDs (e.g.
+# "GPU-af7b61d8"). NVIDIA documents this short form as valid for
+# CUDA_VISIBLE_DEVICES (https://docs.nvidia.com/deploy/topics/topic_5_2_1.html)
+# and it is a genuine prefix of the real hardware UUID -- but vLLM's NVML
+# wrapper (pynvml.nvmlDeviceGetHandleByUUID) requires an exact full
+# 36-character UUID match with no prefix fallback, so it fails with
+# NVMLError_NotFound. vLLM also re-resolves this inside short-lived
+# subprocesses it spawns to probe model architectures, so any fix must
+# live in the environment (which subprocesses inherit), not in-process
+# Python monkeypatching.
 #
-# The container's device cgroup already restricts CUDA/NVML to exactly the
-# GPUs HTCondor assigned, in the order listed here -- so regardless of what
-# these opaque IDs mean, they always correspond 1:1 with physical indices
-# 0..N-1 inside this job. We don't need to resolve them at all: just
-# replace them with a plain sequential range of the same length.
+# There is no cgroup isolating GPUs on BAF: nvidia-smi inside the job sees
+# all physical GPUs on the node, not just the one(s) HTCondor assigned.
+# So we cannot assume position in CUDA_VISIBLE_DEVICES equals a physical
+# index -- that would risk silently targeting a GPU that belongs to
+# someone else's running job. Instead, resolve each short ID to its real
+# physical index by matching it as a literal prefix against
+# `nvidia-smi --query-gpu=index,uuid`, then rewrite CUDA_VISIBLE_DEVICES
+# with the resolved integer indices. int(device_id) then succeeds.
 if [[ -n "$CUDA_VISIBLE_DEVICES" && ! "$CUDA_VISIBLE_DEVICES" =~ ^[0-9]+(,[0-9]+)*$ ]]; then
+    if ! command -v nvidia-smi >/dev/null 2>&1; then
+        echo "# ERROR: nvidia-smi not found on PATH; cannot resolve CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES" >> "$out"
+        exit 1
+    fi
+
+    gpu_table="$(nvidia-smi --query-gpu=index,uuid --format=csv,noheader,nospace)"
+    echo "# [${CLUSTER_ID}] nvidia-smi GPU table:" >> "$out"
+    echo "$gpu_table" >> "$out"
+
+    resolved_indices=()
     IFS=',' read -ra visible_ids <<< "$CUDA_VISIBLE_DEVICES"
-    num_devices="${#visible_ids[@]}"
-    export CUDA_VISIBLE_DEVICES="$(seq -s, 0 $((num_devices - 1)))"
-    echo "# [${CLUSTER_ID}] Rewrote CUDA_VISIBLE_DEVICES (non-integer IDs, $num_devices devices) -> $CUDA_VISIBLE_DEVICES"
+    for short_id in "${visible_ids[@]}"; do
+        idx=$(awk -F, -v u="$short_id" '$2 ~ ("^" u) {print $1; exit}' <<< "$gpu_table")
+        if [[ -z "$idx" ]]; then
+            echo "# ERROR: could not resolve CUDA device id '$short_id' to a physical index via nvidia-smi" >> "$out"
+            exit 1
+        fi
+        resolved_indices+=("$idx")
+    done
+
+    export CUDA_VISIBLE_DEVICES="$(IFS=,; echo "${resolved_indices[*]}")"
+    echo "# [${CLUSTER_ID}] Resolved CUDA_VISIBLE_DEVICES (short GPU IDs) -> physical indices: $CUDA_VISIBLE_DEVICES" >> "$out"
 fi
 ```
 
