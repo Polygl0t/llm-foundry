@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import torch
+from gdn_patch import patch_qwen3_5_gdn_initialization
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 # Attention (and attention-like) module class names per supported model family.
@@ -209,6 +210,10 @@ def _build_model_from_config(
             config,
             attn_implementation=args.attn_implementation,
         )
+        # Upstream Qwen3.5 GatedDeltaNet initializes `A_log` in the model dtype,
+        # so a bf16 `uniform_(0, 16)` can round to 0 and make `log(0) = -inf` on
+        # some heads. Re-initialize the decay params (finite) before persisting.
+        patch_qwen3_5_gdn_initialization(random_model, force_reinit=True)
         random_model.save_pretrained(bootstrap_dir, max_shard_size="5GB")
         # Free memory before all ranks reload via `from_pretrained`.
         del random_model
@@ -963,6 +968,13 @@ def prepare_training_components(args, device, master_process, logger=None, file_
                 file_logger,
                 "Linear-attention fast path is enabled: flash-linear-attention and causal-conv1d are both installed.",
             )
+
+        # Defensive repair (no-op on healthy models): guarantee no GatedDeltaNet
+        # layer carries a non-finite `A_log`, including checkpoints produced by a
+        # pre-fix run. Deterministic, so it stays consistent across ranks.
+        patch_qwen3_5_gdn_initialization(
+            model, logger=logger if master_process else None, force_reinit=False
+        )
 
     if args.use_liger_kernel:
         _apply_liger_kernels(model, args)

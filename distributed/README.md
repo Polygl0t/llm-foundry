@@ -15,6 +15,7 @@ This folder contains distributed training scripts for large language models usin
 - [specifications.py](specifications.py) — Dataclass definitions and type hints for all training arguments.
 - [specifications.yaml](specifications.yaml) — Example YAML configuration file for training settings.
 - [utils.py](utils.py) — Logging, checkpointing, distributed environment setup, and miscellaneous utilities.
+- [`gdn_patch.py`](./gdn_patch.py) — Patch for the latent initialization bug in `Qwen3_5GatedDeltaNet` / `Qwen3_5MoeGatedDeltaNet` layers (see [Qwen3.5 Linear Attention NaN Loss](#qwen35-linear-attention-nan-loss-fixed) below).
 
 ## Usage Summary
 
@@ -490,9 +491,20 @@ def _apply_liger_kernels(model, args):
 ...
 ```
 
-### Qwen3.5 Linear Attention NaN Loss
+### Qwen3.5 Linear Attention NaN Loss (Fixed)
 
-For reasons of divine mystery, when we set `Qwen3_5ForCausalLM` or `Qwen3MoeForCausalLM` to use linear attention on ALL layers, on some seeds, the loss becomes `NaN` after the first step. This is very strange, since the same config with 7 linear layers + 1 full-attention layer works fine, and the linear attention implementation is identical in both cases. We are investigating this issue, but for now, if you want to train a Qwen3.5 model with linear attention, be prepared to join the lottery and try different seeds until you find one that doesn't produce NaN loss.
+We previously hit a frustrating issue: when we set `Qwen3_5ForCausalLM` or `Qwen3MoeForCausalLM` to use linear attention on ALL layers, on some seeds the loss became `NaN` after the first step.
+
+**Root cause found and patched.** The NaN came from a latent initialization bug in the upstream `transformers` `Qwen3_5GatedDeltaNet` / `Qwen3_5MoeGatedDeltaNet` layers, not from the linear-attention math itself. The decay parameter `A_log` is created as:
+
+```python
+A = torch.empty(num_v_heads).uniform_(0, 16)   # inherits the model dtype (bf16)
+A_log = nn.Parameter(torch.log(A))
+```
+
+Because the tensor inherits the model's bf16 default dtype, `uniform_(0, 16)` has coarse resolution near zero and rounds a draw to exactly `0.0` with probability ~0.4% per head, so `torch.log(0) = -inf`. The affected head then has `A = exp(-inf) = 0` (a decay gate that never forgets) and its gradient `dg/dA_log = -A * softplus(...) = 0`, so it stays frozen at `-inf` for the whole run. The probability of hitting this scales with `num_v_heads * num_gdn_layers`, which is why full-linear configs tripped it so often while hybrid configs did not.
+
+We patch this in [`gdn_patch.py`](./gdn_patch.py) (`patch_qwen3_5_gdn_initialization`), wired into [`model_setup.py`](./model_setup.py): the freshly built random model gets a guaranteed-finite `A_log` / `dt_bias` before it is persisted/sharded, and every rank runs a deterministic in-place repair for any non-finite entries (a no-op on healthy or genuinely trained checkpoints). You can track the upstream fix at https://github.com/huggingface/transformers/issues/47831.
 
 ### Bender + Linear Attention Kernels
 
