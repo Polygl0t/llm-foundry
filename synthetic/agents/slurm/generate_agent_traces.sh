@@ -40,10 +40,6 @@ err="$workdir/logs/err-agent-traces.$SLURM_JOB_ID"
 # Modules & Libraries Setup
 #############################################
 
-#############################################
-# Modules & Libraries Setup
-#############################################
-
 source $workdir/.modules.sh > "$out" 2>&1
 source $workdir/.venv_agents/bin/activate
 
