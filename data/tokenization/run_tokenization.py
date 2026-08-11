@@ -16,7 +16,7 @@ Output columns (all configurable via flags):
 
 Usage:
 (Pretraining tokenization)
-    python tokenize.py \\
+    python run_tokenization.py \\
         --input_path  data/pretrain_raw \\
         --output_dir  data/pretrain_tokenized \\
         --tokenizer_name Qwen/Qwen3-0.6B \\
@@ -25,7 +25,7 @@ Usage:
         --max_length 8192
 
 (SFT tokenization)
-    python tokenize.py \\
+    python run_tokenization.py \\
         --input_path  data/sft_raw \\
         --output_dir  data/sft_tokenized \\
         --tokenizer_name Qwen/Qwen3-0.6B \\
