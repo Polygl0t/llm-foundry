@@ -152,6 +152,14 @@ def main(args) -> None:
         args.model_type,
         os.getenv("MODEL_ID") if not args.model_id else args.model_id,
     )
+    vllm_model_kwargs = None
+    if args.model_type == "vllm":
+        vllm_model_kwargs = {"max_model_len": args.max_new_tokens}
+        if args.gdn_prefill_backend:
+            vllm_model_kwargs["additional_config"] = {
+                "gdn_prefill_backend": args.gdn_prefill_backend
+            }
+
     model = build_model(
         model_type=args.model_type,
         model_id=args.model_id,
@@ -162,7 +170,7 @@ def main(args) -> None:
         top_p=args.top_p,
         top_k=args.top_k,
         apply_chat_template_kwargs={"enable_thinking": args.enable_thinking},
-        model_kwargs={"max_model_len": args.max_new_tokens} if args.model_type == "vllm" else None,
+        model_kwargs=vllm_model_kwargs,
     )
 
     # Load system prompt
@@ -396,6 +404,14 @@ if __name__ == "__main__":
         default=None,
         help="Top-k sampling cutoff for local models (transformers/vllm). "
         "If unset, the model's own generation defaults are used.",
+    )
+    parser.add_argument(
+        "--gdn-prefill-backend",
+        choices=["triton", "flashinfer", "cutedsl"],
+        default=os.getenv("GDN_PREFILL_BACKEND") or None,
+        help="vLLM GDN prefill backend for hybrid models. Set to 'triton' "
+        "when the CUDA toolkit cannot compile FlashInfer's SM90 kernels. "
+        "Defaults to GDN_PREFILL_BACKEND when set, otherwise vLLM auto.",
     )
 
     # Dataset arguments

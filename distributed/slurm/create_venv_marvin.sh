@@ -33,7 +33,7 @@ workdir="/lustre/mlnvme/data/polyglot"
 venv_name=".venv_distributed"
 
 # Path to the .modules file.
-modules_file="$workdir/.modules.sh"
+modules_file="$workdir/llm-foundry/.modules.sh"
 
 # GPU architectures for flash-attn kernel compilation.
 #   8.0 = NVIDIA A100 (Ampere)

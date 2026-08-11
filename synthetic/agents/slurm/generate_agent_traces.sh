@@ -40,55 +40,33 @@ err="$workdir/logs/err-agent-traces.$SLURM_JOB_ID"
 # Modules & Libraries Setup
 #############################################
 
+#############################################
+# Modules & Libraries Setup
+#############################################
+
 source $workdir/.modules.sh > "$out" 2>&1
-# python3 -m venv $workdir/.venv_agents
 source $workdir/.venv_agents/bin/activate
 
-# ===== LLM Foundry Install =====
-# pip3 install --upgrade pip
-# git clone --depth 1 --branch main https://github.com/Polygl0t/llm-foundry.git
-# pip3 install -e "$workdir/llm-foundry/.[agents]" --no-cache-dir
-
-# ===== Or, install the dependencies manually =====
-# pip3 install --upgrade pip
-
-# ===== Using only API models via LiteLLM =====
-# pip3 install "smolagents[litellm]>=1.26.0" \
-# "datasets>=3.0" \
-# "python-dotenv>=1.0" \
-# "datasets>=3.0" \
-# "pyyaml>=6.0" \
-# "sympy>=1.13" \
-# "ddgs>=9.0.0" \
-# "wikipedia-api==0.15.0" \
-# "markdownify>=0.14.1" \
-# --no-cache-dir
-
-# ===== Using Local Models via Transformers or vLLM =====
-#pip3 install "vllm" \
-#  "accelerate" \
-#  "transformers" \
-#  "smolagents[litellm]>=1.26.0" \
-#  "datasets>=3.0" \
-#  "python-dotenv>=1.0" \
-#  "datasets>=3.0" \
-#  "pyyaml>=6.0" \
-#  "sympy>=1.13" \
-#  "ddgs>=9.0.0" \
-#  "wikipedia-api==0.15.0" \
-#  "markdownify>=0.14.1" \
-#  --no-cache-dir
+# ===== Installation =====
+# See synthetic/agents/slurm/generate_agent_traces.sh for the installation of the venv and packages.
 
 #############################################
 # Environment Setup
 #############################################
 
-export HF_DATASETS_CACHE="$workdir/.cache/$SLURM_JOB_ID"            # <-- Unique cache directory per job to avoid conflicts
-export PYTHONPYCACHEPREFIX="$HF_DATASETS_CACHE/.pycache"
-export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE"
-export TRITON_CACHE_DIR="$HF_DATASETS_CACHE/triton_cache"
+# ─── Cache Directories ──────────────────────────────────────────── #
 export CLEAN_CACHE="0"                                              # <-- Set to "1" to clean cache after job completion
+export HF_DATASETS_CACHE="$workdir/.cache"
+export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE"
+export PYTHONPYCACHEPREFIX="$HF_DATASETS_CACHE/.pycache"
+export TRITON_CACHE_DIR="$HF_DATASETS_CACHE/triton_cache/${CLUSTER_ID}"
+export FLASHINFER_WORKSPACE_DIR="$workdir/.cache/flashinfer/${CLUSTER_ID}"
+
+# ─── vLLM / FlashInfer / GDN ───────────────────────────────────── #
 export VLLM_LOGGING_LEVEL=ERROR                                     # <-- Silence vLLM worker/engine INFO+WARNING logs (incl. Triton bundler spam)
+export VLLM_USE_FLASHINFER_SAMPLER=0                                # <-- 0 to skip flashinfer sampler JIT entirely
+export VLLM_USE_DEEP_GEMM=0                                         # <-- only needed for the FP8 model
+export GDN_PREFILL_BACKEND="triton"                                 # <-- avoid FlashInfer SM90 GDN JIT on the BAF CUDA 12 toolkit
 
 # ─── Model ─────────────────────────────────────────────────────── #
 # Model type: "litellm" (remote API), "transformers" (local HF), or "vllm" (local vLLM server)

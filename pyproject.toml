@@ -57,13 +57,14 @@ synth = [
     "vllm",
 ]
 agents = [
-    "vllm",
+    "vllm==0.23.0",
+    "flashinfer-python==0.6.12",
+    "cuda-toolkit[nvcc]==13.0.2",
     "accelerate",
     "transformers",
     "smolagents[litellm]>=1.26.0",
     "datasets>=3.0",
     "python-dotenv>=1.0",
-    "datasets>=3.0",
     "pyyaml>=6.0",
     "sympy>=1.13",
     "ddgs>=9.0.0",
