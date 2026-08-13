@@ -1292,7 +1292,7 @@ def execute_single_trace(
         additional_authorized_imports=authorized_imports,
         code_block_tags=(code_block_opening_tag, code_block_closing_tag),
         planning_interval=(max_steps + 1) if enable_planning else None,
-        verbosity_level=LogLevel.ERROR,  # Suppress Rich console output
+        verbosity_level=LogLevel.OFF,  # Suppress Rich console output
     )
 
     # Redirect stderr to suppress smolagents/vLLM internal print()

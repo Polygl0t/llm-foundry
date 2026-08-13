@@ -271,7 +271,7 @@ def main(args) -> None:
             success_count += 1
             consecutive_fast_failures = 0
             logger.info(
-                "[%d/%d] %s | ✅ %d steps %.1fs | %s",
+                "[%d/%d] %s | ✅ %d steps %.1fs | %s ...",
                 idx,
                 total,
                 trace_id[:12],
@@ -288,7 +288,7 @@ def main(args) -> None:
             # Collapse runs of whitespace and limit length
             err_clean = " ".join(err_first_line.split())[:120]
             logger.warning(
-                "[%d/%d] %s | ❌ %d steps %.1fs | %s  -> %s",
+                "[%d/%d] %s | ❌ %d steps %.1fs | %s ... | Error: %s",
                 idx,
                 total,
                 trace_id[:12],
