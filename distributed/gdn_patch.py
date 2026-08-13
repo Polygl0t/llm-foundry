@@ -8,9 +8,8 @@ parameter `A_log` is created as:
     A = torch.empty(num_v_heads).uniform_(0, 16)   # inherits the model dtype
     A_log = nn.Parameter(torch.log(A))
 
-Because the tensor inherits the model's (bf16) default dtype rather than the
-float32 used by the reference Mamba-2 / Qwen3-Next code, `uniform_(0, 16)` has
-coarse resolution near zero and rounds a draw down to exactly `0.0` with
+Because the tensor inherits the model's (bf16) default dtype, `uniform_(0, 16)`
+has coarse resolution near zero and rounds a draw down to exactly `0.0` with
 probability ~0.4% per head in bf16, so `torch.log(0) = -inf`. The affected head
 then has `A = exp(-inf) = 0` (a decay gate that never forgets) and its
 gradient `dg/dA_log = -A * softplus(...) = 0`, so it stays frozen at `-inf`
@@ -19,6 +18,10 @@ for the whole run.
 The probability of hitting this scales with `num_v_heads * num_gdn_layers`,
 which is why a, e.g., a 35B hybrid (32 value heads x 30 GDN layers -> ~4 dead
 heads expected) trips it while a tiny config (8 x 8) does not.
+
+Upstream's fix (once released) simply bumps the `uniform_` lower bound away
+from 0 instead of casting to float32; this patch mirrors that approach so it
+can be dropped once the fixed transformers version is available.
 
 This module re-initializes / repairs `A_log` (and `dt_bias`) so they are
 always finite. It is applied to the freshly built random model before it is
@@ -43,11 +46,10 @@ import torch
 # `qwen3_5_moe` without importing either modeling module.
 _GDN_CLASS_MARKER = "GatedDeltaNet"
 
-# Reference (Mamba-2 / Qwen3-Next) sampling range for the decay strength A.
-_A_UNIFORM_LOW = 0.0
+# Sampling range for the decay strength A. Lower bound kept away from 0 so
+# log(A) can never become -inf, regardless of the model's dtype.
+_A_UNIFORM_LOW = 0.01
 _A_UNIFORM_HIGH = 16.0
-# Floor applied before log() so a near-zero draw can never yield A_log = -inf.
-_A_MIN = 1e-4
 
 
 def _module_generator(name: str, base_seed: int) -> torch.Generator:
@@ -68,7 +70,7 @@ def _mark_no_weight_decay(module: torch.nn.Module) -> None:
             param._no_weight_decay = True
 
 
-def _reinit_decay_params(module, name, base_seed, cast_to_fp32) -> int:
+def _reinit_decay_params(module, name, base_seed) -> int:
     """Draw a fresh, guaranteed-finite `A_log` (and reset `dt_bias` to ones)."""
     num_v_heads = module.A_log.numel()
     generator = _module_generator(name, base_seed)
@@ -76,17 +78,14 @@ def _reinit_decay_params(module, name, base_seed, cast_to_fp32) -> int:
     a = torch.empty(num_v_heads, dtype=torch.float32).uniform_(
         _A_UNIFORM_LOW, _A_UNIFORM_HIGH, generator=generator
     )
-    a.clamp_(min=_A_MIN)
 
-    target_dtype = torch.float32 if cast_to_fp32 else module.A_log.dtype
     with torch.no_grad():
-        new_a_log = torch.log(a).to(device=module.A_log.device, dtype=target_dtype)
+        new_a_log = torch.log(a).to(device=module.A_log.device, dtype=module.A_log.dtype)
         module.A_log = torch.nn.Parameter(new_a_log, requires_grad=module.A_log.requires_grad)
 
         dt_bias = getattr(module, "dt_bias", None)
         if isinstance(dt_bias, torch.nn.Parameter):
-            dt_dtype = torch.float32 if cast_to_fp32 else dt_bias.dtype
-            new_dt = torch.ones(dt_bias.numel(), device=dt_bias.device, dtype=dt_dtype)
+            new_dt = torch.ones(dt_bias.numel(), device=dt_bias.device, dtype=dt_bias.dtype)
             module.dt_bias = torch.nn.Parameter(new_dt, requires_grad=dt_bias.requires_grad)
 
     _mark_no_weight_decay(module)
@@ -131,7 +130,6 @@ def patch_qwen3_5_gdn_initialization(
     *,
     logger=None,
     force_reinit: bool = False,
-    cast_decay_params_to_fp32: bool = False,
     base_seed: int = 1234,
 ) -> int:
     """Fix the GatedDeltaNet decay-parameter initialization on a Qwen3.5 model.
@@ -142,8 +140,6 @@ def patch_qwen3_5_gdn_initialization(
         force_reinit: `True` re-draws `A_log` and resets `dt_bias` (use on a
             freshly built random model). `False` only repairs non-finite entries
             in place (safe, deterministic, no-op on healthy / trained checkpoints).
-        cast_decay_params_to_fp32: keep `A_log` / `dt_bias` as float32 leaves
-            instead of the model dtype (only meaningful when `force_reinit`).
         base_seed: seed feeding the deterministic per-layer RNG.
 
     Returns:
@@ -161,7 +157,7 @@ def patch_qwen3_5_gdn_initialization(
     total = 0
     for name, module in gdn_modules:
         if force_reinit:
-            total += _reinit_decay_params(module, name, base_seed, cast_decay_params_to_fp32)
+            total += _reinit_decay_params(module, name, base_seed)
             touched_layers += 1
         else:
             repaired = _repair_decay_params(module)
@@ -173,8 +169,7 @@ def patch_qwen3_5_gdn_initialization(
         _log(
             logger,
             f"GatedDeltaNet decay init patch: re-initialized A_log/dt_bias on "
-            f"{len(gdn_modules)} layer(s) "
-            f"({'fp32' if cast_decay_params_to_fp32 else 'model dtype'} leaves).",
+            f"{len(gdn_modules)} layer(s) (model dtype leaves).",
         )
     elif total:
         _log(
