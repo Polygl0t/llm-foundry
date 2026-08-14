@@ -67,6 +67,9 @@ def load_tokenizer(args):
     if args.return_assistant_masks and not args.apply_chat_template:
         raise ValueError("--return_assistant_masks requires --apply_chat_template.")
 
+    if args.skip_system_prompt and not args.apply_chat_template:
+        raise ValueError("--skip_system_prompt requires --apply_chat_template.")
+
     if args.apply_chat_template and (args.add_bos_token or args.add_eos_token):
         raise ValueError(
             "--add_bos_token / --add_eos_token must not be combined with "
@@ -91,8 +94,13 @@ def create_tokenize_function(tokenizer, args):
 
     def tokenize(examples):
         if args.apply_chat_template:
+            messages = examples[args.text_column]
+            if args.skip_system_prompt:
+                messages = [
+                    [msg for msg in convo if msg.get("role") != "system"] for convo in messages
+                ]
             ids = tokenizer.apply_chat_template(
-                examples[args.text_column],
+                messages,
                 return_assistant_tokens_mask=want_assistant_masks,
                 return_dict=True,
                 add_generation_prompt=False,
@@ -310,6 +318,14 @@ if __name__ == "__main__":
         help=(
             "Apply the tokenizer's chat template. "
             "Use when the text column holds a list of message dicts (SFT)."
+        ),
+    )
+    text.add_argument(
+        "--skip_system_prompt",
+        action="store_true",
+        help=(
+            "Remove system-role messages before applying the chat template. "
+            "Requires --apply_chat_template."
         ),
     )
 

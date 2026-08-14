@@ -535,6 +535,7 @@ def _tokenize_args(**overrides):
         "return_attention_mask": False,
         "return_labels": False,
         "return_assistant_masks": False,
+        "skip_system_prompt": False,
         "input_path": "ignored",
         "output_dir": "ignored",
         "output_type": "jsonl",
@@ -636,6 +637,44 @@ def test_21b_load_tokenizer_rejects_chat_template_with_bos_or_eos():
             except ValueError as exc:
                 assert "must not be combined with --apply_chat_template" in str(exc)
     print("Test 21b - load_tokenizer rejects chat template + BOS/EOS: OK ✅")
+
+
+def test_21c_load_tokenizer_rejects_skip_system_prompt_without_chat_template():
+    args = _tokenize_args(skip_system_prompt=True, apply_chat_template=False)
+    with patch.object(tokenize.AutoTokenizer, "from_pretrained", return_value=FakeTokenizer()):
+        try:
+            tokenize.load_tokenizer(args)
+            raise AssertionError("Expected ValueError")
+        except ValueError as exc:
+            assert "requires --apply_chat_template" in str(exc)
+    print("Test 21c - load_tokenizer skip system prompt requires template: OK ✅")
+
+
+def test_21d_chat_tokenize_skips_system_prompt():
+    args = _tokenize_args(
+        text_column="messages",
+        apply_chat_template=True,
+        skip_system_prompt=True,
+        return_assistant_masks=True,
+        return_labels=True,
+    )
+    tokenize_fn = tokenize.create_tokenize_function(FakeTokenizer(), args)
+    result = tokenize_fn(
+        {
+            "messages": [
+                [
+                    {"role": "system", "content": "You are helpful."},
+                    {"role": "user", "content": "hi"},
+                    {"role": "assistant", "content": "yo"},
+                ]
+            ]
+        }
+    )
+    # System message removed before templating; only user + assistant tokens remain.
+    assert result["input_ids"] == [[2, 4, 2, 9]]
+    assert result["assistant_masks"] == [[0, 0, 1, 1]]
+    assert result["labels"] == [[-100, -100, 2, 9]]
+    print("Test 21d - chat tokenize skips system prompt: OK ✅")
 
 
 def test_22_tokenize_main_rejects_missing_text_column():
@@ -857,6 +896,8 @@ if __name__ == "__main__":
     test_20_standard_tokenize_adds_special_tokens_and_masks()
     test_21_chat_tokenize_returns_assistant_masks_and_masked_labels()
     test_21b_load_tokenizer_rejects_chat_template_with_bos_or_eos()
+    test_21c_load_tokenizer_rejects_skip_system_prompt_without_chat_template()
+    test_21d_chat_tokenize_skips_system_prompt()
     test_22_tokenize_main_rejects_missing_text_column()
     test_23_tokenize_main_filters_truncates_saves_and_metadata()
     test_24_decontaminate_exact_match_filters_contaminated_rows()
