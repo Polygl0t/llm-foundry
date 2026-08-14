@@ -171,7 +171,7 @@ For a step-by-step walkthrough of the LLM Foundry—covering data collection, to
 
 ## Code of Conduct
 
-This project adheres to a [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Please report unacceptable behavior to [polyglot@uni-bonn.de](mailto:polyglot@uni-bonn.de).
+This project adheres to a [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Please report unacceptable behavior to [kluge@uni-bonn.de](mailto:kluge@uni-bonn.de).
 
 ## Contributing
 

@@ -1,0 +1,89 @@
+name: "\U0001F41B Bug Report"
+description: Submit a bug report to help us improve LLM Foundry
+labels: [ "bug" ]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report! 🤗
+
+        Before you submit:
+
+          - Check the [contributing guide](https://github.com/Polygl0t/llm-foundry/blob/main/CONTRIBUTING.md) to see how we handle issues.
+          - Search the open issues to make sure the bug has not already been reported.
+
+  - type: textarea
+    id: system-info
+    attributes:
+      label: System Info
+      description: |
+        Please share your system info with us. Include:
+        - Cluster (Marvin, Bender, JSC Jupiter, BAF) or local machine
+        - Software stack (`amd` or `intel`) and GPU/partition used
+        - Python version and relevant package versions (e.g. `torch`, `transformers`, `datasets`)
+      placeholder: "cluster, stack, partition, python version, package versions, ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: who-can-help
+    attributes:
+      label: Who can help?
+      description: |
+        All issues are read by the maintainers. If you know the relevant area of the codebase,
+        mention it here (e.g. `distributed/`, `data/tokenization/`, `alignment/`), or tag one of
+        the maintainers (@Nkluge-correa or @shiza-fatimah). Otherwise, leave this blank and the
+        issue will be routed accordingly.
+      placeholder: "@Nkluge-correa or @shiza-fatimah, e.g. distributed/ or data/tokenization/"
+
+  - type: checkboxes
+    id: information-source
+    attributes:
+      label: Information
+      description: 'The problem arises when using:'
+      options:
+        - label: "An existing script in the repository (e.g. under `distributed/`, `data/`, `evals/`)"
+        - label: "My own modified or new scripts"
+
+  - type: checkboxes
+    id: information-area
+    attributes:
+      label: Area
+      description: "The area of the codebase I am working with is:"
+      options:
+        - label: "Pretraining (`distributed/`)"
+        - label: "Post-training / alignment (`alignment/`)"
+        - label: "Data processing / tokenization (`data/`)"
+        - label: "Evaluation (`evals/`)"
+        - label: "Synthetic data (`synthetic/`)"
+        - label: "Model merging (`merge/`)"
+        - label: "Tokenizer (`tokenizer/`)"
+        - label: "Other / utilities (`utils/`)"
+
+  - type: textarea
+    id: reproduction
+    validations:
+      required: true
+    attributes:
+      label: Reproduction
+      description: |
+        Please provide steps to reproduce the problem, including any relevant scripts, configs
+        (training YAMLs, SLURM files, accelerate/FSDP configs), commands, and error messages.
+        Use code blocks to format code and tracebacks — do not use screenshots, as they are hard
+        to read and cannot be copy-pasted.
+      placeholder: |
+        Steps to reproduce the behavior:
+
+          1.
+          2.
+          3.
+
+        Error message / stack trace:
+
+  - type: textarea
+    id: expected-behavior
+    validations:
+      required: true
+    attributes:
+      label: Expected behavior
+      description: "A clear and concise description of what you would expect to happen."
