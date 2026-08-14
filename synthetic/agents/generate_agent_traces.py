@@ -129,8 +129,9 @@ def main(args) -> None:
     ):
         logging.getLogger(_name).setLevel(logging.CRITICAL)
 
-    # Load the environment variables from .env file (if present)
-    load_dotenv()
+    # Load the environment variables from .env file (if present).
+    # override=True so that values from .env take precedence.
+    load_dotenv(override=True)
 
     # Basic validation
     id_column = args.id_column if args.id_column else None
