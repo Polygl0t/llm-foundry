@@ -1308,6 +1308,16 @@ def execute_single_trace(
         result = agent.run(prompt, return_full_result=True)
         final_answer = result.output
         state = TRACE_STATUS_SUCCESS if result.state == "success" else TRACE_STATUS_FAIL
+        if state == TRACE_STATUS_FAIL:
+            # agent.run() did not raise, but also did not reach "success"
+            # (e.g. it exhausted max_steps without a final answer). No
+            # exception means error_msg would otherwise stay empty.
+            if result.state == "max_steps_error":
+                error_msg = (
+                    f"Agent stopped: reached max_steps ({max_steps}) without a final answer."
+                )
+            else:
+                error_msg = f"Agent did not finish successfully (state={result.state!r})."
     except Exception as e:
         error_msg = f"{type(e).__name__}: {e}"
         # Try to extract any partial result from memory
@@ -1361,6 +1371,12 @@ def execute_single_trace(
         and not compare_answer(final_answer, ground_truth)
     ):
         state = TRACE_STATUS_FAIL
+        error_msg = f"Answer mismatch: got {final_answer!r}, expected {ground_truth!r}."
+
+    # Last-resort fallback: any other 'fail' path we haven't accounted for
+    # above should still carry a non-empty error rather than null.
+    if state == TRACE_STATUS_FAIL and not error_msg:
+        error_msg = "Trace marked as failed but no error was recorded (unknown error)."
 
     # Build system prompt string for the trace
     system_prompt_str = full_templates.get("system_prompt", "")

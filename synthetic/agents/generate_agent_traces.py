@@ -147,6 +147,24 @@ def main(args) -> None:
     )
     logger.info("   %d example(s) loaded.", len(rows))
 
+    # Optional sample limit — for quick testing/debugging only.
+    if args.max_samples is not None:
+        if args.max_samples <= 0:
+            logger.warning(
+                "⚠️  --max-samples=%d is not a positive value; ignoring it "
+                "and using all %d example(s).",
+                args.max_samples,
+                len(rows),
+            )
+        elif args.max_samples < len(rows):
+            logger.warning(
+                "⚠️  --max-samples=%d: limiting run to the first %d of %d example(s).",
+                args.max_samples,
+                args.max_samples,
+                len(rows),
+            )
+            rows = rows[: args.max_samples]
+
     # Build model
     logger.info(
         "🤖 Building model: %s / %s",
@@ -314,7 +332,12 @@ def main(args) -> None:
                     total,
                     trace_id[:12],
                 )
-                sys.exit(1)
+                # os._exit() to kill stuck ThreadPoolExecutor worker
+                # threads (leaked by hung search-tool network calls). These would
+                # otherwise be joined forever during normal interpreter exit.
+                sys.stdout.flush()
+                sys.stderr.flush()
+                os._exit(1)
 
             # Duration-agnostic fallback: catches the same systemic breakdown
             # even when the error text doesn't match any known marker (e.g. a
@@ -336,7 +359,10 @@ def main(args) -> None:
                     total,
                     trace_id[:12],
                 )
-                sys.exit(1)
+                # See note above: os._exit() to skip the at-exit thread-join.
+                sys.stdout.flush()
+                sys.stderr.flush()
+                os._exit(1)
 
     # Summary
     logger.info("\n%s", "=" * 60)
@@ -348,6 +374,14 @@ def main(args) -> None:
     if not args.disable_formatting:
         logger.info("      - formatted_traces/ : conversation-format JSON arrays")
     logger.info("      - metadata.jsonl    : summary of all traces")
+
+    # Explicitly terminate once the evaluation loop has completed, so that
+    # lingering engine threads (e.g. vLLM workers, or worker threads leaked
+    # by hung search-tool network calls) cannot keep the process alive after
+    # all traces have been processed.
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(0)
 
 
 if __name__ == "__main__":
@@ -425,6 +459,12 @@ if __name__ == "__main__":
         "--prompt-column",
         default="prompt",
         help="Name of the column containing the prompt (default: 'prompt').",
+    )
+    parser.add_argument(
+        "--max-samples",
+        type=int,
+        default=None,
+        help="Only run the first N samples from the dataset.",
     )
     parser.add_argument(
         "--id-column",
