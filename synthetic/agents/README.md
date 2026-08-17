@@ -58,7 +58,7 @@ Main parameters:
 - `--enable-thinking`: Enable thinking/reasoning mode (vLLM/Transformers only).
 - `--enable-planning`: Run a planning step before agent execution.
 - `--code-block-opening-tag` / `--code-block-closing-tag`: Custom code-block delimiters (default `<code>` / `</code>`).
-- `--disable-formatting`: Skip saving formatted conversation traces (raw traces only).
+- `--save-raw-traces`: Also save raw traces (full trace records). Formatted conversation traces are always saved.
 - `--max-entries-per-file`: Max JSON objects per consolidated output file before rotation (default 50,000).
 - `--no-resume`: Disable auto-resume (always start fresh).
 
@@ -81,10 +81,10 @@ These tools are loaded via `get_custom_tools()` which returns a list ready for `
 
 ## Trace Output
 
-The `OutputManager` (in [`utils.py`](./utils.py)) saves traces in two formats under the output directory:
+The `OutputManager` (in [`utils.py`](./utils.py)) always saves formatted traces, and optionally saves raw traces under the output directory:
 
-- **Raw traces** (`raw_traces/raw_traces_00001.json`, ...): Full trace records including all action steps, system prompts, metadata, errors, and timing information—stored as proper JSON arrays (`[{...}, {...}]`).
-- **Formatted traces** (`formatted_traces_00001.json`, ...): Conversation-formatted traces (messages array) compatible with TRL-style chat training, saved only for successful runs. Traces with unclosed `<think>` tags are automatically discarded as malformed.
+- **Formatted traces** (`formatted_traces/formatted_traces_00001.json`, ...): Conversation-formatted traces (messages array) compatible with TRL-style chat training, saved for successful runs. Traces with unclosed `<think>` tags are automatically discarded as malformed.
+- **Raw traces** (`raw_traces/raw_traces_00001.json`, ...): Full trace records including all action steps, system prompts, metadata, errors, and timing information—stored as proper JSON arrays (`[{...}, {...}]`). Saved only with `--save-raw-traces`.
 
 Files rotate automatically once they reach the `--max-entries-per-file` threshold (default 50,000 entries), and the manager supports auto-resume by scanning existing files on startup.
 

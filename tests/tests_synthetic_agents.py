@@ -108,8 +108,6 @@ from utils import (  # noqa: E402
     load_processed_ids,
     load_system_prompt,
     normalize_answer,
-    save_formatted_trace,
-    save_raw_trace,
     setup_triton_cache,
 )
 
@@ -1044,81 +1042,7 @@ def test_format_trace_as_conversation_portuguese_translations():
 
 
 # ---------------------------------------------------------------------------
-# Test 28 — save_raw_trace (legacy single-file)
-# ---------------------------------------------------------------------------
-
-
-def test_save_raw_trace_legacy():
-    with tempfile.TemporaryDirectory() as tmpdir:
-        out_dir = Path(tmpdir)
-
-        trace = TraceRecord(
-            trace_id="legacy_001",
-            prompt="Hello world",
-            status="success",
-            final_answer="Hi",
-            system_prompt="Be helpful.",
-            started_at="2025-01-01T00:00:00Z",
-            ended_at="2025-01-01T00:00:03Z",
-            duration_seconds=3.0,
-            num_steps=2,
-            steps=[{"_step_type": "ActionStep"}],
-            metadata={"lang": "en"},
-        )
-
-        filepath = save_raw_trace(trace, out_dir)
-        assert filepath.exists()
-        assert filepath.suffix == ".json"
-
-        with open(filepath, encoding="utf-8") as fh:
-            data = json.load(fh)
-
-        assert data["trace_id"] == "legacy_001"
-        assert data["final_answer"] == "Hi"
-        assert data["steps"] == [{"_step_type": "ActionStep"}]
-        assert data["metadata"] == {"lang": "en"}
-    print("Test 28 — save_raw_trace legacy: OK ✅")
-
-
-# ---------------------------------------------------------------------------
-# Test 29 — save_formatted_trace (legacy single-file)
-# ---------------------------------------------------------------------------
-
-
-def test_save_formatted_trace_legacy():
-    with tempfile.TemporaryDirectory() as tmpdir:
-        out_dir = Path(tmpdir)
-
-        trace = TraceRecord(
-            trace_id="fmt_legacy",
-            prompt="Q",
-            status="success",
-            steps=[
-                _make_mock_step(
-                    "ActionStep",
-                    model_output_message="OK",
-                    code_action='final_answer("yes")',
-                    observations="Done.",
-                ),
-                _make_mock_step("FinalAnswerStep", output="yes"),
-            ],
-        )
-
-        filepath = save_formatted_trace(trace, out_dir)
-        assert filepath.exists()
-        assert filepath.name == "trace_fmt_legacy.json"
-
-        with open(filepath, encoding="utf-8") as fh:
-            conv = json.load(fh)
-
-        assert isinstance(conv, list)
-        assert conv[0]["role"] == "user"
-        assert conv[0]["content"] == "Q"
-    print("Test 29 — save_formatted_trace legacy: OK ✅")
-
-
-# ---------------------------------------------------------------------------
-# Test 30 — load_system_prompt: user file
+# Test 28 — load_system_prompt: user file
 # ---------------------------------------------------------------------------
 
 
@@ -1130,11 +1054,11 @@ def test_load_system_prompt_reads_yaml_file():
 
         templates = load_system_prompt(yaml_path)
         assert templates["system_prompt"].strip() == "You are a test bot."
-    print("Test 30 — load_system_prompt YAML file: OK ✅")
+    print("Test 28 — load_system_prompt YAML file: OK ✅")
 
 
 # ---------------------------------------------------------------------------
-# Test 31 — load_system_prompt: missing file
+# Test 29 — load_system_prompt: missing file
 # ---------------------------------------------------------------------------
 
 
@@ -1144,11 +1068,11 @@ def test_load_system_prompt_raises_on_missing_file():
         raise AssertionError("Missing file should raise FileNotFoundError")
     except FileNotFoundError as error:
         assert "not found" in str(error)
-    print("Test 31 — load_system_prompt missing file: OK ✅")
+    print("Test 29 — load_system_prompt missing file: OK ✅")
 
 
 # ---------------------------------------------------------------------------
-# Test 32 — load_system_prompt: library default fallback
+# Test 30 — load_system_prompt: library default fallback
 # ---------------------------------------------------------------------------
 
 
@@ -1161,11 +1085,11 @@ def test_load_system_prompt_falls_back_to_library_default():
     assert isinstance(templates, dict)
     assert "system_prompt" in templates
     assert len(templates["system_prompt"]) > 0
-    print("Test 32 — load_system_prompt default: OK ✅")
+    print("Test 30 — load_system_prompt default: OK ✅")
 
 
 # ---------------------------------------------------------------------------
-# Test 33 — setup_triton_cache (agents variant, same as synthetic)
+# Test 31 — setup_triton_cache (agents variant, same as synthetic)
 # ---------------------------------------------------------------------------
 
 
@@ -1205,11 +1129,11 @@ def test_setup_triton_cache_creates_rank_dir_and_removes_stale_files():
                 os.environ.pop(key, None)
             else:
                 os.environ[key] = value
-    print("Test 33 — setup_triton_cache: OK ✅")
+    print("Test 31 — setup_triton_cache: OK ✅")
 
 
 # ---------------------------------------------------------------------------
-# Test 34 — format_trace_as_conversation: empty trace
+# Test 32 — format_trace_as_conversation: empty trace
 # ---------------------------------------------------------------------------
 
 
@@ -1220,11 +1144,11 @@ def test_format_trace_as_conversation_empty_trace():
     assert len(conv) >= 1
     assert conv[0]["role"] == "user"
     assert conv[0]["content"] == "Q"
-    print("Test 34 — format_trace_as_conversation empty: OK ✅")
+    print("Test 32 — format_trace_as_conversation empty: OK ✅")
 
 
 # ---------------------------------------------------------------------------
-# Test 35 — format_trace_as_conversation: empty tool_response discarded
+# Test 33 — format_trace_as_conversation: empty tool_response discarded
 # ---------------------------------------------------------------------------
 
 
@@ -1247,11 +1171,11 @@ def test_format_trace_as_conversation_discards_empty_tool_response():
     # The empty tool_response should be discarded
     tool_responses = [m for m in conv if "<tool_response>" in str(m.get("content", ""))]
     assert len(tool_responses) == 0
-    print("Test 35 — format_trace_as_conversation empty tool_response: OK ✅")
+    print("Test 33 — format_trace_as_conversation empty tool_response: OK ✅")
 
 
 # ---------------------------------------------------------------------------
-# Test 36 — format_trace_as_conversation: SystemPromptStep ignored
+# Test 34 — format_trace_as_conversation: SystemPromptStep ignored
 # ---------------------------------------------------------------------------
 
 
@@ -1275,7 +1199,7 @@ def test_format_trace_as_conversation_ignores_system_prompt_step():
     # System prompt should appear exactly once (from trace.system_prompt, not from step)
     system_count = sum(1 for m in conv if m["role"] == "system")
     assert system_count == 1
-    print("Test 36 — format_trace_as_conversation SystemPromptStep: OK ✅")
+    print("Test 34 — format_trace_as_conversation SystemPromptStep: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -1311,8 +1235,6 @@ if __name__ == "__main__":
         test_format_trace_as_conversation_includes_error_in_tool_response,
         test_format_trace_as_conversation_strips_thought_prefix,
         test_format_trace_as_conversation_portuguese_translations,
-        test_save_raw_trace_legacy,
-        test_save_formatted_trace_legacy,
         test_load_system_prompt_reads_yaml_file,
         test_load_system_prompt_raises_on_missing_file,
         test_load_system_prompt_falls_back_to_library_default,

@@ -38,6 +38,9 @@ Usage examples:
         --model-id deepseek/deepseek-v4-flash \\
         --dataset data.jsonl \\
         --output-dir traces/  # reads traces/metadata.jsonl automatically
+
+    Formatted conversation traces are always saved; raw traces are saved only
+    with the --save-raw-traces flag.
 """
 
 import argparse
@@ -266,11 +269,11 @@ def main(args) -> None:
                 error=f"{type(e).__name__}: {e}",
             )
 
-        # Save formatted trace (only if successful and formatting not disabled).
+        # Save formatted trace (always, for successful traces).
         # NOTE: save_formatted_trace may downgrade trace.status to
         # TRACE_STATUS_FAIL if unclosed <think> tags are detected in the
         # formatted conversation — a guard rail against malformed traces.
-        if trace.status == TRACE_STATUS_SUCCESS and not args.disable_formatting:
+        if trace.status == TRACE_STATUS_SUCCESS:
             output_mgr.save_formatted_trace(
                 trace,
                 code_block_opening_tag=args.code_block_opening_tag,
@@ -278,9 +281,10 @@ def main(args) -> None:
                 language=args.language,
             )
 
-        # Save raw trace (always, with final status — may have been
-        # downgraded by save_formatted_trace above).
-        output_mgr.save_raw_trace(trace)
+        # Save raw trace (only with --save-raw-traces, with final status —
+        # may have been downgraded by save_formatted_trace above).
+        if args.save_raw_traces:
+            output_mgr.save_raw_trace(trace)
 
         # Append to metadata
         append_metadata_entry(trace, output_dir)
@@ -370,9 +374,9 @@ def main(args) -> None:
     logger.info("   ✅ Success: %d", success_count)
     logger.info("   ❌ Failed:  %d", fail_count)
     logger.info("   📂 Output:  %s", output_dir.resolve())
-    logger.info("      - raw_traces/       : full trace JSON arrays")
-    if not args.disable_formatting:
-        logger.info("      - formatted_traces/ : conversation-format JSON arrays")
+    if args.save_raw_traces:
+        logger.info("      - raw_traces/       : full trace JSON arrays")
+    logger.info("      - formatted_traces/ : conversation-format JSON arrays")
     logger.info("      - metadata.jsonl    : summary of all traces")
 
     # Explicitly terminate once the evaluation loop has completed, so that
@@ -528,9 +532,10 @@ if __name__ == "__main__":
         "(Portuguese Wikipedia + DDG region pt-br).",
     )
     parser.add_argument(
-        "--disable-formatting",
+        "--save-raw-traces",
         action="store_true",
-        help="Skip saving formatted conversation traces (only save raw traces and metadata).",
+        help="Save raw traces in addition to the formatted conversation "
+        "traces.  By default only formatted traces and metadata are saved.",
     )
 
     # Local-model arguments

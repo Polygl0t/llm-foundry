@@ -96,7 +96,7 @@ export CODE_BLOCK_CLOSING_TAG="</code>"                             # <-- Closin
 
 # ─── Output ────────────────────────────────────────────────────── #
 export OUTPUT_DIR="$workdir/traces"                                 # <-- Base directory for saving traces
-export DISABLE_FORMATTING="0"                                       # <-- Set to "1" to skip formatted conversation traces
+export SAVE_RAW_TRACES="0"                                          # <-- Set to "1" to also save raw traces (formatted traces are always saved)
 export MAX_ENTRIES_PER_FILE="50000"                                 # <-- Max JSON objects per consolidated output file before rotation
 export NO_RESUME="0"                                                # <-- Set to "1" to disable auto-resume (always start fresh)
 
@@ -141,9 +141,9 @@ if [[ -n "$ID_COLUMN" ]]; then
     ID_COLUMN_FLAG="--id-column $ID_COLUMN"
 fi
 
-DISABLE_FORMATTING_FLAG=""
-if [ "$DISABLE_FORMATTING" = "1" ]; then
-    DISABLE_FORMATTING_FLAG="--disable-formatting"
+SAVE_RAW_TRACES_FLAG=""
+if [ "$SAVE_RAW_TRACES" = "1" ]; then
+    SAVE_RAW_TRACES_FLAG="--save-raw-traces"
 fi
 
 ENABLE_THINKING_FLAG=""
@@ -211,7 +211,7 @@ python3 "$workdir/synthetic/agents/generate_agent_traces.py" \
     $GROUND_TRUTH_FLAG \
     $SYSTEM_PROMPT_FLAG \
     $ID_COLUMN_FLAG \
-    $DISABLE_FORMATTING_FLAG \
+    $SAVE_RAW_TRACES_FLAG \
     $ENABLE_THINKING_FLAG \
     $ENABLE_PLANNING_FLAG \
     $NO_RESUME_FLAG \
