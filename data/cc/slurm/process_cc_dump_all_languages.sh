@@ -57,6 +57,16 @@ source $workdir/.venv_intel/bin/activate
 #    pyyaml==6.0.2 \
 #    --no-cache-dir
 
+# ===== Alternatively, install with uv =====
+# pip3 install --upgrade pip --no-cache-dir
+# pip3 install uv
+# uv pip install datatrove[io,processing] \
+#    lxml[html_clean] \
+#    stanza \
+#    spacy \
+#    pyyaml==6.0.2 \
+#    --no-cache
+
 echo "# [${SLURM_JOB_ID}] Job started at: $(date)" >> "$out"
 echo "# [${SLURM_JOB_ID}] Using $SLURM_NNODES nodes" >> "$out"
 echo "# [${SLURM_JOB_ID}] Using $SLURM_CPUS_PER_TASK CPUs per task" >> "$out"

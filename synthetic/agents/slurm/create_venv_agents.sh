@@ -76,8 +76,11 @@ source "$venv_dir/bin/activate"
 echo "===== Upgrading pip ====="
 pip3 install --upgrade pip
 
+echo "===== Installing uv ====="
+pip3 install uv
+
 echo "===== Installing PyTorch 2.11.0 (pinned to vLLM's required version) ====="
-pip3 install --no-cache-dir torch==2.11.0 torchvision==0.26.0 torchaudio==2.11.0
+uv pip install --no-cache torch==2.11.0 torchvision==0.26.0 torchaudio==2.11.0
 
 # Pin torch via a constraints file used by every install that follows.
 torch_constraints="/tmp/torch-constraints-$SLURM_JOB_ID.txt"
@@ -88,10 +91,10 @@ torchaudio==2.11.0
 EOF
 
 echo "===== Installing vLLM 0.23.0 + flashinfer-python 0.6.12 (pinned) ====="
-pip3 install --no-cache-dir -c "$torch_constraints" vllm==0.23.0 flashinfer-python==0.6.12
+uv pip install --no-cache -c "$torch_constraints" vllm==0.23.0 flashinfer-python==0.6.12
 
 echo "===== Installing CUDA 13 nvcc (pip) for flashinfer/DeepGEMM JIT ====="
-pip3 install --no-cache-dir "cuda-toolkit[nvcc]==13.0.2"
+uv pip install --no-cache "cuda-toolkit[nvcc]==13.0.2"
 
 echo "===== Verifying nvcc ====="
 _nvcc="$(find "$venv_dir/lib" -name nvcc -type f | head -1)"
@@ -103,7 +106,7 @@ else
 fi
 
 echo "===== Installing agents dependencies from the foundry's pyproject.toml ====="
-pip3 install --no-cache-dir -c "$torch_constraints" \
+uv pip install --no-cache -c "$torch_constraints" \
     "accelerate" \
     "transformers" \
     "smolagents[litellm]>=1.26.0" \

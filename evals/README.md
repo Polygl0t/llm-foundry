@@ -15,7 +15,7 @@ Evaluation scripts for running language model evaluations on multiple language b
 
 ## Usage Summary
 
->  The scripts [`eval_harness_bn.sh`](eval_harness_bn.sh), [`eval_harness_hi.sh`](eval_harness_hi.sh), and [`eval_harness_pt.sh`](eval_harness_pt.sh) are specialized for evaluating models on Bengali, Hindi, and Portuguese benchmarks, respectively. They come with a list of pre-defined tasks we commonly evaluate on. If you want to evaluate on other tasks or languages/tasks, use the generic scripts below.
+>  The scripts [`eval_harness_bn.sh`](eval_harness_bn.sh), [`eval_harness_hi.sh`](eval_harness_hi.sh), and [`eval_harness_pt.sh`](eval_harness_pt.sh) are specialized for evaluating models on Bengali, Hindi, and Portuguese benchmarks, respectively. They come with a list of pre-defined tasks we commonly evaluate on. If you want to evaluate on other tasks or languages/tasks, use the generic scripts listed below.
 
 ### `eval_parallel.sh`
 

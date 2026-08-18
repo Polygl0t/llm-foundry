@@ -25,12 +25,15 @@ source "$venv_dir/bin/activate"
 echo "===== Upgrading pip ====="
 pip3 install --upgrade pip
 
+echo "===== Installing uv ====="
+pip3 install uv
+
 echo "===== Installing PyTorch 2.13.0+cu126 (pinned) ====="
 # Install torch first and explicitly so the rest of the stack binds to this
 # version. Using cu126 (CUDA 12.6) because torch 2.12+ naturally requires
 # cuda-bindings >=13.0.3, which is the same major version that the
 # nvidia-cutlass-dsl-libs-cu13 stack expects.
-pip3 install --no-cache-dir \
+uv pip install --no-cache \
     --index-url https://download.pytorch.org/whl/cu126 \
     torch==2.13.0+cu126
 
@@ -43,7 +46,7 @@ torch==2.13.0+cu126
 EOF
 
 echo "===== Installing distributed dependencies from the foundry's pyproject.toml ====="
-pip3 install --no-cache-dir -c "$torch_constraints" \
+uv pip install --no-cache -c "$torch_constraints" \
     "wheel==0.45.1" \
     "packaging==25.0" \
     "numpy==2.3.2" \
@@ -61,26 +64,26 @@ pip3 install --no-cache-dir -c "$torch_constraints" \
 echo "===== Installing causal-conv1d ====="
 export CUDA_HOME="/usr/local/cuda-12"
 export TORCH_CUDA_ARCH_LIST="9.0"
-CAUSAL_CONV1D_FORCE_BUILD=TRUE pip3 install ninja causal-conv1d --no-build-isolation --no-cache-dir -c "$torch_constraints" || \
+CAUSAL_CONV1D_FORCE_BUILD=TRUE uv pip install ninja causal-conv1d --no-build-isolation --no-cache -c "$torch_constraints" || \
     echo "WARNING: causal-conv1d failed (non-fatal)."
 
 echo "===== Installing flash-attn-4 (cutlass DSL stack) ====="
-pip3 install \
+uv pip install \
     "nvidia-cutlass-dsl==4.5.2" \
     "nvidia-cutlass-dsl-libs-cu13==4.5.2" \
-    --no-cache-dir \
+    --no-cache \
     -c "$torch_constraints"
-pip3 install "quack-kernels==0.5.0" --no-cache-dir -c "$torch_constraints"
+uv pip install "quack-kernels==0.5.0" --no-cache -c "$torch_constraints"
 cat > /tmp/cutlass.txt << 'EOF'
 nvidia-cutlass-dsl==4.5.2
 nvidia-cutlass-dsl-libs-cu13==4.5.2
 nvidia-cutlass-dsl-libs-base==4.5.2
 EOF
-pip3 install flash-attn-4 --pre --no-cache-dir -c /tmp/cutlass.txt -c "$torch_constraints"
+uv pip install flash-attn-4 --pre --no-cache -c /tmp/cutlass.txt -c "$torch_constraints"
 rm -f /tmp/cutlass.txt
 
 echo "===== Installing flash-linear-attention ====="
-pip3 install flash-linear-attention --no-cache-dir -c "$torch_constraints"
+uv pip install flash-linear-attention --no-cache -c "$torch_constraints"
 
 echo "===== Installing torchao ====="
 # torchao powers the optional `fp8: true` mixed precision path in the
@@ -88,8 +91,8 @@ echo "===== Installing torchao ====="
 # fp8 support (compute capability 9.0). Pull from the PyTorch cu126 index so
 # the prebuilt kernels match the CUDA version of the installed torch wheel,
 # falling back to PyPI if that index has no matching wheel.
-pip3 install torchao --index-url https://download.pytorch.org/whl/cu126 --no-cache-dir -c "$torch_constraints" || \
-    pip3 install torchao --no-cache-dir -c "$torch_constraints" || \
+uv pip install torchao --index-url https://download.pytorch.org/whl/cu126 --no-cache -c "$torch_constraints" || \
+    uv pip install torchao --no-cache -c "$torch_constraints" || \
     echo "WARNING: torchao failed (non-fatal). fp8 training will be unavailable."
 
 rm -f "$torch_constraints"

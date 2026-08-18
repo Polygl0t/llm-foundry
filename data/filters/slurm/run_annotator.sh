@@ -47,13 +47,18 @@ source $workdir/.modules.sh
 # python3 -m venv "$workdir/.venv_amd"
 source "$workdir/.venv_amd/bin/activate"
 
-# ==== For this script, you will also need PyTorch for GPU support ====
-# pip3 install torch --no-cache-dir
-
 # ===== LLM Foundry Install =====
 # pip3 install --upgrade pip --no-cache-dir
+# pip3 install torch --no-cache-dir
 # git clone --depth 1 --branch main https://github.com/Polygl0t/llm-foundry.git
 # pip3 install -e "$workdir/llm-foundry/.[data]" --no-cache-dir
+
+# ===== Alternatively, install with uv =====
+# pip3 install --upgrade pip --no-cache-dir
+# pip3 install uv
+# uv pip install torch --no-cache
+# uv pip install -e "$workdir/llm-foundry/.[data]" --no-cache
+# uv pip install indic-nlp-library --no-cache
 
 #############################################
 # Environment Setup

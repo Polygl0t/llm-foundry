@@ -57,7 +57,8 @@ create_fresh_venv() {
     python3 -m venv "$venv_dir"
     source "$venv_dir/bin/activate"
     pip install --upgrade pip
-    pip install wheel packaging --no-cache-dir
+    pip install uv
+    uv pip install wheel packaging --no-cache
 
     # Ensure venv packages take precedence over system modules set via PYTHONPATH.
     _venv_site="$(python3 -c 'import site; print(site.getsitepackages()[0])')"
@@ -66,21 +67,21 @@ create_fresh_venv() {
     # Install pbr in the venv; the system pbr (6.1.1) still imports
     # 'pkg_resources' which was removed in Python 3.13.
     # We need this for causal-conv1d
-    pip install --ignore-installed pbr --no-cache-dir
+    uv pip install --reinstall pbr --no-cache
 }
 
 
 install_core_packages() {
     echo "[$(date)] Installing PyTorch 2.13.0+cu130 (pinned)..."
     # Install torch first and explicitly so the rest of the stack binds to this version.
-    pip install --ignore-installed --no-cache-dir \
+    uv pip install --reinstall --no-cache \
         --index-url https://download.pytorch.org/whl/cu130 \
         torch==2.13.0+cu130
 
     echo "[$(date)] Installing core packages..."
-    # --ignore-installed: don't try to uninstall packages from the read-only
-    # cluster module paths.
-    pip install --ignore-installed \
+    # --reinstall: force a fresh install into the venv, regardless of any
+    # versions visible from the read-only cluster module paths.
+    uv pip install --reinstall \
         "fsspec[http]==2025.3.0" \
         numpy==2.3.2 \
         transformers==5.14.0 \
@@ -93,20 +94,20 @@ install_core_packages() {
         pyyaml==6.0.2 \
         liger-kernel==0.8.0 \
         kernels==0.13.0 \
-        --no-cache-dir
+        --no-cache
 }
 
 
 install_attention_stack() {
     echo "[$(date)] Installing attention stack (flash-attn-4, flash-linear-attention, causal-conv1d)..."
-    pip install \
-        flash-attn-4[cu13]==4.0.0b15 \
+    uv pip install \
+        "flash-attn-4[cu13]==4.0.0b15" \
         --pre \
-        --no-cache-dir
+        --no-cache
 
-    pip install \
+    uv pip install \
         flash-linear-attention \
-        --no-cache-dir
+        --no-cache
 
     # causal-conv1d needs nvcc + CUDA headers matching PyTorch's CUDA version.
     # The Stages/2026 `CUDA/13` module (loaded via jupiter_modules_2026.sh)
@@ -133,8 +134,8 @@ install_attention_stack() {
     # login node that gets OOM-killed.
     src_dir="$workdir/.build_causal_conv1d"
     rm -rf "$src_dir" && mkdir -p "$src_dir"
-    pip download causal-conv1d \
-        --no-binary=:all: --no-deps --no-build-isolation --no-cache-dir \
+    uv pip download causal-conv1d \
+        --no-binary=:all: --no-deps --no-build-isolation --no-cache \
         -d "$src_dir"
     tar -xzf "$src_dir"/causal_conv1d-*.tar.gz -C "$src_dir"
     src="$(find "$src_dir" -maxdepth 1 -type d -name 'causal_conv1d-*' | head -n1)"
@@ -164,7 +165,7 @@ p.write_text(new)
 PY
 
     MAX_JOBS=2 NVCC_THREADS=1 CAUSAL_CONV1D_FORCE_BUILD=TRUE \
-        pip install "$src" --no-build-isolation --no-cache-dir -v || \
+        uv pip install "$src" --no-build-isolation --no-cache -v || \
         echo "WARNING: causal-conv1d build failed (non-fatal)." >&2
 }
 
@@ -176,10 +177,10 @@ install_torchao() {
     # nodes on JUPITER have hardware fp8 support.
     # Prefer the PyTorch cu130 index so the prebuilt kernels match the CUDA
     # version of the pinned torch wheel; fall back to PyPI otherwise.
-    pip install --ignore-installed --no-cache-dir \
+    uv pip install --reinstall --no-cache \
         --index-url https://download.pytorch.org/whl/cu130 \
         torchao \
-    || pip install --ignore-installed --no-cache-dir torchao \
+    || uv pip install --reinstall --no-cache torchao \
     || echo "WARNING: torchao install failed (non-fatal); fp8 training will be unavailable." >&2
 }
 

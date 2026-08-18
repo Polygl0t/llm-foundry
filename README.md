@@ -141,6 +141,27 @@ For example:
 pip install -e "./llm-foundry/.[distributed]"
 ```
 
+> **NOTE: Some dependency stacks are hard to build.** For example, when several libraries (e.g., `torch`, `liger-kernel`, `flash-attn`, `causal-conv1d`, etc.) have to live together and share the same `nvcc` compiler, building this environment can be a real nightmare. For some of the environments we use, we have dedicated `create_venv` scripts that take care of all of the complexity of this build (e.g., `distributed/slurm/create_venv_marvin.sh`, `utils/jupiter/jupiter_installation_2026.sh`, `utils/baf/create_venv.sh`). In these cases, we recommend using those scripts instead of praying to the gods that `pip` or `uv` will find their way through the forest of incompatibilities.
+
+#### Installing with `uv`
+
+[`uv`](https://github.com/astral-sh/uv) is an extremely fast Python package and project manager, written in Rust, that works as a drop-in replacement for `pip`. Install it with the standalone installer:
+
+```bash
+# On macOS and Linux.
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Alternatively, install it from PyPI with `pip install uv` (or `pipx install uv`). On Windows, use `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"`. If you used the standalone installer, you can keep it up to date with `uv self update`. See the [uv installation docs](https://docs.astral.sh/uv/getting-started/installation/) for more options.
+
+Then install the same extras as before with the `uv pip` interface:
+
+```bash
+uv pip install -e "./llm-foundry/.[distributed]"
+```
+
+The `uv pip` commands mirror `pip`, so `install -e` works the same way and the extras listed above apply unchanged. You can also create a virtual environment first with `uv venv` (and activate it) if you prefer an isolated environment.
+
 > - **IMPORTANT:** We are constantly updating our dependencies so this stack is up to date with the latest developments of the LLM ecosystem.
 
 ## Running the Tests

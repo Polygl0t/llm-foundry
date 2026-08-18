@@ -34,6 +34,10 @@ source "$venv_dir/bin/activate"
 pip3 install --upgrade pip -q
 pip3 install huggingface_hub -q
 
+# ---- Alternatively, install with uv (comment out if you already have it) ----
+# pip3 install uv
+# uv pip install huggingface_hub
+
 # ---- Run download ----
 echo "===== Downloading ====="
 echo "  Foundry dir: $foundry_dir"

@@ -51,6 +51,12 @@ source "$workdir/.venv_amd/bin/activate"
 # ==== For this script, you will need matplotlib for visualizations ====
 # pip3 install matplotlib --no-cache-dir
 
+# ===== Alternatively, install with uv =====
+# pip3 install --upgrade pip --no-cache-dir
+# pip3 install uv
+# uv pip install -e "$workdir/llm-foundry/.[data]" --no-cache
+# uv pip install matplotlib --no-cache
+
 #############################################
 # Environment Setup
 #############################################

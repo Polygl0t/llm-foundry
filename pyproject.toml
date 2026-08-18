@@ -22,18 +22,6 @@ data = [
     "spacy",
     "pyyaml"
 ]
-tokenizer = [
-    "transformers",
-    "datasets",
-    "tokenizers",
-    "sentencepiece",
-    "protobuf",
-    "pandas",
-    "tabulate",
-    "tqdm",
-    "ftfy",
-    "jinja2",
-]
 # NOTE: flash_attn (2) requires --no-build-isolation and must be installed separately:
 #   pip3 install flash_attn==2.8.3 --no-build-isolation
 distributed = [
@@ -81,12 +69,25 @@ trl = [
     "trackio==0.32.2",
     "liger-kernel==0.8.0",
 ]
+tokenizer = [
+    "transformers",
+    "datasets",
+    "tokenizers",
+    "sentencepiece",
+    "protobuf",
+    "pandas",
+    "tabulate",
+    "tqdm",
+    "ftfy",
+    "jinja2",
+]
 tests = [
-    "torch>=2.0",
+    "torch>=2.13.0",
     "transformers==5.14.0",
-    "datasets>=2.0",
+    "datasets>=4.0.0",
     "tokenizers==0.22.2",
     "sentencepiece==0.2.1",
+    "accelerate==1.13.0",
     "protobuf",
     "pandas",
     "tabulate",

@@ -51,6 +51,12 @@ source $workdir/.venv_intel/bin/activate
 # ===== Optional: Install Indic NLP Library for Indic languages =====
 # pip3 install indic-nlp-library --no-cache-dir
 
+# ===== Alternatively, install with uv =====
+# pip3 install --upgrade pip --no-cache-dir
+# pip3 install uv
+# uv pip install -e "$workdir/llm-foundry/.[data]" --no-cache
+# uv pip install indic-nlp-library --no-cache
+
 #############################################
 # Environment Setup
 #############################################

@@ -75,9 +75,10 @@ To install a specific set of dependencies (e.g., for training or data processing
 
 ```bash
 pip install -e ".[distributed]"  # for DDP/FSDP training
-pip install -e ".[trl]"          # for SFT/DPO
 pip install -e ".[tests]"        # for running the test suite
 ```
+
+> **NOTE: Some dependency stacks are hard to build.** For example, when several libraries (e.g., `torch`, `liger-kernel`, `flash-attn`, `causal-conv1d`, etc.) have to live together and share the same `nvcc` compiler, building this environment can be a real nightmare. For some of the environments we use, we have dedicated `create_venv` scripts that take care of all of the complexity of this build (e.g., `distributed/slurm/create_venv_marvin.sh`, `utils/jupiter/jupiter_installation_2026.sh`, `utils/baf/create_venv.sh`). In these cases, we recommend using those scripts instead of praying to the gods that `pip` or `uv` will find their way through the forest of incompatibilities.
 
 ---
 

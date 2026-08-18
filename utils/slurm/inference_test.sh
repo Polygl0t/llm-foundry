@@ -47,7 +47,12 @@ source $workdir/.venv_trl/bin/activate
 # ===== LLM Foundry Install =====
 # pip3 install --upgrade pip
 # git clone --depth 1 --branch main https://github.com/Polygl0t/llm-foundry.git
-# pip3 install -e "$workdir/llm-foundry/.[trl]" --no-cache-dir
+# pip3 install torch transformers --no-cache-dir
+
+# ===== Alternatively, install with uv =====
+# pip3 install --upgrade pip --no-cache-dir
+# pip3 install uv
+# uv pip install torch transformers --no-cache
 
 #############################################
 # Environment Setup

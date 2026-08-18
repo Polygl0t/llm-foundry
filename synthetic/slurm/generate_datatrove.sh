@@ -61,6 +61,24 @@ source $workdir/.venv_synth/bin/activate
 #    "pandas" \
 #    --no-cache-dir
 
+# ===== Alternatively, install with uv =====
+# pip3 install --upgrade pip --no-cache-dir
+# pip3 install uv
+# uv pip install \
+#    "datatrove[io]" \
+#    "aiofiles" \
+#    "httpx" \
+#    "aiosqlite" \
+#    "vllm==0.19.0" \
+#    "transformers>=4.56.0,<5" \
+#    "huggingface-hub>=0.34.0,<1.0" \
+#    "bitsandbytes" \
+#    "numpy>=2.0.0,<2.3.0" \
+#    "typer" \
+#    "pyyaml" \
+#    "pandas" \
+#    --no-cache
+
 #############################################
 # Environment Setup
 #############################################

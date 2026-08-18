@@ -103,6 +103,12 @@ source $WORKDIR/.venv_eval/bin/activate
 # --- Step 4: Misc dependencies ---
 # pip3 install pyyaml --no-cache-dir
 
+# --- Alternatively, install with uv ---
+# pip3 install uv
+# uv pip install -e $WORKDIR/lm_evaluation_harness --no-cache
+# uv pip install "lm_eval[hf,vllm]" --no-cache
+# uv pip install pyyaml --no-cache
+
 #############################################
 # Pre-flight
 #############################################

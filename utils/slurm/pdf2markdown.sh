@@ -72,6 +72,11 @@ source "$workdir/.venv_amd_pdf/bin/activate"
 # ===== Install PDF to Markdown Tool =====
 # pip3 install marker-pdf --no-cache-dir
 
+# ===== Alternatively, install with uv =====
+# pip3 install --upgrade pip --no-cache-dir
+# pip3 install uv
+# uv pip install marker-pdf --no-cache
+
 #############################################
 # Environment Setup
 #############################################

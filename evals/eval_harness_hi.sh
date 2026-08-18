@@ -95,6 +95,13 @@ source $workdir/.venv_eval_hindi/bin/activate    # <-- Activate the virtual envi
 # pip3 install "lm_eval[hf,vllm]"          # <-- Install lm-eval with HuggingFace and vLLM support
 # pip3 install pyyaml                      # <-- Required for post-processing script (can be installed in the same virtual environment)
 
+# ===== Alternatively, install with uv =====
+# pip3 install --upgrade pip --no-cache-dir
+# pip3 install uv
+# uv pip install -e $workdir/lm_evaluation_harness_hindi --no-cache
+# uv pip install "lm_eval[hf,vllm]" --no-cache
+# uv pip install pyyaml --no-cache
+
 #############################################
 # Environment Setup
 #############################################

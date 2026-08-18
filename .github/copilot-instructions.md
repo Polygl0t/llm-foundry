@@ -21,12 +21,13 @@ This file provides guidance for code agents (e.g. GitHub Copilot) working with t
 - Follow PEP 8. Style is enforced by pre-commit + Ruff. Run `pre-commit run --all-files` (or `ruff check .` and `ruff format .`) before committing.
 - Comment non-obvious logic — this codebase favors clear explanatory comments.
 - Keep changes scoped to the affected module; do not touch unrelated files.
-- Dependencies are grouped as extras in `pyproject.toml`: `.[data]`, `.[tokenizer]`, `.[distributed]`, `.[trl]`, `.[synth]`, `.[agents]`, `.[tests]`.
+- Dependencies are grouped as extras in `pyproject.toml`: `.[data]`, `.[tokenizer]`, `.[distributed]`, `.[synth]`, `.[agents]`, `.[tests]`.
 
 ## Cluster / Environment Notes
 
 - This codebase primarily runs on the University of Bonn HPC clusters (Marvin, Bender), which have dual AMD/Intel software stacks.
 - Source `.modules.sh` from the repo root to load the correct stack; it auto-detects from SLURM. Force it with `LLM_FOUNDRY_STACK=amd` or `LLM_FOUNDRY_STACK=intel` when there is no SLURM context.
+- Some dependency stacks are hard to build (e.g., `torch`, `liger-kernel`, `flash-attn`, `causal-conv1d` sharing one `nvcc`). Where a dedicated `create_venv` script exists (e.g., `distributed/slurm/create_venv_marvin.sh`, `utils/jupiter/jupiter_installation_2026.sh`, `utils/baf/create_venv.sh`), prefer it over ad-hoc `pip`/`uv` installs.
 
 ## Testing
 

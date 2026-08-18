@@ -30,7 +30,7 @@ set -e
 workdir="/lustre/mlnvme/data/polyglot"
 
 # Name of the venv directory.
-venv_name=".venv_distributed"
+venv_name=".venv_trl"
 
 # Path to the .modules file.
 modules_file="$workdir/llm-foundry/.modules.sh"

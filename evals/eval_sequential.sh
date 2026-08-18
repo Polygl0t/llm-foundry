@@ -71,7 +71,13 @@ source $WORKDIR/.venv_eval/bin/activate
 # pip3 install --upgrade pip --no-cache-dir
 # pip3 install -e $WORKDIR/lm_evaluation_harness --no-cache-dir
 # pip3 install "lm_eval[hf,vllm]" --no-cache-dir               # <-- Install lm-eval with HuggingFace and vLLM support
-# pip3 install pyyaml --no-cache-dir                      # <-- Required for post-processing step
+# pip3 install pyyaml --no-cache-dir                           # <-- Required for post-processing step
+
+# --- Alternatively, install with uv ---
+# pip3 install uv
+# uv pip install -e $WORKDIR/lm_evaluation_harness --no-cache
+# uv pip install "lm_eval[hf,vllm]" --no-cache
+# uv pip install pyyaml --no-cache
 
 #############################################
 # Main loop

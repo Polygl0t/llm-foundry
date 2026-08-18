@@ -117,6 +117,15 @@ source $workdir/.venv_eval_pt/bin/activate # <-- Activate the virtual environmen
 # pip3 install langdetect --no-cache-dir
 # pip3 install immutabledict --no-cache-dir
 
+# ===== Alternatively, install with uv =====
+# pip3 install --upgrade pip --no-cache-dir
+# pip3 install uv
+# uv pip install -e $workdir/lm_evaluation_harness_portuguese --no-cache
+# uv pip install "lm_eval[hf,vllm]" --no-cache
+# uv pip install pyyaml --no-cache
+# uv pip install langdetect --no-cache
+# uv pip install immutabledict --no-cache
+
 #############################################
 # Configuration Variables
 #############################################

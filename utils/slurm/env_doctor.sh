@@ -42,6 +42,11 @@ source "$workdir/.venv_intel/bin/activate" # <-- Activate the same environment y
 # See https://github.com/mitulgarg/env-doctor
 pip3 install env-doctor --no-cache-dir
 
+# ===== Alternatively, install with uv =====
+# pip3 install --upgrade pip --no-cache-dir
+# pip3 install uv
+# uv pip install env-doctor --no-cache
+
 #############################################
 # Environment Setup
 #############################################

@@ -46,9 +46,13 @@ source $workdir/.venv_intel_merge/bin/activate
 # pip3 install --upgrade pip
 
 # ===== Install Mergekit =====
-
 # git clone https://github.com/arcee-ai/mergekit.git
 # pip3 install -e "$workdir/mergekit" --no-cache-dir
+
+# ===== Alternatively, install with uv =====
+# pip3 install --upgrade pip --no-cache-dir
+# pip3 install uv
+# uv pip install -e "$workdir/mergekit" --no-cache
 
 #############################################
 # Environment Setup
