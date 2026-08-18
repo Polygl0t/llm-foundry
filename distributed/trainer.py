@@ -895,7 +895,7 @@ class FSDPTrainer:
 
             if fsdp:
                 dist.all_reduce(accumulated_loss, op=dist.ReduceOp.SUM)
-                accumulated_loss = accumulated_loss / world_size
+                accumulated_loss = accumulated_loss / dist.get_world_size()
 
             # Clip gradients up to `args.max_grad_norm`.
             norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)

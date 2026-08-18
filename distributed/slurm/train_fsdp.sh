@@ -61,6 +61,7 @@ source $workdir/.venv_distributed/bin/activate
 
 export SPECS_FILE="$workdir/distributed/specifications.yaml"                  # <-- Change to your specs file path
 export CUDA_VISIBLE_DEVICES=0,1,2,3
+export LOCAL_WORLD_SIZE=$SLURM_NTASKS_PER_NODE
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export HF_DATASETS_CACHE="$workdir/.cache"
 export PYTHONPYCACHEPREFIX="$HF_DATASETS_CACHE/.pycache"

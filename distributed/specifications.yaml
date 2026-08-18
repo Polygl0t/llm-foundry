@@ -67,7 +67,8 @@ static_graph: false
 
 # FSDP sharding settings
 fsdp_mixed_precision: true
-dp_shard: null
+sequence_parallel: false
+sp_shard: null
 full_shard: true
 cpu_offload: false
 explicit_prefetching: true

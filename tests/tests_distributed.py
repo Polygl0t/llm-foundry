@@ -114,7 +114,8 @@ def test_training_args_defaults():
     assert args.sanity_check is False
     assert args.eval_only is False
     assert args.fsdp_mixed_precision is True
-    assert args.dp_shard is None
+    assert args.sequence_parallel is False
+    assert args.sp_shard is None
     assert args.full_shard is True
     assert args.cpu_offload is False
     assert args.explicit_prefetching is False
@@ -176,13 +177,15 @@ def test_training_args_fsdp_override():
     """FSDP-specific fields can be overridden."""
     args = TrainingArguments(
         fsdp_mixed_precision=False,
-        dp_shard=4,
+        sequence_parallel=True,
+        sp_shard=4,
         full_shard=False,
         cpu_offload=True,
         explicit_prefetching=True,
     )
     assert args.fsdp_mixed_precision is False
-    assert args.dp_shard == 4
+    assert args.sequence_parallel is True
+    assert args.sp_shard == 4
     assert args.full_shard is False
     assert args.cpu_offload is True
     assert args.explicit_prefetching is True
@@ -199,6 +202,103 @@ if __name__ == "__main__":
         run_test(_fn.__name__, _fn)
 
     print("Test 1 — TrainingArguments & Config Loading: OK ✅")
+
+
+def test_sequence_parallel_plans():
+    """TP/SP plans reference real modules for every supported architecture."""
+    from model_setup import _validate_fp8_sequence_parallel_plan, build_sequence_parallel_plan
+    from transformers import (
+        LlamaConfig,
+        LlamaForCausalLM,
+        Qwen3_5ForCausalLM,
+        Qwen3_5MoeForCausalLM,
+        Qwen3_5MoeTextConfig,
+        Qwen3_5TextConfig,
+        Qwen3Config,
+        Qwen3ForCausalLM,
+        Qwen3MoeConfig,
+        Qwen3MoeForCausalLM,
+    )
+
+    common = {
+        "vocab_size": 32,
+        "hidden_size": 16,
+        "num_hidden_layers": 1,
+        "num_attention_heads": 4,
+        "num_key_value_heads": 2,
+    }
+    hybrid = {
+        **common,
+        "num_hidden_layers": 2,
+        "head_dim": 4,
+        "linear_key_head_dim": 4,
+        "linear_value_head_dim": 4,
+        "linear_num_key_heads": 4,
+        "linear_num_value_heads": 4,
+        "layer_types": ["linear_attention", "full_attention"],
+        "attention_dropout": 0.0,
+    }
+    architectures = [
+        (LlamaForCausalLM, LlamaConfig(intermediate_size=32, **common)),
+        (Qwen3ForCausalLM, Qwen3Config(intermediate_size=32, head_dim=4, **common)),
+        (
+            Qwen3MoeForCausalLM,
+            Qwen3MoeConfig(
+                moe_intermediate_size=8,
+                num_experts=2,
+                num_experts_per_tok=1,
+                head_dim=4,
+                **common,
+            ),
+        ),
+        (Qwen3_5ForCausalLM, Qwen3_5TextConfig(intermediate_size=32, **hybrid)),
+        (
+            Qwen3_5MoeForCausalLM,
+            Qwen3_5MoeTextConfig(
+                moe_intermediate_size=8,
+                shared_expert_intermediate_size=8,
+                num_experts=2,
+                num_experts_per_tok=1,
+                **hybrid,
+            ),
+        ),
+    ]
+
+    with torch.device("meta"):
+        for model_class, config in architectures:
+            model = model_class(config)
+            plan = build_sequence_parallel_plan(model)
+            assert set(plan) <= set(dict(model.named_modules()))
+            assert not any("mlp.experts" in key for key in plan)
+            assert not any("mlp.shared_expert" in key for key in plan)
+
+    class Float8Linear(torch.nn.Linear):
+        pass
+
+    with torch.device("meta"):
+        model = LlamaForCausalLM(
+            LlamaConfig(
+                vocab_size=32,
+                hidden_size=32,
+                intermediate_size=32,
+                num_hidden_layers=1,
+                num_attention_heads=4,
+                num_key_value_heads=4,
+            )
+        )
+        model.model.layers[0].mlp.gate_proj = Float8Linear(32, 32, bias=False)
+        plan = build_sequence_parallel_plan(model)
+        _validate_fp8_sequence_parallel_plan(model, plan, sp_size=2)
+        try:
+            _validate_fp8_sequence_parallel_plan(model, plan, sp_size=4)
+        except ValueError as error:
+            assert "divisible by 16" in str(error)
+        else:
+            raise AssertionError("Expected invalid local FP8 shard alignment")
+
+
+if __name__ == "__main__":
+    run_test(test_sequence_parallel_plans.__name__, test_sequence_parallel_plans)
 
 
 # %%
@@ -755,6 +855,21 @@ def test_prepare_dataloaders_sanity():
     assert val_batch["input_ids"].shape[1] == 32
 
 
+def test_prepare_dataloaders_dp_partitioning_for_sequence_parallelism():
+    """SP peers share a DP rank and batch while distinct DP ranks partition samples."""
+    args = _make_sanity_args(shuffle_dataset=False, num_workers_for_dataloader=0)
+    dp_rank_0 = prepare_dataloaders(args, _tokenizer, world_size=2, rank=0)
+    sp_peer = prepare_dataloaders(args, _tokenizer, world_size=2, rank=0)
+    dp_rank_1 = prepare_dataloaders(args, _tokenizer, world_size=2, rank=1)
+
+    rank_0_batch = next(iter(dp_rank_0.train_dataloader))["input_ids"]
+    peer_batch = next(iter(sp_peer.train_dataloader))["input_ids"]
+    rank_1_batch = next(iter(dp_rank_1.train_dataloader))["input_ids"]
+
+    assert torch.equal(rank_0_batch, peer_batch)
+    assert not torch.equal(rank_0_batch, rank_1_batch)
+
+
 def test_prepare_dataloaders_sanity_without_tokenizer_uses_additional_mask_ids():
     """When tokenizer is None, prepare_dataloaders still applies additional_mask_token_ids."""
     probe_args = _make_sanity_args()
@@ -801,6 +916,7 @@ if __name__ == "__main__":
     for _fn in [
         test_load_sanity_check_datasets,
         test_prepare_dataloaders_sanity,
+        test_prepare_dataloaders_dp_partitioning_for_sequence_parallelism,
         test_prepare_dataloaders_sanity_without_tokenizer_uses_additional_mask_ids,
         test_dataloader_custom_collate,
     ]:
@@ -1878,7 +1994,17 @@ def test_checkpoint_already_validated_positive():
 def test_distributed_environment_local_fallback():
     """DistributedEnvironment falls back to single-process mode when no SLURM/torchrun vars are set."""
     saved = {}
-    for key in ("SLURM_NTASKS", "SLURM_PROCID", "WORLD_SIZE", "RANK", "LOCAL_RANK"):
+    environment_keys = (
+        "SLURM_NTASKS",
+        "SLURM_PROCID",
+        "SLURM_NTASKS_PER_NODE",
+        "SLURM_TASKS_PER_NODE",
+        "WORLD_SIZE",
+        "RANK",
+        "LOCAL_RANK",
+        "LOCAL_WORLD_SIZE",
+    )
+    for key in environment_keys:
         if key in os.environ:
             saved[key] = os.environ.pop(key)
     try:
@@ -1886,6 +2012,7 @@ def test_distributed_environment_local_fallback():
         assert env.world_size == 1
         assert env.rank == 0
         assert env.local_rank == 0
+        assert env.local_world_size == max(torch.cuda.device_count(), 1)
         assert env.master_process is True
         assert env.ddp is False
         assert env.device in ("cpu", "cuda:0")
@@ -1896,21 +2023,58 @@ def test_distributed_environment_local_fallback():
 def test_distributed_environment_torchrun_vars():
     """DistributedEnvironment picks up WORLD_SIZE/RANK/LOCAL_RANK when SLURM vars are absent."""
     saved = {}
-    for key in ("SLURM_NTASKS", "SLURM_PROCID", "WORLD_SIZE", "RANK", "LOCAL_RANK"):
+    environment_keys = (
+        "SLURM_NTASKS",
+        "SLURM_PROCID",
+        "SLURM_NTASKS_PER_NODE",
+        "SLURM_TASKS_PER_NODE",
+        "WORLD_SIZE",
+        "RANK",
+        "LOCAL_RANK",
+        "LOCAL_WORLD_SIZE",
+    )
+    for key in environment_keys:
         if key in os.environ:
             saved[key] = os.environ.pop(key)
     # Simulate a single-process torchrun launch (world_size=1).
     os.environ["WORLD_SIZE"] = "1"
     os.environ["RANK"] = "0"
     os.environ["LOCAL_RANK"] = "0"
+    os.environ["LOCAL_WORLD_SIZE"] = "8"
     try:
         env = DistributedEnvironment(logging.getLogger("test"))
         assert env.world_size == 1
         assert env.rank == 0
         assert env.local_rank == 0
+        assert env.local_world_size == 8
         assert env.ddp is False
     finally:
-        for key in ("WORLD_SIZE", "RANK", "LOCAL_RANK"):
+        for key in ("WORLD_SIZE", "RANK", "LOCAL_RANK", "LOCAL_WORLD_SIZE"):
+            os.environ.pop(key, None)
+        os.environ.update(saved)
+
+
+def test_distributed_environment_slurm_local_world_size():
+    """DistributedEnvironment parses SLURM's repeated tasks-per-node notation."""
+    environment_keys = (
+        "SLURM_NTASKS",
+        "SLURM_PROCID",
+        "SLURM_NTASKS_PER_NODE",
+        "SLURM_TASKS_PER_NODE",
+        "WORLD_SIZE",
+        "RANK",
+        "LOCAL_RANK",
+        "LOCAL_WORLD_SIZE",
+    )
+    saved = {key: os.environ.pop(key) for key in environment_keys if key in os.environ}
+    os.environ["WORLD_SIZE"] = "1"
+    os.environ["RANK"] = "0"
+    os.environ["SLURM_TASKS_PER_NODE"] = "8(x2)"
+    try:
+        env = DistributedEnvironment(logging.getLogger("test"))
+        assert env.local_world_size == 8
+    finally:
+        for key in environment_keys:
             os.environ.pop(key, None)
         os.environ.update(saved)
 
@@ -2103,6 +2267,7 @@ if __name__ == "__main__":
         test_checkpoint_already_validated_positive,
         test_distributed_environment_local_fallback,
         test_distributed_environment_torchrun_vars,
+        test_distributed_environment_slurm_local_world_size,
         test_distributed_environment_seed_everything,
         test_load_checkpoint_state_no_resume,
         test_load_checkpoint_state_resume,

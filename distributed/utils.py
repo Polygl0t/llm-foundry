@@ -25,6 +25,15 @@ import torch
 import torch.distributed as dist
 
 
+def _get_local_world_size():
+    for variable in ("SLURM_NTASKS_PER_NODE", "SLURM_TASKS_PER_NODE"):
+        if value := os.environ.get(variable):
+            return int(value.split(",", 1)[0].split("(", 1)[0])
+    if value := os.environ.get("LOCAL_WORLD_SIZE"):
+        return int(value)
+    return max(torch.cuda.device_count(), 1)
+
+
 class StructuredTrainingLogger:
     """
     Write training logs as metadata lines and JSON stats entries.
@@ -98,6 +107,7 @@ class DistributedEnvironment:
 
     def __init__(self, logger, mode="Distributed"):
         self.mode = mode
+        self.local_world_size = _get_local_world_size()
 
         if "SLURM_NTASKS" in os.environ and "SLURM_PROCID" in os.environ:
             # SLURM cluster

@@ -1055,6 +1055,193 @@ from torch.distributed.checkpoint.state_dict import (  # noqa: E402
 )
 from torch.distributed.device_mesh import init_device_mesh  # noqa: E402
 from torch.distributed.fsdp import CPUOffloadPolicy, MixedPrecisionPolicy, fully_shard  # noqa: E402
+from torch.distributed.tensor import Replicate, Shard  # noqa: E402
+from torch.distributed.tensor.parallel import (  # noqa: E402
+    ColwiseParallel,
+    PrepareModuleInput,
+    PrepareModuleInputOutput,
+    RowwiseParallel,
+    SequenceParallel,
+    parallelize_module,
+)
+
+SUPPORTED_SEQUENCE_PARALLEL_MODEL_TYPES = {
+    "llama",
+    "qwen3",
+    "qwen3_moe",
+    "qwen3_5_text",
+    "qwen3_5_moe_text",
+}
+
+
+class _OptionalPrepareModuleInput(PrepareModuleInput):
+    def _prepare_input_arg(self, input_value, mesh, input_layout, desired_layout):
+        if input_value is None:
+            return None
+        return super()._prepare_input_arg(input_value, mesh, input_layout, desired_layout)
+
+
+class _OptionalPrepareModuleInputOutput(PrepareModuleInputOutput):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        prepare_input = self.prepare_module_input
+        self.prepare_module_input = _OptionalPrepareModuleInput(
+            input_layouts=prepare_input.input_layouts,
+            desired_input_layouts=prepare_input.desired_input_layouts,
+            input_kwarg_layouts=prepare_input.input_kwarg_layouts,
+            desired_input_kwarg_layouts=prepare_input.desired_input_kwarg_layouts,
+            use_local_output=prepare_input.use_local_output,
+        )
+
+
+def build_sequence_parallel_plan(model):
+    """Build a TP/SP plan from the modules present in a supported causal LM."""
+    model_type = getattr(model.config, "model_type", None)
+    if model_type not in SUPPORTED_SEQUENCE_PARALLEL_MODEL_TYPES:
+        raise ValueError(
+            f"Sequence parallelism does not support model type {model_type!r}. "
+            f"Supported model types: {sorted(SUPPORTED_SEQUENCE_PARALLEL_MODEL_TYPES)}."
+        )
+
+    if model_type == "llama":
+        rotary_input_layouts = (Shard(1),)
+        rotary_desired_layouts = (Replicate(),)
+    else:
+        rotary_input_layouts = (Shard(1), None)
+        rotary_desired_layouts = (Replicate(), None)
+
+    plan = {
+        "model.embed_tokens": RowwiseParallel(
+            input_layouts=Replicate(), output_layouts=Shard(1), use_local_output=False
+        ),
+        "model.norm": SequenceParallel(),
+        "model.rotary_emb": PrepareModuleInputOutput(
+            input_layouts=rotary_input_layouts,
+            desired_input_layouts=rotary_desired_layouts,
+            use_local_input=True,
+            output_layouts=(Replicate(), Replicate()),
+            desired_output_layouts=(Replicate(), Replicate()),
+            use_local_output=False,
+        ),
+        "lm_head": PrepareModuleInput(
+            input_layouts=(Shard(1),),
+            desired_input_layouts=(Replicate(),),
+            use_local_output=True,
+        ),
+    }
+
+    for layer_id, layer in enumerate(_iter_transformer_blocks(model)):
+        prefix = f"model.layers.{layer_id}"
+        if model_type in {"qwen3_5_text", "qwen3_5_moe_text"}:
+            layer_input_layouts = (Shard(1), None)
+            layer_desired_layouts = (Shard(1), None)
+        else:
+            layer_input_layouts = (Shard(1),)
+            layer_desired_layouts = (Shard(1),)
+        plan[prefix] = PrepareModuleInput(
+            input_layouts=layer_input_layouts,
+            desired_input_layouts=layer_desired_layouts,
+            use_local_output=True,
+        )
+        plan[f"{prefix}.input_layernorm"] = SequenceParallel()
+        plan[f"{prefix}.post_attention_layernorm"] = SequenceParallel()
+
+        if hasattr(layer, "self_attn"):
+            attention_prefix = f"{prefix}.self_attn"
+            plan[attention_prefix] = _OptionalPrepareModuleInput(
+                input_kwarg_layouts={
+                    "hidden_states": Shard(1),
+                    "attention_mask": Replicate(),
+                },
+                desired_input_kwarg_layouts={
+                    "hidden_states": Replicate(),
+                    "attention_mask": Replicate(),
+                },
+            )
+            for projection in ("q_proj", "k_proj", "v_proj"):
+                plan[f"{attention_prefix}.{projection}"] = ColwiseParallel(use_local_output=False)
+            plan[f"{attention_prefix}.o_proj"] = RowwiseParallel(output_layouts=Shard(1))
+
+            for norm in ("q_norm", "k_norm"):
+                if hasattr(layer.self_attn, norm):
+                    plan[f"{attention_prefix}.{norm}"] = PrepareModuleInputOutput(
+                        input_layouts=(Shard(-1),),
+                        desired_input_layouts=(Replicate(),),
+                        use_local_input=True,
+                        output_layouts=Replicate(),
+                        desired_output_layouts=Replicate(),
+                        use_local_output=False,
+                    )
+
+        if hasattr(layer, "linear_attn"):
+            linear_attention_prefix = f"{prefix}.linear_attn"
+            plan[linear_attention_prefix] = _OptionalPrepareModuleInputOutput(
+                input_kwarg_layouts={
+                    "hidden_states": Shard(1),
+                    "attention_mask": Replicate(),
+                },
+                desired_input_kwarg_layouts={
+                    "hidden_states": Replicate(),
+                    "attention_mask": Replicate(),
+                },
+                use_local_input=True,
+                output_layouts=Replicate(),
+                desired_output_layouts=Shard(1),
+            )
+            for projection in ("in_proj_qkv", "in_proj_z", "in_proj_b", "in_proj_a", "out_proj"):
+                plan[f"{linear_attention_prefix}.{projection}"] = ColwiseParallel(
+                    output_layouts=Replicate()
+                )
+
+        mlp = layer.mlp
+        if all(hasattr(mlp, projection) for projection in ("gate_proj", "up_proj", "down_proj")):
+            plan[f"{prefix}.mlp.gate_proj"] = ColwiseParallel()
+            plan[f"{prefix}.mlp.up_proj"] = ColwiseParallel()
+            plan[f"{prefix}.mlp.down_proj"] = RowwiseParallel(output_layouts=Shard(1))
+        else:
+            plan[f"{prefix}.mlp"] = PrepareModuleInputOutput(
+                input_layouts=(Shard(1),),
+                desired_input_layouts=(Replicate(),),
+                use_local_input=True,
+                output_layouts=Replicate(),
+                desired_output_layouts=Shard(1),
+            )
+
+    module_names = dict(model.named_modules())
+    missing = sorted(set(plan) - set(module_names))
+    if missing:
+        raise ValueError(f"Sequence-parallel plan references missing modules: {missing}")
+    return plan
+
+
+def _validate_fp8_sequence_parallel_plan(model, plan, sp_size):
+    """Ensure every TP-sharded Float8Linear keeps FP8-aligned local dimensions."""
+    modules = dict(model.named_modules())
+    invalid_shards = []
+    for module_name, style in plan.items():
+        module = modules[module_name]
+        if type(module).__name__ != "Float8Linear":
+            continue
+
+        if isinstance(style, ColwiseParallel):
+            dimension_name = "out_features"
+        elif isinstance(style, RowwiseParallel):
+            dimension_name = "in_features"
+        else:
+            continue
+
+        dimension = getattr(module, dimension_name)
+        if dimension % sp_size != 0 or dimension // sp_size % FP8_DIM_ALIGNMENT != 0:
+            invalid_shards.append(
+                f"{module_name}.{dimension_name}={dimension} -> {dimension / sp_size:g} per SP rank"
+            )
+
+    if invalid_shards:
+        raise ValueError(
+            "FP8 sequence parallelism requires each sharded Float8Linear GEMM dimension "
+            f"to remain divisible by {FP8_DIM_ALIGNMENT}. Invalid shards: "
+            + ", ".join(invalid_shards)
+        )
 
 
 def _iter_transformer_blocks(model):
@@ -1063,13 +1250,11 @@ def _iter_transformer_blocks(model):
 
     Modern HF causal-LM models (dense, MoE, Qwen3.5 hybrid) all expose their
     per-layer blocks under `model.model.layers` as a `ModuleList`. Sharding
-    every entry in that list is the standard FSDP2 idiom (cf. the official
-    PyTorch FSDP2 tutorial and torchtitan), and is architecture-agnostic: it
-    works for dense, MoE, and hybrid models without registering any
+    every entry in that list is the standard FSDP2 idiom, and is architecture-agnostic:
+    it works for dense, MoE, and hybrid models without registering any
     decoder-layer class up front.
 
-    This helper centralizes the assumption and provides a clearer error if a
-    new architecture deviates from it.
+    This helper provides a clearer error if a new architecture deviates from it.
     """
     inner = getattr(model, "model", None)
     layers = getattr(inner, "layers", None) if inner is not None else None
@@ -1106,22 +1291,30 @@ def _set_modules_to_backward_prefetch(model, num_to_backward_prefetch):
 
 
 def apply_fsdp_wrapping(
-    model, args, device_type, world_size, rank, master_process, logger=None, file_logger=None
+    model,
+    args,
+    fp8_enabled,
+    device_type,
+    world_size,
+    rank,
+    local_world_size,
+    master_process,
+    logger=None,
+    file_logger=None,
 ):
     """
     Apply FSDP2 (fully_shard) wrapping to the model.
 
     This function shards each decoder layer individually, then shards the root
-    model.  It supports mixed precision, CPU offload, HSDP (2-D device mesh),
-    and explicit prefetching — all controlled by the fields on `args`. When
-    `args.torch_compile` is set (and Liger kernel is not in use), each decoder
-    layer is also `torch.compile`-d individually, right before it is sharded
-    (the torchtitan pattern); the root module is left uncompiled.
+    model. It supports mixed precision, CPU offload, sequence parallelism,
+    and explicit prefetching, all controlled by the fields on `args`. When
+    `args.torch_compile` is set, each decoder layer is also `torch.compile`
+    individually, right before it is sharded (the torchtitan pattern);
+    the root module is left uncompiled.
 
     Returns:
-        effective_world_size (int): The data-parallel world size after accounting
-            for HSDP.  Callers should use this for gradient-accumulation and
-            sampler calculations.
+        tuple[int, int]: The data-parallel world size and this process's rank in
+            that dimension, for gradient-accumulation and sampler calculations.
     """
     fsdp_kwargs = {}
 
@@ -1138,10 +1331,11 @@ def apply_fsdp_wrapping(
             "Enabled mixed precision policy for FSDP. Param type = torch.bfloat16, Reduce type = torch.float32",
         )
 
-    # Device mesh and HSDP setup
-    effective_world_size = world_size
+    # Device mesh and sequence-parallel setup
+    data_parallel_size = world_size
+    data_parallel_rank = rank
 
-    if args.dp_shard is None:
+    if not args.sequence_parallel:
         mesh_config = init_device_mesh(
             device_type=device_type,
             mesh_shape=(world_size,),
@@ -1152,28 +1346,41 @@ def apply_fsdp_wrapping(
             file_logger,
             f"Initialized 1D device mesh with shape: ({world_size},) for Fully Sharded Data Parallel (FSDP).",
         )
+        fsdp_mesh = mesh_config
     else:
-        assert world_size % args.dp_shard == 0, (
-            f"World size {world_size} needs to be divisible by `dp_shard` size "
-            f"(dp_shard={args.dp_shard}, world_size={world_size})"
+        sp_size = local_world_size if args.sp_shard is None else args.sp_shard
+        assert sp_size > 0, f"sp_shard must be positive (sp_shard={sp_size})."
+        assert local_world_size % sp_size == 0, (
+            f"Local world size {local_world_size} must be divisible by the sequence-parallel "
+            f"size (sp_shard={sp_size})."
         )
-        assert args.dp_shard > 1, f"dp_shard needs to be greater than 1 (dp_shard={args.dp_shard})."
-
-        data_parallel_size = world_size // args.dp_shard
+        assert world_size % sp_size == 0, (
+            f"World size {world_size} must be divisible by the sequence-parallel size "
+            f"(sp_shard={sp_size})."
+        )
+        data_parallel_size = world_size // sp_size
         mesh_config = init_device_mesh(
             device_type=device_type,
-            mesh_shape=(data_parallel_size, args.dp_shard),
-            mesh_dim_names=("dp_replicate", "dp_shard"),
+            mesh_shape=(data_parallel_size, sp_size),
+            mesh_dim_names=("dp", "sp"),
         )
-        effective_world_size = data_parallel_size
+        fsdp_mesh = mesh_config["dp"]
+        tp_mesh = mesh_config["sp"]
+        data_parallel_rank = fsdp_mesh.get_local_rank()
         _log_message(
             master_process,
             logger,
             file_logger,
-            f"Initialized 2D device mesh with shape: (dp_replicate={data_parallel_size}, dp_shard={args.dp_shard}) for Hybrid Sharding Data Parallel (HSDP).",
+            f"Initialized 2D device mesh with shape: (dp={data_parallel_size}, sp={sp_size}) "
+            "for FSDP2 + sequence parallelism.",
         )
+        tp_plan = build_sequence_parallel_plan(model)
+        if fp8_enabled:
+            _validate_fp8_sequence_parallel_plan(model, tp_plan, sp_size)
+        parallelize_module(model, tp_mesh, tp_plan)
+        _log_message(master_process, logger, file_logger, "Applied tensor/sequence parallelism.")
 
-    fsdp_kwargs["mesh"] = mesh_config
+    fsdp_kwargs["mesh"] = fsdp_mesh
 
     # Sharding strategy (ZeRO-3 vs ZeRO-2)
     fsdp_kwargs["reshard_after_forward"] = bool(args.full_shard)
@@ -1246,7 +1453,7 @@ def apply_fsdp_wrapping(
         _set_modules_to_forward_prefetch(model, num_to_forward_prefetch=2)
         _set_modules_to_backward_prefetch(model, num_to_backward_prefetch=2)
 
-    return effective_world_size
+    return data_parallel_size, data_parallel_rank
 
 
 def get_full_model_state_dict(model):

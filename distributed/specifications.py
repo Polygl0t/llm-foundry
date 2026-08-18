@@ -448,9 +448,13 @@ class TrainingArguments:
         default=True,
         metadata={"help": "Whether to use mixed precision training with FSDP."},
     )
-    dp_shard: int | None = field(
+    sequence_parallel: bool = field(
+        default=False,
+        metadata={"help": "Whether to enable intra-node sequence parallelism with FSDP2."},
+    )
+    sp_shard: int | None = field(
         default=None,
-        metadata={"help": "The number of shards to use for Hybrid Sharding Data Parallel (HSDP)."},
+        metadata={"help": "Optional sequence-parallel size; defaults to the local world size."},
     )
     full_shard: bool | None = field(
         default=True,

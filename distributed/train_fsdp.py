@@ -88,6 +88,7 @@ def main(specs, slurm_job_id, hardware):
     device = env.device
     device_type = env.device_type
     world_size = env.world_size
+    local_world_size = env.local_world_size
     master_process = env.master_process
     fsdp = env.fsdp
 
@@ -146,6 +147,7 @@ def main(specs, slurm_job_id, hardware):
     active_trainable_params = model_state.active_trainable_params
     fp8_enabled = model_state.fp8_enabled
     linear_attention_fast_path = model_state.linear_attention_fast_path
+    sampler_rank = rank
 
     if fsdp:
         # Apply FSDP2 wrapping (fully_shard) to the model.
@@ -166,20 +168,20 @@ def main(specs, slurm_job_id, hardware):
         #               +---------------------+
         #
         # See `apply_fsdp_wrapping()` in `model_setup.py` for details.
-        # It returns the effective world_size (adjusted for HSDP when dp_shard is set).
-        effective_world_size = apply_fsdp_wrapping(
+        # It returns the data-parallel size and rank after accounting for SP.
+        data_parallel_size, sampler_rank = apply_fsdp_wrapping(
             model=model,
             args=args,
+            fp8_enabled=fp8_enabled,
             device_type=device_type,
             world_size=world_size,
             rank=rank,
+            local_world_size=local_world_size,
             master_process=master_process,
             logger=logger,
             file_logger=file_logger if master_process else None,
         )
-        # For HSDP, the effective world_size is smaller than the total world_size.
-        # We use the effective world_size for gradient accumulation and data loading.
-        world_size = effective_world_size
+        world_size = data_parallel_size
     elif args.torch_compile:
         # Single-device fallback: no FSDP sharding happens, so there is no
         # per-block boundary to align with — compile the whole model, as we
@@ -193,9 +195,6 @@ def main(specs, slurm_job_id, hardware):
         if master_process:
             logger.info("Compiling model with torch.compile.")
         model = torch.compile(model)
-
-    # Compute the sampler rank, adjusting for HSDP if applicable.
-    sampler_rank = rank // args.dp_shard if args.dp_shard else rank
 
     # See the `data_loading.py` module for details on dataset loading and dataloader creation.
     data = prepare_dataloaders(
@@ -315,7 +314,10 @@ def main(specs, slurm_job_id, hardware):
         logger.info(f"  Full shard (ZeRO-3) | {args.full_shard}")
         logger.info(f"  Mixed precision | {args.fsdp_mixed_precision}")
         logger.info(f"  CPU offload | {args.cpu_offload}")
-        logger.info(f"  DP shard (HSDP) | {args.dp_shard if args.dp_shard else 'None'}")
+        logger.info(f"  Sequence parallel | {args.sequence_parallel}")
+        logger.info(
+            f"  SP size | {args.sp_shard if args.sp_shard is not None else local_world_size if args.sequence_parallel else 'None'}"
+        )
         logger.info(f"  Explicit prefetching | {args.explicit_prefetching}")
         logger.info("=" * 50)
         optimizer_summary_lines = get_optimizer_summary_lines(args)
@@ -378,8 +380,9 @@ def main(specs, slurm_job_id, hardware):
             file_logger.log_metadata(f"  Full shard (ZeRO-3) | {args.full_shard}")
             file_logger.log_metadata(f"  Mixed precision | {args.fsdp_mixed_precision}")
             file_logger.log_metadata(f"  CPU offload | {args.cpu_offload}")
+            file_logger.log_metadata(f"  Sequence parallel | {args.sequence_parallel}")
             file_logger.log_metadata(
-                f"  DP shard (HSDP) | {args.dp_shard if args.dp_shard else 'None'}"
+                f"  SP size | {args.sp_shard if args.sp_shard is not None else local_world_size if args.sequence_parallel else 'None'}"
             )
             file_logger.log_metadata(f"  Explicit prefetching | {args.explicit_prefetching}")
             file_logger.log_metadata("=" * 50)
