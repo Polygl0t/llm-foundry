@@ -19,26 +19,21 @@
 set -euo pipefail
 
 workdir="/e/project1/polyglot/COMMON"
-venv_dir="$workdir/.venv_core_2026"
-modules_script="jupiter_modules_2026.sh"
-log_dir="$workdir/logs"
-log_file="$log_dir/install_core_2026_$(date +%Y%m%d_%H%M%S).log"
+venv_dir="$workdir/.venv_distributed"
+modules_script="setup/jupiter_modules_2026.sh"
 
 
 cd "$workdir"
 
-
-setup_logging() {
-    mkdir -p "$log_dir"
-    exec > >(tee -ia "$log_file") 2>&1
-    echo "[$(date)] Logging to $log_file"
-}
+# Suppress uv hardlink-fallback warnings: the venv and uv's cache live on
+# different filesystems here, so hardlinking is not possible.
+export UV_LINK_MODE=copy
 
 
 require_login_node() {
     if [[ -n "${SLURM_JOB_ID:-}" ]]; then
         echo "ERROR: do NOT run this under sbatch/salloc."
-        echo "Run it directly on a login node: bash jupiter_installation_2026.sh"
+        echo "Run it directly on a login node. E.g., bash jupiter_installation_2026.sh"
         exit 1
     fi
 }
@@ -134,8 +129,8 @@ install_attention_stack() {
     # login node that gets OOM-killed.
     src_dir="$workdir/.build_causal_conv1d"
     rm -rf "$src_dir" && mkdir -p "$src_dir"
-    uv pip download causal-conv1d \
-        --no-binary=:all: --no-deps --no-build-isolation --no-cache \
+    pip download causal-conv1d \
+        --no-binary=:all: --no-deps --no-build-isolation \
         -d "$src_dir"
     tar -xzf "$src_dir"/causal_conv1d-*.tar.gz -C "$src_dir"
     src="$(find "$src_dir" -maxdepth 1 -type d -name 'causal_conv1d-*' | head -n1)"
@@ -215,7 +210,7 @@ PY
 
 
 # ===== Main Installation Steps =====
-setup_logging
+echo "[$(date)] Starting installation..."
 require_login_node
 load_modules
 create_fresh_venv
@@ -232,3 +227,4 @@ install_torchao
 
 # And we are done!
 print_final_status
+echo "[$(date)] Installation finished."
