@@ -73,14 +73,28 @@ echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --ve
 # Main Job Execution
 #############################################
 
-python3 $workdir/llm-foundry/data/tokenization/run_tokenization.py \
-    --input_path "$workdir/data/raw" \
-    --output_dir "$workdir/data/tokenized" \
-    --tokenizer_name "Qwen/Qwen3-0.6B" \
-    --cache_dir "$HF_DATASETS_CACHE" \
-    --num_proc $SLURM_CPUS_PER_TASK \
-    --return_seq_lengths \
-    --add_eos_token 1>>"$out" 2>>"$err"
+RAW_DIR="$workdir/data/raw"
+TOKENIZED_DIR="$workdir/data/tokenized"
+
+for folder in "$RAW_DIR"/*/; do
+    name=$(basename "$folder")
+
+    # Skip hidden folders (those starting with ".")
+    case "$name" in
+        .*) continue ;;
+    esac
+
+    echo "# [${SLURM_JOB_ID}] Tokenizing $name" >> "$out"
+
+    python3 $workdir/llm-foundry/data/tokenization/run_tokenization.py \
+        --input_path "$RAW_DIR/$name" \
+        --output_dir "$TOKENIZED_DIR/$name" \
+        --tokenizer_name "Qwen/Qwen3-0.6B" \
+        --cache_dir "$HF_DATASETS_CACHE" \
+        --num_proc $SLURM_CPUS_PER_TASK \
+        --return_seq_lengths \
+        --add_eos_token 1>>"$out" 2>>"$err"
+done
 
 #############################################
 # End of Script
