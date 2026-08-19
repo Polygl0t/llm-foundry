@@ -48,13 +48,13 @@ Main parameters:
 - `--max-steps`: Maximum agent steps per example.
 - `--executor-timeout`: Maximum seconds per tool execution step.
 - `--output-dir`: Base directory for saving trace files.
-- `--language`: Language code for search tools (`en` or `pt`). You can extend this to other languages. Portuguese serve as an example of "how to do it" for other languages.
+- `--language`: Language code (`en` or `pt`) that configures the whole system — system prompt, Wikipedia language, DuckDuckGo search region, and formatter translations. Defaults to `en`. Extend via `LANGUAGE_CONFIGS` in `utils.py` plus a matching `prompts/<language>.yaml`.
 - `--temperature`: Sampling temperature (optional).
 - `--top-p`: Nucleus sampling top-p (optional).
 - `--top-k`: Top-k sampling cutoff (optional).
 - `--api-key`: API key for LiteLLM models (optional, also read from `.env`).
 - `--api-base`: API base URL for LiteLLM (optional, also read from `.env`).
-- `--system-prompt-file`: Path to custom YAML prompt templates (defaults to smolagents built-in).
+- `--system-prompt-file`: Optional override — path to custom YAML prompt templates. If unset, the bundled `prompts/<language>.yaml` for the selected `--language` is used.
 - `--enable-thinking`: Enable thinking/reasoning mode (vLLM/Transformers only).
 - `--enable-planning`: Run a planning step before agent execution.
 - `--code-block-opening-tag` / `--code-block-closing-tag`: Custom code-block delimiters (default `<code>` / `</code>`).
@@ -92,10 +92,10 @@ Files rotate automatically once they reach the `--max-entries-per-file` threshol
 
 The [`prompts/`](./prompts/) folder contains YAML system-prompt templates for the CodeAgent:
 
-- [`SYSTEM.yaml`](./prompts/SYSTEM.yaml) — Default English system prompt.
-- [`SISTEMA.yaml`](./prompts/SISTEMA.yaml) — Portuguese (Português) system prompt.
+- [`en.yaml`](./prompts/en.yaml) — English system prompt (default).
+- [`pt.yaml`](./prompts/pt.yaml) — Portuguese (Português) system prompt.
 
-These files use Jinja2 placeholders (`{{tools}}`, `{{authorized_imports}}`, `{{code_block_opening_tag}}`, etc.) that are populated at runtime by smolagents. Pass them via `--system-prompt-file` (CLI) or `SYSTEM_PROMPT_FILE` (shell script).
+These files use Jinja2 placeholders (`{{tools}}`, `{{authorized_imports}}`, `{{code_block_opening_tag}}`, etc.) that are populated at runtime by smolagents. They are selected automatically by `--language` (CLI) or `LANGUAGE` (shell script). An explicit `--system-prompt-file` / `SYSTEM_PROMPT_FILE` overrides the language selection.
 
 ## Data Assets
 

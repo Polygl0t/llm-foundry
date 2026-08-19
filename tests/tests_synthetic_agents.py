@@ -91,6 +91,8 @@ _tools_mock = MagicMock()
 sys.modules.setdefault("tools", _tools_mock)
 
 from utils import (  # noqa: E402
+    LANGUAGE_CONFIGS,
+    SUPPORTED_LANGUAGES,
     OutputManager,
     TraceRecord,
     _conversation_has_unclosed_think,
@@ -105,10 +107,12 @@ from utils import (  # noqa: E402
     compare_answer,
     format_trace_as_conversation,
     load_dataset,
+    load_metadata_entries,
     load_processed_ids,
     load_system_prompt,
     normalize_answer,
     setup_triton_cache,
+    summarize_trace_metadata,
 )
 
 # Re-export the stub classes under the canonical names so the test for
@@ -1076,16 +1080,19 @@ def test_load_system_prompt_raises_on_missing_file():
 # ---------------------------------------------------------------------------
 
 
-def test_load_system_prompt_falls_back_to_library_default():
-    with patch(
-        "utils._load_smolagents_default_prompt",
-        return_value={"system_prompt": "You are a helpful assistant."},
-    ):
-        templates = load_system_prompt(None)
+def test_load_system_prompt_falls_back_to_language_file():
+    # No path given → load the bundled prompt file for the language.
+    templates = load_system_prompt(None, language="en")
     assert isinstance(templates, dict)
     assert "system_prompt" in templates
     assert len(templates["system_prompt"]) > 0
-    print("Test 30 — load_system_prompt default: OK ✅")
+
+    templates_pt = load_system_prompt(None, language="pt")
+    assert "system_prompt" in templates_pt
+    assert len(templates_pt["system_prompt"]) > 0
+    # Portuguese prompt should differ from the English one.
+    assert templates_pt["system_prompt"] != templates["system_prompt"]
+    print("Test 30 — load_system_prompt language fallback: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -1203,6 +1210,181 @@ def test_format_trace_as_conversation_ignores_system_prompt_step():
 
 
 # ---------------------------------------------------------------------------
+# Test 35 — load_metadata_entries
+# ---------------------------------------------------------------------------
+
+
+def test_load_metadata_entries_returns_latest_entry_per_trace_id():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        out_dir = Path(tmpdir)
+
+        # No file yet → empty dict
+        assert load_metadata_entries(out_dir) == {}
+
+        metadata_path = out_dir / "metadata.jsonl"
+        with open(metadata_path, "w", encoding="utf-8") as fh:
+            fh.write('{"trace_id": "a", "status": "fail"}\n')
+            fh.write('{"trace_id": "b", "status": "success"}\n')
+            fh.write('{"trace_id": "a", "status": "success"}\n')  # reprocessed
+            fh.write("garbage line\n")
+            fh.write("{bad json\n")
+            fh.write('{"trace_id": "c", "status": "fail"}\n')
+
+        entries = load_metadata_entries(out_dir)
+        assert set(entries) == {"a", "b", "c"}
+        # Latest entry wins for duplicate trace IDs
+        assert entries["a"]["status"] == "success"
+        assert entries["b"]["status"] == "success"
+        assert entries["c"]["status"] == "fail"
+    print("Test 35 — load_metadata_entries: OK ✅")
+
+
+# ---------------------------------------------------------------------------
+# Test 36 — summarize_trace_metadata
+# ---------------------------------------------------------------------------
+
+
+def test_summarize_trace_metadata_counts_whole_dataset():
+    rows = [
+        {"_trace_id": "a", "prompt": "Q1"},
+        {"_trace_id": "b", "prompt": "Q2"},
+        {"_trace_id": "c", "prompt": "Q3"},
+        {"_trace_id": "d", "prompt": "Q4"},
+    ]
+    entries = {
+        "a": {"trace_id": "a", "status": "success"},
+        "b": {"trace_id": "b", "status": "fail"},
+        "c": {"trace_id": "c", "status": "success"},
+        # "d" has no metadata entry → still pending
+    }
+
+    stats = summarize_trace_metadata(rows, entries)
+    assert stats["total"] == 4
+    assert stats["processed"] == 3
+    assert stats["success"] == 2
+    assert stats["failed"] == 1
+    assert stats["remaining"] == 1
+
+    # Empty dataset
+    stats = summarize_trace_metadata([], {})
+    assert stats["total"] == 0
+    assert stats["processed"] == 0
+    assert stats["remaining"] == 0
+    print("Test 36 — summarize_trace_metadata: OK ✅")
+
+
+# ---------------------------------------------------------------------------
+# Test 37 — load_system_prompt: unsupported language
+# ---------------------------------------------------------------------------
+
+
+def test_load_system_prompt_raises_on_unsupported_language():
+    try:
+        load_system_prompt(None, language="zz")
+        raise AssertionError("Unsupported language should raise ValueError")
+    except ValueError as error:
+        assert "zz" in str(error)
+    print("Test 37 — load_system_prompt unsupported language: OK ✅")
+
+
+# ---------------------------------------------------------------------------
+# Test 38 — load_system_prompt: missing language file
+# ---------------------------------------------------------------------------
+
+
+def test_load_system_prompt_raises_when_language_file_missing():
+    with tempfile.TemporaryDirectory() as tmpdir, patch("utils.PROMPTS_DIR", Path(tmpdir)):
+        try:
+            load_system_prompt(None, language="en")
+            raise AssertionError("Missing language file should raise FileNotFoundError")
+        except FileNotFoundError as error:
+            assert "en" in str(error)
+    print("Test 38 — load_system_prompt missing language file: OK ✅")
+
+
+# ---------------------------------------------------------------------------
+# Test 39 — format_trace_as_conversation: English stays English
+# ---------------------------------------------------------------------------
+
+
+def test_format_trace_as_conversation_english_not_translated():
+    trace = TraceRecord(
+        trace_id="en_001",
+        prompt="What is the capital?",
+        status="success",
+        steps=[
+            _make_mock_step(
+                "PlanningStep",
+                plan="Here are the facts I know and the plan of action that I will follow to solve the task: search then answer.",
+            ),
+            _make_mock_step(
+                "ActionStep",
+                model_output_message="Thought: let me search.",
+                code_action='web_search("capital of France")',
+                observations="Execution logs:\nsearching...\nLast output from code snippet:\nParis",
+            ),
+        ],
+    )
+    conv = format_trace_as_conversation(trace, language="en")
+    all_content = "\n".join(m["content"] for m in conv)
+    assert "Here are the facts I know" in all_content
+    assert "Execution logs:" in all_content
+    assert "Last output from code snippet:" in all_content
+    assert "Aqui estão os fatos" not in all_content
+    assert "Registros de execução" not in all_content
+    print("Test 39 — format_trace_as_conversation English: OK ✅")
+
+
+# ---------------------------------------------------------------------------
+# Test 40 — LANGUAGE_CONFIGS contract
+# ---------------------------------------------------------------------------
+
+
+def test_language_configs_have_required_keys():
+    required = {
+        "prompt_file",
+        "ddg_region",
+        "wikipedia_language",
+        "thought_prefixes",
+        "planning_prefixes",
+        "labels",
+    }
+    for language, config in LANGUAGE_CONFIGS.items():
+        missing = required - set(config)
+        assert not missing, f"{language!r} is missing keys: {missing}"
+    assert sorted(LANGUAGE_CONFIGS) == SUPPORTED_LANGUAGES
+    assert "en" in SUPPORTED_LANGUAGES
+    print("Test 40 — LANGUAGE_CONFIGS contract: OK ✅")
+
+
+# ---------------------------------------------------------------------------
+# Test 41 — format_trace_as_conversation: unknown language falls back to English
+# ---------------------------------------------------------------------------
+
+
+def test_format_trace_as_conversation_unknown_language_falls_back_to_english():
+    trace = TraceRecord(
+        trace_id="zz_001",
+        prompt="Q",
+        status="success",
+        steps=[
+            _make_mock_step(
+                "ActionStep",
+                model_output_message="Thought: hi.",
+                code_action='web_search("x")',
+                observations="Execution logs:\nsome output\nLast output from code snippet:\n42",
+            ),
+        ],
+    )
+    conv = format_trace_as_conversation(trace, language="zz")
+    all_content = "\n".join(m["content"] for m in conv)
+    assert "Execution logs:" in all_content
+    assert "Registros de execução" not in all_content
+    assert "Aqui estão os fatos" not in all_content
+    print("Test 41 — format_trace_as_conversation unknown language: OK ✅")
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -1237,11 +1419,18 @@ if __name__ == "__main__":
         test_format_trace_as_conversation_portuguese_translations,
         test_load_system_prompt_reads_yaml_file,
         test_load_system_prompt_raises_on_missing_file,
-        test_load_system_prompt_falls_back_to_library_default,
+        test_load_system_prompt_falls_back_to_language_file,
         test_setup_triton_cache_creates_rank_dir_and_removes_stale_files,
         test_format_trace_as_conversation_empty_trace,
         test_format_trace_as_conversation_discards_empty_tool_response,
         test_format_trace_as_conversation_ignores_system_prompt_step,
+        test_load_metadata_entries_returns_latest_entry_per_trace_id,
+        test_summarize_trace_metadata_counts_whole_dataset,
+        test_load_system_prompt_raises_on_unsupported_language,
+        test_load_system_prompt_raises_when_language_file_missing,
+        test_format_trace_as_conversation_english_not_translated,
+        test_language_configs_have_required_keys,
+        test_format_trace_as_conversation_unknown_language_falls_back_to_english,
     ]
     for test in tests:
         test()

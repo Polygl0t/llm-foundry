@@ -62,6 +62,49 @@ TRITON_CACHE_CLEANUP_AGE = 3600
 # Maximum number of JSON objects per consolidated output file before rotation
 DEFAULT_MAX_ENTRIES_PER_FILE = 50_000
 
+# Directory containing bundled language-specific system prompts.  The file for
+# each language is named `<language>.yaml` (e.g. prompts/en.yaml).
+PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
+
+# Registry mapping a language code to all of its language-specific settings:
+# the system-prompt file, the search-tool configuration, and the formatter
+# translations.  To add a new language, add an entry here and drop a matching
+# `prompts/<language>.yaml` file.
+LANGUAGE_CONFIGS: dict[str, dict[str, Any]] = {
+    "en": {
+        "prompt_file": "en.yaml",
+        "ddg_region": "wt-wt",
+        "wikipedia_language": "en",
+        # Assistant message prefixes stripped from the model output.
+        "thought_prefixes": ("Thought",),
+        # Planning-step prefixes injected by smolagents, mapped to the
+        # language used in the formatted conversation.
+        "planning_prefixes": {},
+        # Tool-response labels (and the error label) mapped to the language
+        # used in the formatted conversation.
+        "labels": {},
+    },
+    "pt": {
+        "prompt_file": "pt.yaml",
+        "ddg_region": "pt-br",
+        "wikipedia_language": "pt",
+        "thought_prefixes": ("Pensamento", "Thought"),
+        "planning_prefixes": {
+            "Here are the facts I know and the plan of action that I will follow to solve the task:": "Aqui estão os fatos que conheço e o plano de ação que seguirei para resolver a tarefa:",
+            "I still need to solve the task I was given:": "Ainda preciso resolver a tarefa que me foi dada:",
+            "Here are the facts I know and my new/updated plan of action to solve the task:": "Aqui estão os fatos que conheço e o meu plano de ação novo/atualizado para resolver a tarefa:",
+        },
+        "labels": {
+            "Execution logs:": "Registros de execução:",
+            "Last output from code snippet:": "Última saída do trecho de código:",
+            "Error:": "Erro:",
+        },
+    },
+}
+
+# Languages accepted by the --language CLI argument (derived from the registry).
+SUPPORTED_LANGUAGES = sorted(LANGUAGE_CONFIGS)
+
 # Lines matching this pattern are progress-bar / framework noise written
 # directly to stderr (tqdm bars, weight-loading shards, Triton bundler
 # spam, ...).
@@ -614,22 +657,32 @@ def _load_smolagents_default_prompt() -> dict[str, Any]:
     return yaml.safe_load(text)
 
 
-def load_system_prompt(path: str | Path | None) -> dict[str, Any]:
-    """Load prompt templates, with a two-tier fallback:
+def load_system_prompt(
+    path: str | Path | None = None,
+    language: str = "en",
+) -> dict[str, Any]:
+    """Load prompt templates.
 
-    1. **User-provided file** (`path` argument).
-    2. **Library default** — smolagents' built-in `code_agent.yaml`,
-       loaded via importlib.resources.
+    Resolution order:
+
+    1. Explicit override: a user-provided *path* takes precedence over
+       the language-derived prompt.
+    2. Language-derived prompt: the bundled
+       `prompts/<language>.yaml` file selected by *language*.
 
     Args:
-        path: Path to a YAML file with prompt templates, or None to use
-              the smolagents library default.
+        path:     Path to a YAML file with prompt templates, or None to use
+                  the bundled language-specific prompt.
+        language: Language code selecting the bundled prompt file when *path*
+                  is None (default "en").
 
     Returns:
         A PromptTemplates-compatible dict.
 
     Raises:
-        FileNotFoundError: If `path` is given but does not exist.
+        FileNotFoundError: If *path* is given but does not exist, or if the
+                           bundled prompt file for *language* is missing.
+        ValueError:        If *language* is not a supported language code.
     """
     if path is not None:
         path = Path(path)
@@ -640,9 +693,23 @@ def load_system_prompt(path: str | Path | None) -> dict[str, Any]:
         logger.info(f"📋 System prompt loaded from: {path}")
         return templates
 
-    # Fall back to smolagents library default
-    logger.info("📋 System prompt loaded from: smolagents.prompts/code_agent.yaml")
-    return _load_smolagents_default_prompt()
+    config = LANGUAGE_CONFIGS.get(language)
+    if config is None:
+        raise ValueError(
+            f"Unsupported language: {language!r}. Supported languages: "
+            f"{', '.join(sorted(LANGUAGE_CONFIGS))}."
+        )
+
+    prompt_path = PROMPTS_DIR / config["prompt_file"]
+    if not prompt_path.exists():
+        raise FileNotFoundError(
+            f"System prompt file not found for language {language!r}: {prompt_path}"
+        )
+
+    with open(prompt_path, encoding="utf-8") as f:
+        templates = yaml.safe_load(f)
+    logger.info(f"📋 System prompt loaded from: {prompt_path}")
+    return templates
 
 
 def normalize_answer(text: str) -> str:
@@ -836,6 +903,8 @@ def format_trace_as_conversation(
         trace:                    The raw trace record.
         code_block_opening_tag:   Opening tag for tool calls (default "<code>").
         code_block_closing_tag:   Closing tag for tool calls (default "</code>").
+        language:                 Language code driving the formatter's string
+                                  translations (default "en").
 
     Returns:
         A list of {"role": "...", "content": "..."} dicts.
@@ -931,51 +1000,40 @@ def format_trace_as_conversation(
                     }
                 )
 
-    # Cleanup!
-    # Strip the "Pensamento: " / "Thought: " prefix from all assistant
-    # messages — this is a formatting artifact from the model's output.
-    _THOUGHT_PREFIX_RE = re.compile(r"^(?:Pensamento|Thought):\s*")
-    for msg in conversation:
-        if msg.get("role") == "assistant" and isinstance(msg.get("content"), str):
-            msg["content"] = _THOUGHT_PREFIX_RE.sub("", msg["content"]).strip()
+    # Cleanup!  Language-specific string handling is driven by
+    # LANGUAGE_CONFIGS.
+    formatter_config = LANGUAGE_CONFIGS.get(language, LANGUAGE_CONFIGS["en"])
+    thought_prefixes = formatter_config.get("thought_prefixes", ("Thought",))
+    planning_prefixes = formatter_config.get("planning_prefixes", {})
+    labels = formatter_config.get("labels", {})
 
-    # Translate hardcoded English strings when language != "en".
-    # smolagents injects planning prefixes and tool-response labels in
-    # English regardless of the user's language.
-    if language != "en":
-        _PLAN_TRANSLATIONS = {
-            "pt": {
-                # Planning prefixes (injected by smolagents._generate_planning_step)
-                "Here are the facts I know and the plan of action that I will follow to solve the task:": "Aqui estão os fatos que conheço e o plano de ação que seguirei para resolver a tarefa:",
-                "I still need to solve the task I was given:": "Ainda preciso resolver a tarefa que me foi dada:",
-                "Here are the facts I know and my new/updated plan of action to solve the task:": "Aqui estão os fatos que conheço e o meu plano de ação novo/atualizado para resolver a tarefa:",
-                # Tool-response labels (injected by smolagents.LocalPythonExecutor)
-                "Execution logs:": "Registros de execução:",
-                "Last output from code snippet:": "Última saída do trecho de código:",
-                # Error label (emitted by this formatter for failed code steps)
-                "Error:": "Erro:",
-            },
-        }
-        translations = _PLAN_TRANSLATIONS.get(language, {})
+    if thought_prefixes:
+        _THOUGHT_PREFIX_RE = re.compile(
+            r"^(?:" + "|".join(re.escape(p) for p in thought_prefixes) + r"):\s*"
+        )
         for msg in conversation:
             if msg.get("role") == "assistant" and isinstance(msg.get("content"), str):
-                for en_text, translated in translations.items():
-                    if msg["content"].startswith(en_text):
-                        msg["content"] = msg["content"].replace(en_text, translated, 1)
-                        break
-        # Also translate tool_response messages (role="user" containing
-        # <tool_response>).
-        for msg in conversation:
-            if (
-                msg.get("role") == "user"
-                and isinstance(msg.get("content"), str)
-                and "<tool_response>" in msg["content"]
-            ):
-                for en_text, translated in translations.items():
-                    # Only apply to the labels, not the planning prefixes
-                    # (those are already handled above for assistant messages).
-                    if "\n" in en_text or en_text.endswith(":"):
-                        msg["content"] = msg["content"].replace(en_text, translated)
+                msg["content"] = _THOUGHT_PREFIX_RE.sub("", msg["content"]).strip()
+
+    # smolagents injects planning prefixes in English regardless of the
+    # user's language. We translate them for the selected language.
+    for msg in conversation:
+        if msg.get("role") == "assistant" and isinstance(msg.get("content"), str):
+            for en_text, translated in planning_prefixes.items():
+                if msg["content"].startswith(en_text):
+                    msg["content"] = msg["content"].replace(en_text, translated, 1)
+                    break
+
+    # smolagents also injects tool-response labels in English. Again,
+    # we translate them for the selected language.
+    for msg in conversation:
+        if (
+            msg.get("role") == "user"
+            and isinstance(msg.get("content"), str)
+            and "<tool_response>" in msg["content"]
+        ):
+            for en_text, translated in labels.items():
+                msg["content"] = msg["content"].replace(en_text, translated)
 
     # Discard the last message if it is the tool_response that
     # follows the final_answer() code block.
@@ -992,13 +1050,24 @@ def format_trace_as_conversation(
         ):
             conversation.pop()
 
-    # Discard empty tool_response messages. Those where no
-    # actual output appeared between "Execution logs:" (or
-    # translated equivalent) and "Last output from code snippet:".
+    # Discard empty tool_response messages. Those where no actual output
+    # appeared between the "Execution logs:" (or translated equivalent) and
+    # "Last output from code snippet:" (or translated equivalent) labels.
+    execution_logs_label = "Execution logs:"
+    last_output_label = "Last output from code snippet:"
+    execution_logs_variants = dict.fromkeys(
+        (execution_logs_label, labels.get(execution_logs_label, execution_logs_label))
+    )
+    last_output_variants = dict.fromkeys(
+        (last_output_label, labels.get(last_output_label, last_output_label))
+    )
+    execution_logs_pattern = "|".join(re.escape(v) for v in execution_logs_variants)
+    last_output_pattern = "|".join(re.escape(v) for v in last_output_variants)
     _EMPTY_TR = re.compile(
-        r"^<tool_response>\n(?:Execution logs|Registros de execução):\n"
-        r"(?:Last output from code snippet|Última saída do trecho de código):\nNone\n"
-        r"</tool_response>$"
+        rf"^<tool_response>\n"
+        rf"(?:{execution_logs_pattern})\n"
+        rf"(?:{last_output_pattern})\n"
+        rf"None\n</tool_response>$"
     )
     conversation = [
         msg
@@ -1037,6 +1106,39 @@ def append_metadata_entry(
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
+def load_metadata_entries(output_dir: Path) -> dict[str, dict[str, Any]]:
+    """Load `metadata.jsonl` into a dict keyed by trace ID (latest entry wins).
+
+    The metadata file is append-only; a trace may appear more than once when
+    `--no-resume` is used to reprocess it.  Keeping the latest entry makes the
+    resulting mapping reflect the most recent outcome for each trace.
+
+    Args:
+        output_dir: Base output directory containing `metadata.jsonl`.
+
+    Returns:
+        Mapping of trace ID to its most recent metadata entry (may be empty).
+    """
+    metadata_path = output_dir / "metadata.jsonl"
+    if not metadata_path.exists():
+        return {}
+
+    entries: dict[str, dict[str, Any]] = {}
+    with open(metadata_path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+                trace_id = entry.get("trace_id")
+                if trace_id:
+                    entries[str(trace_id)] = entry
+            except json.JSONDecodeError:
+                pass
+    return entries
+
+
 def load_processed_ids(output_dir: Path) -> set[str]:
     """Load already-processed trace IDs from `metadata.jsonl`.
 
@@ -1049,24 +1151,45 @@ def load_processed_ids(output_dir: Path) -> set[str]:
     Returns:
         Set of trace IDs that have already been processed (may be empty).
     """
-    metadata_path = output_dir / "metadata.jsonl"
-    if not metadata_path.exists():
-        return set()
+    return set(load_metadata_entries(output_dir))
 
-    ids: set[str] = set()
-    with open(metadata_path, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entry = json.loads(line)
-                trace_id = entry.get("trace_id")
-                if trace_id:
-                    ids.add(trace_id)
-            except (json.JSONDecodeError, KeyError):
-                pass
-    return ids
+
+def summarize_trace_metadata(
+    rows: list[dict[str, Any]],
+    metadata_entries: dict[str, dict[str, Any]],
+) -> dict[str, int]:
+    """Compute whole-dataset trace statistics from the metadata file.
+
+    Only rows that belong to *rows* (matched by trace ID) are counted, so a
+    resumed run reports stats for the full dataset rather than just the
+    portion processed in the current run.
+
+    Args:
+        rows:             Full dataset rows (each with a "_trace_id" key).
+        metadata_entries: Mapping trace_id -> metadata entry (latest wins).
+
+    Returns:
+        Dict with keys: total, processed, success, failed, remaining.
+    """
+    total = len(rows)
+    success = 0
+    failed = 0
+    for r in rows:
+        entry = metadata_entries.get(str(r.get("_trace_id", "")))
+        if entry is None:
+            continue
+        if entry.get("status") == TRACE_STATUS_SUCCESS:
+            success += 1
+        else:
+            failed += 1
+    processed = success + failed
+    return {
+        "total": total,
+        "processed": processed,
+        "success": success,
+        "failed": failed,
+        "remaining": total - processed,
+    }
 
 
 def _extract_step_type(step: Any) -> str:
@@ -1095,26 +1218,39 @@ def _build_default_tools(timeout_seconds: int | None = None, language: str = "en
       - VisitWebpageTool       (fetch & convert webpage to Markdown)
       - WikipediaSearchTool    (search Wikipedia)
 
+    The search tools (DuckDuckGo region + Wikipedia language) are configured
+    from LANGUAGE_CONFIGS based on *language*.
+
     Args:
         timeout_seconds: Max execution time per code snippet.
-        language:        Language code for tool configuration.
-                         `"en"` -> default English tools.
-                         `"pt"` -> Portuguese Wikipedia + DDG region pt-br.
+        language:        Language code (default "en"). Must be a key of
+                         LANGUAGE_CONFIGS.
 
     Returns:
         List of Tool instances.
+
+    Raises:
+        ValueError: If *language* is not supported.
     """
     _patch_smolagents_execution_timeout()
     _patch_smolagents_binop_guard()
 
-    if language == "pt":
+    config = LANGUAGE_CONFIGS.get(language)
+    if config is None:
+        raise ValueError(
+            f"Unsupported language: {language!r}. Supported languages: "
+            f"{', '.join(sorted(LANGUAGE_CONFIGS))}."
+        )
+
+    ddg_region = config["ddg_region"]
+    if ddg_region == "wt-wt":
+        search_tool: Tool = DuckDuckGoSearchTool()
+    else:
         from tools import RegionDuckDuckGoSearchTool
 
-        search_tool: Tool = RegionDuckDuckGoSearchTool(region="pt-br")
-        wiki_tool = WikipediaSearchTool(language="pt")
-    else:
-        search_tool = DuckDuckGoSearchTool()
-        wiki_tool = WikipediaSearchTool(language="en")
+        search_tool = RegionDuckDuckGoSearchTool(region=ddg_region)
+
+    wiki_tool = WikipediaSearchTool(language=config["wikipedia_language"])
 
     tools: list[Tool] = [
         PythonInterpreterTool(timeout_seconds=timeout_seconds or 120),

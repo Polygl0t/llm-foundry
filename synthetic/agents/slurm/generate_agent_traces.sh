@@ -80,11 +80,11 @@ export DATASET_PATH="$workdir/data/samples.jsonl"                   # <-- Path t
 export PROMPT_COLUMN="prompt"                                       # <-- Column name for the prompt
 export ID_COLUMN="id"                                               # <-- Column name for trace IDs (empty = use prompt hashes)
 export GROUND_TRUTH_COLUMN="ground_truth"                           # <-- Column name for ground-truth answers (empty = none)
-export LANGUAGE="pt"                                                # <-- Language code for the search tools (DuckDuckGo and Wikipedia)
+export LANGUAGE="pt"                                                # <-- Language: system prompt + Wikipedia + DuckDuckGo region
 # ─── Agent ─────────────────────────────────────────────────────── #
 export MAX_STEPS=20                                                 # <-- Max agent steps per example
 export EXECUTOR_TIMEOUT=120                                         # <-- Max seconds per tool execution step
-export SYSTEM_PROMPT_FILE="$workdir/SISTEMA.yaml"                   # <-- Path to custom YAML prompt templates (empty = smolagents default)
+export SYSTEM_PROMPT_FILE=""                                        # <-- Optional override: custom YAML prompt file (empty = use prompts/<language>.yaml)
 
 # ─── Thinking & Planning ───────────────────────────────────────── #
 export ENABLE_THINKING="0"                                          # <-- Set to "1" to enable thinking/reasoning mode (Transformers/vLLM)

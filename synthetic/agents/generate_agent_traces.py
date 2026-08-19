@@ -8,7 +8,6 @@ Usage examples:
     python generate_agent_traces.py \\
         --model-type litellm \\
         --model-id deepseek/deepseek-v4-flash \\
-        --system-prompt-file SYSTEM.yaml \\
         --dataset data.jsonl \\
         --prompt-column prompt \\
         --ground-truth-column ground_truth \\
@@ -52,6 +51,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from utils import (
+    SUPPORTED_LANGUAGES,
     TRACE_STATUS_FAIL,
     TRACE_STATUS_SUCCESS,
     OutputManager,
@@ -60,9 +60,11 @@ from utils import (
     build_model,
     execute_single_trace,
     load_dataset,
+    load_metadata_entries,
     load_processed_ids,
     load_system_prompt,
     logger,
+    summarize_trace_metadata,
 )
 
 # Marker strings identifying an unrecoverable inference-engine crash (e.g. a
@@ -195,14 +197,21 @@ def main(args) -> None:
         model_kwargs=vllm_model_kwargs,
     )
 
-    # Load system prompt
-    prompt_templates = load_system_prompt(args.system_prompt_file)
+    # Load system prompt: an explicit --system-prompt-file takes precedence;
+    # otherwise use the bundled prompt for the selected language.
+    prompt_templates = load_system_prompt(args.system_prompt_file, language=args.language)
 
     # Prepare output directory
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Keep the full dataset (after --max-samples) so the progress counter and
+    # the final summary can report totals for the whole dataset rather than
+    # only the portion processed in this run.
+    all_rows = rows
+
     # Resume: skip traces already present in metadata.jsonl
+    skipped = 0
     if not args.no_resume:
         processed_ids = load_processed_ids(output_dir)
         if processed_ids:
@@ -220,8 +229,20 @@ def main(args) -> None:
     else:
         logger.info("📋 Resume disabled (--no-resume).")
 
+    dataset_total = len(all_rows)
+
     if not rows:
-        logger.info("🏁 All traces already processed. Nothing to do.")
+        metadata_entries = load_metadata_entries(output_dir)
+        stats = summarize_trace_metadata(all_rows, metadata_entries)
+        logger.info(
+            "🏁 All %d trace(s) in the dataset are already processed. Nothing to do.",
+            stats["processed"],
+        )
+        logger.info(
+            "   ✅ Success: %d | ❌ Failed: %d",
+            stats["success"],
+            stats["failed"],
+        )
         return
 
     # Create the consolidated output manager
@@ -234,12 +255,13 @@ def main(args) -> None:
     success_count = 0
     fail_count = 0
     consecutive_fast_failures = 0
-    total = len(rows)
 
     logger.info("─" * 72)
 
     for i, row in enumerate(rows):
-        idx = i + 1
+        # Global 1-based index within the full dataset, so a resumed run
+        # continues the counter.
+        idx = skipped + i + 1
         trace_id = row.get("_trace_id", f"row_{i}")
         prompt_snippet = str(row[args.prompt_column])[:100].replace("\n", " ")
 
@@ -296,7 +318,7 @@ def main(args) -> None:
             logger.info(
                 "[%d/%d] %s | ✅ %d steps %.1fs | %s ...",
                 idx,
-                total,
+                dataset_total,
                 trace_id[:12],
                 trace.num_steps,
                 trace.duration_seconds,
@@ -313,7 +335,7 @@ def main(args) -> None:
             logger.warning(
                 "[%d/%d] %s | ❌ %d steps %.1fs | %s ... | Error: %s",
                 idx,
-                total,
+                dataset_total,
                 trace_id[:12],
                 trace.num_steps,
                 trace.duration_seconds,
@@ -333,7 +355,7 @@ def main(args) -> None:
                     "fail too; fix/restart the engine and resume this run later.",
                     fatal_marker,
                     idx,
-                    total,
+                    dataset_total,
                     trace_id[:12],
                 )
                 # os._exit() to kill stuck ThreadPoolExecutor worker
@@ -360,7 +382,7 @@ def main(args) -> None:
                     consecutive_fast_failures,
                     FAST_FAIL_DURATION_THRESHOLD_SECONDS,
                     idx,
-                    total,
+                    dataset_total,
                     trace_id[:12],
                 )
                 # See note above: os._exit() to skip the at-exit thread-join.
@@ -368,11 +390,20 @@ def main(args) -> None:
                 sys.stderr.flush()
                 os._exit(1)
 
-    # Summary
+    # Summary report
+    metadata_entries = load_metadata_entries(output_dir)
+    stats = summarize_trace_metadata(all_rows, metadata_entries)
+
     logger.info("\n%s", "=" * 60)
-    logger.info("🏁 Done. %d trace(s) processed.", len(rows))
-    logger.info("   ✅ Success: %d", success_count)
-    logger.info("   ❌ Failed:  %d", fail_count)
+    logger.info("🏁 Done. This run processed %d trace(s).", len(rows))
+    logger.info(
+        "   📊 Dataset: %d total | %d processed | %d remaining",
+        stats["total"],
+        stats["processed"],
+        stats["remaining"],
+    )
+    logger.info("   ✅ Success: %d (this run: %d)", stats["success"], success_count)
+    logger.info("   ❌ Failed:  %d (this run: %d)", stats["failed"], fail_count)
     logger.info("   📂 Output:  %s", output_dir.resolve())
     if args.save_raw_traces:
         logger.info("      - raw_traces/       : full trace JSON arrays")
@@ -527,9 +558,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--language",
         default="en",
-        choices=["en", "pt"],
-        help="Language for tools: 'en' (default) or 'pt' "
-        "(Portuguese Wikipedia + DDG region pt-br).",
+        choices=SUPPORTED_LANGUAGES,
+        help="Language code that configures the whole system: the bundled "
+        "system prompt (prompts/<language>.yaml), the Wikipedia language, and "
+        "the DuckDuckGo search region. Defaults to 'en'.",
     )
     parser.add_argument(
         "--save-raw-traces",

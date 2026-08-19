@@ -1,5 +1,5 @@
 # =============================================================================
-# SYSTEM.YAML: Default system prompt for smolagent
+# en.yaml: Default English system prompt for smolagent
 # =============================================================================
 # This file contains the full prompt templates used by CodeAgent.
 #
