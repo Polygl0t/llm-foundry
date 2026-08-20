@@ -191,29 +191,11 @@ class TrainingArguments:
         metadata={
             "help": (
                 "Override the max_position_embeddings from the model config for context extension. "
-                "If set, this value replaces the config's max_position_embeddings. "
-                "Takes priority over `rope_scale_factor`. Only relevant for continual pretraining."
-            )
-        },
-    )
-    new_rope_theta: float | None = field(
-        default=None,
-        metadata={
-            "help": (
-                "Override the rope_theta from the model config for context extension. "
-                "When performing RoPE scaling, you typically need to increase both "
-                "max_position_embeddings and rope_theta."
-            )
-        },
-    )
-    rope_scale_factor: int | None = field(
-        default=None,
-        metadata={
-            "help": (
-                "Multiplier to scale the config's max_position_embeddings for context extension. "
-                "If set to a positive integer (> 1), the config's max_position_embeddings will be "
-                "multiplied by this factor. Ignored if `new_max_position_embeddings` is set. "
-                "E.g., 4096 * 4 = 16384"
+                "If set, this value replaces the config's max_position_embeddings and linear RoPE "
+                "scaling (position interpolation) is applied automatically. Only relevant for "
+                "continual pretraining. RECOMMENDATION: Increase the context length in a 4x multiple "
+                "of the original model's max_position_embeddings (e.g., 4k -> 16k -> 64k) to avoid "
+                "RoPE interpolation issues."
             )
         },
     )

@@ -27,8 +27,6 @@ use_kernels: false
 
 # Context extension overrides (only relevant for continual pretraining)
 new_max_position_embeddings: null
-new_rope_theta: null
-rope_scale_factor: null
 
 # Training settings
 total_batch_size: 2097152

@@ -359,26 +359,28 @@ def _load_model(
     """
     checkpoint_path = _resolve_checkpoint_path(args.resume_from_checkpoint)
 
-    if checkpoint_path is not None:
-        model = AutoModelForCausalLM.from_pretrained(
-            checkpoint_path,
-            dtype=precision,
-            attn_implementation=args.attn_implementation,
-            cache_dir=args.cache_dir,
-            **(
-                {"distributed_config": distributed_config} if distributed_config is not None else {}
-            ),
-            **({"use_kernels": True} if use_kernels else {}),
-        )
-        _log_message(
-            master_process,
-            logger,
-            file_logger,
-            f"Resumed model from checkpoint: {checkpoint_path}",
-        )
-        return model, checkpoint_path, False
-
     if not args.continual_pretraining:
+        if checkpoint_path is not None:
+            model = AutoModelForCausalLM.from_pretrained(
+                checkpoint_path,
+                dtype=precision,
+                attn_implementation=args.attn_implementation,
+                cache_dir=args.cache_dir,
+                **(
+                    {"distributed_config": distributed_config}
+                    if distributed_config is not None
+                    else {}
+                ),
+                **({"use_kernels": True} if use_kernels else {}),
+            )
+            _log_message(
+                master_process,
+                logger,
+                file_logger,
+                f"Resumed model from checkpoint: {checkpoint_path}",
+            )
+            return model, checkpoint_path, False
+
         _log_message(master_process, logger, file_logger, "Initializing model from `AutoConfig`.")
         return (
             _build_model_from_config(
@@ -393,55 +395,69 @@ def _load_model(
             False,
         )
 
+    # Continual pretraining / fine-tuning. The config may come from a resumed
+    # checkpoint (staged context extension, e.g. 4k -> 32k -> 64k) or from the
+    # base model (first stage). Context-extension overrides are applied to the
+    # config before the weights are loaded, in both cases.
+    config_source = checkpoint_path if checkpoint_path is not None else args.base_model
     _log_message(
         master_process,
         logger,
         file_logger,
-        f"Initializing model from base model: {args.base_model} for continual pretraining/fine-tuning.",
+        f"Resumed model from checkpoint for context extension: {checkpoint_path}"
+        if checkpoint_path is not None
+        else f"Initializing model from base model: {args.base_model} for continual pretraining/fine-tuning.",
     )
+
+    needs_context_extension = args.new_max_position_embeddings is not None
 
     config = None
-    needs_context_extension = (
-        args.new_max_position_embeddings is not None
-        or args.rope_scale_factor is not None
-        or args.new_rope_theta is not None
-    )
-
     if needs_context_extension:
-        config = AutoConfig.from_pretrained(args.base_model, cache_dir=args.cache_dir)
+        config = AutoConfig.from_pretrained(config_source, cache_dir=args.cache_dir)
         original_max_pos = config.max_position_embeddings
+        target_max_pos = args.new_max_position_embeddings
 
-        # Apply max_position_embeddings override (explicit value takes priority over scale factor)
-        if args.new_max_position_embeddings is not None:
-            config.max_position_embeddings = args.new_max_position_embeddings
-        elif args.rope_scale_factor is not None:
-            config.max_position_embeddings = int(
-                config.max_position_embeddings * args.rope_scale_factor
-            )
+        config.max_position_embeddings = target_max_pos
 
-        # Apply rope_theta override
-        if args.new_rope_theta is not None:
-            config.rope_theta = args.new_rope_theta
-        elif (
-            config.max_position_embeddings != original_max_pos
-            and master_process
-            and logger is not None
-        ):
-            # Warn if scaling positions without scaling theta
-            logger.info(
-                "WARNING: max_position_embeddings was scaled but rope_theta was not overridden. "
-                "Consider setting `new_rope_theta` to a larger value for context extension."
-            )
+        if target_max_pos > original_max_pos:
+            # Position interpolation ("linear" RoPE): positions are effectively
+            # divided by `factor`, so the pretrained frequencies are reused over
+            # the longer window. The factor is cumulative so staged extensions
+            # (4k -> 32k -> 64k) keep stacking correctly when resuming from a
+            # checkpoint that already carries a factor.
+            ratio = target_max_pos / original_max_pos
+            # Only auto-apply linear scaling when the source uses the default RoPE
+            # or a previous stage's linear scaling. A resumed staged checkpoint
+            # already carries rope_type="linear" + a factor; multiply into it so
+            # the cumulative factor keeps stacking. Other types (yarn, llama3,
+            # longrope, dynamic, ...) encode a different scaling scheme that we
+            # must not clobber.
+            current_rope_type = config.rope_parameters.get("rope_type", "default")
+            if current_rope_type in {"default", "linear"}:
+                config.rope_parameters["rope_type"] = "linear"
+                config.rope_parameters["factor"] = config.rope_parameters.get("factor", 1.0) * ratio
+            else:
+                _log_message(
+                    master_process,
+                    logger,
+                    file_logger,
+                    f"WARNING: the source model already uses "
+                    f"rope_type={current_rope_type!r}; skipping automatic "
+                    "linear scaling. Configure RoPE manually in the source model config.",
+                )
 
         _log_message(
             master_process,
             logger,
             file_logger,
-            f"Context extension: max_position_embeddings={config.max_position_embeddings}, rope_theta={config.rope_theta}.",
+            f"Context extension: max_position_embeddings={config.max_position_embeddings}, "
+            f"rope_type={config.rope_parameters.get('rope_type', 'default')}, "
+            f"factor={config.rope_parameters.get('factor', 1.0):g}, "
+            f"rope_theta={config.rope_parameters['rope_theta']}.",
         )
 
     model = AutoModelForCausalLM.from_pretrained(
-        args.base_model,
+        config_source,
         dtype=precision,
         attn_implementation=args.attn_implementation,
         cache_dir=args.cache_dir,
@@ -458,7 +474,7 @@ def _load_model(
         _freeze_non_attention_blocks(model, master_process, logger, file_logger)
         non_attention_frozen = True
 
-    return model, None, non_attention_frozen
+    return model, checkpoint_path, non_attention_frozen
 
 
 def _resize_embeddings_for_tokenizer(

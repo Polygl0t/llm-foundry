@@ -1166,6 +1166,123 @@ def test_prepare_training_components_continual_resizes_embeddings_to_tokenizer()
         shutil.rmtree(tmpdir)
 
 
+def test_prepare_training_components_context_extension_linear_rope():
+    """Context extension applies linear RoPE scaling and freezes non-attention blocks."""
+    from transformers import LlamaConfig, LlamaForCausalLM
+
+    tmpdir = tempfile.mkdtemp()
+    try:
+        base_model_dir = os.path.join(tmpdir, "base_model")
+        os.makedirs(base_model_dir, exist_ok=True)
+        base_config = LlamaConfig(
+            vocab_size=_tokenizer.vocab_size,
+            hidden_size=16,
+            intermediate_size=32,
+            num_hidden_layers=1,
+            num_attention_heads=4,
+            num_key_value_heads=2,
+            max_position_embeddings=64,
+        )
+        LlamaForCausalLM(base_config).save_pretrained(base_model_dir)
+
+        args = TrainingArguments(
+            base_model=base_model_dir,
+            tokenizer_name_or_path=_TINY_TOKENIZER_NAME,
+            continual_pretraining=True,
+            new_max_position_embeddings=128,
+            attn_implementation="eager",
+            cache_dir=tmpdir,
+            checkpoint_dir=tmpdir,
+            stage_name="test",
+            torch_compile=False,
+            use_liger_kernel=False,
+            gradient_checkpointing=False,
+            mat_mul_precision="highest",
+            tf32=False,
+            bf16=False,
+        )
+        result = prepare_training_components(args=args, device="cpu", master_process=True)
+
+        assert result.model.config.max_position_embeddings == 128
+        assert result.model.config.rope_parameters["rope_type"] == "linear"
+        assert result.model.config.rope_parameters["factor"] == 2.0
+        assert result.non_attention_frozen is True
+        assert result.args.max_position_embeddings == 128
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+def test_prepare_training_components_staged_context_extension_accumulates_factor():
+    """Staged extension (resume + extend again) multiplies the linear RoPE factor cumulatively."""
+    from transformers import LlamaConfig, LlamaForCausalLM
+
+    tmpdir = tempfile.mkdtemp()
+    try:
+        base_model_dir = os.path.join(tmpdir, "base_model")
+        os.makedirs(base_model_dir, exist_ok=True)
+        base_config = LlamaConfig(
+            vocab_size=_tokenizer.vocab_size,
+            hidden_size=16,
+            intermediate_size=32,
+            num_hidden_layers=1,
+            num_attention_heads=4,
+            num_key_value_heads=2,
+            max_position_embeddings=64,
+        )
+        LlamaForCausalLM(base_config).save_pretrained(base_model_dir)
+
+        # Stage 1: 64 -> 128 (factor 2).
+        stage1_args = TrainingArguments(
+            base_model=base_model_dir,
+            tokenizer_name_or_path=_TINY_TOKENIZER_NAME,
+            continual_pretraining=True,
+            new_max_position_embeddings=128,
+            attn_implementation="eager",
+            cache_dir=tmpdir,
+            checkpoint_dir=tmpdir,
+            stage_name="test",
+            torch_compile=False,
+            use_liger_kernel=False,
+            gradient_checkpointing=False,
+            mat_mul_precision="highest",
+            tf32=False,
+            bf16=False,
+        )
+        stage1 = prepare_training_components(args=stage1_args, device="cpu", master_process=True)
+        assert stage1.model.config.rope_parameters["factor"] == 2.0
+
+        # Persist stage-1 weights as a step checkpoint so resume resolves it.
+        step_dir = os.path.join(tmpdir, "stage1_ckpt", "step_00001")
+        os.makedirs(step_dir, exist_ok=True)
+        stage1.model.save_pretrained(step_dir)
+
+        # Stage 2: resume the 128-length checkpoint and extend to 256
+        # (ratio 2x, cumulative factor 2 * 2 = 4).
+        stage2_args = TrainingArguments(
+            resume_from_checkpoint=os.path.dirname(step_dir),
+            tokenizer_name_or_path=_TINY_TOKENIZER_NAME,
+            continual_pretraining=True,
+            new_max_position_embeddings=256,
+            attn_implementation="eager",
+            cache_dir=tmpdir,
+            checkpoint_dir=tmpdir,
+            stage_name="test",
+            torch_compile=False,
+            use_liger_kernel=False,
+            gradient_checkpointing=False,
+            mat_mul_precision="highest",
+            tf32=False,
+            bf16=False,
+        )
+        stage2 = prepare_training_components(args=stage2_args, device="cpu", master_process=True)
+
+        assert stage2.model.config.max_position_embeddings == 256
+        assert stage2.model.config.rope_parameters["rope_type"] == "linear"
+        assert stage2.model.config.rope_parameters["factor"] == 4.0
+    finally:
+        shutil.rmtree(tmpdir)
+
+
 def _make_mock_config(**kwargs):
     """Create a lightweight mock config object for _compute_active_trainable_params tests."""
 
@@ -1477,6 +1594,8 @@ if __name__ == "__main__":
         test_create_tokenizer_no_source_continual_raises,
         test_prepare_training_components_cpu_without_tokenizer,
         test_prepare_training_components_continual_resizes_embeddings_to_tokenizer,
+        test_prepare_training_components_context_extension_linear_rope,
+        test_prepare_training_components_staged_context_extension_accumulates_factor,
         test_active_params_dense_and_single_expert_models,
         test_active_params_qwen_moe,
         test_active_params_granite_moe,
