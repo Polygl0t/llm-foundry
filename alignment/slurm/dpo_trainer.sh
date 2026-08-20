@@ -105,7 +105,7 @@ echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --ve
 # - `--use_liger_kernel` \ BUG in liger kernel with DPO training
 #############################################
 
-export LAUNCHER="accelerate launch --config_file $workdir/llm-foundry/alignment/.ddp_config.yaml"
+export LAUNCHER="accelerate launch --config_file $workdir/llm-foundry/alignment/configs/.ddp_config.yaml"
 
 export PYTHON_FILE="$workdir/llm-foundry/alignment/dpo_trainer.py"
 

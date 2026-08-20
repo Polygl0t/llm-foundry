@@ -64,7 +64,7 @@ source $workdir/.venv_intel/bin/activate
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export HF_DATASETS_CACHE="$workdir/.cache/$SLURM_JOB_ID"
 export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE"
-export CONFIG_FOLDER="$workdir/.configs"
+export CONFIG_FOLDER="$workdir/llm-foundry/data/cc/.configs"
 export DATA_FOLDER="$workdir/bengali/bengali_text"
 export LOGS_FOLDER="$workdir/bengali/logs"
 export FINAL_OUTPUT_FOLDER="$workdir/bengali/final_output"

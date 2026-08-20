@@ -4,6 +4,7 @@ Dataset filtering and annotation pipelines for text corpus curation. This folder
 
 ## Contents
 
+- [`/configs`](./configs) — Configuration files for distributed training with Accelerate.
 - [`/slurm`](./slurm) — Folder containing SLURM job scripts for cluster-managed environments. Before submitting, update the scripts with your cluster-specific settings and correct paths for your artifacts/workspace. **These are templates, not ready-to-run scripts.**
 - [`language_filter.py`](./language_filter.py) — Filters datasets by language using one of two backends: `langdetect` (probabilistic) or `unicode` (Unicode character-range heuristics).
 - [`minhash.py`](./minhash.py) — MinHash-based fuzzy deduplication pipeline using DataTrove and LSH.

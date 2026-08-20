@@ -200,7 +200,7 @@ sleep "$VLLM_STARTUP_WAIT"
 
 srun --nodes="$train_num_machines" --ntasks="$train_num_machines" --nodelist="$train_node_list" \
     bash -lc 'accelerate launch \
-    --config_file "$workdir/llm-foundry/alignment/.ddp_config.yaml" \
+    --config_file "$workdir/llm-foundry/alignment/configs/.ddp_config.yaml" \
     --num_processes "$TRAIN_NUM_PROCESSES" \
     --num_machines "$TRAIN_NUM_MACHINES" \
     --machine_rank "$SLURM_PROCID" \

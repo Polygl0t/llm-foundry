@@ -117,7 +117,7 @@ count_available_warc_paths() {
 # CommonCrawl Processing Variables
 #############################################
 export DUMP="CC-MAIN-2025-30"                                               # <-- Change to your desired CommonCrawl dump
-export CONFIG_FOLDER="$workdir/llm-foundry/data/.configs"                   # <-- Change to your configuration folder if needed
+export CONFIG_FOLDER="$workdir/llm-foundry/data/cc/.configs"                # <-- Change to your configuration folder if needed
 export WARC_FILES_FOLDER="$workdir/common_crawl/$DUMP/warc_files"           # <-- Change to your desired WARC files folder if needed
 export LOGS_FOLDER="$workdir/common_crawl/$DUMP/logs"                       # <-- Change to your desired logs folder if needed
 export WARC_EXTRACTION_OUTPUT="$workdir/common_crawl/$DUMP/extracted_data"  # <-- Change to your desired WARC extraction output folder if needed

@@ -4,6 +4,7 @@ Alignment-related training scripts and utilities for the post-training phase and
 
 ## Contents
 
+- [`/configs`](./configs) — Configuration files for distributed training with Accelerate.
 - [`/gym`](./gym) — Codebase to generate tasks with verifiable rewards for RLVR-style training.
 - [`/slurm`](./slurm) — Folder containing SLURM job scripts for cluster-managed environments. Before submitting, update the scripts with your cluster-specific settings and correct paths for your artifacts/workspace. **These are templates, not ready-to-run scripts.**
 - [`dpo_trainer.py`](./dpo_trainer.py) — DPO training with chosen/rejected response pairs.

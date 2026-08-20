@@ -104,7 +104,7 @@ echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --ve
 # - https://huggingface.co/docs/accelerate/package_reference/cli
 #############################################
 
-export LAUNCHER="accelerate launch --config_file $workdir/llm-foundry/alignment/.ddp_config.yaml"
+export LAUNCHER="accelerate launch --config_file $workdir/llm-foundry/alignment/configs/.ddp_config.yaml"
 
 export PYTHON_FILE="$workdir/llm-foundry/alignment/sft_trainer.py"
 
