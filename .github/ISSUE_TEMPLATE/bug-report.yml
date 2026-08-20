@@ -58,7 +58,7 @@ body:
         - label: "Synthetic data (`synthetic/`)"
         - label: "Model merging (`merge/`)"
         - label: "Tokenizer (`tokenizer/`)"
-        - label: "Other / utilities (`utils/`)"
+        - label: "Other / tools (`tools/`)"
 
   - type: textarea
     id: reproduction

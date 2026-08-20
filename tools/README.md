@@ -1,12 +1,10 @@
-# Utilities
+# Tools
 
-This folder contains miscellaneous utility scripts and helpers for working with models, datasets, and training pipelines.
+This folder contains miscellaneous tools, scripts, and helpers for working with models, datasets, and training pipelines.
 
 ## Contents
 
-- [`baf/`](./baf/) — Documentation for how to work with the BAF (aka, Optimus Prime) Cluster.
-- [`jupiter/`](./jupiter/) — Documentation for how to work with the JSC Jupiter booster.
-- [`/slurm`](./slurm) — Folder containing SLURM job scripts for cluster-managed environments. Before submitting, update the scripts with your cluster-specific settings and correct paths for your artifacts/workspace. **These are templates, not ready-to-run scripts.**
+- [`slurm/`](./slurm) — Folder containing SLURM job scripts for cluster-managed environments. Before submitting, update the scripts with your cluster-specific settings and correct paths for your artifacts/workspace. **These are templates, not ready-to-run scripts.**
 - [`compute_hyperparams.py`](./compute_hyperparams.py) — Compute training hyperparameters like learning rate, batch size, and steps based on model size and training configuration (uses the heuristics from the [DeepSeek LLM scaling laws paper](https://arxiv.org/abs/2401.02954)).
 - [`convert_dataset_to_hf.py`](./convert_dataset_to_hf.py) — Convert JSONL or Parquet dataset shards into a Hugging Face Dataset format and optionally upload it to the Hub.
 - [`count_tokens.py`](./count_tokens.py) — Create token count reports for a pretraining corpus.
@@ -33,7 +31,7 @@ Compute training hyperparameters based on model size and training configuration.
 
 Example:
 ```bash
-python utils/compute_hyperparams.py \
+python tools/compute_hyperparams.py \
   --n-layer 28 \
   --d-model 1536 \
   --l-seq 4096 \
@@ -53,7 +51,7 @@ Convert a dataset directory to HF format.
 
 Example:
 ```bash
-python utils/convert_dataset_to_hf.py \
+python tools/convert_dataset_to_hf.py \
   --directory_path ./data/my_dataset \
   --dataset_type jsonl \
   --output_path ./data/hf_dataset \
@@ -79,7 +77,7 @@ Generate token counts for a tokenized dataset.
 
 Example:
 ```bash
-python utils/count_tokens.py --main-dir ./data/tokenized --output-file token_report.txt
+python tools/count_tokens.py --main-dir ./data/tokenized --output-file token_report.txt
 ```
 
 Main parameters:
@@ -91,7 +89,7 @@ Download a repository from Hugging Face Hub.
 
 Example:
 ```bash
-python utils/download.py \
+python tools/download.py \
   --repo_name Polygl0t/some-dataset \
   --output_dir ./downloads/some-dataset \
   --cache_dir ./cache \
@@ -114,10 +112,10 @@ GPU communication benchmark that runs all_reduce (SUM) on gradient tensors for a
 Example:
 ```bash
 # Via SLURM:
-srun --cpu-bind=none python utils/distributed_test.py
+srun --cpu-bind=none python tools/distributed_test.py
 
 # Via torchrun:
-torchrun --nproc-per-node=<N> utils/distributed_test.py
+torchrun --nproc-per-node=<N> tools/distributed_test.py
 ```
 
 Main parameters:
@@ -135,7 +133,7 @@ Example:
 source "./.venv/bin/activate" # <-- Activate the same environment you want to diagnose with env-doctor
 env-doctor check
 # Or just run the full SLURM batch script to see environment details and run env-doctor:
-# sbatch utils/slurm/env_doctor.sh
+# sbatch tools/slurm/env_doctor.sh
 ```
 
 ### `extract_reasoning_traces.py`
@@ -149,7 +147,7 @@ Main parameters:
 
 Example:
 ```bash
-python utils/extract_reasoning_traces.py "./data/conversational_dataset.jsonl" \
+python tools/extract_reasoning_traces.py "./data/conversational_dataset.jsonl" \
  --output "./data/reasoning_traces.jsonl" \
  --id-column "id" \
  --encoding "utf-8"
@@ -160,7 +158,7 @@ Run inference on a model using sample inputs.
 
 Example:
 ```bash
-python utils/inference_test.py \
+python tools/inference_test.py \
   --model_path ./models/my-model \
   --samples_file ./samples/test_samples.json \
   --output_file ./outputs/inference_results.json \
@@ -185,7 +183,7 @@ Inspect a model configuration and count parameters.
 
 Example:
 ```bash
-python utils/inspect_model.py \
+python tools/inspect_model.py \
   --config_path ./models/my-model/config.json \
   --base_model gpt2 \
   --precision bfloat16 \
@@ -203,7 +201,7 @@ Launch a Trackio dashboard for logging and visualizing training metrics.
 
 Example:
 ```bash
-python utils/launch_trackio.py \
+python tools/launch_trackio.py \
   --project MyProjectName \
   --db-dir ./MyProjectName
 ```
@@ -229,7 +227,7 @@ Parse training logs and optional emissions data.
 
 Example:
 ```bash
-python utils/parse_run.py \
+python tools/parse_run.py \
   --log ./logs/training.log \
   --emissions ./logs/emissions.csv \
   --nodes 8 \
@@ -258,7 +256,7 @@ Reset model weights in place or save the modified model.
 
 Example:
 ```bash
-python utils/reset_weights.py \
+python tools/reset_weights.py \
   --model ./models/my-model \
   --output_dir ./models/my-model-reset \
   --device cuda:0 \
@@ -280,7 +278,7 @@ Check and resize model embeddings to match the tokenizer.
 
 Example:
 ```bash
-python utils/resize_embedding_layer.py ./models/my-model \
+python tools/resize_embedding_layer.py ./models/my-model \
   --output-dir ./models/my-model-resized \
   --resize \
   --pad-to-multiple-of 64 \
@@ -301,7 +299,7 @@ Upload checkpoint step folders to a Hugging Face repo.
 
 Example:
 ```bash
-python utils/upload_ckpts_to_hf.py \
+python tools/upload_ckpts_to_hf.py \
   --repo_id username/my-checkpoint-repo \
   --root_dir ./checkpoints \
   --token $HF_TOKEN
@@ -317,7 +315,7 @@ Upload a file or folder quickly to a Hugging Face repo.
 
 Example:
 ```bash
-python utils/upload_quick.py \
+python tools/upload_quick.py \
   --repo username/my-repo \
   --repo-type model \
   --token $HF_TOKEN \
@@ -339,7 +337,7 @@ Upload a directory to the Hugging Face Hub.
 
 Example:
 ```bash
-python utils/upload.py \
+python tools/upload.py \
   --main_dir ./output \
   --new_repo_id username/new-repo \
   --private \

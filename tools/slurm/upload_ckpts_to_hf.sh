@@ -73,7 +73,7 @@ echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --ve
 # Main Job Execution
 #############################################
 
-python3 "$workdir/llm-foundry/utils/upload_ckpts_to_hf.py" \
+python3 "$workdir/llm-foundry/tools/upload_ckpts_to_hf.py" \
     --repo_id "Polygl0t/LilTii-v0.2" \
     --root_dir "$workdir/ckps/liltii_v0_2" 1>>"$out" 2>>"$err"
 

@@ -75,7 +75,7 @@ echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --ve
 # Main Job Execution
 #############################################
 
-python3 "$workdir/llm-foundry/utils/download.py" \
+python3 "$workdir/llm-foundry/tools/download.py" \
     --repo_name "Polygl0t/bengali-edu-qwen-annotations" \
     --output_dir "$workdir/bengali_edu_qwen_annotations" \
     --cache_dir "$HF_DATASETS_CACHE" \

@@ -162,8 +162,8 @@ The only thing that is different from running the training pipeline on other SLU
 
 We provide example files in:
 
-- [`utils/baf/job.jdl`](./job.jdl) — HTCondor job description file. You can modify it to change the resources you need for your training job (e.g., GPUs, CPUs, memory). Check the script for details.
-- [`utils/baf/train_ddp.sh`](./train_ddp.sh) — bash script that extracts the venv, sets up env vars, and launches the training script. You can modify it to change the packages you need to install in the venv.
+- [`docs/baf/job.jdl`](./job.jdl) — HTCondor job description file. You can modify it to change the resources you need for your training job (e.g., GPUs, CPUs, memory). Check the script for details.
+- [`docs/baf/train_ddp.sh`](./train_ddp.sh) — bash script that extracts the venv, sets up env vars, and launches the training script. You can modify it to change the packages you need to install in the venv.
 
 >  **Note:** Before doing a git-clone, check this section: [git-clone fails with Permission error on $BUDDY](#git-clone-fails-with-permission-error-on-buddy)
 
@@ -229,7 +229,7 @@ Run in `screen` to survive disconnects:
 screen -S download
 
 # Example: downloading a dataset from HuggingFace. You can change the repo_name, output_dir (point to $BUDDY), cache_dir (point to $BUDDY), hf_token, repo_type and allow_patterns as needed.
-python3 llm-foundry/utils/download.py \
+python3 llm-foundry/tools/download.py \
     --repo_name "Polygl0t/gigalekh-v1" \
     --output_dir "$BUDDY" \
     --cache_dir "$BUDDY/.cache" \

@@ -1,46 +1,38 @@
 #!/bin/bash
-# Simple download script for HuggingFace repos on the JSC JUPITER login node.
+# Simple download script for HuggingFace datasets on BAF login node.
 # Edit the variables below, then run:
 #   bash download.sh
 #
 # Notes:
-# - Run on a login node (jpbl-*), NOT as a cluster job (no sbatch/salloc).
-# - Best run inside screen/tmux: screen -S download && bash download.sh
-# - Point output_dir and cache_dir to your project directory
-#   (e.g. /e/project1/polyglot), not to your home directory.
+# - Run on the login node (desktop12.physik.uni-bonn.de), NOT as a cluster job.
+# - Best run inside screen: screen -S download && bash scripts/download.sh
+# - Point output_dir and cache_dir to $BUDDY, not to your home directory.
 set -e
 
 # ═══════════════════════════════════════════
 #  EDIT THESE VARIABLES
 # ═══════════════════════════════════════════
-export workdir="/e/project1/polyglot"
-export repo_name="Polygl0t/gigaverbo-v2"
-export output_dir="$workdir/data/portuguese/text"
-export cache_dir="$workdir/.cache"
-export token="$HF_TOKEN"  # <-- Set this to your HuggingFace token (or leave empty for public repos)
+export repo_name="Polygl0t/gigalekh-v1"
+export output_dir="$BUDDY/data"
+export cache_dir="$BUDDY/.cache"
+export token="$HF_TOKEN"
 export repo_type="dataset"
-export allow_patterns="*"
-export foundry_dir="$workdir/llm-foundry"
-export venv_dir="$workdir/.venv"
-export modules_script="$workdir/jupiter_modules_2026.sh"
+export allow_patterns="default/*.parquet"
+export foundry_dir="$HOME/llm-foundry"
+export venv_dir="$HOME/.venv"
 # ═══════════════════════════════════════════
-
-# ---- Clone the llm-foundry repo if it doesn't exist ----
-if [ ! -d "$foundry_dir" ]; then
-    echo "===== Cloning llm-foundry ====="
-    git clone https://github.com/Polygl0t/llm-foundry.git "$foundry_dir"
-fi
 
 # ---- Load modules ----
 echo "===== Loading modules ====="
-source "$modules_script"
+module load miniforge/24.7.1-0-py312
 
-# ---- Load the virtual environment ----
+# ---- Create lightweight venv (comment out if you already have one) ----
+python3 -m venv "$venv_dir"
 source "$venv_dir/bin/activate"
 
 # ---- Install huggingface_hub (comment out if you already have it) ----
-# pip3 install --upgrade pip -q
-# pip3 install huggingface_hub -q
+pip3 install --upgrade pip -q
+pip3 install huggingface_hub -q
 
 # ---- Alternatively, install with uv (comment out if you already have it) ----
 # pip3 install uv
@@ -55,7 +47,7 @@ echo "  Repo:        $repo_name"
 echo "  Output:      $output_dir"
 echo "  Cache:       $cache_dir"
 
-python3 "$foundry_dir/utils/download.py" \
+python3 "$foundry_dir/tools/download.py" \
     --repo_name "$repo_name" \
     --output_dir "$output_dir" \
     --cache_dir "$cache_dir" \

@@ -77,7 +77,10 @@ The code base is organized into the following main folders:
   - [`synthetic/agents/`](synthetic/agents/) — Agent-based trace generation using [smolagents](https://github.com/huggingface/smolagents). Records multi-step CodeAgent reasoning traces for downstream training. See [`synthetic/agents/README.md`](synthetic/agents/README.md).
 - [`tests/`](tests/) — Unit and integration tests for our code base.
 - [`tokenizer/`](tokenizer/) — Scripts for training and evaluating tokenizers.
-- [`utils/`](utils/) — Miscellaneous utilities for our code base.
+- [`tools/`](tools/) — Miscellaneous tools and utilities for our code base.
+- [`docs/`](docs/) — Cluster-specific documentation for running the code base on other systems.
+  - [`docs/baf/`](docs/baf/) — How to run jobs on the BAF (Bonn Analysis Facility) cluster. See [`docs/baf/README.md`](docs/baf/README.md).
+  - [`docs/jupiter/`](docs/jupiter/) — How to run jobs on the JSC Jupiter booster. See [`docs/jupiter/README.md`](docs/jupiter/README.md).
 
 ## Installation
 
@@ -87,10 +90,10 @@ All of our codebase is designed primarily to run on Marvin or Bender, i.e., the 
 
 On Marvin, we work with [workspaces](https://wiki.hpc.uni-bonn.de/en/marvin/workspaces) that are allocated with a specific [file system](https://wiki.hpc.uni-bonn.de/en/marvin/filesystems).
 
-Use [`utils/slurm/marvin_create_workspace.sh`](utils/slurm/marvin_create_workspace.sh) to allocate a workspace, clone the repository, and prepare the directory layout. Open the script first and edit the user customization section at the top (`username`, `file_system`, `work_group`, `email`, `workspace_name`) to match your account, then run it from a Marvin login node:
+Use [`tools/slurm/marvin_create_workspace.sh`](tools/slurm/marvin_create_workspace.sh) to allocate a workspace, clone the repository, and prepare the directory layout. Open the script first and edit the user customization section at the top (`username`, `file_system`, `work_group`, `email`, `workspace_name`) to match your account, then run it from a Marvin login node:
 
 ```bash
-bash utils/slurm/marvin_create_workspace.sh
+bash tools/slurm/marvin_create_workspace.sh
 ```
 
 For Bender users, `/home/$USER` is the default workspace directory, so you can just clone the repository there and start working.
@@ -119,9 +122,9 @@ LLM_FOUNDRY_STACK=intel source "$workdir/.modules.sh"   # CPU/data stack
 
 Sourcing prints whose stack was selected, why, and the resulting module list, so your job logs always show the resolved environment.
 
-> - If you are working on JSC Jupiter, things work a little differently. See [`utils/jupiter/README.md`](utils/jupiter/README.md) for JSC-specific module and installation scripts.
+> - If you are working on JSC Jupiter, things work a little differently. See [`docs/jupiter/README.md`](docs/jupiter/README.md) for JSC-specific module and installation scripts.
 >
-> - If you are working in BAF, things also work a little differently. See [`utils/baf/README.md`](utils/baf/README.md) for how to run jobs on it. BAF uses containers (HTCondor) instead of SLURM.
+> - If you are working in BAF, things also work a little differently. See [`docs/baf/README.md`](docs/baf/README.md) for how to run jobs on it. BAF uses containers (HTCondor) instead of SLURM.
 
 ### Installing Dependencies
 
@@ -141,7 +144,7 @@ For example:
 pip install -e "./llm-foundry/.[distributed]"
 ```
 
-> **NOTE: Some dependency stacks are hard to build.** For example, when several libraries (e.g., `torch`, `liger-kernel`, `flash-attn`, `causal-conv1d`, etc.) have to live together and share the same `nvcc` compiler, building this environment can be a real nightmare. For some of the environments we use, we have dedicated `create_venv` scripts that take care of all of the complexity of this build (e.g., `distributed/slurm/create_venv_marvin.sh`, `utils/jupiter/jupiter_installation_2026.sh`, `utils/baf/create_venv.sh`). In these cases, we recommend using those scripts instead of praying to the gods that `pip` or `uv` will find their way through the forest of incompatibilities.
+> **NOTE: Some dependency stacks are hard to build.** For example, when several libraries (e.g., `torch`, `liger-kernel`, `flash-attn`, `causal-conv1d`, etc.) have to live together and share the same `nvcc` compiler, building this environment can be a real nightmare. For some of the environments we use, we have dedicated `create_venv` scripts that take care of all of the complexity of this build (e.g., `distributed/slurm/create_venv_marvin.sh`, `docs/jupiter/jupiter_installation_2026.sh`, `docs/baf/create_venv.sh`). In these cases, we recommend using those scripts instead of praying to the gods that `pip` or `uv` will find their way through the forest of incompatibilities.
 
 #### Installing with `uv`
 

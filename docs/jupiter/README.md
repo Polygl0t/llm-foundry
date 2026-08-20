@@ -6,7 +6,7 @@ plus a quick reference on how to run jobs on JUPITER.
 ## What is included
 
 - [`download.sh`](download.sh) — Simple download script for HuggingFace repos on the JSC JUPITER login node.
-- [`jupiter_modules_2026.sh`](jupiter_modules_2026.sh) — a module setup script for the JSC Stages/2026 software stack. This is equivalent to the [`.modules.sh`](../.modules.sh) script that we use for the other clusters, but it is tailored to the JSC environment.
+- [`jupiter_modules_2026.sh`](jupiter_modules_2026.sh) — a module setup script for the JSC Stages/2026 software stack. This is equivalent to the [`.modules.sh`](../../.modules.sh) script that we use for the other clusters, but it is tailored to the JSC environment.
 - [`jupiter_installation_2026.sh`](jupiter_installation_2026.sh) — an installation script that creates a Python virtual environment, installs the project dependencies, and builds or installs CUDA-aware PyTorch and attention extensions for the 2026 stack.
 
 > - **Note:** On Jupiter/JSC, we do not have internet access from the compute nodes, so the installation script must be run on a login node.
@@ -18,7 +18,7 @@ This will install all necessary dependencies and build a distributed training en
 Example:
 
 ```bash
-bash llm-foundry/utils/jupiter/jupiter_installation_2026.sh
+bash llm-foundry/docs/jupiter/jupiter_installation_2026.sh
 ```
 
 ---

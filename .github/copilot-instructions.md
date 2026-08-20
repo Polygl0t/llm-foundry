@@ -13,7 +13,8 @@ This file provides guidance for code agents (e.g. GitHub Copilot) working with t
 - `synthetic/` — Synthetic data generation with vLLM + DataTrove, plus agent-based traces with `smolagents`.
 - `tests/` — Standalone unit and integration test scripts.
 - `tokenizer/` — Tokenizer training and evaluation (SentencePiece and HF Tokenizers).
-- `utils/` — Miscellaneous utilities (downloads, uploads, model inspection, etc.).
+- `tools/` — Miscellaneous tools and utilities (downloads, uploads, model inspection, etc.).
+- `docs/` — Cluster-specific documentation (BAF, JSC Jupiter).
 
 ## Coding Conventions
 
@@ -27,7 +28,7 @@ This file provides guidance for code agents (e.g. GitHub Copilot) working with t
 
 - This codebase primarily runs on the University of Bonn HPC clusters (Marvin, Bender), which have dual AMD/Intel software stacks.
 - Source `.modules.sh` from the repo root to load the correct stack; it auto-detects from SLURM. Force it with `LLM_FOUNDRY_STACK=amd` or `LLM_FOUNDRY_STACK=intel` when there is no SLURM context.
-- Some dependency stacks are hard to build (e.g., `torch`, `liger-kernel`, `flash-attn`, `causal-conv1d` sharing one `nvcc`). Where a dedicated `create_venv` script exists (e.g., `distributed/slurm/create_venv_marvin.sh`, `utils/jupiter/jupiter_installation_2026.sh`, `utils/baf/create_venv.sh`), prefer it over ad-hoc `pip`/`uv` installs.
+- Some dependency stacks are hard to build (e.g., `torch`, `liger-kernel`, `flash-attn`, `causal-conv1d` sharing one `nvcc`). Where a dedicated `create_venv` script exists (e.g., `distributed/slurm/create_venv_marvin.sh`, `docs/jupiter/jupiter_installation_2026.sh`, `docs/baf/create_venv.sh`), prefer it over ad-hoc `pip`/`uv` installs.
 
 ## Testing
 

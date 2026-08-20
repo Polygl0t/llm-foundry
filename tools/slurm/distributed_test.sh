@@ -115,7 +115,7 @@ echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --ve
 # Learn more about SLURM options at:
 # - https://slurm.schedmd.com/srun.html
 #############################################
-srun --cpu-bind=none python3 "$workdir/llm-foundry/utils/distributed_test.py" \
+srun --cpu-bind=none python3 "$workdir/llm-foundry/tools/distributed_test.py" \
     --n-warmup 5 --n-iter 20 --dtype bfloat16 1>>"$out" 2>>"$err"
 
 #############################################

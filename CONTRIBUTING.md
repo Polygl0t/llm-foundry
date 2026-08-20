@@ -44,10 +44,10 @@ LLM Foundry runs on the [Marvin cluster](https://www.hpc.uni-bonn.de/) (Universi
 
 In short:
 
-- **Create a workspace on the cluster.** Use `utils/marvin_create_workspace.sh` to allocate a workspace, clone the repository, and prepare the directory layout. Open the script first and edit the user customization section at the top (`username`, `file_system`, `work_group`, `email`, `workspace_name`) to match your account, then run it from a Marvin login node:
+- **Create a workspace on the cluster.** Use `tools/slurm/marvin_create_workspace.sh` to allocate a workspace, clone the repository, and prepare the directory layout. Open the script first and edit the user customization section at the top (`username`, `file_system`, `work_group`, `email`, `workspace_name`) to match your account, then run it from a Marvin login node:
 
     ```bash
-    bash utils/marvin_create_workspace.sh
+    bash tools/slurm/marvin_create_workspace.sh
     ```
 
     The script also contains commented step-by-step instructions for creating the per-config virtual environments (`.venv_data`, `.venv_distributed`, `.venv_synth`, `.venv_trl`) and submitting the `pip install` jobs to the right partition. You **don't** need any of this on your local machine - only on the cluster.
@@ -78,7 +78,7 @@ pip install -e ".[distributed]"  # for DDP/FSDP training
 pip install -e ".[tests]"        # for running the test suite
 ```
 
-> **NOTE: Some dependency stacks are hard to build.** For example, when several libraries (e.g., `torch`, `liger-kernel`, `flash-attn`, `causal-conv1d`, etc.) have to live together and share the same `nvcc` compiler, building this environment can be a real nightmare. For some of the environments we use, we have dedicated `create_venv` scripts that take care of all of the complexity of this build (e.g., `distributed/slurm/create_venv_marvin.sh`, `utils/jupiter/jupiter_installation_2026.sh`, `utils/baf/create_venv.sh`). In these cases, we recommend using those scripts instead of praying to the gods that `pip` or `uv` will find their way through the forest of incompatibilities.
+> **NOTE: Some dependency stacks are hard to build.** For example, when several libraries (e.g., `torch`, `liger-kernel`, `flash-attn`, `causal-conv1d`, etc.) have to live together and share the same `nvcc` compiler, building this environment can be a real nightmare. For some of the environments we use, we have dedicated `create_venv` scripts that take care of all of the complexity of this build (e.g., `distributed/slurm/create_venv_marvin.sh`, `docs/jupiter/jupiter_installation_2026.sh`, `docs/baf/create_venv.sh`). In these cases, we recommend using those scripts instead of praying to the gods that `pip` or `uv` will find their way through the forest of incompatibilities.
 
 ---
 

@@ -73,7 +73,7 @@ echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --ve
 # Main Job Execution
 #############################################
 
-python3 "$workdir/llm-foundry/utils/convert_dataset_to_hf.py" \
+python3 "$workdir/llm-foundry/tools/convert_dataset_to_hf.py" \
     --directory_path "$workdir/portuguese/gigaverbo_v2" \
     --output_path "$workdir/portuguese/gigaverbo_v2_hf" \
     --cache_dir "$HF_DATASETS_CACHE" 1>>"$out" 2>>"$err"
