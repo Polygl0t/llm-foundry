@@ -63,12 +63,14 @@ class DatasetLoader:
         seed: int | None = None,
         split: str = "train",
         subset: str | None = None,
+        num_proc: int = 8,
     ) -> None:
         self.path = path
         self.cache_dir = cache_dir
         self.seed = seed
         self.split = split
         self.subset = subset
+        self.num_proc = num_proc
 
     def load(self):
         if os.path.isdir(self.path):
@@ -96,7 +98,7 @@ class DatasetLoader:
                     fmt,
                     data_files=files,
                     split="train",
-                    num_proc=len(files),
+                    num_proc=min(len(files), self.num_proc),
                     cache_dir=self.cache_dir,
                 )
         raise ValueError(f"No .jsonl or .parquet files found in '{self.path}'.")

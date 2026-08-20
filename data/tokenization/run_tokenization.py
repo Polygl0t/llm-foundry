@@ -167,6 +167,7 @@ def main(args):
         seed=args.seed,
         split=args.split,
         subset=args.subset,
+        num_proc=args.num_proc,
     )
     dataset = loader.load()
     logger.info(f"Loaded dataset: {len(dataset):,} examples.\n{dataset}")

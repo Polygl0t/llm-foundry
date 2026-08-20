@@ -180,6 +180,7 @@ def main(args):
         path=args.input_path,
         cache_dir=args.cache_dir,
         seed=args.seed,
+        num_proc=args.num_proc,
     )
     dataset = loader.load()
     logger.info(f"Loaded dataset: {len(dataset):,} examples.\n{dataset}")

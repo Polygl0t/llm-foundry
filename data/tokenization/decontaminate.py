@@ -143,8 +143,12 @@ def main(args):
             f"Received: '{args.input_dir}'"
         )
 
-    dataset = DatasetLoader(path=args.input_dir, cache_dir=args.cache_dir).load()
-    reference_dataset = DatasetLoader(path=args.reference_path, cache_dir=args.cache_dir).load()
+    dataset = DatasetLoader(
+        path=args.input_dir, cache_dir=args.cache_dir, num_proc=args.num_proc
+    ).load()
+    reference_dataset = DatasetLoader(
+        path=args.reference_path, cache_dir=args.cache_dir, num_proc=args.num_proc
+    ).load()
 
     validate_input_ids(dataset, "Input dataset")
     validate_input_ids(reference_dataset, "Reference dataset")
