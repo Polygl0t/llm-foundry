@@ -62,6 +62,19 @@ Currently (the Early Access phase) there is **only one partition**:
 - **GPU visibility:** Slurm assigns one GPU per task by setting `CUDA_VISIBLE_DEVICES`. For a **single-task** job, only one GPU is visible by default — export all four manually: `export CUDA_VISIBLE_DEVICES=0,1,2,3`.
 - **CPU power budget:** each superchip's CPU is capped at 100 W by default to favour the GPU.
 
+## Checking maintenance / system status
+
+To find out whether Jupiter is under maintenance or experiencing an incident, use the **JSC Service Status page**:
+
+**https://status.jsc.fz-juelich.de/**
+
+- Click on **JUPITER** to see its current state, recent events, and **planned events** (e.g. scheduled maintenance).
+- **MOTD (Message of the Day):** maintenance announcements and the current system status are shown when you log in over SSH. This is synced from the status page every ~5 minutes.
+
+Maintenance announcements are also listed on the documentation page: <https://apps.fz-juelich.de/jsc/hps/jupiter/maintenance.html>
+
+> - **Note:** Most status-page content is not backed by automated monitoring, so there may be a short delay between an issue appearing and it being listed. Jupiter is also still in an Early-Access phase, so also check the [Build-Up Operation](https://apps.fz-juelich.de/jsc/hps/jupiter/buildup.html) page for known issues.
+
 ---
 
 ## SLURM templates
