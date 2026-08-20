@@ -85,6 +85,20 @@ for folder in "$TOKENIZED_DIR"/*/; do
         .*) continue ;;
     esac
 
+    # Skip if the output folder already has a .metadata file
+    # (a previous job finished packing it completely).
+    if [ -f "$PACKED_DIR/$name/.metadata" ]; then
+        echo "# [${SLURM_JOB_ID}] Skipping $name: already packed (.metadata found)" >> "$out"
+        continue
+    fi
+
+    # If the output folder exists but has no .metadata, the previous
+    # job was interrupted part-way. Remove it and start fresh.
+    if [ -d "$PACKED_DIR/$name" ]; then
+        echo "# [${SLURM_JOB_ID}] Cleaning incomplete output for $name (no .metadata)" >> "$out"
+        rm -rf "$PACKED_DIR/$name"
+    fi
+
     echo "# [${SLURM_JOB_ID}] Packing $name" >> "$out"
 
     python3 $workdir/llm-foundry/data/tokenization/pack.py \

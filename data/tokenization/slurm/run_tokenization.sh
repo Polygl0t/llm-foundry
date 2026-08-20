@@ -84,6 +84,20 @@ for folder in "$RAW_DIR"/*/; do
         .*) continue ;;
     esac
 
+    # Skip if the output folder already has a .metadata file
+    # (a previous job finished packing it completely).
+    if [ -f "$TOKENIZED_DIR/$name/.metadata" ]; then
+        echo "# [${SLURM_JOB_ID}] Skipping $name: already tokenized (.metadata found)" >> "$out"
+        continue
+    fi
+
+    # If the output folder exists but has no .metadata, the previous
+    # job was interrupted part-way. Remove it and start fresh.
+    if [ -d "$TOKENIZED_DIR/$name" ]; then
+        echo "# [${SLURM_JOB_ID}] Cleaning incomplete output for $name (no .metadata)" >> "$out"
+        rm -rf "$TOKENIZED_DIR/$name"
+    fi
+
     echo "# [${SLURM_JOB_ID}] Tokenizing $name" >> "$out"
 
     python3 $workdir/llm-foundry/data/tokenization/run_tokenization.py \
