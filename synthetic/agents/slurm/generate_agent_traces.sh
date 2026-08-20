@@ -193,7 +193,7 @@ if [[ -n "$TOP_K" ]]; then
     TOP_K_FLAG="--top-k $TOP_K"
 fi
 
-python3 "$workdir/synthetic/agents/generate_agent_traces.py" \
+python3 "$workdir/llm-foundry/synthetic/agents/generate_agent_traces.py" \
     --model-type "$MODEL_TYPE" \
     --model-id "$MODEL_ID" \
     --max-new-tokens $MAX_NEW_TOKENS \

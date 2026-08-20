@@ -143,7 +143,7 @@ if [[ -n "$PROMPT_TEMPLATE_FILE" && -f "$PROMPT_TEMPLATE_FILE" ]]; then
     OPTIONAL_ARGS="$OPTIONAL_ARGS --prompt-template-file \"$PROMPT_TEMPLATE_FILE\""
 fi
 
-eval python3 $workdir/synth/generate_datatrove.py \
+eval python3 $workdir/llm-foundry/synthetic/generate_datatrove.py \
     --input-path "$DATASET_PATH" \
     --prompt-column "$TEXT_COLUMN" \
     --output-path "$OUTPUT_DIR" \

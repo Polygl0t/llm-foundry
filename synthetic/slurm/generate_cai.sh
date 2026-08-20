@@ -116,7 +116,7 @@ if [ "$ENABLE_THINKING" = "1" ]; then
 fi
 
 export CUDA_VISIBLE_DEVICES=0,1,2,3
-python3 "$workdir/generate_cai.py" \
+python3 "$workdir/llm-foundry/synthetic/generate_cai.py" \
     --model_name_or_path "$MODEL_NAME_OR_PATH" \
     --tensor_parallel_size 4 \
     --dataset_path "$DATASET_PATH" \

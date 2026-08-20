@@ -114,7 +114,7 @@ fi
 export CUDA_VISIBLE_DEVICES=0
 export UCX_NET_DEVICES=mlx5_0:1
 srun -n 1 -N 1 --gpus=1 --exclusive \
-python3 $workdir/generate.py \
+python3 $workdir/llm-foundry/synthetic/generate.py \
     --model_name_or_path "$MODEL_NAME_OR_PATH" \
     --dataset_path "$DATASET_PATH/00000.jsonl" \
     --text_column "$TEXT_COLUMN" \
@@ -137,7 +137,7 @@ python3 $workdir/generate.py \
 export CUDA_VISIBLE_DEVICES=1
 export UCX_NET_DEVICES=mlx5_1:1
 srun -n 1 -N 1 --gpus=1 --exclusive \
-python3 $workdir/generate.py \
+python3 $workdir/llm-foundry/synthetic/generate.py \
     --model_name_or_path "$MODEL_NAME_OR_PATH" \
     --dataset_path "$DATASET_PATH/00001.jsonl" \
     --text_column "$TEXT_COLUMN" \
@@ -160,7 +160,7 @@ python3 $workdir/generate.py \
 export CUDA_VISIBLE_DEVICES=2
 export UCX_NET_DEVICES=mlx5_2:1
 srun -n 1 -N 1 --gpus=1 --exclusive \
-python3 $workdir/generate.py \
+python3 $workdir/llm-foundry/synthetic/generate.py \
     --model_name_or_path "$MODEL_NAME_OR_PATH" \
     --dataset_path "$DATASET_PATH/00002.jsonl" \
     --text_column "$TEXT_COLUMN" \
@@ -183,7 +183,7 @@ python3 $workdir/generate.py \
 export CUDA_VISIBLE_DEVICES=3
 export UCX_NET_DEVICES=mlx5_3:1
 srun -n 1 -N 1 --gpus=1 --exclusive \
-python3 $workdir/generate.py \
+python3 $workdir/llm-foundry/synthetic/generate.py \
     --model_name_or_path "$MODEL_NAME_OR_PATH" \
     --dataset_path "$DATASET_PATH/00003.jsonl" \
     --text_column "$TEXT_COLUMN" \
@@ -206,7 +206,7 @@ python3 $workdir/generate.py \
 export CUDA_VISIBLE_DEVICES=4
 export UCX_NET_DEVICES=mlx5_4:1
 srun -n 1 -N 1 --gpus=1 --exclusive \
-python3 $workdir/generate.py \
+python3 $workdir/llm-foundry/synthetic/generate.py \
     --model_name_or_path "$MODEL_NAME_OR_PATH" \
     --dataset_path "$DATASET_PATH/00004.jsonl" \
     --text_column "$TEXT_COLUMN" \
@@ -229,7 +229,7 @@ python3 $workdir/generate.py \
 export CUDA_VISIBLE_DEVICES=5
 export UCX_NET_DEVICES=mlx5_5:1
 srun -n 1 -N 1 --gpus=1 --exclusive \
-python3 $workdir/generate.py \
+python3 $workdir/llm-foundry/synthetic/generate.py \
     --model_name_or_path "$MODEL_NAME_OR_PATH" \
     --dataset_path "$DATASET_PATH/00005.jsonl" \
     --text_column "$TEXT_COLUMN" \
@@ -252,7 +252,7 @@ python3 $workdir/generate.py \
 export CUDA_VISIBLE_DEVICES=6
 export UCX_NET_DEVICES=mlx5_6:1
 srun -n 1 -N 1 --gpus=1 --exclusive \
-python3 $workdir/generate.py \
+python3 $workdir/llm-foundry/synthetic/generate.py \
     --model_name_or_path "$MODEL_NAME_OR_PATH" \
     --dataset_path "$DATASET_PATH/00006.jsonl" \
     --text_column "$TEXT_COLUMN" \
@@ -275,7 +275,7 @@ python3 $workdir/generate.py \
 export CUDA_VISIBLE_DEVICES=7
 export UCX_NET_DEVICES=mlx5_7:1
 srun -n 1 -N 1 --gpus=1 --exclusive \
-python3 $workdir/generate.py \
+python3 $workdir/llm-foundry/synthetic/generate.py \
     --model_name_or_path "$MODEL_NAME_OR_PATH" \
     --dataset_path "$DATASET_PATH/00007.jsonl" \
     --text_column "$TEXT_COLUMN" \
