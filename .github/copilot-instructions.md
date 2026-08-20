@@ -10,6 +10,7 @@ This file provides guidance for code agents (e.g. GitHub Copilot) working with t
 - `distributed/` — Pretraining: DDP and FSDP2 entry points, model setup, and optimizers.
 - `evals/` — Evaluation scripts built on `lm-evaluation-harness`.
 - `merge/` — Model merging via `mergekit`.
+- `shared/` — Shared utility modules reused across the major pipelines.
 - `synthetic/` — Synthetic data generation with vLLM + DataTrove, plus agent-based traces with `smolagents`.
 - `tests/` — Standalone unit and integration test scripts.
 - `tokenizer/` — Tokenizer training and evaluation (SentencePiece and HF Tokenizers).

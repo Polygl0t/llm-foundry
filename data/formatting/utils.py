@@ -5,45 +5,18 @@ Utilities for data preprocessing.
 import glob
 import importlib.util
 import json
-import logging
 import os
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from types import ModuleType
 from typing import Any
 
-
-def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
-    """
-    Create and return a logger with a consistent format.
-
-    Args:
-        name: Logger name (e.g., __name__).
-        level: Logging level (default: logging.INFO).
-
-    Returns:
-        Configured Logger instance.
-    """
-    logger = logging.getLogger(name)
-
-    # Always apply level and propagate settings, even if the handler was
-    # already added by a previous call.
-    logger.setLevel(level)
-    logger.propagate = False
-
-    if not getattr(logger, "_configured", False):
-        handler = logging.StreamHandler(sys.stdout)
-        handler.setLevel(level)
-
-        formatter = logging.Formatter(
-            fmt="[%(asctime)s] [%(levelname)s] %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        )
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-        logger._configured = True
-
-    return logger
+_REPO_ROOT = Path(__file__).resolve()
+while not (_REPO_ROOT / "pyproject.toml").exists() and _REPO_ROOT.parent != _REPO_ROOT:
+    _REPO_ROOT = _REPO_ROOT.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 
 def save_metadata(output_dir, **kwargs):

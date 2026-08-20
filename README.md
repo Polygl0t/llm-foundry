@@ -73,6 +73,7 @@ The code base is organized into the following main folders:
 - [`distributed/`](distributed/) — Scripts for training and evaluating language models with DDP and FSDP.
 - [`evals/`](evals/) — Scripts for evaluating language models via the `lm-evaluation-harness`.
 - [`merge/`](merge/) — Scripts for running different merging techniques via `mergekit`.
+- [`shared/`](shared/) — Shared utility modules used across the major pipeline folders. See [`shared/README.md`](shared/README.md).
 - [`synthetic/`](synthetic/) — Scripts for generating synthetic datasets with vLLM.
   - [`synthetic/agents/`](synthetic/agents/) — Agent-based trace generation using [smolagents](https://github.com/huggingface/smolagents). Records multi-step CodeAgent reasoning traces for downstream training. See [`synthetic/agents/README.md`](synthetic/agents/README.md).
 - [`tests/`](tests/) — Unit and integration tests for our code base.

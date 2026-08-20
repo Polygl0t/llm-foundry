@@ -4,44 +4,15 @@ Shared utilities for CommonCrawl processing scripts.
 
 import glob
 import json
-import logging
 import os
 import sys
+from pathlib import Path
 
-
-def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
-    """
-    Create and return a logger with a consistent format.
-
-    Args:
-        name: Logger name.
-        level: Logging level (default: logging.INFO).
-
-    Returns:
-        Configured Logger instance.
-    """
-    logger = logging.getLogger(name)
-
-    if logger.handlers:
-        # Avoid adding duplicate handlers if the logger was already configured.
-        return logger
-
-    logger.setLevel(level)
-
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setLevel(level)
-
-    formatter = logging.Formatter(
-        fmt="[%(asctime)s] [%(levelname)s] %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-
-    # Prevent log records from propagating to the root logger.
-    logger.propagate = False
-
-    return logger
+_REPO_ROOT = Path(__file__).resolve()
+while not (_REPO_ROOT / "pyproject.toml").exists() and _REPO_ROOT.parent != _REPO_ROOT:
+    _REPO_ROOT = _REPO_ROOT.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 
 def read_metadata(metadata_file: str) -> dict | None:
