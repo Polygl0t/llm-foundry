@@ -174,7 +174,8 @@ Remember: the allocation is billed whether or not you use it, so prefer batch jo
 
 ```bash
 sinfo                 # show partitions and node states
-squeue                # show pending/running jobs
+squeue --me           # show pending/running jobs
+squeue --start        # show estimated start time of pending jobs
 sbatch job.sh         # submit a batch job
 salloc ...            # request an interactive allocation
 srun ...              # launch a job step inside an allocation
