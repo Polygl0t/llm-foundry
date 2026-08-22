@@ -44,6 +44,7 @@ from smolagents.models import (
 )
 from smolagents.monitoring import LogLevel
 from smolagents.tools import Tool
+
 from tools import get_custom_tools
 
 # Logger for generate_agent_traces.py and utils.py
@@ -505,6 +506,7 @@ def build_model(
     top_k: int | None = None,
     apply_chat_template_kwargs: dict[str, Any] | None = None,
     model_kwargs: dict[str, Any] | None = None,
+    model_max_len: int | None = None,
 ) -> LiteLLMModel | TransformersModel | VLLMModel:
     """Build a model instance based on the requested type.
 
@@ -525,6 +527,9 @@ def build_model(
         model_kwargs:       Extra kwargs passed to the model constructor.
                            For TransformersModel these are unpacked as **kwargs.
                            For VLLMModel these are merged into model_kwargs.
+        model_max_len:      Maximum model sequence length (context window) for
+                            VLLMModel.  When None, vLLM uses the model's own
+                            maximum supported length.
 
     Returns:
         A model instance.
@@ -615,6 +620,8 @@ def build_model(
                 pass
         if model_kwargs:
             vlm_kwargs.update(model_kwargs)
+        if model_max_len is not None:
+            vlm_kwargs["max_model_len"] = model_max_len
         logger.info(
             "📦 VLLMModel("
             "model_id=%s, torch_dtype=%s, "

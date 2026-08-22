@@ -49,7 +49,6 @@ import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
-
 from utils import (
     SUPPORTED_LANGUAGES,
     TRACE_STATUS_FAIL,
@@ -177,12 +176,8 @@ def main(args) -> None:
         os.getenv("MODEL_ID") if not args.model_id else args.model_id,
     )
     vllm_model_kwargs = None
-    if args.model_type == "vllm":
-        vllm_model_kwargs = {"max_model_len": args.max_new_tokens}
-        if args.gdn_prefill_backend:
-            vllm_model_kwargs["additional_config"] = {
-                "gdn_prefill_backend": args.gdn_prefill_backend
-            }
+    if args.model_type == "vllm" and args.gdn_prefill_backend:
+        vllm_model_kwargs = {"additional_config": {"gdn_prefill_backend": args.gdn_prefill_backend}}
 
     model = build_model(
         model_type=args.model_type,
@@ -195,6 +190,7 @@ def main(args) -> None:
         top_k=args.top_k,
         apply_chat_template_kwargs={"enable_thinking": args.enable_thinking},
         model_kwargs=vllm_model_kwargs,
+        model_max_len=args.model_max_len,
     )
 
     # Load system prompt: an explicit --system-prompt-file takes precedence;
@@ -452,6 +448,14 @@ if __name__ == "__main__":
         type=int,
         default=10000,
         help="Max new tokens to generate for local models (default: 10000).",
+    )
+    parser.add_argument(
+        "--model-max-len",
+        type=int,
+        default=None,
+        help="Maximum model sequence length (context window) for vLLM models. "
+        "If unset, vLLM uses the model's own maximum supported length "
+        "(default: None).",
     )
     parser.add_argument(
         "--temperature",

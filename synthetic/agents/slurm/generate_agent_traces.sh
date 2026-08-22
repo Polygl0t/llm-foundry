@@ -51,12 +51,12 @@ source $workdir/.venv_agents/bin/activate
 #############################################
 
 # ─── Cache Directories ──────────────────────────────────────────── #
-export CLEAN_CACHE="0"                                              # <-- Set to "1" to clean cache after job completion
+export CLEAN_CACHE="1"                                               # <-- Set to "1" to clean cache after job completion
 export HF_DATASETS_CACHE="$workdir/.cache"
 export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE"
 export PYTHONPYCACHEPREFIX="$HF_DATASETS_CACHE/.pycache"
-export TRITON_CACHE_DIR="$HF_DATASETS_CACHE/triton_cache/${CLUSTER_ID}"
-export FLASHINFER_WORKSPACE_DIR="$workdir/.cache/flashinfer/${CLUSTER_ID}"
+export TRITON_CACHE_DIR="$HF_DATASETS_CACHE/triton_cache/${SLURM_JOB_ID}"
+export FLASHINFER_WORKSPACE_DIR="$workdir/.cache/flashinfer/${SLURM_JOB_ID}"
 
 # ─── vLLM / FlashInfer / GDN ───────────────────────────────────── #
 export VLLM_LOGGING_LEVEL=ERROR                                     # <-- Silence vLLM worker/engine INFO+WARNING logs (incl. Triton bundler spam)
@@ -67,10 +67,11 @@ export GDN_PREFILL_BACKEND="triton"                                 # <-- avoid 
 # ─── Model ─────────────────────────────────────────────────────── #
 # Model type: "litellm" (remote API), "transformers" (local HF), or "vllm" (local vLLM server)
 export MODEL_TYPE="vllm"                                            # <-- Change to "transformers" or "vllm" for local models
-export MODEL_ID="$workdir/Qwen3-235B-A22B-Instruct-2507-AWQ"        # <-- Model identifier (HF name or LiteLLM id)
+export MODEL_ID="$workdir/Qwen3.5-9B"                               # <-- Model identifier (HF name or LiteLLM id)
 export API_KEY=""                                                   # <-- API key for LiteLLM models (also set in .env)
 export API_BASE=""                                                  # <-- API base URL for LiteLLM (also set in .env)
-export MAX_NEW_TOKENS=16000                                         # <-- Max tokens
+export MAX_NEW_TOKENS=32000                                         # <-- Max tokens
+export MODEL_MAX_LEN=""                                             # <-- Max model sequence length (empty = model's own max)
 export TEMPERATURE=0.7                                              # <-- Sampling temperature (empty = model default)
 export TOP_P=0.80                                                   # <-- Nucleus sampling top-p (empty = model default)
 export TOP_K=20                                                     # <-- Top-k sampling cutoff (empty = model default)
@@ -81,6 +82,7 @@ export PROMPT_COLUMN="prompt"                                       # <-- Column
 export ID_COLUMN="id"                                               # <-- Column name for trace IDs (empty = use prompt hashes)
 export GROUND_TRUTH_COLUMN="ground_truth"                           # <-- Column name for ground-truth answers (empty = none)
 export LANGUAGE="pt"                                                # <-- Language: system prompt + Wikipedia + DuckDuckGo region
+
 # ─── Agent ─────────────────────────────────────────────────────── #
 export MAX_STEPS=20                                                 # <-- Max agent steps per example
 export EXECUTOR_TIMEOUT=120                                         # <-- Max seconds per tool execution step
@@ -193,7 +195,12 @@ if [[ -n "$TOP_K" ]]; then
     TOP_K_FLAG="--top-k $TOP_K"
 fi
 
-python3 "$workdir/llm-foundry/synthetic/agents/generate_agent_traces.py" \
+MODEL_MAX_LEN_FLAG=""
+if [[ -n "$MODEL_MAX_LEN" ]]; then
+    MODEL_MAX_LEN_FLAG="--model-max-len $MODEL_MAX_LEN"
+fi
+
+python3 "$workdir/synthetic/agents/generate_agent_traces.py" \
     --model-type "$MODEL_TYPE" \
     --model-id "$MODEL_ID" \
     --max-new-tokens $MAX_NEW_TOKENS \
@@ -206,6 +213,7 @@ python3 "$workdir/llm-foundry/synthetic/agents/generate_agent_traces.py" \
     $TEMPERATURE_FLAG \
     $TOP_P_FLAG \
     $TOP_K_FLAG \
+    $MODEL_MAX_LEN_FLAG \
     $API_KEY_FLAG \
     $API_BASE_FLAG \
     $GROUND_TRUTH_FLAG \
