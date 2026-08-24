@@ -4,10 +4,10 @@
 # SLURM Job Configuration
 #############################################
 # One-time setup: submit this job to create a ready-to-use venv for
-# distributed training on Marvin.
+# TRL + vLLM RL post-training (GRPO/DPO/etc.) on Marvin.
 #
 # Usage:
-#   sbatch distributed/slurm/create_venv_marvin.sh
+#   sbatch alignment/slurm/create_venv_marvin.sh
 #
 #############################################
 #SBATCH --account=ag_bit_flek              # <-- Change to your SLURM account
@@ -35,7 +35,7 @@ venv_name=".venv_trl"
 # Path to the .modules file.
 modules_file="$workdir/llm-foundry/.modules.sh"
 
-# GPU architectures for flash-attn kernel compilation.
+# GPU architectures for flash-attn kernel compilation (source-build fallback).
 #   8.0 = NVIDIA A100 (Ampere)
 #   8.6 = NVIDIA A40  (Ampere)
 flash_attn_cuda_archs="8.0;8.6"
@@ -97,10 +97,6 @@ cat > "$torch_constraints" << 'EOF'
 torch==2.13.0+cu126
 EOF
 
-echo "===== Installing llm-foundry [distributed] ====="
-uv pip install -e "$workdir/llm-foundry/.[distributed]" \
-    --no-cache -c "$torch_constraints"
-
 echo "===== Installing flash-attn 2.8.3 (prebuilt wheel) ====="
 # Prebuilt wheel for: flash-attn 2.8.3, CUDA 12.6, torch 2.13, Python 3.12.
 # Find other wheels at: https://mjunya.com/flash-attention-prebuild-wheels/
@@ -128,6 +124,17 @@ echo "===== Installing causal-conv1d ====="
 uv pip install causal-conv1d --no-build-isolation --no-cache \
     -c "$torch_constraints"
 
+echo "===== Installing logging/reporting extras ====="
+uv pip install wandb trackio codecarbon --no-cache \
+    -c "$torch_constraints"
+
+echo "===== Installing TRL + vLLM ====="
+# Install TRL and vLLM after the torch + attention stack has resolved, keeping
+# the pinned torch via the constraints file. Note: vLLM wheels are compiled for
+# a specific torch/CUDA build — make sure the vLLM wheel you get is compatible
+# with torch 2.13.0+cu126, otherwise pin an appropriate vLLM version here.
+uv pip install --no-cache -c "$torch_constraints" "trl[vllm]==1.10.0"
+
 rm -f "$torch_constraints"
 
 #############################################
@@ -140,8 +147,8 @@ from importlib.metadata import version
 import torch
 
 packages = [
-    "torch", "transformers", "datasets", "accelerate", "sentencepiece",
-    "wandb", "pyyaml", "kernels", "liger-kernel",
+    "torch", "trl", "vllm", "transformers", "datasets", "accelerate",
+    "peft", "sentencepiece", "wandb", "pyyaml",
     "flash-attn", "causal-conv1d", "flash-linear-attention",
     "codecarbon", "trackio",
 ]
@@ -154,7 +161,10 @@ for pkg in packages:
         print(f"  {pkg}: NOT FOUND ({e})")
 PY
 
-echo "===== Verifying flash-attn imports ====="
+echo "===== Verifying trl + vLLM imports ====="
+python3 -c "import trl, vllm; print(f'  trl {trl.__version__} OK'); print(f'  vllm {vllm.__version__} OK')"
+
+echo "===== Verifying flash-attn import ====="
 python3 -c "from flash_attn import flash_attn_func; print('  flash_attn OK')"
 
 echo "===== Verifying GPU ====="

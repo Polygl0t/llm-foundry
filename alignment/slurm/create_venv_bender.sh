@@ -104,10 +104,6 @@ cat > "$torch_constraints" << 'EOF'
 torch==2.6.0+cu124
 EOF
 
-echo "===== Installing llm-foundry [distributed] ====="
-uv pip install -e "$workdir/llm-foundry/.[distributed]" \
-    --no-cache -c "$torch_constraints"
-
 echo "===== Installing flash-attn 2.8.3 (prebuilt wheel) ====="
 # Prebuilt wheel for: flash-attn 2.8.3, CUDA 12.4, torch 2.6, Python 3.12.
 # Find other wheels at: https://mjunya.com/flash-attention-prebuild-wheels/
@@ -140,6 +136,16 @@ FLASH_ATTENTION_SKIP_CUDA_BUILD=TRUE uv pip install \
 #
 #       uv pip install ninja causal-conv1d --no-build-isolation --no-cache
 
+echo "===== Installing logging/reporting extras ====="
+uv pip install wandb trackio codecarbon --no-cache \
+    -c "$torch_constraints"
+
+echo "===== Installing TRL ====="
+# Install TRL after the torch + attention stack has resolved.
+uv pip install --no-cache -c "$torch_constraints" "trl==1.10.0"
+
+rm -f "$torch_constraints"
+
 #############################################
 # Verification
 #############################################
@@ -150,9 +156,8 @@ from importlib.metadata import version
 import torch
 
 packages = [
-    "torch", "torchvision", "torchaudio",
-    "transformers", "datasets", "accelerate", "sentencepiece",
-    "wandb", "pyyaml", "kernels", "liger-kernel",
+    "torch", "trl", "transformers", "datasets", "accelerate",
+    "peft", "sentencepiece", "wandb", "pyyaml",
     "flash-attn", "codecarbon", "trackio",
 ]
 for pkg in packages:
@@ -164,7 +169,10 @@ for pkg in packages:
         print(f"  {pkg}: NOT FOUND ({e})")
 PY
 
-echo "===== Verifying flash-attn imports ====="
+echo "===== Verifying trl import ====="
+python3 -c "import trl; print(f'  trl {trl.__version__} OK')"
+
+echo "===== Verifying flash-attn import ====="
 python3 -c "from flash_attn import flash_attn_func; print('  flash_attn OK')"
 
 echo "===== Verifying GPU ====="

@@ -140,6 +140,8 @@ FLASH_ATTENTION_SKIP_CUDA_BUILD=TRUE uv pip install \
 #
 #       uv pip install ninja causal-conv1d --no-build-isolation --no-cache
 
+rm -f "$torch_constraints"
+
 #############################################
 # Verification
 #############################################
