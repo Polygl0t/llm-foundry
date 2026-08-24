@@ -140,6 +140,11 @@ echo "===== Installing logging/reporting extras ====="
 uv pip install wandb trackio codecarbon --no-cache \
     -c "$torch_constraints"
 
+echo "===== Installing Liger-Kernel ====="
+# Fused kernels for faster, memory-efficient training.
+uv pip install liger-kernel==0.8.0 --no-cache \
+    -c "$torch_constraints"
+
 echo "===== Installing TRL ====="
 # Install TRL after the torch + attention stack has resolved.
 uv pip install --no-cache -c "$torch_constraints" "trl==1.10.0"
@@ -157,7 +162,7 @@ import torch
 
 packages = [
     "torch", "trl", "transformers", "datasets", "accelerate",
-    "peft", "sentencepiece", "wandb", "pyyaml",
+    "peft", "sentencepiece", "wandb", "pyyaml", "liger-kernel",
     "flash-attn", "codecarbon", "trackio",
 ]
 for pkg in packages:

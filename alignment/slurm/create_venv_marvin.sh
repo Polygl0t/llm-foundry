@@ -128,6 +128,11 @@ echo "===== Installing logging/reporting extras ====="
 uv pip install wandb trackio codecarbon --no-cache \
     -c "$torch_constraints"
 
+echo "===== Installing Liger-Kernel ====="
+# Fused kernels for faster, memory-efficient training.
+uv pip install liger-kernel==0.8.0 --no-cache \
+    -c "$torch_constraints"
+
 echo "===== Installing TRL + vLLM ====="
 # Install TRL and vLLM after the torch + attention stack has resolved, keeping
 # the pinned torch via the constraints file. Note: vLLM wheels are compiled for
@@ -148,7 +153,7 @@ import torch
 
 packages = [
     "torch", "trl", "vllm", "transformers", "datasets", "accelerate",
-    "peft", "sentencepiece", "wandb", "pyyaml",
+    "peft", "sentencepiece", "wandb", "pyyaml", "liger-kernel",
     "flash-attn", "causal-conv1d", "flash-linear-attention",
     "codecarbon", "trackio",
 ]
