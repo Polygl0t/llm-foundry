@@ -68,13 +68,12 @@ DEFAULT_MAX_ENTRIES_PER_FILE = 50_000
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
 # Registry mapping a language code to all of its language-specific settings:
-# the system-prompt file, the search-tool configuration, and the formatter
+# the system-prompt file, the Wikipedia language, and the formatter
 # translations.  To add a new language, add an entry here and drop a matching
 # `prompts/<language>.yaml` file.
 LANGUAGE_CONFIGS: dict[str, dict[str, Any]] = {
     "en": {
         "prompt_file": "en.yaml",
-        "ddg_region": "wt-wt",
         "wikipedia_language": "en",
         # Assistant message prefixes stripped from the model output.
         "thought_prefixes": ("Thought",),
@@ -87,7 +86,6 @@ LANGUAGE_CONFIGS: dict[str, dict[str, Any]] = {
     },
     "pt": {
         "prompt_file": "pt.yaml",
-        "ddg_region": "pt-br",
         "wikipedia_language": "pt",
         "thought_prefixes": ("Pensamento", "Thought"),
         "planning_prefixes": {
@@ -1215,18 +1213,38 @@ def _extract_step_type(step: Any) -> str:
         return type(step).__name__
 
 
+def log_search_tool(language: str = "en") -> None:
+    """Log which web-search backend will be used."""
+    if os.getenv("SERPAPI_API_KEY"):
+        if language == "pt":
+            logger.info(
+                "🔎 Using Google Search (SerpAPI). SERPAPI_API_KEY detected. Region and language set to Brazil/Portuguese."
+            )
+        else:
+            logger.info(
+                "🔎 Using Google Search (SerpAPI). SERPAPI_API_KEY detected. Region and language set to USA/English."
+            )
+    elif language == "pt":
+        logger.info("🔎 Using DuckDuckGo Search (pt-br). No SERPAPI_API_KEY found.")
+    else:
+        logger.info("🔎 Using DuckDuckGo Search (en). No SERPAPI_API_KEY found.")
+
+
 def _build_default_tools(timeout_seconds: int | None = None, language: str = "en") -> list[Tool]:
     """Build the standard set of tools for a CodeAgent.
 
     Includes tools available in smolagents.default_tools:
       - PythonInterpreterTool  (sandboxed Python execution)
       - FinalAnswerTool        (return the final answer)
-      - DuckDuckGoSearchTool   (web search via DuckDuckGo)
+      - web search tool        (Google Search via SerpAPI when a
+                               `SERPAPI_API_KEY` is available, otherwise
+                               the free DuckDuckGo search)
       - VisitWebpageTool       (fetch & convert webpage to Markdown)
       - WikipediaSearchTool    (search Wikipedia)
 
-    The search tools (DuckDuckGo region + Wikipedia language) are configured
-    from LANGUAGE_CONFIGS based on *language*.
+    The search tools (search backend + region + Wikipedia language) are
+    configured from *language*: "pt" biases web search to Brazil and
+    Wikipedia to Portuguese, "en" to the US and English.
 
     Args:
         timeout_seconds: Max execution time per code snippet.
@@ -1249,13 +1267,32 @@ def _build_default_tools(timeout_seconds: int | None = None, language: str = "en
             f"{', '.join(sorted(LANGUAGE_CONFIGS))}."
         )
 
-    ddg_region = config["ddg_region"]
-    if ddg_region == "wt-wt":
-        search_tool: Tool = DuckDuckGoSearchTool()
-    else:
+    # Prefer Google Search (SerpAPI) when an API key is available, either
+    # exported or loaded from the repo's `.env` file, and fall back to the
+    # free DuckDuckGo search otherwise.
+    if os.getenv("SERPAPI_API_KEY"):
+        from tools import RegionGoogleSearchTool
+
+        if language == "pt":
+            search_tool: Tool = RegionGoogleSearchTool(
+                provider="serpapi",
+                region="br",
+                language="pt",
+                google_domain="google.com.br",
+            )
+        else:
+            search_tool: Tool = RegionGoogleSearchTool(
+                provider="serpapi",
+                region="us",
+                language="en",
+                google_domain="google.com",
+            )
+    elif language == "pt":
         from tools import RegionDuckDuckGoSearchTool
 
-        search_tool = RegionDuckDuckGoSearchTool(region=ddg_region)
+        search_tool: Tool = RegionDuckDuckGoSearchTool(region="pt-br")
+    else:
+        search_tool = DuckDuckGoSearchTool(max_results=15, rate_limit=1.0)
 
     wiki_tool = WikipediaSearchTool(language=config["wikipedia_language"])
 

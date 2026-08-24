@@ -66,18 +66,21 @@ Main parameters:
 
 [`tools.py`](./tools.py) provides custom `smolagents.Tool` subclasses that extend the agent's capabilities beyond the built-in defaults:
 
-| Tool                   | Description                                                                                    |
-|------------------------|------------------------------------------------------------------------------------------------|
-| `ReadFileTool`         | Read file contents with optional line-range limiting.                                          |
-| `WriteFileTool`        | Create or overwrite a file, creating parent directories as needed.                             |
-| `EditFileTool`         | Replace an exact string in a file (single-occurrence match required).                          |
-| `ListDirectoryTool`    | List directory contents with type indicators and file sizes.                                   |
-| `SearchFilesTool`      | Find files matching a glob pattern (supports `**` recursion).                                  |
-| `GrepFilesTool`        | Search inside files using a regex pattern, returning matches with file, line number, and text. |
-| `SympyTool`            | Solve mathematical problems using sympy (equations, calculus, linear algebra, etc.).           |
-| `DuckDuckGoSearchTool` | Web search via DuckDuckGo (re-exported from `smolagents.default_tools`).                       |
+| Tool                         | Description                                                                                    |
+|------------------------------|------------------------------------------------------------------------------------------------|
+| `ReadFileTool`               | Read file contents with optional line-range limiting.                                          |
+| `WriteFileTool`              | Create or overwrite a file, creating parent directories as needed.                             |
+| `EditFileTool`               | Replace an exact string in a file (single-occurrence match required).                          |
+| `ListDirectoryTool`          | List directory contents with type indicators and file sizes.                                   |
+| `SearchFilesTool`            | Find files matching a glob pattern (supports `**` recursion).                                  |
+| `GrepFilesTool`              | Search inside files using a regex pattern, returning matches with file, line number, and text. |
+| `MathTool`                   | Solve mathematical problems using sympy (equations, calculus, linear algebra, etc.).           |
+| `RegionDuckDuckGoSearchTool` | DuckDuckGo search with configurable region and language.                                        |
+| `RegionGoogleSearchTool`     | Google search (SerpAPI/Serper) with country, language, and domain.                             |
 
 These tools are loaded via `get_custom_tools()` which returns a list ready for `CodeAgent` initialization. These serve as examples of how to implement custom tools for other domains or tasks. Feel free to extend or modify them as needed for your use case.
+
+> - The `web_search` tool selection is automatic: when `SERPAPI_API_KEY` is set (exported or in `.env`), the agent uses Google Search via SerpAPI (`RegionGoogleSearchTool`), biased to Brazil (`gl=br`, `hl=pt`, `google.com.br`) for `--language pt` and to the US (`gl=us`, `hl=en`, `google.com`) otherwise. Without a SerpAPI key, it falls back to the free DuckDuckGo search (`pt-br` region for Portuguese, worldwide otherwise).
 
 ## Trace Output
 

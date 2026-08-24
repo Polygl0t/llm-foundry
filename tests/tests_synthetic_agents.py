@@ -1343,7 +1343,6 @@ def test_format_trace_as_conversation_english_not_translated():
 def test_language_configs_have_required_keys():
     required = {
         "prompt_file",
-        "ddg_region",
         "wikipedia_language",
         "thought_prefixes",
         "planning_prefixes",

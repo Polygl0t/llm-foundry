@@ -1,14 +1,15 @@
 """
 Custom tools for the CodeAgent.
 
-These tools go beyond what smolagents.default_tools provides and are designed
-to help agents solve general tasks involving:
+Two region-aware web-search tools are defined here:
+- `RegionDuckDuckGoSearchTool`: free DuckDuckGo search with a `region` code.
+- `RegionGoogleSearchTool`: Google search (SerpAPI/Serper) with country,
+  language and domain parameters.
 
-  - Local file system operations: reading, writing, editing, exploring
-  - File metadata inspection
-  - Mathematical problem solving (via sympy)
-
-All tools subclass smolagents.Tool and follow its standard contract.
+The mathematical problem-solving tool (`MathTool`, sympy-backed) and a set
+of local filesystem tools are also defined here.  All other tools
+(PythonInterpreterTool, FinalAnswerTool, VisitWebpageTool,
+WikipediaSearchTool) come from smolagents.default_tools.
 """
 
 import contextlib
@@ -20,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from smolagents import Tool
-from smolagents.default_tools import DuckDuckGoSearchTool
+from smolagents.default_tools import DuckDuckGoSearchTool, GoogleSearchTool
 
 
 class ReadFileTool(Tool):
@@ -648,6 +649,7 @@ def get_custom_tools() -> list[Tool]:
         List of instantiated Tools
     """
     return [
+        # Comment or Uncomment the tools you want to include in your agent ...
         # ReadFileTool(),
         # WriteFileTool(),
         # EditFileTool(),
@@ -660,30 +662,183 @@ def get_custom_tools() -> list[Tool]:
 
 
 class RegionDuckDuckGoSearchTool(DuckDuckGoSearchTool):
-    """DuckDuckGo search tool with a configurable region parameter.
+    """DuckDuckGo search tool with configurable region and language.
 
     Extends DuckDuckGoSearchTool to allow searching with a specific
     region code (e.g. "pt-br" for Brazilian Portuguese, "pt-pt" for
     European Portuguese).  This biases search results toward content
-    relevant to that region.
+    relevant to that region.  Output strings (header and error messages)
+    are localized according to `language`.
 
     Args:
-        region: DuckDuckGo region code (default `"wt-wt"` = worldwide).
-        **kwargs: Forwarded to DuckDuckGoSearchTool.
+        region:      DuckDuckGo region code (default `"wt-wt"` = worldwide).
+        language:    Language code for output strings. `"pt"` or `"en"`
+                     (default `"pt"`).
+        max_results: Maximum number of search results to return
+                     (default `15`).  DuckDuckGo's free API caps around
+                     ~20 per query.
+        rate_limit:  Maximum queries per second (default `1.0`, i.e. one
+                     query per second).
+        **kwargs:    Forwarded to DuckDuckGoSearchTool.
     """
 
     name = "web_search"
 
-    def __init__(self, region: str = "wt-wt", **kwargs):
-        super().__init__(**kwargs)
+    def __init__(
+        self,
+        region: str = "wt-wt",
+        language: str = "pt",
+        max_results: int = 15,
+        rate_limit: float | None = 1.0,
+        **kwargs,
+    ):
+        super().__init__(max_results=max_results, rate_limit=rate_limit, **kwargs)
         self.region = region
+        self.language = language
 
     def forward(self, query: str) -> str:
         self._enforce_rate_limit()
         results = self.ddgs.text(query, region=self.region, max_results=self.max_results)
+        is_pt = self.language.startswith("pt")
         if len(results) == 0:
-            raise Exception("No results found! Try a less restrictive/shorter query.")
+            raise Exception(
+                "Nenhum resultado encontrado! Tente uma consulta menos restritiva/mais curta."
+                if is_pt
+                else "No results found! Try a less restrictive/shorter query."
+            )
         postprocessed_results = [
             f"[{result['title']}]({result['href']})\n{result['body']}" for result in results
         ]
-        return "## Search Results\n\n" + "\n\n".join(postprocessed_results)
+        header = "## Resultados da Pesquisa" if is_pt else "## Search Results"
+        return header + "\n\n" + "\n\n".join(postprocessed_results)
+
+
+class RegionGoogleSearchTool(GoogleSearchTool):
+    """Google search tool with configurable region/language parameters.
+
+    Extends :class:`GoogleSearchTool` to bias results toward a specific
+    country (`gl`), interface language (`hl`) and (for the SerpAPI
+    provider) Google domain (e.g. `"google.com.br"`).  The stock
+    smolagents tool hardcodes `google_domain="google.com"` and exposes no
+    region control.
+
+    Requires an API key in the environment: `SERPAPI_API_KEY` (provider
+    `"serpapi"`) or `SERPER_API_KEY` (provider `"serper"`).
+
+    Args:
+        provider:      Search API backend. `"serpapi"` or `"serper"`
+                       (default `"serpapi"`).
+        region:        Country/geolocation code for the `gl` parameter
+                       (e.g. `"br"`, `"us"`).
+        language:      Interface language for the `hl` parameter
+                       (e.g. `"pt"`, `"en"`).
+        google_domain: Google domain for the SerpAPI provider (e.g.
+                       `"google.com.br"`).  Ignored by `"serper"`.
+    """
+
+    name = "web_search"
+
+    def __init__(
+        self,
+        provider: str = "serpapi",
+        region: str = "br",
+        language: str = "pt",
+        google_domain: str = "google.com.br",
+    ):
+        super().__init__(provider=provider)
+        self.region = region
+        self.language = language
+        self.google_domain = google_domain
+
+    def forward(self, query: str, filter_year: int | None = None) -> str:
+        import requests
+
+        if self.provider == "serpapi":
+            params = {
+                "q": query,
+                "api_key": self.api_key,
+                "engine": "google",
+                "google_domain": self.google_domain,
+                "gl": self.region,
+                "hl": self.language,
+            }
+            base_url = "https://serpapi.com/search.json"
+        else:
+            params = {
+                "q": query,
+                "api_key": self.api_key,
+                "gl": self.region,
+                "hl": self.language,
+            }
+            base_url = "https://google.serper.dev/search"
+        if filter_year is not None:
+            params["tbs"] = f"cdr:1,cd_min:01/01/{filter_year},cd_max:12/31/{filter_year}"
+
+        response = requests.get(base_url, params=params)
+        if response.status_code == 200:
+            results = response.json()
+        else:
+            raise ValueError(response.json())
+
+        is_pt = self.language.startswith("pt")
+        header = "## Resultados da Pesquisa" if is_pt else "## Search Results"
+
+        if self.organic_key not in results:
+            if filter_year is not None:
+                if is_pt:
+                    raise Exception(
+                        f"Nenhum resultado encontrado para a consulta: '{query}' com filtro de "
+                        f"ano={filter_year}. Use uma consulta menos restritiva ou não filtre por ano."
+                    )
+                raise Exception(
+                    f"No results found for query: '{query}' with filtering on year={filter_year}. "
+                    "Use a less restrictive query or do not filter on year."
+                )
+            if is_pt:
+                raise Exception(
+                    f"Nenhum resultado encontrado para a consulta: '{query}'. "
+                    "Use uma consulta menos restritiva."
+                )
+            raise Exception(f"No results found for query: '{query}'. Use a less restrictive query.")
+        if len(results[self.organic_key]) == 0:
+            if filter_year is not None:
+                year_filter_message = (
+                    f" com filtro de ano={filter_year}"
+                    if is_pt
+                    else f" with filter year={filter_year}"
+                )
+            else:
+                year_filter_message = ""
+            if is_pt:
+                return (
+                    f"Nenhum resultado encontrado para '{query}'{year_filter_message}. "
+                    "Tente com uma consulta mais geral, ou remova o filtro de ano."
+                )
+            return (
+                f"No results found for '{query}'{year_filter_message}. "
+                "Try with a more general query, or remove the year filter."
+            )
+
+        date_label = "Data de publicação: " if is_pt else "Date published: "
+        source_label = "Fonte: " if is_pt else "Source: "
+
+        web_snippets = []
+        for idx, page in enumerate(results[self.organic_key]):
+            date_published = ""
+            if "date" in page:
+                date_published = "\n" + date_label + page["date"]
+
+            source = ""
+            if "source" in page:
+                source = "\n" + source_label + page["source"]
+
+            snippet = ""
+            if "snippet" in page:
+                snippet = "\n" + page["snippet"]
+
+            redacted_version = (
+                f"{idx}. [{page['title']}]({page['link']}){date_published}{source}\n{snippet}"
+            )
+            web_snippets.append(redacted_version)
+
+        return header + "\n\n" + "\n\n".join(web_snippets)

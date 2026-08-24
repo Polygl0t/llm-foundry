@@ -62,6 +62,7 @@ from utils import (
     load_metadata_entries,
     load_processed_ids,
     load_system_prompt,
+    log_search_tool,
     logger,
     summarize_trace_metadata,
 )
@@ -196,6 +197,9 @@ def main(args) -> None:
     # Load system prompt: an explicit --system-prompt-file takes precedence;
     # otherwise use the bundled prompt for the selected language.
     prompt_templates = load_system_prompt(args.system_prompt_file, language=args.language)
+
+    # Log which web-search backend the agent will use for this run.
+    log_search_tool(args.language)
 
     # Prepare output directory
     output_dir = Path(args.output_dir)

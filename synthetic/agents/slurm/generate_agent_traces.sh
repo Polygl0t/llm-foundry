@@ -81,7 +81,7 @@ export DATASET_PATH="$workdir/data/samples.jsonl"                   # <-- Path t
 export PROMPT_COLUMN="prompt"                                       # <-- Column name for the prompt
 export ID_COLUMN="id"                                               # <-- Column name for trace IDs (empty = use prompt hashes)
 export GROUND_TRUTH_COLUMN="ground_truth"                           # <-- Column name for ground-truth answers (empty = none)
-export LANGUAGE="pt"                                                # <-- Language: system prompt + Wikipedia + DuckDuckGo region
+export LANGUAGE="pt"                                                # <-- Language: system prompt + Wikipedia + web search region
 
 # ─── Agent ─────────────────────────────────────────────────────── #
 export MAX_STEPS=20                                                 # <-- Max agent steps per example
@@ -95,6 +95,9 @@ export ENABLE_PLANNING="0"                                          # <-- Set to
 # ─── Code-block delimiters ─────────────────────────────────────── #
 export CODE_BLOCK_OPENING_TAG="<code>"                              # <-- Opening tag for code blocks
 export CODE_BLOCK_CLOSING_TAG="</code>"                             # <-- Closing tag for code blocks
+
+# ─── Web Search ────────────────────────────────────────────────── #
+export SERPAPI_API_KEY=""                                           # <-- API key for SerpAPI (Google Search). Empty = fall back to DuckDuckGo (also set in .env)
 
 # ─── Output ────────────────────────────────────────────────────── #
 export OUTPUT_DIR="$workdir/traces"                                 # <-- Base directory for saving traces
