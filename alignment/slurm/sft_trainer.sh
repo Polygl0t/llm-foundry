@@ -66,6 +66,7 @@ export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE"
 export HF_TOKEN="<your-token-here>"
 export WANDB_TOKEN="<your-token-here>"
 export WANDB_DIR="$HF_DATASETS_CACHE/wandb"
+export TRACKIO_STORAGE_MODE=sqlite
 export TRITON_CACHE_DIR="$HF_DATASETS_CACHE/triton_cache/$SLURM_JOB_ID"
 export NCCL_TIMEOUT=3600
 export TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC=3600

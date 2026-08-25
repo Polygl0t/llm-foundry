@@ -96,7 +96,7 @@ install_core_packages() {
 install_attention_stack() {
     echo "[$(date)] Installing attention stack (flash-attn-4, flash-linear-attention, causal-conv1d)..."
     uv pip install \
-        "flash-attn-4[cu13]==4.0.0b15" \
+        "flash-attn-4[cu13]==4.0.0b27" \
         --pre \
         --no-cache
 
