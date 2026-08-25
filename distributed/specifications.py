@@ -546,6 +546,17 @@ class TrainingArguments:
             )
         },
     )
+    trackio_auto_log_gpu: bool | None = field(
+        default=None,
+        metadata={
+            "help": (
+                "Whether trackio should automatically log GPU metrics. When None (default), "
+                "trackio auto-detects GPUs and enables logging when available. Set to False "
+                "to disable GPU metric logging (useful when logging hundreds of GPUs makes "
+                "the dashboard slow). Only used when `offline_mode` is True."
+            )
+        },
+    )
     codecarbon_country_iso_code: str | None = field(
         default="DEU",
         metadata={

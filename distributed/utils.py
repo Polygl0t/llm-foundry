@@ -454,6 +454,7 @@ def initialize_wandb(args, slurm_job_id, max_steps):
             name=run_name,
             config=args.to_dict(),
             resume="allow",
+            auto_log_gpu=args.trackio_auto_log_gpu,
         )
         return
 
