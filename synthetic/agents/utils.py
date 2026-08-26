@@ -29,11 +29,9 @@ from patches import (
 from smolagents import CodeAgent
 from smolagents.agents import EMPTY_PROMPT_TEMPLATES, PromptTemplates, populate_template
 from smolagents.default_tools import (
-    DuckDuckGoSearchTool,
     FinalAnswerTool,
     PythonInterpreterTool,
     VisitWebpageTool,
-    WikipediaSearchTool,
 )
 from smolagents.local_python_executor import BASE_BUILTIN_MODULES
 from smolagents.memory import ActionStep, FinalAnswerStep, PlanningStep, SystemPromptStep, TaskStep
@@ -1230,7 +1228,7 @@ def log_search_tool(language: str = "en") -> None:
         logger.info("🔎 Using DuckDuckGo Search (en). No SERPAPI_API_KEY found.")
 
 
-def _build_default_tools(timeout_seconds: int | None = None, language: str = "en") -> list[Tool]:
+def build_default_tools(timeout_seconds: int | None = None, language: str = "en") -> list[Tool]:
     """Build the standard set of tools for a CodeAgent.
 
     Includes tools available in smolagents.default_tools:
@@ -1240,7 +1238,9 @@ def _build_default_tools(timeout_seconds: int | None = None, language: str = "en
                                `SERPAPI_API_KEY` is available, otherwise
                                the free DuckDuckGo search)
       - VisitWebpageTool       (fetch & convert webpage to Markdown)
-      - WikipediaSearchTool    (search Wikipedia)
+      - WikipediaSearchTool    (search Wikipedia; custom wrapper with
+                                exact-title guidance and a title-suggestion
+                                fallback)
 
     The search tools (search backend + region + Wikipedia language) are
     configured from *language*: "pt" biases web search to Brazil and
@@ -1270,6 +1270,8 @@ def _build_default_tools(timeout_seconds: int | None = None, language: str = "en
     # Prefer Google Search (SerpAPI) when an API key is available, either
     # exported or loaded from the repo's `.env` file, and fall back to the
     # free DuckDuckGo search otherwise.
+    from tools import RegionWikipediaSearchTool
+
     if os.getenv("SERPAPI_API_KEY"):
         from tools import RegionGoogleSearchTool
 
@@ -1290,11 +1292,13 @@ def _build_default_tools(timeout_seconds: int | None = None, language: str = "en
     elif language == "pt":
         from tools import RegionDuckDuckGoSearchTool
 
-        search_tool: Tool = RegionDuckDuckGoSearchTool(region="pt-br")
+        search_tool: Tool = RegionDuckDuckGoSearchTool(region="pt-br", language="pt")
     else:
-        search_tool = DuckDuckGoSearchTool(max_results=15, rate_limit=1.0)
+        from tools import RegionDuckDuckGoSearchTool
 
-    wiki_tool = WikipediaSearchTool(language=config["wikipedia_language"])
+        search_tool: Tool = RegionDuckDuckGoSearchTool(region="wt-wt", language="en")
+
+    wiki_tool = RegionWikipediaSearchTool(language=config["wikipedia_language"])
 
     tools: list[Tool] = [
         PythonInterpreterTool(timeout_seconds=timeout_seconds or 120),
@@ -1325,6 +1329,7 @@ def execute_single_trace(
     enable_planning: bool = False,
     code_block_opening_tag: str = "<code>",
     code_block_closing_tag: str = "</code>",
+    tools: list[Tool] | None = None,
 ) -> TraceRecord:
     """Create a fresh CodeAgent, run one prompt, and return a TraceRecord.
 
@@ -1343,6 +1348,8 @@ def execute_single_trace(
                                       start before executing actions.
         code_block_opening_tag:       Opening tag for code blocks.
         code_block_closing_tag:       Closing tag for code blocks.
+        tools:                        Pre-built tool list; when None, the default
+                                      tool set is built for the given language.
 
     Returns:
         A populated TraceRecord.
@@ -1351,8 +1358,10 @@ def execute_single_trace(
     trace_id = str(row.get("_trace_id", hashlib.sha256(prompt.encode()).hexdigest()[:16]))
     ground_truth = row.get("_ground_truth")
 
-    # Build tools
-    tools = _build_default_tools(timeout_seconds=executor_timeout, language=language)
+    # Build tools (or reuse the pre-built set when one is provided, so the
+    # web-search tool's rate limiter is shared across traces).
+    if tools is None:
+        tools = build_default_tools(timeout_seconds=executor_timeout, language=language)
     if extra_tools:
         tools.extend(extra_tools)
 

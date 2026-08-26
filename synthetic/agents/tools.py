@@ -1,15 +1,17 @@
 """
 Custom tools for the CodeAgent.
 
-Two region-aware web-search tools are defined here:
+Three region-aware tools are defined here:
 - `RegionDuckDuckGoSearchTool`: free DuckDuckGo search with a `region` code.
 - `RegionGoogleSearchTool`: Google search (SerpAPI/Serper) with country,
   language and domain parameters.
+- `RegionWikipediaSearchTool`: Wikipedia search with exact-title guidance
+  and a title fallback.
 
 The mathematical problem-solving tool (`MathTool`, sympy-backed) and a set
 of local filesystem tools are also defined here.  All other tools
-(PythonInterpreterTool, FinalAnswerTool, VisitWebpageTool,
-WikipediaSearchTool) come from smolagents.default_tools.
+(PythonInterpreterTool, FinalAnswerTool, VisitWebpageTool) come from
+smolagents.default_tools.
 """
 
 import contextlib
@@ -21,7 +23,11 @@ from pathlib import Path
 from typing import Any
 
 from smolagents import Tool
-from smolagents.default_tools import DuckDuckGoSearchTool, GoogleSearchTool
+from smolagents.default_tools import (
+    DuckDuckGoSearchTool,
+    GoogleSearchTool,
+    WikipediaSearchTool,
+)
 
 
 class ReadFileTool(Tool):
@@ -702,9 +708,11 @@ class RegionDuckDuckGoSearchTool(DuckDuckGoSearchTool):
         is_pt = self.language.startswith("pt")
         if len(results) == 0:
             raise Exception(
-                "Nenhum resultado encontrado! Tente uma consulta menos restritiva/mais curta."
+                "Nenhum resultado encontrado! Tente uma consulta menos restritiva/mais curta, "
+                "ou use wikipedia_search com o título exato do artigo."
                 if is_pt
-                else "No results found! Try a less restrictive/shorter query."
+                else "No results found! Try a less restrictive/shorter query, "
+                "or use wikipedia_search with the exact article title."
             )
         postprocessed_results = [
             f"[{result['title']}]({result['href']})\n{result['body']}" for result in results
@@ -842,3 +850,134 @@ class RegionGoogleSearchTool(GoogleSearchTool):
             web_snippets.append(redacted_version)
 
         return header + "\n\n" + "\n\n".join(web_snippets)
+
+
+class RegionWikipediaSearchTool(WikipediaSearchTool):
+    """Wikipedia search tool with exact-title guidance and a title fallback.
+
+    Extends :class:`WikipediaSearchTool` in two ways:
+
+    1. The tool description tells the agent that `query` is matched against
+       Wikipedia article *titles* (not free text), so it should pass a short,
+       title-like query (e.g. ``"Ayrton Senna"``) instead of a sentence or
+       question.
+    2. When the exact title does not exist, instead of dead-ending with
+       "No Wikipedia page found", the tool runs a Wikipedia opensearch and
+       returns the closest matching titles so the agent can retry with one
+       of them.
+
+    Args:
+        user_agent:     Custom user-agent string (required by Wikipedia's API
+                        policy).
+        language:       Wikipedia language code. `"pt"` or `"en"`.
+        content_type:   `"summary"` or `"text"` (default `"text"`).
+        extract_format: `"WIKI"` or `"HTML"` (default `"WIKI"`).
+    """
+
+    name = "wikipedia_search"
+    description = (
+        "Searches Wikipedia and returns the full text (or summary) of the requested "
+        "article along with its URL. IMPORTANT: the query is matched against Wikipedia "
+        "article titles, so pass a short title-like query (e.g. 'Ayrton Senna' or "
+        "'Great Pyramid of Giza'), not a sentence or a question."
+    )
+    inputs = {
+        "query": {
+            "type": "string",
+            "description": (
+                "The Wikipedia article title to fetch. Use a short, title-like phrase; "
+                "if the exact title is not found, close title matches are suggested automatically."
+            ),
+        }
+    }
+
+    def __init__(
+        self,
+        user_agent: str = "Smolagents (myemail@example.com)",
+        language: str = "en",
+        content_type: str = "text",
+        extract_format: str = "WIKI",
+    ):
+        super().__init__(
+            user_agent=user_agent,
+            language=language,
+            content_type=content_type,
+            extract_format=extract_format,
+        )
+
+    def forward(self, query: str) -> str:
+        try:
+            page = self.wiki.page(query)
+
+            if not page.exists():
+                return self._no_page_found(query)
+
+            title = page.title
+            url = page.fullurl
+
+            if self.content_type == "summary":
+                text = page.summary
+            elif self.content_type == "text":
+                text = page.text
+            else:
+                return "⚠️ Invalid `content_type`. Use either 'summary' or 'text'."
+
+            return (
+                f"✅ **Wikipedia Page:** {title}\n\n**Content:** {text}\n\n🔗 **Read more:** {url}"
+            )
+
+        except Exception as e:
+            return f"Error fetching Wikipedia summary: {str(e)}"
+
+    def _suggest_titles(self, query: str, limit: int = 8) -> list[str]:
+        """Return up to `limit` closest Wikipedia article titles for `query`.
+
+        Uses the MediaWiki opensearch API, which performs a fuzzy *title*
+        search, so descriptive queries such as "Ayrton Senna Birthday" still
+        surface the exact title "Ayrton Senna".
+        """
+        import requests
+
+        url = f"https://{self.language}.wikipedia.org/w/api.php"
+        params = {
+            "action": "opensearch",
+            "search": query,
+            "limit": limit,
+            "namespace": 0,
+            "format": "json",
+        }
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+        except Exception:
+            return []
+        # MediaWiki opensearch returns [query, [titles], [descriptions], [urls]].
+        if not isinstance(data, list) or len(data) < 2 or not isinstance(data[1], list):
+            return []
+        return [title for title in data[1] if title]
+
+    def _no_page_found(self, query: str) -> str:
+        """Build the localized not-found message, with title suggestions when available."""
+        is_pt = self.language.startswith("pt")
+        suggestions = self._suggest_titles(query)
+        if suggestions:
+            joined = ", ".join(repr(title) for title in suggestions)
+            if is_pt:
+                return (
+                    f"Nenhuma página da Wikipédia encontrada para '{query}'. "
+                    f"Tente um destes títulos exatos: {joined}."
+                )
+            return (
+                f"No Wikipedia page found for '{query}'. "
+                f"Try one of these exact article titles: {joined}."
+            )
+        if is_pt:
+            return (
+                f"Nenhuma página da Wikipédia encontrada para '{query}'. "
+                "Use um título de artigo exato e curto (ex.: 'Ayrton Senna'), não uma frase."
+            )
+        return (
+            f"No Wikipedia page found for '{query}'. "
+            "Use a short, exact article title (e.g. 'Ayrton Senna'), not a sentence."
+        )

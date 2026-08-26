@@ -60,6 +60,57 @@ class _StubSystemPromptStep:
         self.system_prompt = system_prompt
 
 
+# Stub base classes for the smolagents Tool hierarchy.  These are real
+# classes (not MagicMock instances) so the *real* `tools.py` module can be
+# imported and its `RegionDuckDuckGoSearchTool` / `RegionWikipediaSearchTool`
+# subclasses exercised directly in the fallback tests below.
+
+
+class _StubTool:
+    name = "stub_tool"
+    description = ""
+    inputs = {}
+    output_type = "string"
+
+    def __init__(self, **kwargs):
+        pass
+
+
+class _StubDuckDuckGoSearchTool(_StubTool):
+    def __init__(self, max_results: int = 10, rate_limit: float | None = 1.0, **kwargs):
+        super().__init__(**kwargs)
+        self.max_results = max_results
+        self.rate_limit = rate_limit
+
+    def _enforce_rate_limit(self) -> None:
+        pass
+
+
+class _StubGoogleSearchTool(_StubTool):
+    def __init__(self, provider: str = "serpapi", **kwargs):
+        super().__init__(**kwargs)
+        self.provider = provider
+        self.api_key = "stub-api-key"
+        self.organic_key = "organic_results"
+
+
+class _StubWikipediaSearchTool(_StubTool):
+    def __init__(
+        self,
+        user_agent: str = "stub",
+        language: str = "en",
+        content_type: str = "text",
+        extract_format: str = "WIKI",
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.user_agent = user_agent
+        self.language = language
+        self.content_type = content_type
+        self.extract_format = extract_format
+        self.wiki = None
+
+
 _smolagents = MagicMock()
 _smolagents.CodeAgent = MagicMock()
 _smolagents_agents = MagicMock()
@@ -67,6 +118,9 @@ _smolagents_agents.EMPTY_PROMPT_TEMPLATES = {}
 _smolagents_agents.PromptTemplates = MagicMock()
 _smolagents_agents.populate_template = MagicMock()
 _smolagents_default_tools = MagicMock()
+_smolagents_default_tools.DuckDuckGoSearchTool = _StubDuckDuckGoSearchTool
+_smolagents_default_tools.GoogleSearchTool = _StubGoogleSearchTool
+_smolagents_default_tools.WikipediaSearchTool = _StubWikipediaSearchTool
 _smolagents_lpe = MagicMock()
 _smolagents_lpe.BASE_BUILTIN_MODULES = []
 _smolagents_memory = MagicMock()
@@ -78,7 +132,8 @@ _smolagents_memory.SystemPromptStep = _StubSystemPromptStep
 _smolagents_models = MagicMock()
 _smolagents_monitoring = MagicMock()
 _smolagents_tools = MagicMock()
-_smolagents_tools.Tool = MagicMock()
+_smolagents_tools.Tool = _StubTool
+_smolagents.Tool = _StubTool
 sys.modules["smolagents"] = _smolagents
 sys.modules["smolagents.agents"] = _smolagents_agents
 sys.modules["smolagents.default_tools"] = _smolagents_default_tools
@@ -124,6 +179,29 @@ SystemPromptStep = _StubSystemPromptStep
 TaskStep = _StubTaskStep
 
 print("All imports OK ✅")
+
+
+# ---------------------------------------------------------------------------
+# Real tools module loader (for the search-tool fallback tests below).
+# The real `tools.py` is loaded on demand under a distinct module name,
+# using the stub smolagents classes defined above so the import succeeds.
+# ---------------------------------------------------------------------------
+
+_real_tools = None
+
+
+def _load_real_tools():
+    global _real_tools
+    if _real_tools is None:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(
+            "synthetic_agents_real_tools", os.path.join(AGENTS_DIR, "tools.py")
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        _real_tools = module
+    return _real_tools
 
 
 # ---------------------------------------------------------------------------
@@ -1384,6 +1462,121 @@ def test_format_trace_as_conversation_unknown_language_falls_back_to_english():
 
 
 # ---------------------------------------------------------------------------
+# Test 42 — RegionDuckDuckGoSearchTool: no-results fallback hint
+# ---------------------------------------------------------------------------
+
+
+def test_region_duckduckgo_no_results_mentions_wikipedia_fallback():
+    tools = _load_real_tools()
+    for language in ("en", "pt"):
+        tool = tools.RegionDuckDuckGoSearchTool(
+            region="wt-wt", language=language, max_results=5, rate_limit=None
+        )
+        tool.ddgs = MagicMock()
+        tool.ddgs.text.return_value = []
+        try:
+            tool.forward("some obscure query")
+            raise AssertionError("Expected an exception for empty search results")
+        except Exception as exc:
+            assert "wikipedia_search" in str(exc)
+    print("Test 42 — RegionDuckDuckGoSearchTool fallback hint: OK ✅")
+
+
+# ---------------------------------------------------------------------------
+# Test 43 — RegionWikipediaSearchTool: no-page suggestions
+# ---------------------------------------------------------------------------
+
+
+def test_region_wikipedia_no_page_found_with_suggestions():
+    tools = _load_real_tools()
+    cls = tools.RegionWikipediaSearchTool
+
+    tool = cls.__new__(cls)
+    tool.language = "en"
+    with patch.object(
+        tool, "_suggest_titles", return_value=["Ayrton Senna", "Ayrton Senna da Silva"]
+    ):
+        msg = tool._no_page_found("Ayrton Senna Birthday")
+    assert "No Wikipedia page found" in msg
+    assert "'Ayrton Senna'" in msg
+
+    tool_pt = cls.__new__(cls)
+    tool_pt.language = "pt"
+    with patch.object(tool_pt, "_suggest_titles", return_value=["Ayrton Senna"]):
+        msg_pt = tool_pt._no_page_found("Ayrton Senna Birthday")
+    assert "Nenhuma página da Wikipédia" in msg_pt
+    assert "'Ayrton Senna'" in msg_pt
+    print("Test 43 — RegionWikipediaSearchTool no-page suggestions: OK ✅")
+
+
+# ---------------------------------------------------------------------------
+# Test 44 — RegionWikipediaSearchTool: no-page without suggestions
+# ---------------------------------------------------------------------------
+
+
+def test_region_wikipedia_no_page_found_without_suggestions():
+    tools = _load_real_tools()
+    cls = tools.RegionWikipediaSearchTool
+
+    tool = cls.__new__(cls)
+    tool.language = "en"
+    with patch.object(tool, "_suggest_titles", return_value=[]):
+        msg = tool._no_page_found("a sentence that is not a title")
+    assert "No Wikipedia page found" in msg
+    assert "short, exact article title" in msg
+
+    tool_pt = cls.__new__(cls)
+    tool_pt.language = "pt"
+    with patch.object(tool_pt, "_suggest_titles", return_value=[]):
+        msg_pt = tool_pt._no_page_found("uma frase que não é um título")
+    assert "Nenhuma página da Wikipédia" in msg_pt
+    assert "título de artigo exato e curto" in msg_pt
+    print("Test 44 — RegionWikipediaSearchTool no-page no suggestions: OK ✅")
+
+
+# ---------------------------------------------------------------------------
+# Test 45 — RegionWikipediaSearchTool: _suggest_titles parses opensearch
+# ---------------------------------------------------------------------------
+
+
+def test_region_wikipedia_suggest_titles_parses_opensearch_and_handles_errors():
+    tools = _load_real_tools()
+    cls = tools.RegionWikipediaSearchTool
+
+    tool = cls.__new__(cls)
+    tool.language = "en"
+
+    # Happy path: opensearch-shaped JSON response.
+    fake_requests = MagicMock()
+    fake_response = MagicMock()
+    fake_response.json.return_value = [
+        "query",
+        ["Ayrton Senna", "Ayrton Senna (footballer)"],
+        [],
+        [],
+    ]
+    fake_requests.get.return_value = fake_response
+    with patch.dict(sys.modules, {"requests": fake_requests}):
+        titles = tool._suggest_titles("Ayrton Senna Birthday")
+    assert titles == ["Ayrton Senna", "Ayrton Senna (footballer)"]
+
+    # Malformed response → empty list.
+    fake_requests2 = MagicMock()
+    fake_response2 = MagicMock()
+    fake_response2.json.return_value = {"not": "a list"}
+    fake_requests2.get.return_value = fake_response2
+    with patch.dict(sys.modules, {"requests": fake_requests2}):
+        assert tool._suggest_titles("Ayrton Senna Birthday") == []
+
+    # Network error → empty list.
+    fake_requests3 = MagicMock()
+    fake_requests3.get.side_effect = Exception("boom")
+    with patch.dict(sys.modules, {"requests": fake_requests3}):
+        assert tool._suggest_titles("Ayrton Senna Birthday") == []
+    print("Test 45 — RegionWikipediaSearchTool suggest titles: OK ✅")
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -1430,6 +1623,10 @@ if __name__ == "__main__":
         test_format_trace_as_conversation_english_not_translated,
         test_language_configs_have_required_keys,
         test_format_trace_as_conversation_unknown_language_falls_back_to_english,
+        test_region_duckduckgo_no_results_mentions_wikipedia_fallback,
+        test_region_wikipedia_no_page_found_with_suggestions,
+        test_region_wikipedia_no_page_found_without_suggestions,
+        test_region_wikipedia_suggest_titles_parses_opensearch_and_handles_errors,
     ]
     for test in tests:
         test()

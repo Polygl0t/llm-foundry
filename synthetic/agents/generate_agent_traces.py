@@ -56,6 +56,7 @@ from utils import (
     OutputManager,
     TraceRecord,
     append_metadata_entry,
+    build_default_tools,
     build_model,
     execute_single_trace,
     load_dataset,
@@ -201,6 +202,11 @@ def main(args) -> None:
     # Log which web-search backend the agent will use for this run.
     log_search_tool(args.language)
 
+    # Build the agent tool set once so the web-search tool's rate limiter is
+    # shared across all traces (instead of being reset per trace, which could
+    # trip DuckDuckGo's per-second rate limit).
+    tools = build_default_tools(timeout_seconds=executor_timeout, language=args.language)
+
     # Prepare output directory
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -277,6 +283,7 @@ def main(args) -> None:
                 enable_planning=args.enable_planning,
                 code_block_opening_tag=args.code_block_opening_tag,
                 code_block_closing_tag=args.code_block_closing_tag,
+                tools=tools,
             )
         except Exception as e:
             # Create a minimal failure trace
