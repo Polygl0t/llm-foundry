@@ -20,6 +20,7 @@ from typing import Any
 
 import datasets
 import yaml
+from grader import AnswerSpec, grade_answer
 from patches import (
     _ensure_vllm_tokenizer_compat,
     _patch_smolagents_binop_guard,
@@ -786,36 +787,6 @@ def normalize_answer(text: str) -> str:
     return text
 
 
-def compare_answer(final_answer: Any, ground_truth: str) -> bool:
-    """Compare the agent's final answer against ground truth.
-
-    For the comparison, we normalize both sides and check whether
-    the ground truth appears within the final answer (or vice versa).
-
-    Args:
-        final_answer: The output of final_answer().
-        ground_truth: The expected answer string from the dataset.
-
-    Returns:
-        True if the answers match, False otherwise.
-    """
-    if final_answer is None:
-        return False
-
-    gt = normalize_answer(str(ground_truth))
-    fa = normalize_answer(str(final_answer))
-
-    if not gt or not fa:
-        return False
-
-    # Exact match after normalization
-    if gt == fa:
-        return True
-
-    # Containment: ground truth is a substring of the final answer or vice versa
-    return bool(gt in fa or fa in gt)
-
-
 def _extract_model_output_text(step: dict[str, Any]) -> str:
     """Extract the text content from a model_output_message dict.
 
@@ -1481,12 +1452,17 @@ def execute_single_trace(
     except Exception:
         pass
 
-    # Evaluate against ground truth
+    # Evaluate against ground truth using the typed answer grader.  The
+    # per-item schema (answer_type / answer_aliases / answer_units /
+    # answer_precision / answer_rtol / answer_ordered) is read from the row
+    # and the answer type is auto-inferred from the gold answer when the row
+    # carries no schema fields, so samples with only a ground_truth column
+    # are still graded correctly.
     if (
         ground_truth is not None
         and state == TRACE_STATUS_SUCCESS
         and final_answer is not None
-        and not compare_answer(final_answer, ground_truth)
+        and not grade_answer(final_answer, AnswerSpec.from_row(row))
     ):
         state = TRACE_STATUS_FAIL
         error_msg = f"Answer mismatch: got {final_answer!r}, expected {ground_truth!r}."

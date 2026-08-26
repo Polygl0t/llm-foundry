@@ -527,7 +527,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--ground-truth-column",
         default=None,
-        help="Name of the column containing ground-truth answers (optional).",
+        help="Name of the column containing ground-truth answers. When set, "
+        "each successful trace is graded against the gold answer using the "
+        "typed answer grader: the answer type is auto-inferred from the gold "
+        "string, and optional per-sample columns (answer_type, "
+        "answer_aliases, answer_units, answer_precision, answer_rtol, "
+        "answer_ordered) refine the comparison.",
     )
 
     # Agent arguments

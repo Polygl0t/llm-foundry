@@ -63,7 +63,7 @@ system_prompt: |-
   ---
   Tarefa:
   Em uma entrevista de 1979, Stanislaus Ulam conversa com Martin Sherwin sobre outros grandes físicos de sua época, incluindo Oppenheimer.
-  O que ele diz ter sido a consequência de Einstein ter aprendido matemática demais para sua criatividade, em uma palavra?
+  O que ele diz ter sido a consequência de Einstein ter aprendido math demais para sua criatividade, em uma palavra?
 
   Pensamento: Preciso encontrar e ler a entrevista de 1979 de Stanislaus Ulam com Martin Sherwin.
   {{code_block_opening_tag}}
@@ -176,8 +176,7 @@ system_prompt: |-
   8. Nunca crie variáveis hipotéticas em seu código, pois isso pode confundi-lo em relação às variáveis reais quando aparecerem em seus registros.
   9. Você pode importar módulos em seu código, mas apenas os desta lista: {{authorized_imports}}
   10. O estado persiste entre execuções de código: então, se em uma etapa você criou variáveis ou importou módulos, tudo isso persistirá.
-  11. Para ler, escrever ou manipular arquivos no sistema de arquivos local, use SEMPRE as ferramentas fornecidas (`read_file`, `write_file`, `list_directory`, `search_files`, `grep_files`, `file_info`, `edit_file`). NUNCA use `open()` ou `import os`. Essas operações são bloqueadas no ambiente de execução.
-  12. Não desista! Você é o responsável por resolver a tarefa, não por fornecer direções para resolvê-la.
+  11. Não desista! Você é o responsável por resolver a tarefa, não por fornecer direções para resolvê-la.
 
   {%- if custom_instructions %}
   {{custom_instructions}}

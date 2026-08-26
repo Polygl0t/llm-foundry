@@ -148,6 +148,7 @@ sys.modules.setdefault("tools", _tools_mock)
 from utils import (  # noqa: E402
     LANGUAGE_CONFIGS,
     SUPPORTED_LANGUAGES,
+    AnswerSpec,
     OutputManager,
     TraceRecord,
     _conversation_has_unclosed_think,
@@ -161,6 +162,7 @@ from utils import (  # noqa: E402
     append_metadata_entry,
     compare_answer,
     format_trace_as_conversation,
+    grade_answer,
     load_dataset,
     load_metadata_entries,
     load_processed_ids,
@@ -714,19 +716,20 @@ def test_normalize_answer_various_cases():
 # ---------------------------------------------------------------------------
 
 
-def test_compare_answer_exact_and_substring_and_edge_cases():
-    # Exact match
+def test_compare_answer_typed_matching():
+    # Exact string match (type auto-inferred as "exact")
     assert compare_answer("Paris", "Paris") is True
     assert compare_answer("paris", "Paris") is True
     assert compare_answer("  Paris!  ", "Paris") is True
 
-    # Substring containment
+    # Relaxed substring containment: an answer with extra words matches.
     assert compare_answer("The capital is Paris.", "Paris") is True
     assert compare_answer("Paris", "The capital is Paris.") is True
 
-    # Numeric match
+    # Numeric match (type auto-inferred as "integer" / "float")
     assert compare_answer("42.0", "42") is True
     assert compare_answer("The answer is 42.", "42") is True
+    assert compare_answer("42.5", "42.5") is True
 
     # Mismatch
     assert compare_answer("Paris", "London") is False
@@ -734,10 +737,94 @@ def test_compare_answer_exact_and_substring_and_edge_cases():
     # Edge cases
     assert compare_answer(None, "something") is False
     assert compare_answer("something", "") is False
-    assert compare_answer("", "") is False
     assert compare_answer("", "something") is False
+    # Empty answers never match (an empty gold string is not gradable).
+    assert compare_answer("", "") is False
 
     print("Test 16 — compare_answer: OK ✅")
+
+
+# ---------------------------------------------------------------------------
+# Test 16b — typed grader (AnswerSpec / grade_answer)
+# ---------------------------------------------------------------------------
+
+
+def test_answer_spec_from_row_with_only_ground_truth():
+    spec = AnswerSpec.from_row({"ground_truth": "42"})
+    assert spec.ground_truth == "42"
+    assert spec.type is None
+    assert spec.aliases == ()
+    assert spec.units == ()
+    assert spec.precision is None
+    assert spec.rtol is None
+    assert spec.ordered is True
+
+    # The trace pipeline stores the gold answer under "_ground_truth".
+    spec2 = AnswerSpec.from_row({"_ground_truth": "Paris"})
+    assert spec2.ground_truth == "Paris"
+
+    # Missing ground truth raises.
+    try:
+        AnswerSpec.from_row({"prompt": "No answer here"})
+        raise AssertionError("expected ValueError")
+    except ValueError:
+        pass
+    print("Test 16b — AnswerSpec.from_row: OK ✅")
+
+
+def test_answer_spec_from_row_reads_schema_fields():
+    spec = AnswerSpec.from_row(
+        {
+            "ground_truth": "Rio de Janeiro",
+            "answer_type": "entity",
+            "answer_aliases": ["Rio", "Cidade Maravilhosa"],
+            "answer_precision": "0.01",
+            "answer_ordered": False,
+        }
+    )
+    assert spec.type == "entity"
+    assert spec.aliases == ("Rio", "Cidade Maravilhosa")
+    assert spec.precision == 0.01
+    assert spec.ordered is False
+    print("Test 16c — AnswerSpec schema fields: OK ✅")
+
+
+def test_grade_answer_types():
+    # integer (including Roman numerals)
+    assert grade_answer("XLII", AnswerSpec("42")) is True
+    assert grade_answer("43", AnswerSpec("42")) is False
+
+    # float with absolute tolerance
+    assert grade_answer("3.15", AnswerSpec("3.14", type="float", precision=0.02)) is True
+    assert grade_answer("3.20", AnswerSpec("3.14", type="float", precision=0.02)) is False
+
+    # quantity (number + unit)
+    assert grade_answer("5 cm", AnswerSpec("5 cm", type="quantity")) is True
+    assert grade_answer("5 cm", AnswerSpec("5 m", type="quantity")) is False
+
+    # entity (accent/alias folding)
+    assert grade_answer("Kings College", AnswerSpec("King's College", type="entity")) is True
+    assert (
+        grade_answer(
+            "BRA Santos Dumont",
+            AnswerSpec("BRA-Santos Dumont", type="entity", aliases=["Santos Dumont"]),
+        )
+        is True
+    )
+
+    # date (format normalization)
+    assert grade_answer("2024-12-25", AnswerSpec("25/12/2024", type="date")) is True
+
+    # list (ordered and unordered)
+    assert grade_answer("a, b, c", AnswerSpec("a,b,c", type="list")) is True
+    assert grade_answer("c, b, a", AnswerSpec("a,b,c", type="list")) is False
+    assert grade_answer("c, b, a", AnswerSpec("a,b,c", type="list", ordered=False)) is True
+
+    # exact (normalized match, with relaxed substring containment)
+    assert grade_answer("hello", AnswerSpec("hello", type="exact")) is True
+    assert grade_answer("hello world", AnswerSpec("hello", type="exact")) is True
+    assert grade_answer("goodbye", AnswerSpec("hello", type="exact")) is False
+    print("Test 16d — grade_answer: OK ✅")
 
 
 # ---------------------------------------------------------------------------
