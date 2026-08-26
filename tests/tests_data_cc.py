@@ -9,7 +9,7 @@ Tests the surrounding logic of the data/cc scripts:
 DataTrove pipeline internals are deliberately NOT tested here.
 
 Run with:
-    python tests_data.py
+    pytest tests/tests_data_cc.py
 
 Requirements:
 - No GPU required
@@ -569,26 +569,3 @@ def test_20_consolidation_multiple_shards_per_language():
         assert meta["lines"] == 8
         assert meta["tokens"] == 3 * 10 + 5 * 20  # 30 + 100 = 130
     print("Test 20 — consolidation multiple shards per language: OK ✅")
-
-
-if __name__ == "__main__":
-    test_02_getlogger_returns_a_working_logger()
-    test_03_getlogger_is_idempotent()
-    test_04_readmetadata_returns_none_for_missing_file()
-    test_05_readmetadata_parses_int_float_and_string()
-    test_06_readmetadata_handles_blank_and_non_kv_lines()
-    test_07_writemetadata_writes_correct_format()
-    test_09_initializeorloadmetadata_empty_folder_returns_zeros()
-    test_10_initializeorloadmetadata_loads_existing_metadata_file()
-    test_11_initializeorloadmetadata_scans_jsonl_skips_invalid_and_creates_metadata()
-    test_13_all_languages_argument_parser_defaults_and_required_args()
-    test_14_quality_filters_argument_parser_defaults_and_required_args()
-    test_15_consolidation_writes_output_and_metadata()
-    test_16_consolidation_skips_invalid_json_lines()
-    test_17_consolidation_appends_and_accumulates_metadata()
-    test_18_consolidation_skips_language_with_no_valid_data()
-    test_19_consolidation_multiple_languages_in_one_run()
-    test_20_consolidation_multiple_shards_per_language()
-    print("\n" + "=" * 50)
-    print("All tests passed ✅")
-    print("=" * 50)

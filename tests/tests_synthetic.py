@@ -2,7 +2,7 @@
 Synthetic generation test suite.
 
 Run with:
-    python tests_synthetic.py
+    pytest tests/tests_synthetic.py
 
 Requirements:
 - torch
@@ -457,28 +457,3 @@ def test_run_cai_rollouts_saves_result_and_skips_oversized_prompts():
         oversized_generation_mock.assert_not_called()
         assert len(_read_jsonl(output_path)) == 1
     print("Test 15 — run_cai_rollouts: OK ✅")
-
-
-if __name__ == "__main__":
-    tests = [
-        test_detect_failure_reason_handles_known_failures_and_empty_inputs,
-        test_get_starting_row_resumes_from_valid_rows_and_ignores_bad_lines,
-        test_save_samples_appends_jsonl_with_chunk_and_metadata,
-        test_save_cai_sample_preserves_nested_results_metadata_and_unicode,
-        test_chunk_text_splits_on_token_boundaries_and_can_keep_first_chunk_only,
-        test_setup_triton_cache_sets_rank_directory_and_removes_stale_files,
-        test_dataset_loader_reads_local_jsonl_files_and_directories,
-        test_dataset_loader_shuffle_is_seeded_and_optional,
-        test_dataset_loader_rejects_unsupported_files_and_empty_directories,
-        test_dataset_loader_reads_parquet_when_pyarrow_is_available,
-        test_get_nvidia_smi_vram_parses_output_and_falls_back_on_errors,
-        test_constitutional_generation_returns_initial_responses_when_critique_is_disabled,
-        test_constitutional_generation_runs_requested_critique_revision_iterations,
-        test_run_rollouts_generates_for_each_chunk_and_saves_metadata,
-        test_run_cai_rollouts_saves_result_and_skips_oversized_prompts,
-    ]
-    for test in tests:
-        test()
-    print("\n" + "=" * 50)
-    print("All tests passed ✅")
-    print("=" * 50)

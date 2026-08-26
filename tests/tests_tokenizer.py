@@ -2,7 +2,7 @@
 Tokenizer training and evaluation test suite.
 
 Run with:
-    python tests_tokenizer.py
+    pytest tests/tests_tokenizer.py
 
 Requirements:
 - transformers
@@ -324,19 +324,3 @@ def test_06_sentencepiece_rejects_unreachable_vocab_size():
             lambda: train_tokenizer_sentencepiece.main(args),
         )
     print("Test 6 — train_tokenizer_sentencepiece vocab mismatch: OK ✅")
-
-
-if __name__ == "__main__":
-    tests = [
-        test_01_load_text_dataset_reads_plain_text_files,
-        test_02_train_tokenizers_bpe_saves_regular_extra_tokens,
-        test_03_train_sentencepiece_saves_regular_extra_tokens,
-        test_04_tokenizer_eval_writes_expected_metrics_for_local_tokenizer,
-        test_05_tokenizers_bpe_rejects_unreachable_vocab_size,
-        test_06_sentencepiece_rejects_unreachable_vocab_size,
-    ]
-    for test in tests:
-        test()
-    print("\n" + "=" * 50)
-    print("All tests passed ✅")
-    print("=" * 50)

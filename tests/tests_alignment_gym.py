@@ -2,7 +2,7 @@
 Gym test suite for verifiers, templates, and generation pipeline.
 
 Run with:
-    python tests_gym.py
+    pytest tests/tests_alignment_gym.py
 
 Requirements:
 - transformers
@@ -2010,40 +2010,3 @@ def test_33_letterfrequency_kwargs_less_than_uses_higher_threshold():
 #######################################
 # Summary
 #######################################
-
-
-if __name__ == "__main__":
-    test_02_multiconstraint_verifier_pass_and_partial_failure()
-    test_03_keywords_forbidden_words_frequency_pass_fail()
-    test_04_length_constraints_detectable_content()
-    test_05_detectable_format_verifiers()
-    test_06_combination_startend_verifiers()
-    test_07_unknown_verifier_id_raises_error()
-    test_08_metadata_integrity_registry_conflict_symmetry_selfconflict()
-    test_09_metadata_helpers_iscombinationvalid_getaddable_makeemptykwar()
-    test_10_generation_pipeline_kwargs_descriptions_templates_fill()
-    test_11_sample_building_validation_fingerprint_uniqueness()
-    test_13_long_context_verifiers_pass_fail_partial_edge_cases()
-    test_14_long_context_endtoend_generate_verify()
-    test_15_haystack_verifiers_pass_fail_partial_edge_cases()
-    test_16_haystack_endtoend_generate_verify_all_templates()
-    test_17_math_verifier_pass_fail_edge_cases_and_relaxed_mode()
-    test_18_math_buildsample_validate_verify_jsonl_synthetic_generation()
-    test_19_email_json_format_verifier_pass_fail_edge_cases()
-    test_20_email_schema_keys_verifier_pass_fail_edge_cases()
-    test_21_email_field_value_verifier_pass_fail_edge_cases_str_bool()
-    test_22_email_endtoend_build_validate_verify()
-    test_23_toolcall_verifiers_pass_and_fail_scenarios()
-    test_24_toolcall_endtoend_generate_validate_verify()
-    test_25_thinking_format_verifier_enablethinking_flag()
-    test_26_soft_matching_sentence_count_1_boundary_tolerance()
-    test_27_soft_matching_word_count_10_boundary_tolerance()
-    test_28_soft_matching_nthparagraphfirstword_with_singlen_separator()
-    test_29_soft_matching_letter_frequency_3_tolerance()
-    test_30_soft_matching_keyword_frequency_1_tolerance()
-    test_31_critical_errors_always_fail_in_soft_mode()
-    test_32_description_consistency_nthparagraphfirstword_includes_nn_in()
-    test_33_letterfrequency_kwargs_less_than_uses_higher_threshold()
-    print("\n" + "=" * 50)
-    print("All tests passed ✅")
-    print("=" * 50)

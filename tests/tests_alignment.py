@@ -14,7 +14,7 @@ Trainer internals, TRL, Transformers model loading, and real datasets loading ar
 mocked or faked deliberately.
 
 Run with:
-    python tests/tests_alignment.py
+    pytest tests/tests_alignment.py
 
 Requirements:
 - No GPU required
@@ -401,28 +401,3 @@ def test_19_runtraining_saves_last_model_on_failure_and_reraises():
         assert trainer.train_calls == [None]
         assert trainer.save_model_calls == [os.path.join(tmpdir, "last")]
     print("Test 19 - run_training failure saves last: OK ✅")
-
-
-if __name__ == "__main__":
-    test_01_getlogger_returns_a_working_logger()
-    test_02_getlogger_is_idempotent()
-    test_03_setupdistributedstate_identifies_master_process()
-    test_04_setupdistributedstate_identifies_worker_process()
-    test_05_loadtrainingdataset_collects_sorted_jsonl_files_and_waits()
-    test_06_loadtrainingdataset_rejects_unknown_dataset_type()
-    test_07_splitdataset_returns_original_when_no_test_size()
-    test_08_splitdataset_saves_test_set_on_master()
-    test_09_splitdataset_worker_does_not_save_test_set()
-    test_10_loadtokenizer_uses_from_pretrained_options()
-    test_11_loadtokenizer_reads_chat_template_when_missing()
-    test_12_loadtokenizer_requires_chat_template_when_missing()
-    test_13_loadtokenizer_allows_eos_pad_token_when_requested()
-    test_14_loadtokenizer_requires_pad_token_by_default()
-    test_15_loadtokenizer_rejects_pad_equal_to_eos_by_default()
-    test_16_resolvecheckpointpath_returns_latest_checkpoint()
-    test_17_resolvecheckpointpath_keeps_direct_path()
-    test_18_runtraining_trains_and_saves_final_model()
-    test_19_runtraining_saves_last_model_on_failure_and_reraises()
-    print("\n" + "=" * 50)
-    print("All tests passed ✅")
-    print("=" * 50)

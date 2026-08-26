@@ -11,7 +11,7 @@ The langdetect library is NOT required; the langdetect backend is not
 exercised here — only its registration in _BACKEND_FACTORIES is checked.
 
 Run with:
-    python tests/tests_data_filters.py
+    pytest tests/tests_data_filters.py
 """
 
 # %%
@@ -38,7 +38,6 @@ from language_filter import (  # noqa: E402
     UNICODE_RANGES,
     _create_unicode_filter,
 )
-
 from utils import (  # noqa: E402
     DatasetLoader,
     flatten_messages,
@@ -284,34 +283,3 @@ def test_20_unicode_filter_raises_for_unknown_language():
     except ValueError:
         pass
     print("Test 20 — unicode filter (raises for unknown language): OK ✅")
-
-
-# %%
-#######################################
-# Runner
-#######################################
-
-if __name__ == "__main__":
-    test_01_is_messages_column_missing_column_returns_false()
-    test_02_is_messages_column_empty_dataset_returns_false()
-    test_03_is_messages_column_detects_messages_format()
-    test_04_is_messages_column_plain_text_returns_false()
-    test_05_flatten_messages_concatenates_content_fields()
-    test_06_flatten_messages_empty_list_returns_empty_string()
-    test_07_flatten_messages_skips_entries_without_content()
-    test_08_save_dataset_empty_returns_zero()
-    test_09_save_dataset_writes_parquet_files()
-    test_10_save_dataset_writes_jsonl_files()
-    test_11_save_dataset_chunks_by_token_count()
-    test_12_datasetloader_loads_from_jsonl_file()
-    test_13_datasetloader_loads_from_directory()
-    test_14_langdetect_codes_and_unicode_ranges_have_same_keys()
-    test_15_supported_languages_is_sorted_union()
-    test_16_unicode_filter_keeps_latin_text()
-    test_17_unicode_filter_rejects_foreign_script()
-    test_18_unicode_filter_empty_text_returns_false()
-    test_19_unicode_filter_threshold_controls_strictness()
-    test_20_unicode_filter_raises_for_unknown_language()
-    print("\n" + "=" * 50)
-    print("All tests passed ✅")
-    print("=" * 50)

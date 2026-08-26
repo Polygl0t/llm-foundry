@@ -339,16 +339,16 @@ Install the test dependencies first:
 pip install -e ".[tests]"
 ```
 
-Run all three test scripts in sequence:
+Run the full test suite:
 
 ```bash
-python tests/
+pytest
 ```
 
-Or run a specific script:
+Or run a specific suite:
 
 ```bash
-python tests/tests_distributed.py
+pytest tests/tests_distributed.py
 ```
 
 ---

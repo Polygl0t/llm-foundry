@@ -10,7 +10,7 @@ Tests the surrounding logic of the data/tokenization scripts:
 Heavy HuggingFace/Datasets internals are deliberately NOT tested here.
 
 Run with:
-    python tests/tests_data_tokenization.py
+    pytest tests/tests_data_tokenization.py
 
 Requirements:
 - No GPU required
@@ -871,40 +871,3 @@ def test_28_decontaminate_argument_parser_defaults_and_required_args():
     assert args.approx_max_k == 10
     assert args.reference_path == "eval_set/"
     print("Test 28 - decontaminate argument parser: OK ✅")
-
-
-if __name__ == "__main__":
-    test_01_read_metadata_returns_empty_dict_for_missing_file()
-    test_02_read_metadata_parses_key_value_strings()
-    test_03_get_files_from_dirs_returns_sorted_json_files()
-    test_04_get_files_from_dirs_can_sample_n_files()
-    test_05_get_files_from_dirs_raises_when_empty()
-    test_06_validation_split_main_writes_json_split_and_metadata()
-    test_07_validation_split_main_accumulates_existing_metadata()
-    test_08_validation_split_main_rejects_too_many_samples()
-    test_09_concatenate_pack_splits_blocks_and_discards_tail()
-    test_10_concatenate_pack_handles_no_full_blocks()
-    test_11_bfd_pack_pads_partial_chunks()
-    test_12_bfd_pack_discards_empty_and_too_long_sequences()
-    test_13_bfd_pack_uses_seq_lengths_when_present()
-    test_14_pack_main_rejects_dataset_without_input_ids()
-    test_15_pack_main_bfd_requires_pad_token_id()
-    test_16_pack_main_saves_packed_dataset_and_metadata()
-    test_17_load_tokenizer_rejects_assistant_masks_without_chat_template()
-    test_18_load_tokenizer_loads_chat_template_from_file()
-    test_19_load_tokenizer_requires_chat_template_when_missing()
-    test_20_standard_tokenize_adds_special_tokens_and_masks()
-    test_21_chat_tokenize_returns_assistant_masks_and_masked_labels()
-    test_21b_load_tokenizer_rejects_chat_template_with_bos_or_eos()
-    test_21c_load_tokenizer_rejects_skip_system_prompt_without_chat_template()
-    test_21d_chat_tokenize_skips_system_prompt()
-    test_22_tokenize_main_rejects_missing_text_column()
-    test_23_tokenize_main_filters_truncates_saves_and_metadata()
-    test_24_decontaminate_exact_match_filters_contaminated_rows()
-    test_25_decontaminate_allows_one_token_mismatch_when_enabled()
-    test_26_decontaminate_keeps_all_rows_when_references_too_short()
-    test_27_decontaminate_chunks_output_by_input_file_count()
-    test_28_decontaminate_argument_parser_defaults_and_required_args()
-    print("\n" + "=" * 50)
-    print("All tests passed ✅")
-    print("=" * 50)

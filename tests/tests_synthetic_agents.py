@@ -2,7 +2,7 @@
 Synthetic agents test suite (peripheral functions only. No inference).
 
 Run with:
-    python tests_synthetic_agents.py
+    pytest tests/tests_synthetic_agents.py
 
 Requirements:
 - torch
@@ -1574,62 +1574,3 @@ def test_region_wikipedia_suggest_titles_parses_opensearch_and_handles_errors():
     with patch.dict(sys.modules, {"requests": fake_requests3}):
         assert tool._suggest_titles("Ayrton Senna Birthday") == []
     print("Test 45 — RegionWikipediaSearchTool suggest titles: OK ✅")
-
-
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
-
-if __name__ == "__main__":
-    tests = [
-        test_trace_record_defaults_and_field_assignment,
-        test_output_manager_appends_valid_json_array_and_rotates,
-        test_output_manager_resume_scans_existing_files,
-        test_output_manager_formatted_trace_skips_failures_and_think_guard,
-        test_load_dataset_reads_jsonl_with_auto_trace_id,
-        test_load_dataset_uses_id_column_when_present,
-        test_load_dataset_adds_ground_truth_column,
-        test_load_dataset_reads_directory_of_jsonl_shards,
-        test_load_dataset_rejects_unsupported_file_format,
-        test_load_dataset_raises_on_missing_prompt_column,
-        test_load_dataset_raises_on_empty_inputs,
-        test_load_dataset_reads_parquet_when_pyarrow_available,
-        test_load_processed_ids_parses_metadata_jsonl_and_handles_malformed,
-        test_append_metadata_entry_writes_one_line_per_trace,
-        test_normalize_answer_various_cases,
-        test_compare_answer_exact_and_substring_and_edge_cases,
-        test_conversation_has_unclosed_think_detection,
-        test_extract_model_output_text_variants,
-        test_extract_step_field_helpers,
-        test_extract_step_type_labels,
-        test_xml_wrapping_helpers,
-        test_format_trace_as_conversation_basic_structure,
-        test_format_trace_as_conversation_includes_planning_step,
-        test_format_trace_as_conversation_skips_duplicate_task_step,
-        test_format_trace_as_conversation_includes_error_in_tool_response,
-        test_format_trace_as_conversation_strips_thought_prefix,
-        test_format_trace_as_conversation_portuguese_translations,
-        test_load_system_prompt_reads_yaml_file,
-        test_load_system_prompt_raises_on_missing_file,
-        test_load_system_prompt_falls_back_to_language_file,
-        test_setup_triton_cache_creates_rank_dir_and_removes_stale_files,
-        test_format_trace_as_conversation_empty_trace,
-        test_format_trace_as_conversation_discards_empty_tool_response,
-        test_format_trace_as_conversation_ignores_system_prompt_step,
-        test_load_metadata_entries_returns_latest_entry_per_trace_id,
-        test_summarize_trace_metadata_counts_whole_dataset,
-        test_load_system_prompt_raises_on_unsupported_language,
-        test_load_system_prompt_raises_when_language_file_missing,
-        test_format_trace_as_conversation_english_not_translated,
-        test_language_configs_have_required_keys,
-        test_format_trace_as_conversation_unknown_language_falls_back_to_english,
-        test_region_duckduckgo_no_results_mentions_wikipedia_fallback,
-        test_region_wikipedia_no_page_found_with_suggestions,
-        test_region_wikipedia_no_page_found_without_suggestions,
-        test_region_wikipedia_suggest_titles_parses_opensearch_and_handles_errors,
-    ]
-    for test in tests:
-        test()
-    print("\n" + "=" * 50)
-    print(f"All {len(tests)} tests passed ✅")
-    print("=" * 50)

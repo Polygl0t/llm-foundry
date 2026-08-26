@@ -60,9 +60,9 @@ body:
       label: Behavior preservation
       description: |
         Confirm that the change is behavior-preserving. Note any test suites that cover the
-        affected code (e.g. `python tests/tests_data_formatting.py`) and how the change can be
+        affected code (e.g. `pytest tests/tests_data_formatting.py`) and how the change can be
         verified.
-      placeholder: "No behavior change expected. Verified by `python tests/`."
+      placeholder: "No behavior change expected. Verified by `pytest`."
 
   - type: textarea
     id: contribution

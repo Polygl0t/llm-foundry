@@ -178,16 +178,16 @@ Install the test dependencies first:
 pip install -e "./llm-foundry/.[tests]"
 ```
 
-Run all test scripts in sequence:
+Run the full test suite:
 
 ```bash
-python tests/
+pytest
 ```
 
-Or run a specific script (e.g., the distributed training tests):
+Or run a specific suite (e.g., the distributed training tests):
 
 ```bash
-python tests/tests_distributed.py
+pytest tests/tests_distributed.py
 ```
 
 ## How to Train a Model

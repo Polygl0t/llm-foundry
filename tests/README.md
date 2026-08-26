@@ -1,19 +1,26 @@
 # Test Suites
 
-This folder contains unit and integration test scripts for the foundry code base. All scripts are designed to run as standalone Python programs with module imports resolved from their respective source folders via `sys.path` setup at module level.
+This folder contains the unit and integration test suites for the foundry code base, collected and run with [pytest](https://docs.pytest.org/).
 
 ## Running Tests
 
-From the repository root, run all scripts in sequence:
+From the repository root, run the whole suite:
 
 ```bash
-python tests/
+pytest
 ```
 
-Or run a single script directly:
+or, equivalently:
 
 ```bash
-python tests/tests_distributed.py
+pytest tests/
+```
+
+To run a single suite in-process with the full pytest feature set (per-test
+output, `-k` selection, `-x`, `-v`, ...):
+
+```bash
+pytest tests/tests_distributed.py -v
 ```
 
 ### Module Loading

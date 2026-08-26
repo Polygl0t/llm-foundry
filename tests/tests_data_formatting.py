@@ -9,7 +9,7 @@ Tests the surrounding logic of the data/preprocess.py script:
 DataTrove pipeline internals are deliberately NOT tested here.
 
 Run with:
-    python tests/tests_data.py
+    pytest tests/tests_data_formatting.py
 
 Requirements:
 - pyarrow
@@ -87,7 +87,6 @@ def _install_datatrove_stubs():
 _install_datatrove_stubs()
 
 import preprocess  # noqa: E402
-
 from utils import ParseResult, document_to_row  # noqa: E402
 
 print("All imports OK ✅")
@@ -424,17 +423,3 @@ def test_08_main_runs_writer_and_emits_subset_metadata():
         assert bn_meta["chunks"] == 1
         assert bn_meta["subset"] == "bn"
     print("Test 8 — main orchestration + metadata: OK ✅")
-
-
-if __name__ == "__main__":
-    test_01_apply_stratification_overrides_subset_when_enabled()
-    test_02_build_builtin_parser_without_stratification_uses_default_subset()
-    test_03_build_builtin_parser_with_stratification_discovers_parquet_values()
-    test_04_build_active_parser_loads_add_uuid_parser()
-    test_05_build_active_parser_combines_filtering_and_stratification()
-    test_06_routing_writer_writes_jsonl_and_tracks_stats()
-    test_07_routing_writer_writes_parquet_rows()
-    test_08_main_runs_writer_and_emits_subset_metadata()
-    print("\n" + "=" * 50)
-    print("All tests passed ✅")
-    print("=" * 50)

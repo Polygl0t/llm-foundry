@@ -33,6 +33,7 @@ This file provides guidance for code agents (e.g. GitHub Copilot) working with t
 
 ## Testing
 
-- Tests are standalone Python scripts, not pytest. From the repository root run `python tests/` to run all suites in sequence, or `python tests/tests_distributed.py` for a single suite.
+- Tests are collected and run with pytest. From the repository root run `pytest` (or `pytest tests/`) to run all suites, or `pytest tests/tests_distributed.py` for a single suite.
+- Each suite (`tests/tests_*.py`) is executed in its own subprocess by `tests/conftest.py`, because the suites patch `sys.modules` and use colliding flat-layout `utils` modules that would leak across suites in a single interpreter.
 - For module-loading logic on the dual stack, run `bash tests/test_modules.sh`.
 - Install test dependencies with `pip install -e ".[tests]"`.

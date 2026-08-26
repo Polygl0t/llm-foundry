@@ -22,7 +22,7 @@ Fixes # (issue)
 - [ ] The change was discussed/approved via a GitHub issue (please add a link if so).
 - [ ] The title and description clearly explain what was changed and why.
 - [ ] Commits have been squashed into a single, clean commit.
-- [ ] Existing tests still pass (`python tests/` from the repository root).
+- [ ] Existing tests still pass (`pytest` from the repository root).
 - [ ] New functionality is covered by tests (if applicable).
 - [ ] I have run `pre-commit run --all-files` and fixed any issues.
 

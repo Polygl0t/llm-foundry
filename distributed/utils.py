@@ -60,6 +60,9 @@ class StructuredTrainingLogger:
             level=logging.INFO,
             handlers=[logging.StreamHandler(sys.stdout)],
         )
+        # basicConfig() only configures the root logger on the first call, so
+        # set the level explicitly in case the root logger already has handlers.
+        logger.setLevel(logging.INFO)
 
         return logger
 

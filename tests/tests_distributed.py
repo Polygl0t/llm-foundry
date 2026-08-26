@@ -2,7 +2,7 @@
 CPU-only pre-flight test suite for the unified distributed trainer codebase.
 
 Run with:
-    python tests_distributed.py
+    pytest tests/tests_distributed.py
 
 All tests use synthetic data and tiny model configs so they complete
 in seconds on a standard desktop CPU without any GPU, DDP, FSDP, or SLURM dependency.
@@ -28,7 +28,6 @@ import os
 import shutil
 import sys
 import tempfile
-import traceback
 
 import torch
 import yaml
@@ -59,38 +58,6 @@ def cleanup_generated_bootstrap_checkpoint():
 
 
 atexit.register(cleanup_generated_bootstrap_checkpoint)
-
-# Store test results as tuples of (test_name, passed_bool, error_message).
-_results: list[tuple[str, bool, str]] = []
-
-
-def run_test(name, fn):
-    """Run *fn* and record pass/fail."""
-    try:
-        fn()
-        _results.append((name, True, ""))
-    except Exception:
-        tb = traceback.format_exc()
-        _results.append((name, False, tb))
-        print(f"  FAIL ❌  {name}\n{tb}")
-
-
-def report():
-    cleanup_generated_bootstrap_checkpoint()
-    passed = sum(1 for _, ok, _ in _results if ok)
-    failed = sum(1 for _, ok, _ in _results if not ok)
-    print("\n" + "=" * 60)
-    print(f"Results: {passed} passed, {failed} failed, {passed + failed} total")
-    if failed:
-        print("\nFailed tests:")
-        for name, ok, _tb in _results:
-            if not ok:
-                print(f"  - {name}")
-        print("=" * 60)
-        sys.exit(1)
-    else:
-        print("All tests passed! ✅")
-        print("=" * 60)
 
 
 # %%
@@ -191,19 +158,6 @@ def test_training_args_fsdp_override():
     assert args.explicit_prefetching is True
 
 
-if __name__ == "__main__":
-    for _fn in [
-        test_training_args_defaults,
-        test_training_args_from_yaml,
-        test_training_args_to_dict_includes_runtime_fields,
-        test_training_args_invalid_field,
-        test_training_args_fsdp_override,
-    ]:
-        run_test(_fn.__name__, _fn)
-
-    print("Test 1 — TrainingArguments & Config Loading: OK ✅")
-
-
 def test_sequence_parallel_plans():
     """TP/SP plans reference real modules for every supported architecture."""
     from model_setup import _validate_fp8_sequence_parallel_plan, build_sequence_parallel_plan
@@ -295,10 +249,6 @@ def test_sequence_parallel_plans():
             assert "divisible by 16" in str(error)
         else:
             raise AssertionError("Expected invalid local FP8 shard alignment")
-
-
-if __name__ == "__main__":
-    run_test(test_sequence_parallel_plans.__name__, test_sequence_parallel_plans)
 
 
 # %%
@@ -646,30 +596,6 @@ def test_create_mfu_context_moe_fields():
     assert ctx.shared_intermediate_size == 2048
 
 
-if __name__ == "__main__":
-    for _fn in [
-        test_peak_flops_registry,
-        test_calculate_training_metrics_moe_uses_active_params,
-        test_create_mfu_context,
-        test_create_mfu_context_unsupported_hardware,
-        test_create_mfu_context_fp8_uses_fp8_peak,
-        test_create_mfu_context_fp8_falls_back_to_bf16,
-        test_calculate_training_metrics,
-        test_calculate_training_metrics_rejects_invalid_inputs,
-        test_full_attention_macs_formula,
-        test_full_attention_macs_gqa,
-        test_linear_attention_macs_formula,
-        test_hybrid_linear_attention_mfu,
-        test_create_mfu_context_hybrid_fields,
-        test_mlp_macs_dense_vs_moe,
-        test_hybrid_moe_mfu_qwen3_5_like,
-        test_create_mfu_context_moe_fields,
-    ]:
-        run_test(_fn.__name__, _fn)
-
-    print("Test 2 — MFU Calculation: OK ✅")
-
-
 # %%
 #######################################
 # 3. Collate Function
@@ -717,16 +643,6 @@ def test_collate_fn_preserves_existing_labels():
     examples = [{"input_ids": torch.tensor([0, 1, 2]), "labels": existing_labels}]
     batch = collate(examples)
     assert torch.equal(batch["labels"], existing_labels.unsqueeze(0))
-
-
-if __name__ == "__main__":
-    for _fn in [
-        test_collate_fn_generates_and_masks_labels,
-        test_collate_fn_preserves_existing_labels,
-    ]:
-        run_test(_fn.__name__, _fn)
-
-    print("Test 3 — Collate Function: OK ✅")
 
 
 # %%
@@ -910,19 +826,6 @@ def test_dataloader_custom_collate():
     )
     _ = next(iter(bundle.train_dataloader))
     assert custom_called[0], "Custom collate function was not used"
-
-
-if __name__ == "__main__":
-    for _fn in [
-        test_load_sanity_check_datasets,
-        test_prepare_dataloaders_sanity,
-        test_prepare_dataloaders_dp_partitioning_for_sequence_parallelism,
-        test_prepare_dataloaders_sanity_without_tokenizer_uses_additional_mask_ids,
-        test_dataloader_custom_collate,
-    ]:
-        run_test(_fn.__name__, _fn)
-
-    print("Test 4 — Sanity-Check Dataset & DataLoader: OK ✅")
 
 
 # %%
@@ -1584,37 +1487,6 @@ def test_model_initialization_result_non_attention_frozen_default():
     assert result.non_attention_frozen is False
 
 
-if __name__ == "__main__":
-    for _fn in [
-        test_resolve_checkpoint_path_empty_latest_and_direct,
-        test_build_model_no_config_raises,
-        test_prepare_training_components_cpu,
-        test_prepare_training_components_bf16,
-        test_create_tokenizer_no_source_from_scratch_returns_none,
-        test_create_tokenizer_no_source_continual_raises,
-        test_prepare_training_components_cpu_without_tokenizer,
-        test_prepare_training_components_continual_resizes_embeddings_to_tokenizer,
-        test_prepare_training_components_context_extension_linear_rope,
-        test_prepare_training_components_staged_context_extension_accumulates_factor,
-        test_active_params_dense_and_single_expert_models,
-        test_active_params_qwen_moe,
-        test_active_params_granite_moe,
-        test_try_create_distributed_config_enabled,
-        test_check_kernels_available_disabled,
-        test_check_kernels_available_enabled,
-        test_iter_transformer_blocks_returns_layers,
-        test_iter_transformer_blocks_missing_raises,
-        test_freeze_non_attention_blocks_basic,
-        test_freeze_non_attention_blocks_unsupported_model_type_raises,
-        test_freeze_non_attention_blocks_no_attention_found_raises,
-        test_active_params_moe_skips_when_non_attention_frozen,
-        test_model_initialization_result_non_attention_frozen_default,
-    ]:
-        run_test(_fn.__name__, _fn)
-
-    print("Test 5 — Model Initialization (CPU): OK ✅")
-
-
 # %%
 #######################################
 # 6. Optimizers & LR Schedulers (CPU)
@@ -1906,27 +1778,6 @@ def test_create_optimizer_muon_adam_excludes_frozen_params():
         "MuonWithAuxAdam must not include frozen (requires_grad=False) parameters"
     )
     assert optimizer_ids, "MuonWithAuxAdam has no trainable params"
-
-
-if __name__ == "__main__":
-    for _fn in [
-        test_muon_momentum_boundaries,
-        test_zeropower_newtonschulz,
-        test_adam_update,
-        test_single_device_muon,
-        test_single_device_muon_with_aux_adam,
-        test_cosine_lr_scheduler,
-        test_wsd_lr_scheduler,
-        test_lr_scheduler_muon_adam,
-        test_lr_scheduler_invalid_type,
-        test_create_optimizer_adamw_cpu,
-        test_get_optimizer_summary_lines,
-        test_create_optimizer_adamw_excludes_frozen_params,
-        test_create_optimizer_muon_adam_excludes_frozen_params,
-    ]:
-        run_test(_fn.__name__, _fn)
-
-    print("Test 6 — Optimizers & LR Schedulers (CPU): OK ✅")
 
 
 # %%
@@ -2371,36 +2222,6 @@ def test_initialize_wandb_offline_mode_patches_trainer_wandb():
         trainer_module.wandb = original_wandb
 
 
-if __name__ == "__main__":
-    for _fn in [
-        test_compute_training_schedule_basic,
-        test_compute_training_schedule_max_steps_override,
-        test_compute_training_schedule_misaligned_raises,
-        test_structured_logger_metadata,
-        test_structured_logger_stats,
-        test_structured_logger_create_python_logger,
-        test_structured_logger_invalid_type,
-        test_cleanup_log_file_truncates,
-        test_cleanup_log_file_missing_file,
-        test_checkpoint_already_validated_no_dir,
-        test_checkpoint_already_validated_positive,
-        test_distributed_environment_local_fallback,
-        test_distributed_environment_torchrun_vars,
-        test_distributed_environment_slurm_local_world_size,
-        test_distributed_environment_seed_everything,
-        test_load_checkpoint_state_no_resume,
-        test_load_checkpoint_state_resume,
-        test_load_checkpoint_state_new_stage,
-        test_initialize_wandb_import,
-        test_create_emissions_tracker_returns_tracker,
-        test_create_emissions_tracker_offline_mode_uses_offline_tracker,
-        test_initialize_wandb_offline_mode_patches_trainer_wandb,
-    ]:
-        run_test(_fn.__name__, _fn)
-
-    print("Test 7 — Utility Functions: OK ✅")
-
-
 # %%
 #######################################
 # 8. Integration: Forward Pass on CPU
@@ -2617,18 +2438,6 @@ def test_end_to_end_mfu_with_model():
         assert metrics.tokens_processed == 4 * 1 * args.max_position_embeddings
     finally:
         shutil.rmtree(tmpdir)
-
-
-if __name__ == "__main__":
-    for _fn in [
-        test_end_to_end_forward_pass,
-        test_end_to_end_backward_pass,
-        test_end_to_end_optimizer_step,
-        test_end_to_end_mfu_with_model,
-    ]:
-        run_test(_fn.__name__, _fn)
-
-    print("Test 8 — Integration: Forward Pass on CPU: OK ✅")
 
 
 # %%
@@ -3336,25 +3145,3 @@ def test_fsdp_trainer_validation_runs_after_training():
         )
     finally:
         shutil.rmtree(tmpdir)
-
-
-if __name__ == "__main__":
-    for _fn in [
-        test_ddp_trainer_cpu_two_steps,
-        test_fsdp_trainer_cpu_two_steps,
-        test_ddp_trainer_eval_only_does_not_train,
-        test_fsdp_trainer_eval_only_does_not_train,
-        test_ddp_trainer_validation_runs_after_training,
-        test_fsdp_trainer_validation_runs_after_training,
-    ]:
-        run_test(_fn.__name__, _fn)
-
-    print("Test 9 — Trainers (DDPTrainer & FSDPTrainer): OK ✅")
-
-
-# %%
-#######################################
-# 10. Report
-#######################################
-if __name__ == "__main__":
-    report()
