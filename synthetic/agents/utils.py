@@ -1287,6 +1287,72 @@ def build_default_tools(timeout_seconds: int | None = None, language: str = "en"
     return tools
 
 
+def _extract_deduplicated_steps(
+    memory_steps: list[Any],
+    raw_steps: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Extract non-redundant step dicts from agent memory.
+
+    smolagents stores the *full* conversation history in every action step's
+    `model_input_messages` (a strict prefix chain), so later steps re-embed
+    every earlier step.  Storing that verbatim would bloat raw traces with
+    duplicated content.  This keeps only the messages newly added since the
+    previous action step, drops messages already recorded elsewhere (the
+    `system` message, which equals the trace-level `system_prompt`, and the
+    plan re-injected verbatim from the planning step), removes the
+    `model_output` field (a duplicate of `model_output_message.content`) and
+    drops the nested `token_usage` inside `model_output_message` (a duplicate
+    of the step-level `token_usage`).
+
+    Args:
+        memory_steps: The `agent.memory.steps` list (smolagents step objects).
+        raw_steps:    The `agent.memory.get_full_steps()` list of step dicts,
+                      parallel to *memory_steps*.
+
+    Returns:
+        The deduplicated step dicts (one per memory step).
+    """
+    steps_data: list[dict[str, Any]] = []
+    prev_full_messages: list[Any] = []
+    plan_text: str | None = None
+
+    for i, step in enumerate(memory_steps):
+        step_dict = raw_steps[i] if i < len(raw_steps) else {}
+        step_dict["_step_type"] = _extract_step_type(step)
+
+        if isinstance(step, PlanningStep) and isinstance(step_dict.get("plan"), str):
+            plan_text = step_dict["plan"]
+
+        if isinstance(step, ActionStep):
+            full_messages = step_dict.get("model_input_messages")
+            if isinstance(full_messages, list):
+                delta = full_messages
+                if prev_full_messages and full_messages[: len(prev_full_messages)] == (
+                    prev_full_messages
+                ):
+                    delta = full_messages[len(prev_full_messages) :]
+                step_dict["model_input_messages"] = [
+                    m
+                    for m in delta
+                    if isinstance(m, dict)
+                    and m.get("role") != "system"
+                    and not (m.get("role") == "assistant" and m.get("content") == plan_text)
+                ]
+                prev_full_messages = full_messages
+
+            # `model_output` duplicates `model_output_message.content`.
+            step_dict.pop("model_output", None)
+
+        # The nested `token_usage` duplicates the step-level `token_usage`.
+        mom = step_dict.get("model_output_message")
+        if isinstance(mom, dict):
+            mom.pop("token_usage", None)
+
+        steps_data.append(step_dict)
+
+    return steps_data
+
+
 def execute_single_trace(
     row: dict[str, Any],
     model: LiteLLMModel | TransformersModel | VLLMModel,
@@ -1441,14 +1507,13 @@ def execute_single_trace(
     ended_at = datetime.now(UTC)
     duration = (ended_at - started_at).total_seconds()
 
-    # Extract steps from agent memory
+    # Extract steps from agent memory, keeping only the non-redundant parts
+    # of each step so raw traces don't re-store the full conversation history
+    # in every action step (see _extract_deduplicated_steps).
     steps_data: list[dict[str, Any]] = []
     try:
         raw_steps = agent.memory.get_full_steps()
-        for i, step in enumerate(agent.memory.steps):
-            step_dict = raw_steps[i] if i < len(raw_steps) else {}
-            step_dict["_step_type"] = _extract_step_type(step)
-            steps_data.append(step_dict)
+        steps_data = _extract_deduplicated_steps(agent.memory.steps, raw_steps)
     except Exception:
         pass
 

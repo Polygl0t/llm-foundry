@@ -153,6 +153,7 @@ from utils import (  # noqa: E402
     TraceRecord,
     _conversation_has_unclosed_think,
     _extract_code_action,
+    _extract_deduplicated_steps,
     _extract_error,
     _extract_model_output_text,
     _extract_observations,
@@ -982,6 +983,97 @@ def test_xml_wrapping_helpers():
         == "<tool_response>\nExecution logs:\noutput\n</tool_response>"
     )
     print("Test 21 — XML wrapping helpers: OK ✅")
+
+
+# ---------------------------------------------------------------------------
+# Test 21b — _extract_deduplicated_steps: prefix-chain + duplicate-field trim
+# ---------------------------------------------------------------------------
+
+
+def test_extract_deduplicated_steps_trims_prefix_chain_and_duplicate_fields():
+    system_msg = {"role": "system", "content": "You are helpful."}
+    user_msg = {"role": "user", "content": "Q"}
+    a1_msg = {"role": "assistant", "content": "step 1"}
+    tr1_msg = {"role": "user", "content": "<tool_response>out1</tool_response>"}
+    a2_msg = {"role": "assistant", "content": "step 2"}
+
+    step1 = ActionStep()
+    step1.step_number = 1
+    step2 = ActionStep()
+    step2.step_number = 2
+
+    raw_steps = [
+        {
+            "model_input_messages": [system_msg, user_msg, a1_msg],
+            # Duplicate of model_output_message.content.
+            "model_output": "step 1",
+            "model_output_message": {
+                "role": "assistant",
+                "content": "step 1",
+                "token_usage": {"input_tokens": 10, "output_tokens": 5},
+            },
+            "token_usage": {"input_tokens": 10, "output_tokens": 5},
+            "code_action": "x = 1",
+        },
+        {
+            "model_input_messages": [system_msg, user_msg, a1_msg, tr1_msg, a2_msg],
+            "model_output": "step 2",
+            "model_output_message": {
+                "role": "assistant",
+                "content": "step 2",
+                "token_usage": {"input_tokens": 20, "output_tokens": 6},
+            },
+            "token_usage": {"input_tokens": 20, "output_tokens": 6},
+            "code_action": "final_answer('ok')",
+        },
+    ]
+
+    steps_data = _extract_deduplicated_steps([step1, step2], raw_steps)
+
+    assert len(steps_data) == 2
+
+    # Step 1: only the newly-added, non-system messages remain.
+    assert steps_data[0]["model_input_messages"] == [user_msg, a1_msg]
+    # The duplicate "model_output" field is removed.
+    assert "model_output" not in steps_data[0]
+    # The nested token_usage inside model_output_message is removed.
+    assert "token_usage" not in steps_data[0]["model_output_message"]
+    # The step-level token_usage is kept.
+    assert steps_data[0]["token_usage"] == {"input_tokens": 10, "output_tokens": 5}
+
+    # Step 2: only the delta since step 1 remains.
+    assert steps_data[1]["model_input_messages"] == [tr1_msg, a2_msg]
+    assert "model_output" not in steps_data[1]
+    assert "token_usage" not in steps_data[1]["model_output_message"]
+    print("Test 21b — _extract_deduplicated_steps prefix chain: OK ✅")
+
+
+# ---------------------------------------------------------------------------
+# Test 21d — _extract_deduplicated_steps: system & re-injected plan filter
+# ---------------------------------------------------------------------------
+
+
+def test_extract_deduplicated_steps_filters_system_and_plan_messages():
+    plan_text = "PLAN: do it."
+    system_msg = {"role": "system", "content": "You are helpful."}
+    user_msg = {"role": "user", "content": "Q"}
+    plan_msg = {"role": "assistant", "content": plan_text}
+
+    plan_step = PlanningStep(plan=plan_text)
+    a1 = ActionStep()
+    a1.step_number = 1
+
+    memory_steps = [plan_step, a1]
+    raw_steps = [
+        {"plan": plan_text},
+        {"model_input_messages": [system_msg, user_msg, plan_msg]},
+    ]
+
+    steps_data = _extract_deduplicated_steps(memory_steps, raw_steps)
+
+    # Both the system message and the verbatim re-injected plan are dropped.
+    assert steps_data[1]["model_input_messages"] == [user_msg]
+    print("Test 21d — _extract_deduplicated_steps plan/system filter: OK ✅")
 
 
 # ---------------------------------------------------------------------------
