@@ -181,8 +181,6 @@ PlanningStep = _StubPlanningStep
 SystemPromptStep = _StubSystemPromptStep
 TaskStep = _StubTaskStep
 
-print("All imports OK ✅")
-
 
 # ---------------------------------------------------------------------------
 # Real tools module loader (for the search-tool fallback tests below).
@@ -296,7 +294,6 @@ def test_trace_record_defaults_and_field_assignment():
     assert tr2.status == "success"
     assert tr2.num_steps == 3
     assert tr2.metadata == {"source": "test"}
-    print("Test 1 — TraceRecord defaults: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -337,7 +334,6 @@ def test_output_manager_appends_valid_json_array_and_rotates():
         # Verify content integrity
         all_ids = [r["trace_id"] for r in batch1] + [r["trace_id"] for r in batch2]
         assert all_ids == [f"trace_{i:03d}" for i in range(5)]
-    print("Test 2 — OutputManager append + rotation: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -366,7 +362,6 @@ def test_output_manager_resume_scans_existing_files():
             all_records = json.load(fh)
         ids = [r["trace_id"] for r in all_records]
         assert ids == ["run1_0", "run1_1", "run2_0", "run2_1", "run2_2"]
-    print("Test 3 — OutputManager resume scanning: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -412,7 +407,6 @@ def test_output_manager_formatted_trace_skips_failures_and_think_guard():
         assert len(data) == 1
         assert "messages" in data[0]
         assert data[0]["trace_id"] == "ok_1"
-    print("Test 4 — OutputManager formatted traces: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -432,7 +426,6 @@ def test_load_dataset_reads_jsonl_with_auto_trace_id():
         # Auto-generated trace IDs (SHA-256 hash of prompt)
         assert "_trace_id" in rows[0]
         assert rows[0]["_trace_id"] != rows[1]["_trace_id"]
-    print("Test 5 — load_dataset jsonl: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -459,7 +452,6 @@ def test_load_dataset_uses_id_column_when_present():
         )
         assert rows[0]["_trace_id"] == "abc-001"
         assert rows[1]["_trace_id"] == "xyz-002"
-    print("Test 6 — load_dataset id column: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -483,7 +475,6 @@ def test_load_dataset_adds_ground_truth_column():
         )
         assert rows[0]["_ground_truth"] == "Paris"
         assert rows[1]["_ground_truth"] == "Rome"
-    print("Test 7 — load_dataset ground truth column: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -506,7 +497,6 @@ def test_load_dataset_reads_directory_of_jsonl_shards():
         assert len(rows) == 5
         prompts = {r["prompt"] for r in rows}
         assert prompts == {"s0_0", "s0_1", "s0_2", "s1_0", "s1_1"}
-    print("Test 8 — load_dataset directory: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -523,7 +513,6 @@ def test_load_dataset_rejects_unsupported_file_format():
             raise AssertionError("Unsupported format should raise ValueError")
         except ValueError as error:
             assert "Unsupported file format" in str(error)
-    print("Test 9 — load_dataset unsupported format: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -541,7 +530,6 @@ def test_load_dataset_raises_on_missing_prompt_column():
             raise AssertionError("Missing column should raise ValueError")
         except ValueError as error:
             assert "prompt" in str(error)
-    print("Test 10 — load_dataset missing column: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -569,7 +557,6 @@ def test_load_dataset_raises_on_empty_inputs():
             raise AssertionError("Empty file should raise an exception")
         except (ValueError, StopIteration):
             pass  # expected — empty input is rejected
-    print("Test 11 — load_dataset empty inputs: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -582,7 +569,6 @@ def test_load_dataset_reads_parquet_when_pyarrow_available():
         pa = importlib.import_module("pyarrow")
         pq = importlib.import_module("pyarrow.parquet")
     except ImportError:
-        print("load_dataset parquet test skipped: pyarrow not installed")
         return
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -596,7 +582,6 @@ def test_load_dataset_reads_parquet_when_pyarrow_available():
         assert len(rows) == 4
         assert rows[2]["prompt"] == "row_2"
         assert rows[2]["_trace_id"] == "2"
-    print("Test 12 — load_dataset parquet: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -625,7 +610,6 @@ def test_load_processed_ids_parses_metadata_jsonl_and_handles_malformed():
         # Empty metadata.jsonl
         metadata_path.write_text("")
         assert load_processed_ids(out_dir) == set()
-    print("Test 13 — load_processed_ids: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -666,7 +650,6 @@ def test_append_metadata_entry_writes_one_line_per_trace():
         assert records[1]["trace_id"] == "t2"
         assert records[1]["error"] == "Timeout"
         assert records[1]["has_ground_truth"] is False
-    print("Test 14 — append_metadata_entry: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -709,8 +692,6 @@ def test_normalize_answer_various_cases():
     assert normalize_answer("") == ""
     assert normalize_answer("   ") == ""
 
-    print("Test 15 — normalize_answer: OK ✅")
-
 
 # ---------------------------------------------------------------------------
 # Test 16 — compare_answer
@@ -742,8 +723,6 @@ def test_compare_answer_typed_matching():
     # Empty answers never match (an empty gold string is not gradable).
     assert compare_answer("", "") is False
 
-    print("Test 16 — compare_answer: OK ✅")
-
 
 # ---------------------------------------------------------------------------
 # Test 16b — typed grader (AnswerSpec / grade_answer)
@@ -770,7 +749,6 @@ def test_answer_spec_from_row_with_only_ground_truth():
         raise AssertionError("expected ValueError")
     except ValueError:
         pass
-    print("Test 16b — AnswerSpec.from_row: OK ✅")
 
 
 def test_answer_spec_from_row_reads_schema_fields():
@@ -787,7 +765,6 @@ def test_answer_spec_from_row_reads_schema_fields():
     assert spec.aliases == ("Rio", "Cidade Maravilhosa")
     assert spec.precision == 0.01
     assert spec.ordered is False
-    print("Test 16c — AnswerSpec schema fields: OK ✅")
 
 
 def test_grade_answer_types():
@@ -825,7 +802,6 @@ def test_grade_answer_types():
     assert grade_answer("hello", AnswerSpec("hello", type="exact")) is True
     assert grade_answer("hello world", AnswerSpec("hello", type="exact")) is True
     assert grade_answer("goodbye", AnswerSpec("hello", type="exact")) is False
-    print("Test 16d — grade_answer: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -886,8 +862,6 @@ def test_conversation_has_unclosed_think_detection():
         is True
     )
 
-    print("Test 17 — _conversation_has_unclosed_think: OK ✅")
-
 
 # ---------------------------------------------------------------------------
 # Test 18 — _extract_model_output_text
@@ -920,8 +894,6 @@ def test_extract_model_output_text_variants():
     # None model_output_message
     assert _extract_model_output_text({"model_output_message": None}) == ""
 
-    print("Test 18 — _extract_model_output_text: OK ✅")
-
 
 # ---------------------------------------------------------------------------
 # Test 19 — _extract_code_action, _extract_observations, _extract_error
@@ -946,8 +918,6 @@ def test_extract_step_field_helpers():
     assert _extract_error({}) == ""
     assert _extract_error({"error": None}) == ""
 
-    print("Test 19 — step field helpers: OK ✅")
-
 
 # ---------------------------------------------------------------------------
 # Test 20 — _extract_step_type
@@ -967,8 +937,6 @@ def test_extract_step_type_labels():
 
     assert _extract_step_type(CustomStep()) == "CustomStep"
 
-    print("Test 20 — _extract_step_type: OK ✅")
-
 
 # ---------------------------------------------------------------------------
 # Test 21 — _make_tool_call_xml / _make_tool_response_xml
@@ -982,7 +950,6 @@ def test_xml_wrapping_helpers():
         _make_tool_response_xml("Execution logs:\noutput")
         == "<tool_response>\nExecution logs:\noutput\n</tool_response>"
     )
-    print("Test 21 — XML wrapping helpers: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -1045,7 +1012,6 @@ def test_extract_deduplicated_steps_trims_prefix_chain_and_duplicate_fields():
     assert steps_data[1]["model_input_messages"] == [tr1_msg, a2_msg]
     assert "model_output" not in steps_data[1]
     assert "token_usage" not in steps_data[1]["model_output_message"]
-    print("Test 21b — _extract_deduplicated_steps prefix chain: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -1073,7 +1039,6 @@ def test_extract_deduplicated_steps_filters_system_and_plan_messages():
 
     # Both the system message and the verbatim re-injected plan are dropped.
     assert steps_data[1]["model_input_messages"] == [user_msg]
-    print("Test 21d — _extract_deduplicated_steps plan/system filter: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -1127,8 +1092,6 @@ def test_format_trace_as_conversation_basic_structure():
     assert "<tool_response>" in all_content
     assert "capital of France is Paris" in all_content
 
-    print("Test 22 — format_trace_as_conversation: OK ✅")
-
 
 # ---------------------------------------------------------------------------
 # Test 23 — format_trace_as_conversation: PlanningStep
@@ -1153,7 +1116,6 @@ def test_format_trace_as_conversation_includes_planning_step():
     conv = format_trace_as_conversation(trace)
     plan_contents = [m["content"] for m in conv if m["role"] == "assistant"]
     assert any("Step 1: search" in c for c in plan_contents)
-    print("Test 23 — format_trace_as_conversation planning: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -1203,7 +1165,6 @@ def test_format_trace_as_conversation_skips_duplicate_task_step():
         m["content"] for m in conv2 if m["role"] == "user" and "<tool_response>" not in m["content"]
     ]
     assert len(user_contents2) == 2  # original prompt + rephrased task
-    print("Test 24 — format_trace_as_conversation task dedup: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -1231,7 +1192,6 @@ def test_format_trace_as_conversation_includes_error_in_tool_response():
     tool_responses = [m["content"] for m in conv if "<tool_response>" in str(m.get("content", ""))]
     assert len(tool_responses) >= 1
     assert "NameError" in tool_responses[0]
-    print("Test 25 — format_trace_as_conversation error: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -1260,7 +1220,6 @@ def test_format_trace_as_conversation_strips_thought_prefix():
     for msg in assistant_messages:
         assert not msg["content"].startswith("Thought:")
         assert not msg["content"].startswith("Pensamento:")
-    print("Test 26 — format_trace_as_conversation thought prefix: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -1299,8 +1258,6 @@ def test_format_trace_as_conversation_portuguese_translations():
     for msg in assistant_messages:
         assert not msg["content"].startswith("Pensamento:")
 
-    print("Test 27 — format_trace_as_conversation Portuguese: OK ✅")
-
 
 # ---------------------------------------------------------------------------
 # Test 28 — load_system_prompt: user file
@@ -1315,7 +1272,6 @@ def test_load_system_prompt_reads_yaml_file():
 
         templates = load_system_prompt(yaml_path)
         assert templates["system_prompt"].strip() == "You are a test bot."
-    print("Test 28 — load_system_prompt YAML file: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -1329,7 +1285,6 @@ def test_load_system_prompt_raises_on_missing_file():
         raise AssertionError("Missing file should raise FileNotFoundError")
     except FileNotFoundError as error:
         assert "not found" in str(error)
-    print("Test 29 — load_system_prompt missing file: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -1349,7 +1304,6 @@ def test_load_system_prompt_falls_back_to_language_file():
     assert len(templates_pt["system_prompt"]) > 0
     # Portuguese prompt should differ from the English one.
     assert templates_pt["system_prompt"] != templates["system_prompt"]
-    print("Test 30 — load_system_prompt language fallback: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -1393,7 +1347,6 @@ def test_setup_triton_cache_creates_rank_dir_and_removes_stale_files():
                 os.environ.pop(key, None)
             else:
                 os.environ[key] = value
-    print("Test 31 — setup_triton_cache: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -1408,7 +1361,6 @@ def test_format_trace_as_conversation_empty_trace():
     assert len(conv) >= 1
     assert conv[0]["role"] == "user"
     assert conv[0]["content"] == "Q"
-    print("Test 32 — format_trace_as_conversation empty: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -1435,7 +1387,6 @@ def test_format_trace_as_conversation_discards_empty_tool_response():
     # The empty tool_response should be discarded
     tool_responses = [m for m in conv if "<tool_response>" in str(m.get("content", ""))]
     assert len(tool_responses) == 0
-    print("Test 33 — format_trace_as_conversation empty tool_response: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -1463,7 +1414,6 @@ def test_format_trace_as_conversation_ignores_system_prompt_step():
     # System prompt should appear exactly once (from trace.system_prompt, not from step)
     system_count = sum(1 for m in conv if m["role"] == "system")
     assert system_count == 1
-    print("Test 34 — format_trace_as_conversation SystemPromptStep: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -1493,7 +1443,6 @@ def test_load_metadata_entries_returns_latest_entry_per_trace_id():
         assert entries["a"]["status"] == "success"
         assert entries["b"]["status"] == "success"
         assert entries["c"]["status"] == "fail"
-    print("Test 35 — load_metadata_entries: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -1527,7 +1476,6 @@ def test_summarize_trace_metadata_counts_whole_dataset():
     assert stats["total"] == 0
     assert stats["processed"] == 0
     assert stats["remaining"] == 0
-    print("Test 36 — summarize_trace_metadata: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -1541,7 +1489,6 @@ def test_load_system_prompt_raises_on_unsupported_language():
         raise AssertionError("Unsupported language should raise ValueError")
     except ValueError as error:
         assert "zz" in str(error)
-    print("Test 37 — load_system_prompt unsupported language: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -1556,7 +1503,6 @@ def test_load_system_prompt_raises_when_language_file_missing():
             raise AssertionError("Missing language file should raise FileNotFoundError")
         except FileNotFoundError as error:
             assert "en" in str(error)
-    print("Test 38 — load_system_prompt missing language file: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -1589,7 +1535,6 @@ def test_format_trace_as_conversation_english_not_translated():
     assert "Last output from code snippet:" in all_content
     assert "Aqui estão os fatos" not in all_content
     assert "Registros de execução" not in all_content
-    print("Test 39 — format_trace_as_conversation English: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -1610,7 +1555,6 @@ def test_language_configs_have_required_keys():
         assert not missing, f"{language!r} is missing keys: {missing}"
     assert sorted(LANGUAGE_CONFIGS) == SUPPORTED_LANGUAGES
     assert "en" in SUPPORTED_LANGUAGES
-    print("Test 40 — LANGUAGE_CONFIGS contract: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -1637,7 +1581,6 @@ def test_format_trace_as_conversation_unknown_language_falls_back_to_english():
     assert "Execution logs:" in all_content
     assert "Registros de execução" not in all_content
     assert "Aqui estão os fatos" not in all_content
-    print("Test 41 — format_trace_as_conversation unknown language: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -1658,7 +1601,6 @@ def test_region_duckduckgo_no_results_mentions_wikipedia_fallback():
             raise AssertionError("Expected an exception for empty search results")
         except Exception as exc:
             assert "wikipedia_search" in str(exc)
-    print("Test 42 — RegionDuckDuckGoSearchTool fallback hint: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -1685,7 +1627,6 @@ def test_region_wikipedia_no_page_found_with_suggestions():
         msg_pt = tool_pt._no_page_found("Ayrton Senna Birthday")
     assert "Nenhuma página da Wikipédia" in msg_pt
     assert "'Ayrton Senna'" in msg_pt
-    print("Test 43 — RegionWikipediaSearchTool no-page suggestions: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -1710,7 +1651,6 @@ def test_region_wikipedia_no_page_found_without_suggestions():
         msg_pt = tool_pt._no_page_found("uma frase que não é um título")
     assert "Nenhuma página da Wikipédia" in msg_pt
     assert "título de artigo exato e curto" in msg_pt
-    print("Test 44 — RegionWikipediaSearchTool no-page no suggestions: OK ✅")
 
 
 # ---------------------------------------------------------------------------
@@ -1752,4 +1692,3 @@ def test_region_wikipedia_suggest_titles_parses_opensearch_and_handles_errors():
     fake_requests3.get.side_effect = Exception("boom")
     with patch.dict(sys.modules, {"requests": fake_requests3}):
         assert tool._suggest_titles("Ayrton Senna Birthday") == []
-    print("Test 45 — RegionWikipediaSearchTool suggest titles: OK ✅")

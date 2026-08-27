@@ -45,9 +45,6 @@ from utils import (  # noqa: E402
     save_dataset,
 )
 
-print("All imports OK ✅")
-
-
 # %%
 #######################################
 # Section 1 — is_messages_column
@@ -58,14 +55,12 @@ def test_01_is_messages_column_missing_column_returns_false():
     # 1. is_messages_column — returns False when the column is not in the dataset
     ds = datasets.Dataset.from_list([{"text": "hello"}])
     assert not is_messages_column(ds, "messages")
-    print("Test 01 — is_messages_column (missing column): OK ✅")
 
 
 def test_02_is_messages_column_empty_dataset_returns_false():
     # 2. is_messages_column — returns False for an empty dataset
     ds = datasets.Dataset.from_list([])
     assert not is_messages_column(ds, "messages")
-    print("Test 02 — is_messages_column (empty dataset): OK ✅")
 
 
 def test_03_is_messages_column_detects_messages_format():
@@ -76,14 +71,12 @@ def test_03_is_messages_column_detects_messages_format():
         ]
     )
     assert is_messages_column(ds, "messages")
-    print("Test 03 — is_messages_column (messages format): OK ✅")
 
 
 def test_04_is_messages_column_plain_text_returns_false():
     # 4. is_messages_column — returns False when column holds plain strings
     ds = datasets.Dataset.from_list([{"text": "hello world"}])
     assert not is_messages_column(ds, "text")
-    print("Test 04 — is_messages_column (plain text): OK ✅")
 
 
 # %%
@@ -100,14 +93,12 @@ def test_05_flatten_messages_concatenates_content_fields():
     ]
     result = flatten_messages(messages)
     assert result == "hello\nworld"
-    print("Test 05 — flatten_messages (basic concatenation): OK ✅")
 
 
 def test_06_flatten_messages_empty_list_returns_empty_string():
     # 6. flatten_messages — empty list produces an empty string
     assert flatten_messages([]) == ""
     assert flatten_messages(None) == ""
-    print("Test 06 — flatten_messages (empty/None): OK ✅")
 
 
 def test_07_flatten_messages_skips_entries_without_content():
@@ -118,7 +109,6 @@ def test_07_flatten_messages_skips_entries_without_content():
     ]
     result = flatten_messages(messages)
     assert result == "hello"
-    print("Test 07 — flatten_messages (skips missing content): OK ✅")
 
 
 # %%
@@ -134,7 +124,6 @@ def test_08_save_dataset_empty_returns_zero():
         result = save_dataset(ds, tmpdir, "parquet", 3_000_000, token_count=0)
         assert result == 0
         assert len(os.listdir(tmpdir)) == 0
-    print("Test 08 — save_dataset (empty dataset): OK ✅")
 
 
 def test_09_save_dataset_writes_parquet_files():
@@ -151,7 +140,6 @@ def test_09_save_dataset_writes_parquet_files():
             "parquet", data_files=[os.path.join(tmpdir, f) for f in files], split="train"
         )
         assert len(reloaded) == 10
-    print("Test 09 — save_dataset (parquet output): OK ✅")
 
 
 def test_10_save_dataset_writes_jsonl_files():
@@ -164,7 +152,6 @@ def test_10_save_dataset_writes_jsonl_files():
         with open(os.path.join(tmpdir, files[0])) as fh:
             lines = [line for line in fh if line.strip()]
         assert len(lines) == 5
-    print("Test 10 — save_dataset (jsonl output): OK ✅")
 
 
 def test_11_save_dataset_chunks_by_token_count():
@@ -175,7 +162,6 @@ def test_11_save_dataset_chunks_by_token_count():
         n = save_dataset(ds, tmpdir, "parquet", 3_000_000, token_count=9_000_000)
         assert n == 3
         assert len(os.listdir(tmpdir)) == 3
-    print("Test 11 — save_dataset (chunking by token count): OK ✅")
 
 
 # %%
@@ -196,7 +182,6 @@ def test_12_datasetloader_loads_from_jsonl_file():
         ds = loader.load()
         assert len(ds) == 6
         assert "text" in ds.column_names
-    print("Test 12 — DatasetLoader (single jsonl file): OK ✅")
 
 
 def test_13_datasetloader_loads_from_directory():
@@ -210,7 +195,6 @@ def test_13_datasetloader_loads_from_directory():
         loader = DatasetLoader(path=tmpdir)
         ds = loader.load()
         assert len(ds) == 12
-    print("Test 13 — DatasetLoader (directory of jsonl files): OK ✅")
 
 
 # %%
@@ -225,14 +209,12 @@ def test_14_langdetect_codes_and_unicode_ranges_have_same_keys():
         f"Key mismatch — only in LANGDETECT_CODES: {set(LANGDETECT_CODES) - set(UNICODE_RANGES)}, "
         f"only in UNICODE_RANGES: {set(UNICODE_RANGES) - set(LANGDETECT_CODES)}"
     )
-    print("Test 14 — LANGDETECT_CODES and UNICODE_RANGES key parity: OK ✅")
 
 
 def test_15_supported_languages_is_sorted_union():
     # 15. SUPPORTED_LANGUAGES is the sorted union of both dicts' keys
     expected = sorted(set(LANGDETECT_CODES) | set(UNICODE_RANGES))
     assert expected == SUPPORTED_LANGUAGES
-    print("Test 15 — SUPPORTED_LANGUAGES (sorted union): OK ✅")
 
 
 # %%
@@ -245,7 +227,6 @@ def test_16_unicode_filter_keeps_latin_text():
     # 16. _create_unicode_filter — accepts a clean Portuguese/Latin text
     keep = _create_unicode_filter(["portuguese"])
     assert keep("Olá, este é um texto em português.")
-    print("Test 16 — unicode filter (keeps Latin text): OK ✅")
 
 
 def test_17_unicode_filter_rejects_foreign_script():
@@ -253,7 +234,6 @@ def test_17_unicode_filter_rejects_foreign_script():
     keep = _create_unicode_filter(["english"], threshold=0.85)
     cyrillic_text = "Привет мир, это текст на русском языке без латинских букв."
     assert not keep(cyrillic_text)
-    print("Test 17 — unicode filter (rejects foreign script): OK ✅")
 
 
 def test_18_unicode_filter_empty_text_returns_false():
@@ -261,7 +241,6 @@ def test_18_unicode_filter_empty_text_returns_false():
     keep = _create_unicode_filter(["english"])
     assert not keep("")
     assert not keep(None)
-    print("Test 18 — unicode filter (empty text): OK ✅")
 
 
 def test_19_unicode_filter_threshold_controls_strictness():
@@ -272,7 +251,6 @@ def test_19_unicode_filter_threshold_controls_strictness():
     mixed = "Hello мир Hello мир Hello мир Hello мир"
     assert keep_loose(mixed)
     assert not keep_strict(mixed)
-    print("Test 19 — unicode filter (threshold controls strictness): OK ✅")
 
 
 def test_20_unicode_filter_raises_for_unknown_language():
@@ -282,4 +260,3 @@ def test_20_unicode_filter_raises_for_unknown_language():
         raise AssertionError("Expected ValueError was not raised")
     except ValueError:
         pass
-    print("Test 20 — unicode filter (raises for unknown language): OK ✅")

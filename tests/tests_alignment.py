@@ -97,9 +97,6 @@ from utils import (  # noqa: E402
     split_dataset,
 )
 
-print("All imports OK ✅")
-
-
 # %%
 #######################################
 # Section 1 - Logging / Distributed State
@@ -111,7 +108,6 @@ def test_01_getlogger_returns_a_working_logger():
     assert logger.name == "TestAlignment"
     logger.info("Logger works.")
     logger.warning("Warning works.")
-    print("Test 1 - get_logger: OK ✅")
 
 
 def test_02_getlogger_is_idempotent():
@@ -120,7 +116,6 @@ def test_02_getlogger_is_idempotent():
     logger_b = get_logger("TestAlignment_idem")
     assert logger_a is logger_b, "Should return the same Logger instance"
     assert len(logger_b.handlers) == n_handlers, "No new handlers should be added on second call"
-    print("Test 2 - get_logger idempotent: OK ✅")
 
 
 def test_03_setupdistributedstate_identifies_master_process():
@@ -129,7 +124,6 @@ def test_03_setupdistributedstate_identifies_master_process():
     state, master_process = setup_distributed_state(logger)
     assert state.process_index == 0
     assert master_process is True
-    print("Test 3 - setup_distributed_state master: OK ✅")
 
 
 def test_04_setupdistributedstate_identifies_worker_process():
@@ -139,7 +133,6 @@ def test_04_setupdistributedstate_identifies_worker_process():
     assert state.process_index == 2
     assert master_process is False
     FakeAccelerateModule.process_index = 0
-    print("Test 4 - setup_distributed_state worker: OK ✅")
 
 
 # %%
@@ -180,7 +173,6 @@ def test_05_loadtrainingdataset_collects_sorted_jsonl_files_and_waits():
         assert call["kwargs"]["split"] == "train"
         assert call["kwargs"]["num_proc"] == 3
         assert call["kwargs"]["cache_dir"] == "/tmp/cache"
-    print("Test 5 - load_training_dataset jsonl collection: OK ✅")
 
 
 def test_06_loadtrainingdataset_rejects_unknown_dataset_type():
@@ -191,7 +183,6 @@ def test_06_loadtrainingdataset_rejects_unknown_dataset_type():
         assert "Dataset type must be either" in str(exc)
     else:
         raise AssertionError("Expected AssertionError for unsupported dataset type")
-    print("Test 6 - load_training_dataset invalid type: OK ✅")
 
 
 class FakeTestSplit:
@@ -221,7 +212,6 @@ def test_07_splitdataset_returns_original_when_no_test_size():
     assert result is dataset
     assert dataset.train_test_split_calls == []
     assert state.wait_calls == 0
-    print("Test 7 - split_dataset no split: OK ✅")
 
 
 def test_08_splitdataset_saves_test_set_on_master():
@@ -237,7 +227,6 @@ def test_08_splitdataset_saves_test_set_on_master():
         assert dataset.test.to_json_calls == [(test_file, "records", True)]
         assert os.path.exists(test_file)
         assert state.wait_calls == 1
-    print("Test 8 - split_dataset saves test set: OK ✅")
 
 
 def test_09_splitdataset_worker_does_not_save_test_set():
@@ -248,7 +237,6 @@ def test_09_splitdataset_worker_does_not_save_test_set():
         assert dataset.test.to_json_calls == []
         assert not os.path.exists(os.path.join(tmpdir, "test_set.jsonl"))
         assert state.wait_calls == 1
-    print("Test 9 - split_dataset worker no save: OK ✅")
 
 
 # %%
@@ -276,7 +264,6 @@ def test_10_loadtokenizer_uses_from_pretrained_options():
     assert call["kwargs"]["cache_dir"] == "/tmp/cache"
     assert call["kwargs"]["use_fast"] is True
     assert call["kwargs"]["trust_remote_code"] is True
-    print("Test 10 - load_tokenizer from_pretrained options: OK ✅")
 
 
 def test_11_loadtokenizer_reads_chat_template_when_missing():
@@ -290,7 +277,6 @@ def test_11_loadtokenizer_reads_chat_template_when_missing():
         result = load_tokenizer("model-name", 2048, None, chat_template_path=template_path)
 
         assert result.chat_template == "{{ messages }}"
-    print("Test 11 - load_tokenizer reads chat template: OK ✅")
 
 
 def test_12_loadtokenizer_requires_chat_template_when_missing():
@@ -301,7 +287,6 @@ def test_12_loadtokenizer_requires_chat_template_when_missing():
         assert "Tokenizer does not have a chat template" in str(exc)
     else:
         raise AssertionError("Expected AssertionError for missing chat template")
-    print("Test 12 - load_tokenizer missing chat template: OK ✅")
 
 
 def test_13_loadtokenizer_allows_eos_pad_token_when_requested():
@@ -309,7 +294,6 @@ def test_13_loadtokenizer_allows_eos_pad_token_when_requested():
     FakeAutoTokenizer.next_tokenizer = tokenizer
     result = load_tokenizer("model-name", 2048, None, allow_eos_pad_token=True)
     assert result.pad_token == "<eos>"
-    print("Test 13 - load_tokenizer allow eos pad: OK ✅")
 
 
 def test_14_loadtokenizer_requires_pad_token_by_default():
@@ -320,7 +304,6 @@ def test_14_loadtokenizer_requires_pad_token_by_default():
         assert "does not have a pad token" in str(exc)
     else:
         raise AssertionError("Expected AssertionError for missing pad token")
-    print("Test 14 - load_tokenizer missing pad token: OK ✅")
 
 
 def test_15_loadtokenizer_rejects_pad_equal_to_eos_by_default():
@@ -331,7 +314,6 @@ def test_15_loadtokenizer_rejects_pad_equal_to_eos_by_default():
         assert "pad token is the same as the eos token" in str(exc)
     else:
         raise AssertionError("Expected AssertionError for pad_token == eos_token")
-    print("Test 15 - load_tokenizer pad equals eos: OK ✅")
 
 
 # %%
@@ -349,7 +331,6 @@ def test_16_resolvecheckpointpath_returns_latest_checkpoint():
         logger = get_logger("TestAlignment_checkpoint")
         result = resolve_checkpoint_path(tmpdir, True, logger)
         assert result == os.path.join(tmpdir, "checkpoint-10")
-    print("Test 16 - resolve_checkpoint_path latest checkpoint: OK ✅")
 
 
 def test_17_resolvecheckpointpath_keeps_direct_path():
@@ -357,7 +338,6 @@ def test_17_resolvecheckpointpath_keeps_direct_path():
     logger = get_logger("TestAlignment_checkpoint_direct")
     result = resolve_checkpoint_path(direct_path, False, logger)
     assert result == direct_path
-    print("Test 17 - resolve_checkpoint_path direct path: OK ✅")
 
 
 class FakeTrainer:
@@ -383,7 +363,6 @@ def test_18_runtraining_trains_and_saves_final_model():
 
         assert trainer.train_calls == ["checkpoint-path"]
         assert trainer.save_model_calls == [os.path.join(tmpdir, "final")]
-    print("Test 18 - run_training success: OK ✅")
 
 
 def test_19_runtraining_saves_last_model_on_failure_and_reraises():
@@ -400,4 +379,3 @@ def test_19_runtraining_saves_last_model_on_failure_and_reraises():
 
         assert trainer.train_calls == [None]
         assert trainer.save_model_calls == [os.path.join(tmpdir, "last")]
-    print("Test 19 - run_training failure saves last: OK ✅")

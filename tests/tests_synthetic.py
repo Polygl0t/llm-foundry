@@ -46,8 +46,6 @@ from utils import (  # noqa: E402
     setup_triton_cache,
 )
 
-print("All imports OK ✅")
-
 
 def _write_jsonl(path: str | Path, rows: list[dict]) -> None:
     with open(path, "w", encoding="utf-8") as handle:
@@ -93,7 +91,6 @@ def test_detect_failure_reason_handles_known_failures_and_empty_inputs():
         assert detect_failure_reason(large_log) == "OOM"
         assert detect_failure_reason(Path(tmpdir) / "missing.log") is None
         assert detect_failure_reason(None) is None
-    print("Test 1 — detect_failure_reason: OK ✅")
 
 
 def test_get_starting_row_resumes_from_valid_rows_and_ignores_bad_lines():
@@ -114,7 +111,6 @@ def test_get_starting_row_resumes_from_valid_rows_and_ignores_bad_lines():
         empty_path = os.path.join(tmpdir, "empty.jsonl")
         open(empty_path, "w", encoding="utf-8").close()
         assert get_starting_row(empty_path, row_start=None) == 0
-    print("Test 2 — get_starting_row: OK ✅")
 
 
 def test_save_samples_appends_jsonl_with_chunk_and_metadata():
@@ -143,7 +139,6 @@ def test_save_samples_appends_jsonl_with_chunk_and_metadata():
             },
         ]
         assert get_starting_row(output_path, row_start=None) == 2
-    print("Test 3 — save_samples: OK ✅")
 
 
 def test_save_cai_sample_preserves_nested_results_metadata_and_unicode():
@@ -174,7 +169,6 @@ def test_save_cai_sample_preserves_nested_results_metadata_and_unicode():
             "revisions": [["Olá, tudo ótimo!"]],
             "metadata": {"lang": "pt"},
         }
-    print("Test 4 — save_cai_sample: OK ✅")
 
 
 def test_chunk_text_splits_on_token_boundaries_and_can_keep_first_chunk_only():
@@ -190,7 +184,6 @@ def test_chunk_text_splits_on_token_boundaries_and_can_keep_first_chunk_only():
     assert chunk_text(" ".join(f"word{i}" for i in range(20)), tokenizer, 5, True) == [
         "w0 w1 w2 w3 w4"
     ]
-    print("Test 5 — chunk_text: OK ✅")
 
 
 def test_setup_triton_cache_sets_rank_directory_and_removes_stale_files():
@@ -229,7 +222,6 @@ def test_setup_triton_cache_sets_rank_directory_and_removes_stale_files():
                 os.environ.pop(key, None)
             else:
                 os.environ[key] = value
-    print("Test 6 — setup_triton_cache: OK ✅")
 
 
 def test_dataset_loader_reads_local_jsonl_files_and_directories():
@@ -252,7 +244,6 @@ def test_dataset_loader_reads_local_jsonl_files_and_directories():
 
         directory_dataset = DatasetLoader(path=data_dir, cache_dir=tmpdir).load()
         assert len(directory_dataset) == 4
-    print("Test 7 — DatasetLoader local jsonl/directory: OK ✅")
 
 
 def test_dataset_loader_shuffle_is_seeded_and_optional():
@@ -268,7 +259,6 @@ def test_dataset_loader_shuffle_is_seeded_and_optional():
         assert list(seeded_a["idx"]) == list(seeded_b["idx"])
         assert list(seeded_a["idx"]) != list(different_seed["idx"])
         assert list(unshuffled["idx"]) == list(range(20))
-    print("Test 8 — DatasetLoader shuffle: OK ✅")
 
 
 def test_dataset_loader_rejects_unsupported_files_and_empty_directories():
@@ -289,7 +279,6 @@ def test_dataset_loader_rejects_unsupported_files_and_empty_directories():
             raise AssertionError("Empty directory should raise ValueError")
         except ValueError as error:
             assert "No .jsonl or .parquet" in str(error)
-    print("Test 9 — DatasetLoader invalid inputs: OK ✅")
 
 
 def test_dataset_loader_reads_parquet_when_pyarrow_is_available():
@@ -297,7 +286,6 @@ def test_dataset_loader_reads_parquet_when_pyarrow_is_available():
         pa = importlib.import_module("pyarrow")
         pq = importlib.import_module("pyarrow.parquet")
     except ImportError:
-        print("DatasetLoader parquet test skipped: pyarrow not installed")
         return
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -308,7 +296,6 @@ def test_dataset_loader_reads_parquet_when_pyarrow_is_available():
         dataset = DatasetLoader(path=parquet_path, cache_dir=tmpdir).load()
         assert len(dataset) == 8
         assert "text" in dataset.column_names
-    print("Test 10 — DatasetLoader parquet: OK ✅")
 
 
 def test_get_nvidia_smi_vram_parses_output_and_falls_back_on_errors():
@@ -317,7 +304,6 @@ def test_get_nvidia_smi_vram_parses_output_and_falls_back_on_errors():
 
     with patch("subprocess.check_output", return_value=b"4096\n8192\n"):
         assert get_nvidia_smi_vram() == [4.0, 8.0]
-    print("Test 11 — get_nvidia_smi_vram: OK ✅")
 
 
 def test_constitutional_generation_returns_initial_responses_when_critique_is_disabled():
@@ -337,7 +323,6 @@ def test_constitutional_generation_returns_initial_responses_when_critique_is_di
         "critiques": [],
         "revisions": [],
     }
-    print("Test 12 — constitutional_generation no critique: OK ✅")
 
 
 def test_constitutional_generation_runs_requested_critique_revision_iterations():
@@ -362,7 +347,6 @@ def test_constitutional_generation_runs_requested_critique_revision_iterations()
     assert result["revisions"] == [["Revised resp"], ["Revised resp"]]
     assert critique_mock.call_count == 2
     assert revise_mock.call_count == 2
-    print("Test 13 — constitutional_generation critique/revision: OK ✅")
 
 
 def test_run_rollouts_generates_for_each_chunk_and_saves_metadata():
@@ -398,7 +382,6 @@ def test_run_rollouts_generates_for_each_chunk_and_saves_metadata():
         assert all(record["metadata"] == {"source": "test_suite"} for record in records)
         assert generate_mock.call_args_list[0].kwargs["input_string"] == "PREFIX: w0 w1 w2 :SUFFIX"
         assert generate_mock.call_args_list[1].kwargs["input_string"] == "PREFIX: w3 w4 w5 :SUFFIX"
-    print("Test 14 — run_rollouts: OK ✅")
 
 
 def test_run_cai_rollouts_saves_result_and_skips_oversized_prompts():
@@ -456,4 +439,3 @@ def test_run_cai_rollouts_saves_result_and_skips_oversized_prompts():
 
         oversized_generation_mock.assert_not_called()
         assert len(_read_jsonl(output_path)) == 1
-    print("Test 15 — run_cai_rollouts: OK ✅")

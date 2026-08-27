@@ -60,8 +60,6 @@ from tasks_metadata import (  # noqa: E402
 )
 from verifier import VERIFICATION_REGISTRY, Verifier  # noqa: E402
 
-print("All imports OK ✅")
-
 
 def test_02_multiconstraint_verifier_pass_and_partial_failure():
     # 2. Multi-constraint verifier — pass and partial failure
@@ -107,7 +105,6 @@ def test_02_multiconstraint_verifier_pass_and_partial_failure():
     )
     r2 = v2.verify()
     assert r2 == [False, False, True], f"Expected [False, False, True], got {r2}"
-    print("Test 2 — multi-constraint pass + partial failure: OK ✅")
 
 
 def test_03_keywords_forbidden_words_frequency_pass_fail():
@@ -143,7 +140,6 @@ def test_03_keywords_forbidden_words_frequency_pass_fail():
         completion="Entretanto nada de especial aqui.",
     )
     assert v2.verify() == [False, False, False]
-    print("Test 3 — keywords + forbidden + frequency: OK ✅")
 
 
 def test_04_length_constraints_detectable_content():
@@ -194,7 +190,6 @@ def test_04_length_constraints_detectable_content():
         completion="Curto.",
     )
     assert v2.verify() == [False, False, False, False, False]
-    print("Test 4 — length constraints + detectable content: OK ✅")
 
 
 def test_05_detectable_format_verifiers():
@@ -264,7 +259,6 @@ def test_05_detectable_format_verifiers():
         completion="Isso não é JSON.",
     )
     assert v9.verify() == [False]
-    print("Test 5 — detectable format verifiers: OK ✅")
 
 
 def test_06_combination_startend_verifiers():
@@ -313,7 +307,6 @@ def test_06_combination_startend_verifiers():
         completion="Esta resposta não está entre aspas.",
     )
     assert v6.verify() == [False]
-    print("Test 6 — combination + startend verifiers: OK ✅")
 
 
 def test_07_unknown_verifier_id_raises_error():
@@ -329,7 +322,6 @@ def test_07_unknown_verifier_id_raises_error():
         raise AssertionError("Should have raised ValueError")
     except ValueError as e:
         assert "Unknown verifier ID" in str(e)
-    print("Test 7 — unknown verifier raises error: OK ✅")
 
 
 def test_08_metadata_integrity_registry_conflict_symmetry_selfconflict():
@@ -355,7 +347,6 @@ def test_08_metadata_integrity_registry_conflict_symmetry_selfconflict():
         assert tid in VERIFICATION_REGISTRY, f"Missing registry entry: {tid}"
     for tid in HAYSTACK_TASK_IDS:
         assert tid in VERIFICATION_REGISTRY, f"Missing registry entry: {tid}"
-    print("Test 8 — metadata integrity (registry + conflicts): OK ✅")
 
 
 def test_09_metadata_helpers_iscombinationvalid_getaddable_makeemptykwar():
@@ -381,7 +372,6 @@ def test_09_metadata_helpers_iscombinationvalid_getaddable_makeemptykwar():
     kw["language"] = "pt"
     kw2 = make_empty_kwargs()
     assert kw2["language"] is None, "make_empty_kwargs should return independent copies"
-    print("Test 9 — metadata helpers: OK ✅")
 
 
 def test_10_generation_pipeline_kwargs_descriptions_templates_fill():
@@ -422,9 +412,6 @@ def test_10_generation_pipeline_kwargs_descriptions_templates_fill():
         filled = fill_template(t)
         assert isinstance(filled, str) and len(filled) > 0
         assert "{" not in filled, f"Unfilled slot in template {t['id']}: {filled}"
-    print(
-        f"Test 10 — generation pipeline ({len(TEMPLATES)} templates, {len(ALL_VERIFIER_IDS)} verifiers): OK ✅"
-    )
 
 
 def test_11_sample_building_validation_fingerprint_uniqueness():
@@ -474,7 +461,6 @@ def test_11_sample_building_validation_fingerprint_uniqueness():
         s = build_sample(random.choice(TEMPLATES), min_modifiers=1, max_modifiers=3)
         fps.add(sample_fingerprint(s))
     assert len(fps) > 10, f"Expected >10 unique fingerprints, got {len(fps)}"
-    print(f"Test 11 — sample building + validation + fingerprints ({len(fps)}/20 unique): OK ✅")
 
 
 def test_13_long_context_verifiers_pass_fail_partial_edge_cases():
@@ -565,7 +551,6 @@ def test_13_long_context_verifiers_pass_fail_partial_edge_cases():
         completion='A palavra "cachorro" é mais frequente na lista.',
     )
     assert v12.verify() == [False]
-    print("Test 13 — long context verifiers (pass/fail/partial/edge): OK ✅")
 
 
 def test_14_long_context_endtoend_generate_verify():
@@ -612,7 +597,6 @@ def test_14_long_context_endtoend_generate_verify():
         )
         results = v.verify()
         assert results == [True], f"Template {idx}: expected [True], got {results}"
-    print("Test 14 — long context end-to-end (all templates): OK ✅")
 
 
 def test_15_haystack_verifiers_pass_fail_partial_edge_cases():
@@ -722,7 +706,6 @@ def test_15_haystack_verifiers_pass_fail_partial_edge_cases():
         completion="Qualquer resposta.",
     )
     assert v11.verify() == [True], "Empty expected_values should pass"
-    print("Test 15 — haystack verifiers (pass/fail/partial/edge): OK ✅")
 
 
 def test_16_haystack_endtoend_generate_verify_all_templates():
@@ -772,7 +755,6 @@ def test_16_haystack_endtoend_generate_verify_all_templates():
         )
         results = v.verify()
         assert results == [True], f"Haystack template {idx}: expected [True], got {results}"
-    print(f"Test 16 — haystack end-to-end ({len(HAYSTACK_TEMPLATES)} templates): OK ✅")
 
 
 def test_17_math_verifier_pass_fail_edge_cases_and_relaxed_mode():
@@ -890,8 +872,6 @@ def test_17_math_verifier_pass_fail_edge_cases_and_relaxed_mode():
     )
     assert v16.verify() == [False], "Relaxed: wrong rounded answer should fail"
 
-    print("Test 17 — math verifier (pass/fail/edge/relaxed): OK ✅")
-
 
 def test_18_math_buildsample_validate_verify_jsonl_synthetic_generation():
     # 18. Math — build_sample + validate + verify + JSONL + synthetic generation
@@ -975,8 +955,6 @@ def test_18_math_buildsample_validate_verify_jsonl_synthetic_generation():
     synth_pairs_2 = _gen_math_problems(n=10, max_depth=3, seed=42)
     assert synth_pairs == synth_pairs_2, "generate_math_problems must be deterministic"
 
-    print("Test 18 — math end-to-end (JSONL + synthetic + relaxed verify): OK ✅")
-
 
 def test_19_email_json_format_verifier_pass_fail_edge_cases():
     # 19. Email JSON format verifier — pass, fail, edge cases
@@ -1035,8 +1013,6 @@ def test_19_email_json_format_verifier_pass_fail_edge_cases():
         )
         assert vf.verify() == [True], f"{desc} should be accepted"
 
-    print("Test 19 — email:json_format verifier (pass/fail/edge): OK ✅")
-
 
 def test_20_email_schema_keys_verifier_pass_fail_edge_cases():
     # 20. Email schema keys verifier — pass, fail, edge cases
@@ -1088,7 +1064,6 @@ def test_20_email_schema_keys_verifier_pass_fail_edge_cases():
         completion='```json\n{"subject": "Teste", "sender": "Maria"}\n```',
     )
     assert v6.verify() == [True], "Key order should not matter"
-    print("Test 20 — email:schema_keys verifier (pass/fail/edge): OK ✅")
 
 
 def test_21_email_field_value_verifier_pass_fail_edge_cases_str_bool():
@@ -1149,7 +1124,6 @@ def test_21_email_field_value_verifier_pass_fail_edge_cases_str_bool():
         completion='{"spam": false, "subject": "Oi"}',
     )
     assert v8.verify() == [True], "field_value should accept raw JSON"
-    print("Test 21 — email:field_value verifier (pass/fail/edge): OK ✅")
 
 
 def test_22_email_endtoend_build_validate_verify():
@@ -1252,8 +1226,6 @@ def test_22_email_endtoend_build_validate_verify():
     for tid in EMAIL_TASK_IDS:
         assert tid in VERIFICATION_REGISTRY, f"Missing registry entry for {tid}"
 
-    print("Test 22 — email end-to-end (build + validate + verify): OK ✅")
-
 
 def test_23_toolcall_verifiers_pass_and_fail_scenarios():
     # 23. Tool-call verifiers — pass and fail scenarios
@@ -1348,8 +1320,6 @@ def test_23_toolcall_verifiers_pass_and_fail_scenarios():
         completion="Não posso.",
     )
     assert v_tc9.verify() == [False]
-
-    print("Test 23 — tool-call verifiers (pass/fail/edge): OK ✅")
 
 
 def test_24_toolcall_endtoend_generate_validate_verify():
@@ -1571,8 +1541,6 @@ def test_24_toolcall_endtoend_generate_validate_verify():
         found = any(rt in sample["prompt"] for rt in _REFUSAL_TEMPLATES)
         assert found, f"Refusal sample {i} does not contain any refusal query template"
 
-    print("Test 24 — tool-call end-to-end (generate + validate + verify): OK ✅")
-
 
 def test_25_thinking_format_verifier_enablethinking_flag():
     # 25. Thinking format verifier — enable_thinking flag
@@ -1633,8 +1601,6 @@ def test_25_thinking_format_verifier_enablethinking_flag():
     # 25f. Direct checker in registry
     assert "reasoning:thinking_format" in VERIFICATION_REGISTRY
 
-    print("Test 25 — thinking format verifier (enable_thinking flag): OK ✅")
-
 
 def test_26_soft_matching_sentence_count_1_boundary_tolerance():
     # 26. Soft matching — sentence count (±1 boundary tolerance)
@@ -1688,8 +1654,6 @@ def test_26_soft_matching_sentence_count_1_boundary_tolerance():
     )
     assert v_default.verify() == [False], "Default (no strict kwarg) must be strict"
 
-    print("Test 26 — soft matching: sentence count boundary tolerance: OK ✅")
-
 
 def test_27_soft_matching_word_count_10_boundary_tolerance():
     # 27. Soft matching — word count (±10% boundary tolerance)
@@ -1738,8 +1702,6 @@ def test_27_soft_matching_word_count_10_boundary_tolerance():
     assert v_w_far.verify() == [False], (
         "Soft: 50 words 'at least 100' must still fail (outside ±10%)"
     )
-
-    print("Test 27 — soft matching: word count boundary tolerance: OK ✅")
 
 
 def test_28_soft_matching_nthparagraphfirstword_with_singlen_separator():
@@ -1804,8 +1766,6 @@ def test_28_soft_matching_nthparagraphfirstword_with_singlen_separator():
     assert v_para_comma.verify() == [True], (
         "Strict: first word with trailing comma should match after punctuation strip"
     )
-
-    print("Test 28 — soft matching: nth_paragraph_first_word with \\n separator: OK ✅")
 
 
 def test_29_soft_matching_letter_frequency_3_tolerance():
@@ -1888,8 +1848,6 @@ def test_29_soft_matching_letter_frequency_3_tolerance():
     )
     assert v_lf_at_strict.verify() == [False], "Strict: 2 below 'at least' threshold must fail"
 
-    print("Test 29 — soft matching: letter frequency ±3 tolerance: OK ✅")
-
 
 def test_30_soft_matching_keyword_frequency_1_tolerance():
     # 30. Soft matching — keyword frequency (±1 tolerance)
@@ -1936,8 +1894,6 @@ def test_30_soft_matching_keyword_frequency_1_tolerance():
         "Soft: zero occurrences with 'at least 3' (threshold - 1 = 2) must fail"
     )
 
-    print("Test 30 — soft matching: keyword frequency ±1 tolerance: OK ✅")
-
 
 def test_31_critical_errors_always_fail_in_soft_mode():
     # 31. Critical errors always fail in soft mode
@@ -1962,8 +1918,6 @@ def test_31_critical_errors_always_fail_in_soft_mode():
     )
     assert v_quote_soft.verify() == [False], "Soft: missing quotation marks must still fail"
 
-    print("Test 31 — critical errors always fail in soft mode: OK ✅")
-
 
 def test_32_description_consistency_nthparagraphfirstword_includes_nn_in():
     # 32. Description consistency — nth_paragraph_first_word includes \n\n info
@@ -1976,7 +1930,6 @@ def test_32_description_consistency_nthparagraphfirstword_includes_nn_in():
         "nth_paragraph_first_word description must mention the \\n\\n paragraph "
         f"separator so the model knows the format. Got: {_desc_para!r}"
     )
-    print("Test 32 — description consistency: nth_paragraph_first_word includes \\n\\n: OK ✅")
 
 
 def test_33_letterfrequency_kwargs_less_than_uses_higher_threshold():
@@ -2002,8 +1955,6 @@ def test_33_letterfrequency_kwargs_less_than_uses_higher_threshold():
             f"letter_frequency 'at least' threshold must be ≤10 to be achievable. "
             f"Max found: {max(_lf_at_least_counts)}"
         )
-
-    print("Test 33 — letter_frequency kwargs: 'less than' uses threshold ≥10: OK ✅")
 
 
 # %%

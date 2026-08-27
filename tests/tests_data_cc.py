@@ -59,9 +59,6 @@ from utils import (  # noqa: E402
     write_metadata,
 )
 
-print("All imports OK ✅")
-
-
 # %%
 #######################################
 # Section 1 — data/cc/utils.py
@@ -75,7 +72,6 @@ def test_02_getlogger_returns_a_working_logger():
     assert logger.name == "TestDataCC"
     logger.info("Logger works.")
     logger.warning("Warning works.")
-    print("Test 2 — get_logger: OK ✅")
 
 
 def test_03_getlogger_is_idempotent():
@@ -86,7 +82,6 @@ def test_03_getlogger_is_idempotent():
     logger_b = get_logger("TestDataCC_idem")
     assert logger_a is logger_b, "Should return the same Logger instance"
     assert len(logger_b.handlers) == n_handlers, "No new handlers should be added on second call"
-    print("Test 3 — get_logger idempotent: OK ✅")
 
 
 def test_04_readmetadata_returns_none_for_missing_file():
@@ -95,7 +90,6 @@ def test_04_readmetadata_returns_none_for_missing_file():
     with tempfile.TemporaryDirectory() as tmpdir:
         result = read_metadata(os.path.join(tmpdir, ".metadata"))
         assert result is None
-    print("Test 4 — read_metadata (missing file): OK ✅")
 
 
 def test_05_readmetadata_parses_int_float_and_string():
@@ -114,7 +108,6 @@ def test_05_readmetadata_parses_int_float_and_string():
         assert result["tokens"] == 1234567
         assert abs(result["ratio"] - 3.14) < 1e-6
         assert result["source"] == "CC-MAIN-2025-30"
-    print("Test 5 — read_metadata parsing: OK ✅")
 
 
 def test_06_readmetadata_handles_blank_and_non_kv_lines():
@@ -131,7 +124,6 @@ def test_06_readmetadata_handles_blank_and_non_kv_lines():
 
         result = read_metadata(meta_path)
         assert result == {"lines": 10, "tokens": 500}
-    print("Test 6 — read_metadata blank/non-kv lines: OK ✅")
 
 
 def test_07_writemetadata_writes_correct_format():
@@ -145,7 +137,6 @@ def test_07_writemetadata_writes_correct_format():
         assert "lines: 100\n" in content
         assert "tokens: 9999\n" in content
         assert "lang: pt\n" in content
-    print("Test 7 — write_metadata format: OK ✅")
 
 
 def test_09_initializeorloadmetadata_empty_folder_returns_zeros():
@@ -154,7 +145,6 @@ def test_09_initializeorloadmetadata_empty_folder_returns_zeros():
     with tempfile.TemporaryDirectory() as tmpdir:
         result = initialize_or_load_metadata(tmpdir)
         assert result == {"lines": 0, "tokens": 0}
-    print("Test 9 — initialize_or_load_metadata (empty folder): OK ✅")
 
 
 def test_10_initializeorloadmetadata_loads_existing_metadata_file():
@@ -165,7 +155,6 @@ def test_10_initializeorloadmetadata_loads_existing_metadata_file():
         result = initialize_or_load_metadata(tmpdir)
         assert result["lines"] == 77
         assert result["tokens"] == 8800
-    print("Test 10 — initialize_or_load_metadata (existing .metadata): OK ✅")
 
 
 def test_11_initializeorloadmetadata_scans_jsonl_skips_invalid_and_creates_metadata():
@@ -193,7 +182,6 @@ def test_11_initializeorloadmetadata_scans_jsonl_skips_invalid_and_creates_metad
         meta_path = os.path.join(tmpdir, ".metadata")
         assert os.path.exists(meta_path)
         assert read_metadata(meta_path) == result
-    print("Test 11 — initialize_or_load_metadata (multi-shard + invalid JSON): OK ✅")
 
 
 # %%
@@ -272,7 +260,6 @@ def test_13_all_languages_argument_parser_defaults_and_required_args():
     assert args2.tasks == 32
     assert args2.workers == 32
     assert args2.expand_metadata is True
-    print("Test 13 — all_languages argument parser: OK ✅")
 
 
 def test_14_quality_filters_argument_parser_defaults_and_required_args():
@@ -340,7 +327,6 @@ def test_14_quality_filters_argument_parser_defaults_and_required_args():
     assert args2.languages == ["pt", "hi"]
     assert args2.tasks == 16
     assert args2.expand_metadata is True
-    print("Test 14 — quality_filters argument parser: OK ✅")
 
 
 # %%
@@ -424,7 +410,6 @@ def test_15_consolidation_writes_output_and_metadata():
         meta = read_metadata(os.path.join(args.output_folder, "pt", ".metadata"))
         assert meta["lines"] == 5
         assert meta["tokens"] == 50
-    print("Test 15 — consolidation writes output and metadata: OK ✅")
 
 
 def test_16_consolidation_skips_invalid_json_lines():
@@ -454,7 +439,6 @@ def test_16_consolidation_skips_invalid_json_lines():
         meta = read_metadata(os.path.join(args.output_folder, "bn", ".metadata"))
         assert meta["lines"] == 3
         assert meta["tokens"] == 16
-    print("Test 16 — consolidation skips invalid JSON: OK ✅")
 
 
 def test_17_consolidation_appends_and_accumulates_metadata():
@@ -487,7 +471,6 @@ def test_17_consolidation_appends_and_accumulates_metadata():
         meta = read_metadata(os.path.join(lang_out, ".metadata"))
         assert meta["lines"] == 7  # 3 + 4
         assert meta["tokens"] == 100  # 60 + 40
-    print("Test 17 — consolidation appends and accumulates metadata: OK ✅")
 
 
 def test_18_consolidation_skips_language_with_no_valid_data():
@@ -509,7 +492,6 @@ def test_18_consolidation_skips_language_with_no_valid_data():
         # .metadata must NOT exist — the language was skipped
         meta_path = os.path.join(args.output_folder, "hi", ".metadata")
         assert not os.path.exists(meta_path), ".metadata must not be written for an empty language"
-    print("Test 18 — consolidation skips lang with no valid data: OK ✅")
 
 
 def test_19_consolidation_multiple_languages_in_one_run():
@@ -538,7 +520,6 @@ def test_19_consolidation_multiple_languages_in_one_run():
         bn_meta = read_metadata(os.path.join(args.output_folder, "bn", ".metadata"))
         assert bn_meta["lines"] == 3
         assert bn_meta["tokens"] == 60
-    print("Test 19 — consolidation multiple languages: OK ✅")
 
 
 def test_20_consolidation_multiple_shards_per_language():
@@ -568,4 +549,3 @@ def test_20_consolidation_multiple_shards_per_language():
         meta = read_metadata(os.path.join(args.output_folder, "pt", ".metadata"))
         assert meta["lines"] == 8
         assert meta["tokens"] == 3 * 10 + 5 * 20  # 30 + 100 = 130
-    print("Test 20 — consolidation multiple shards per language: OK ✅")

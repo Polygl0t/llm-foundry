@@ -89,8 +89,6 @@ _install_datatrove_stubs()
 import preprocess  # noqa: E402
 from utils import ParseResult, document_to_row  # noqa: E402
 
-print("All imports OK ✅")
-
 
 class FakeDocument:
     def __init__(self, text, doc_id, metadata=None):
@@ -175,7 +173,6 @@ def test_01_apply_stratification_overrides_subset_when_enabled():
 
     assert result.subset == "pt"
     assert result.row == parsed.row
-    print("Test 1 — apply_stratification override: OK ✅")
 
 
 def test_02_build_builtin_parser_without_stratification_uses_default_subset():
@@ -188,7 +185,6 @@ def test_02_build_builtin_parser_without_stratification_uses_default_subset():
 
         assert result == ParseResult("all", document_to_row(doc))
         assert expected_subsets == ["all"]
-    print("Test 2 — built-in parser default subset: OK ✅")
 
 
 def test_03_build_builtin_parser_with_stratification_discovers_parquet_values():
@@ -209,7 +205,6 @@ def test_03_build_builtin_parser_with_stratification_discovers_parquet_values():
 
         assert expected_subsets == ["bn", "pt"]
         assert result == ParseResult("pt", document_to_row(doc))
-    print("Test 3 — built-in parser stratification: OK ✅")
 
 
 def test_04_build_active_parser_loads_add_uuid_parser():
@@ -230,7 +225,6 @@ def test_04_build_active_parser_loads_add_uuid_parser():
         assert result.row["sample_uuid"]
         assert result.row["text"] == "texto"
         assert result.row["id"] == "doc-4"
-    print("Test 4 — active parser add_uuid: OK ✅")
 
 
 def test_05_build_active_parser_combines_filtering_and_stratification():
@@ -267,7 +261,6 @@ def test_05_build_active_parser_combines_filtering_and_stratification():
         assert expected_subsets == ["bn", "pt"]
         assert keep_result == ParseResult("bn", document_to_row(keep_doc))
         assert drop_result is None
-    print("Test 5 — active parser filter + stratification: OK ✅")
 
 
 #######################################
@@ -307,7 +300,6 @@ def test_06_routing_writer_writes_jsonl_and_tracks_stats():
         assert writer._stat_totals["pt_documents"] == 2
         assert writer._stat_totals["pt_tokens"] == 12
         assert writer._stat_totals["filtered_documents"] == 1
-    print("Test 6 — RoutingWriter JSONL: OK ✅")
 
 
 def test_07_routing_writer_writes_parquet_rows():
@@ -338,7 +330,6 @@ def test_07_routing_writer_writes_parquet_rows():
         bn_rows = pq.read_table(os.path.join(output_dir, "bn", "00004.parquet")).to_pylist()
         assert pt_rows == [{"id": "doc-1", "text": "ola", "token_count": 5}]
         assert bn_rows == [{"id": "doc-2", "text": "namaskar", "token_count": 7}]
-    print("Test 7 — RoutingWriter parquet: OK ✅")
 
 
 #######################################
@@ -422,4 +413,3 @@ def test_08_main_runs_writer_and_emits_subset_metadata():
         assert bn_meta["tokens"] == 7
         assert bn_meta["chunks"] == 1
         assert bn_meta["subset"] == "bn"
-    print("Test 8 — main orchestration + metadata: OK ✅")

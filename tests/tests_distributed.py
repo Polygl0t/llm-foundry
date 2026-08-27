@@ -64,9 +64,6 @@ atexit.register(cleanup_generated_bootstrap_checkpoint)
 #######################################
 # 1. TrainingArguments & Config Loading
 #######################################
-print("\n" + "=" * 60)
-print("1. TrainingArguments & Config Loading")
-print("=" * 60)
 
 from specifications import TrainingArguments  # noqa: E402
 
@@ -255,9 +252,6 @@ def test_sequence_parallel_plans():
 #######################################
 # 2. MFU Calculation
 #######################################
-print("\n" + "=" * 60)
-print("2. MFU Calculation")
-print("=" * 60)
 
 from mfu import (  # noqa: E402
     PEAK_BF16_FLOPS_BY_HARDWARE,
@@ -600,9 +594,6 @@ def test_create_mfu_context_moe_fields():
 #######################################
 # 3. Collate Function
 #######################################
-print("\n" + "=" * 60)
-print("3. Collate Function")
-print("=" * 60)
 
 from data_loading import create_collate_fn  # noqa: E402
 
@@ -649,9 +640,6 @@ def test_collate_fn_preserves_existing_labels():
 #######################################
 # 4. Sanity-Check Dataset & DataLoader
 #######################################
-print("\n" + "=" * 60)
-print("4. Sanity-Check Dataset & DataLoader")
-print("=" * 60)
 
 from data_loading import (  # noqa: E402
     DataLoaderBundle,
@@ -832,9 +820,6 @@ def test_dataloader_custom_collate():
 #######################################
 # 5. Model Initialization (CPU)
 #######################################
-print("\n" + "=" * 60)
-print("5. Model Initialization (CPU)")
-print("=" * 60)
 
 from model_setup import (  # noqa: E402
     ModelInitializationResult,
@@ -1491,9 +1476,6 @@ def test_model_initialization_result_non_attention_frozen_default():
 #######################################
 # 6. Optimizers & LR Schedulers (CPU)
 #######################################
-print("\n" + "=" * 60)
-print("6. Optimizers & LR Schedulers (CPU)")
-print("=" * 60)
 
 from optimizers import (  # noqa: E402
     SingleDeviceMuon,
@@ -1784,9 +1766,6 @@ def test_create_optimizer_muon_adam_excludes_frozen_params():
 #######################################
 # 7. Utility Functions
 #######################################
-print("\n" + "=" * 60)
-print("7. Utility Functions")
-print("=" * 60)
 
 from utils import (  # noqa: E402
     DistributedEnvironment,
@@ -2226,9 +2205,6 @@ def test_initialize_wandb_offline_mode_patches_trainer_wandb():
 #######################################
 # 8. Integration: Forward Pass on CPU
 #######################################
-print("\n" + "=" * 60)
-print("8. Integration: Forward Pass on CPU")
-print("=" * 60)
 
 
 def test_end_to_end_forward_pass():
@@ -2444,9 +2420,6 @@ def test_end_to_end_mfu_with_model():
 #######################################
 # 9. Trainers (DDPTrainer & FSDPTrainer)
 #######################################
-print("\n" + "=" * 60)
-print("9. Trainers (DDPTrainer & FSDPTrainer)")
-print("=" * 60)
 
 from trainer import DDPTrainer, FSDPTrainer  # noqa: E402
 

@@ -21,6 +21,7 @@ from typing import Any
 import datasets
 import yaml
 from grader import AnswerSpec, grade_answer
+from grader import compare_answer as compare_answer
 from patches import (
     _ensure_vllm_tokenizer_compat,
     _patch_smolagents_binop_guard,

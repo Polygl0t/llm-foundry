@@ -60,8 +60,6 @@ train_tokenizer_tokenizers = _load_module_from_tokenizer_dir(
 )
 tokenizer_eval = _load_module_from_tokenizer_dir("tokenizer_eval_mod", "tokenizer_eval.py")
 
-print("All imports OK ✅")
-
 
 def _read_json(path: str | Path) -> dict:
     with open(path, encoding="utf-8") as handle:
@@ -231,7 +229,6 @@ def test_01_load_text_dataset_reads_plain_text_files():
         assert len(dataset) >= 1
         assert "text" in dataset.column_names
         assert any(row.strip() for row in dataset["text"])
-    print("Test 1 — load_text_dataset txt: OK ✅")
 
 
 def test_02_train_tokenizers_bpe_saves_regular_extra_tokens():
@@ -246,7 +243,6 @@ def test_02_train_tokenizers_bpe_saves_regular_extra_tokens():
         assert os.path.exists(os.path.join(output_dir, "tokenizer.json"))
         assert os.path.exists(os.path.join(output_dir, "tokenizer_config.json"))
         _assert_special_token_contract(output_dir)
-    print("Test 2 — train_tokenizer_tokenizers BPE: OK ✅")
 
 
 def test_03_train_sentencepiece_saves_regular_extra_tokens():
@@ -260,7 +256,6 @@ def test_03_train_sentencepiece_saves_regular_extra_tokens():
 
         assert os.path.exists(os.path.join(output_dir, "tokenizer.model"))
         _assert_special_token_contract(output_dir)
-    print("Test 3 — train_tokenizer_sentencepiece BPE: OK ✅")
 
 
 def test_04_tokenizer_eval_writes_expected_metrics_for_local_tokenizer():
@@ -290,7 +285,6 @@ def test_04_tokenizer_eval_writes_expected_metrics_for_local_tokenizer():
         assert results[0]["vocab_size"] == VOCAB_SIZE
         assert results[0]["fertility"] > 0
         assert results[0]["unk_token_count"] == 0
-    print("Test 4 — tokenizer_eval local tokenizer: OK ✅")
 
 
 def test_05_tokenizers_bpe_rejects_unreachable_vocab_size():
@@ -307,7 +301,6 @@ def test_05_tokenizers_bpe_rejects_unreachable_vocab_size():
             lambda: train_tokenizer_tokenizers.main(args),
             expected_message="Expected vocab size",
         )
-    print("Test 5 — train_tokenizer_tokenizers vocab mismatch: OK ✅")
 
 
 def test_06_sentencepiece_rejects_unreachable_vocab_size():
@@ -323,4 +316,3 @@ def test_06_sentencepiece_rejects_unreachable_vocab_size():
             (AssertionError, RuntimeError, ValueError),
             lambda: train_tokenizer_sentencepiece.main(args),
         )
-    print("Test 6 — train_tokenizer_sentencepiece vocab mismatch: OK ✅")
