@@ -10,6 +10,7 @@ Agent-based trace generation using [smolagents](https://github.com/huggingface/s
 - [`generate_agent_traces.py`](./generate_agent_traces.py) — Main entry point for generating CodeAgent execution traces from a dataset.
 - [`tools.py`](./tools.py) — Custom `smolagents.Tool` implementations for filesystem operations (read, write, edit, list, search, grep) and mathematical problem solving.
 - [`utils.py`](./utils.py) — Shared utilities including `TraceRecord`, `OutputManager` (with JSON-array file rotation), trace formatting/validation, and vLLM compatibility patches.
+- [`grader.py`](./grader.py) — Typed answer grader for evaluating final answers against per-item ground-truth schemas.
 
 ## Usage Summary
 
@@ -90,6 +91,37 @@ The `OutputManager` (in [`utils.py`](./utils.py)) always saves formatted traces,
 - **Raw traces** (`raw_traces/raw_traces_00001.json`, ...): Full trace records including all action steps, system prompts, metadata, errors, and timing information—stored as proper JSON arrays (`[{...}, {...}]`). Saved only with `--save-raw-traces`.
 
 Files rotate automatically once they reach the `--max-entries-per-file` threshold (default 50,000 entries), and the manager supports auto-resume by scanning existing files on startup.
+
+## Answer Grading
+
+[`grader.py`](./grader.py) provides a typed answer grader for evaluating the agent's final answers against per-item ground-truth schemas. Grading is driven by a per-item `AnswerSpec` that declares how the gold answer must be interpreted:
+
+| Type       | Description                                                                                 |
+|------------|---------------------------------------------------------------------------------------------|
+| `integer`  | Exact integer match (Roman numerals, thousands separators,surrounding unit text, etc).      |
+| `float`    | Numeric match with an explicit per-item tolerance (exact when no tolerance is configured).  |
+| `quantity` | Numeric match *plus* a unit comparison.                                                     |
+| `entity`   | Case/accent-insensitive string match with aliases.                                          |
+| `date`     | Calendar-date match across common formats.                                                  |
+| `list`     | Ordered or unordered list match.                                                            |
+| `exact`    | Normalized string match that also accepts substring containment.                            |
+
+Dataset rows may carry optional schema fields — `answer_type`, `answer_aliases`, `answer_units`, `answer_precision` (absolute tolerance), `answer_rtol` (relative tolerance), and `answer_ordered`. When no `answer_type` is present it is inferred from the gold answer, so a sample that only carries a `ground_truth` column is still graded correctly.
+
+```python
+from grader import AnswerSpec, grade_answer
+
+spec = AnswerSpec.from_row(row)        # row may use `_ground_truth` or `ground_truth`
+is_correct = grade_answer(final_answer, spec)
+```
+
+A one-shot convenience wrapper is also available:
+
+```python
+from grader import compare_answer
+
+compare_answer("29 anos", "29", answer_type="integer")  # True
+```
 
 ## Prompt Templates
 
