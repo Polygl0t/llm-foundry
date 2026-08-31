@@ -12,11 +12,12 @@
 #   Run warc_paths_get.sh first to download the warc.paths index file
 #
 # Usage:
-#   bash warc_files_download.sh [number_of_files] [cc_dump] [OPTIONS]
+#   bash warc_files_download.sh [number_of_files] [cc_dump] --download-dir [directory] [OPTIONS]
 #
 # Arguments:
 #   number_of_files  - How many WARC files to download (optional, default: all)
 #   cc_dump          - Common Crawl dump identifier (optional, default: CC-MAIN-2025-30)
+#   --download-dir [directory]    - Base directory for downloads (optional, default: ./common_crawl/CC-MAIN-2025-30)
 #
 # Options:
 #   --remove-downloaded  - Remove successfully downloaded paths from warc.paths file
@@ -49,13 +50,23 @@
 REMOVE_DOWNLOADED=false                    # <-- Flag to remove downloaded paths from index
 NUM_FILES=""                               # <-- Number of files to download (empty = all)
 CC_DUMP_ARG=""                             # <-- Common Crawl dump identifier
+DOWNLOAD_DIR=""                            # <-- Base directory for downloads
 
 # Parse command line arguments
 # Loop through all arguments and categorize them
 for arg in "$@"; do
+    if [ "$PREV_ARG" = "--download-dir" ]; then
+        DOWNLOAD_DIR="$arg"
+        PREV_ARG=""
+        continue
+    fi
+
     case $arg in
         --remove-downloaded)
             REMOVE_DOWNLOADED=true         # <-- Enable path removal feature
+            ;;
+        --download-dir)
+            PREV_ARG="--download-dir"       # <-- Base download directory. Will be set in the next iteration
             ;;
         *)
             # Assign positional arguments in order
@@ -75,7 +86,7 @@ done
 CC_DUMP=${CC_DUMP_ARG:-"CC-MAIN-2025-30"}                 # <-- Change default dump if desired
 
 # Define directory structure
-DOWNLOAD_DIR="./common_crawl/$CC_DUMP/warc_files"         # <-- Where WARC files are saved
+DOWNLOAD_DIR=${DOWNLOAD_DIR:-"./common_crawl/$CC_DUMP"}  # <-- Where WARC files are saved
 WARC_PATHS_FILE="./common_crawl/$CC_DUMP/warc.paths"      # <-- Index file with WARC paths
 TEMP_PATHS_FILE="./common_crawl/$CC_DUMP/warc.paths.tmp"  # <-- Temporary file for updates
 BASE_URL="https://data.commoncrawl.org"                   # <-- Common Crawl base URL
@@ -90,6 +101,7 @@ mkdir -p "$DOWNLOAD_DIR"                   # <-- Creates nested directories if n
 echo ""
 echo "=== WARC Download Started at $(date) ==="
 echo "CC_DUMP: $CC_DUMP"
+echo "WARC file download directory: $DOWNLOAD_DIR"
 if [ "$REMOVE_DOWNLOADED" = true ]; then
     echo "Remove downloaded paths: ENABLED (paths will be removed from warc.paths)"
 else
