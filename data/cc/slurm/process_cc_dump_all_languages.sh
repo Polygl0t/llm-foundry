@@ -11,6 +11,12 @@
 #
 # Learn about Marvin|Bender dual software stacks at:
 # - https://wiki.hpc.uni-bonn.de/en/dualstacks
+#
+#
+# This script overlaps download and compute.
+# While the current batch of WARC files is being processed, the next batch is downloaded in the background.
+# Trade-off: Peak disk usage roughly doubles compared to the sequential approach.
+#
 #############################################
 #SBATCH --account=ag_bit_flek              # <-- Change to your SLURM account
 #SBATCH --partition=lm_long                # <-- Change to your partition
@@ -78,22 +84,39 @@ echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --ve
 #############################################
 # Job Time Management Functions
 #############################################
+duration_to_seconds() {
+    local t="$1"
+    local days=0
+    local rest="$t"
+    if [[ "$t" == *-* ]]; then
+        days=${t%%-*}
+        rest=${t#*-}
+    fi
+    local h=0 m=0 s=0
+    IFS=: read -r h m s <<< "$rest"
+    # 10# forces base-10; avoids "value too great for base" on zero-padded "08".
+    echo $(( (10#$days)*86400 + (10#$h)*3600 + (10#$m)*60 + (10#$s) ))
+}
+
 get_remaining_seconds() {
-    local job_start=$(squeue -j $SLURM_JOB_ID -h -o %S 2>/dev/null || echo "")
-    local job_timelimit=$(squeue -j $SLURM_JOB_ID -h -o %l 2>/dev/null || echo "7-00:00:00")
+    # SLURM_JOB_END_TIME: projected end as a UNIX timestamp (seconds).
+    # Handles any --time format, including sub-day limits.
+    if [[ -n "${SLURM_JOB_END_TIME:-}" ]]; then
+        echo $(( SLURM_JOB_END_TIME - $(date +%s) ))
+        return
+    fi
 
-    # Convert time limit to seconds (assuming format like "7-00:00:00")
-    local days=$(echo $job_timelimit | cut -d'-' -f1)
-    local time_part=$(echo $job_timelimit | cut -d'-' -f2)
-    local hours=$(echo $time_part | cut -d':' -f1)
-    local minutes=$(echo $time_part | cut -d':' -f2)
-    local seconds=$(echo $time_part | cut -d':' -f3)
-
-    local total_seconds=$((days * 86400 + hours * 3600 + minutes * 60 + seconds))
-    local elapsed_seconds=$SECONDS
-    local remaining=$((total_seconds - elapsed_seconds))
-
-    echo $remaining
+    # Fallback: parse squeue %l. SLURM emits "D-HH:MM:SS" only when >= 1 day,
+    # and "HH:MM:SS" otherwise.
+    local job_timelimit
+    job_timelimit=$(squeue -j "$SLURM_JOB_ID" -h -o %l 2>/dev/null || echo "")
+    if [[ -z "$job_timelimit" || "$job_timelimit" == "UNLIMITED" ]]; then
+        echo 999999999
+        return
+    fi
+    local total_seconds
+    total_seconds=$(duration_to_seconds "$job_timelimit")
+    echo $(( total_seconds - SECONDS ))
 }
 
 count_available_warc_paths() {
@@ -140,6 +163,18 @@ find "$WARC_FILES_FOLDER" -mindepth 1 -delete 2>/dev/null || true
 find "$LOGS_FOLDER" -mindepth 1 -delete 2>/dev/null || true
 find "$TEMP_OUTPUT_FOLDER" -mindepth 1 -delete 2>/dev/null || true
 
+# We handle two separate buffers to allow simultaneous downloading and processing of WARC files.
+WARC_BUFFER_A="$WARC_FILES_FOLDER/buf_a"
+WARC_BUFFER_B="$WARC_FILES_FOLDER/buf_b"
+mkdir -p "$WARC_BUFFER_A" "$WARC_BUFFER_B"
+
+active_dir="$WARC_BUFFER_A"
+staging_dir="$WARC_BUFFER_B"
+
+# Prime the first buffer before the loop.
+bash "$workdir/warc_files_download.sh" "$WARCS_PER_CICLE" "$DUMP" \
+    --remove-downloaded --download-dir "$active_dir" >/dev/null 2>&1
+
 while true; do
     remaining_time=$(get_remaining_seconds)
 
@@ -165,17 +200,21 @@ while true; do
     #############################################
     # Download Warcs
     #############################################
-    echo "# [${SLURM_JOB_ID}] Iteration $iteration: Starting download phase" >> "$out"
+    echo "# [${SLURM_JOB_ID}] Iteration $iteration: Starting download in background" >> "$out"
     echo "# [${SLURM_JOB_ID}] Processing DUMP: $DUMP" >> "$out"
-    bash $workdir/warc_files_download.sh $WARCS_PER_CICLE $DUMP --remove-downloaded >/dev/null 2>&1 &
-    wait
+
+    # Download the next batch in the background while we compute.
+    bash $workdir/warc_files_download.sh $WARCS_PER_CICLE $DUMP --remove-downloaded --download-dir $staging_dir >/dev/null 2>&1 &
+    download_pid=$!
 
     #############################################
     # Language Filtering Processing
     #############################################
     echo "# [${SLURM_JOB_ID}] Iteration $iteration: Starting language filtering of warcs" >> "$out"
+
+    # Process the current buffer in the foreground.
     python3 -u "$workdir/llm-foundry/data/cc/process_cc_dump_all_languages.py" \
-        --warc_files_folder "$WARC_FILES_FOLDER" \
+        --warc_files_folder "$active_dir" \
         --temp_output_folder "$TEMP_OUTPUT_FOLDER" \
         --output_folder "$OUTPUT_FOLDER" \
         --logs_folder "$LOGS_FOLDER" \
@@ -186,9 +225,25 @@ while true; do
         --expand_metadata \
         --tasks $SLURM_CPUS_PER_TASK \
         --workers $SLURM_CPUS_PER_TASK 1>>"$out" 2>>"$err" &
-    wait
+    process_pid=$!
 
-    echo "# [${SLURM_JOB_ID}] Iteration $iteration: Processing completed" >> "$out"
+    #############################################
+    # Swap Buffers
+    #############################################
+
+    # Wait for both downloading and processing before swapping, so the staging buffer is complete.
+    wait "$download_pid" "$process_pid"
+
+    echo "# [${SLURM_JOB_ID}] Iteration $iteration: Processing current warcs completed" >> "$out"
+    echo "# [${SLURM_JOB_ID}] Iteration $iteration: Downloading warcs for next iteration completed" >> "$out"
+
+    echo "# [${SLURM_JOB_ID}] Iteration $iteration: Swapping buffers" >> "$out"
+
+    # Swapping buffers
+    tmp="$active_dir"; active_dir="$staging_dir"; staging_dir="$tmp"
+
+    # Clear the just-consumed buffer for its next reuse.
+    find "$staging_dir" -mindepth 1 -delete 2>/dev/null || true
 
     #############################################
     # Split Large JSONL Files
@@ -220,7 +275,6 @@ while true; do
     # Delete the content of temporary folders
     #############################################
     echo "# [${SLURM_JOB_ID}] Iteration $iteration: Cleaning up temporary files" >> "$out"
-    find "$WARC_FILES_FOLDER" -mindepth 1 -delete 2>/dev/null || true
     find "$LOGS_FOLDER" -mindepth 1 -delete 2>/dev/null || true
     find "$TEMP_OUTPUT_FOLDER" -mindepth 1 -delete 2>/dev/null || true
 
@@ -258,6 +312,12 @@ while true; do
     # Brief pause between iterations
     sleep 60
 done
+
+# Clear buffers
+echo "# [${SLURM_JOB_ID}] Clearing buffers" >> "$out"
+find "$WARC_BUFFER_A" -mindepth 1 -delete 2>/dev/null || true
+find "$WARC_BUFFER_B" -mindepth 1 -delete 2>/dev/null || true
+
 
 #############################################
 # End of Script
