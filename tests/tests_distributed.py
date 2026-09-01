@@ -238,7 +238,7 @@ def test_sequence_parallel_plans():
             )
         )
         model.model.layers[0].mlp.gate_proj = Float8Linear(32, 32, bias=False)
-        plan = build_sequence_parallel_plan(model)
+        plan = build_sequence_parallel_plan(model, fp8_enabled=True)
         _validate_fp8_sequence_parallel_plan(model, plan, sp_size=2)
         try:
             _validate_fp8_sequence_parallel_plan(model, plan, sp_size=4)

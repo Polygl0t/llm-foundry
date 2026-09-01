@@ -11,6 +11,7 @@ This repository contains all source code used for the development of the artifac
 - **PyTorch-native distributed training** — Full implementations for both **DDP** and **FSDP2**, giving you flexibility across single-node and multi-node setups. Our code base scales almost linearly across hundreds of GPUs.
 - **Flash Attention** — Support up to **Flash Attention 4** for Hopper/Blackwell GPUs, plus **[Liger Kernel](https://github.com/linkedin/Liger-Kernel)** integration for additional fused kernel efficiency.
 - **Expert Parallelism** — First-class support for **Mixture-of-Experts (MoE)** training.
+- **Sequence parallelism** — Long-context training with tensor/sequence parallelism, sharding activations across GPUs to fit much longer sequences.
 - **Hybrid architectures** — Ready for models combining attention with state-space blocks. Includes specialized kernels like **[flash-linear-attention](https://github.com/fla-org/flash-linear-attention)** and **[causal-conv1d](https://github.com/Dao-AILab/causal-conv1d)**.
 - **FP8 training** — Native FP8 mixed-precision support on Hopper/Blackwell GPUs for faster, more memory-efficient pretraining.
 - **Modern optimizers** — AdamW, plus a **Muon + AdamW** mixed optimizer setup for improved convergence.

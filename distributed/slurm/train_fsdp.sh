@@ -76,6 +76,10 @@ export TORCH_NCCL_ASYNC_ERROR_HANDLING=1
 export TORCH_DISTRIBUTED_DEBUG=OFF
 export NCCL_IB_TIMEOUT=20
 export NCCL_IB_RETRY_CNT=7
+# FSDP's repeated all-gather/reshard cycles fragment the CUDA caching allocator
+# expandable_segments lets the allocator grow/coalesce segments so large
+# contiguous allocations fit without a fragmentation-induced OOM.
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 # export NCCL_DEBUG=INFO # Uncomment for NCCL debugging
 
 # Slurm gives us the first allocated node name. On Marvin this is usually already

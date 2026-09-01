@@ -16,6 +16,7 @@ import time
 
 import torch
 import torch.distributed as dist
+from torch.distributed.tensor import DTensor
 
 try:
     import wandb
@@ -24,8 +25,40 @@ except ImportError:
 
 from mfu import calculate_training_metrics
 from model_setup import get_full_model_state_dict, get_full_optimizer_state_dict
-
 from utils import checkpoint_already_validated
+
+
+def clip_grad_norm_mesh_aware(parameters, max_norm, norm_type=2.0):
+    """
+    Gradient clipping that tolerates parameters living on different device meshes.
+
+    With FSDP2 + tensor/sequence parallelism most parameters are 2D-mesh
+    (dp, sp) DTensors, but per-head norms (e.g. Qwen3 `q_norm`/`k_norm`) stay on
+    the 1D (dp-only) mesh because they act on head-local activations that never
+    become DTensors. `torch.nn.utils.clip_grad_norm_` stacks every parameter's
+    grad-norm into one tensor and rejects the mixed meshes. Here each grad-norm
+    is reduced over its own mesh (via `full_tensor()`) to a plain scalar first,
+    then the per-parameter norms are combined and the global clip coefficient is
+    applied back to every gradient.
+    """
+    grads = [p.grad for p in parameters if p.grad is not None]
+    if not grads:
+        return torch.tensor(0.0)
+
+    norms = []
+    for grad in grads:
+        grad_norm = torch.linalg.vector_norm(grad, norm_type)
+        if isinstance(grad_norm, DTensor):
+            # Reduce the (_NormPartial) scalar over this grad's own mesh so the
+            # per-parameter norms are all plain, same-shape scalars.
+            grad_norm = grad_norm.full_tensor()
+        norms.append(grad_norm)
+
+    total_norm = torch.linalg.vector_norm(torch.stack(norms), norm_type)
+    clip_coef = torch.clamp(max_norm / (total_norm + 1e-6), max=1.0)
+    for grad in grads:
+        grad.mul_(clip_coef)
+    return total_norm
 
 
 # Shared helper functions used by both DDPTrainer and FSDPTrainer
@@ -39,7 +72,11 @@ def _run_validation_forward(model, validation_dataloader, device, device_type, p
     tensor, which causes OOM with large batch sizes. Modern causal LLMs have no
     dropout or batchnorm, so train/eval mode produces identical outputs.
     """
-    with torch.no_grad():
+    # Force eager for validation. The compiled blocks' inference (no_grad) graph
+    # mishandles the sequence-parallel TP-redistribute tensor subclass
+    # ("'Tensor' object has no attribute 'elem'"). Validation is forward-only and
+    # infrequent, so running it eagerly has negligible cost.
+    with torch.no_grad(), torch.compiler.set_stance("force_eager"):
         val_loss_accum = 0.0
         num_batches = 0
 
@@ -897,8 +934,11 @@ class FSDPTrainer:
                 dist.all_reduce(accumulated_loss, op=dist.ReduceOp.SUM)
                 accumulated_loss = accumulated_loss / dist.get_world_size()
 
-            # Clip gradients up to `args.max_grad_norm`.
-            norm = torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
+            # Clip gradients up to `args.max_grad_norm`. Use a mesh-aware clip:
+            # under FSDP2 + sequence parallelism, per-head norms (q_norm/k_norm)
+            # live on the 1D (dp) mesh while everything else is on the 2D (dp, sp)
+            # mesh, and `torch.nn.utils.clip_grad_norm_` cannot stack across meshes.
+            norm = clip_grad_norm_mesh_aware(model.parameters(), args.max_grad_norm)
 
             # Determine the learning rate for the current step.
             adam_lr, muon_lr, lr_stage = lr_scheduler(completed_steps)

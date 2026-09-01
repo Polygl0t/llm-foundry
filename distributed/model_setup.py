@@ -1110,7 +1110,55 @@ class _OptionalPrepareModuleInputOutput(PrepareModuleInputOutput):
         )
 
 
-def build_sequence_parallel_plan(model):
+def _is_float8_linear(module):
+    """True when `module` is a torchao `Float8Linear` (fp8 training swap applied)."""
+    return type(module).__name__ == "Float8Linear"
+
+
+def _colwise_style(module, fp8_enabled, **kwargs):
+    """
+    Return a ColwiseParallel style for `module`, upgraded to torchao's
+    fp8-aware `Float8ColwiseParallel` when the module is a `Float8Linear`.
+
+    Plain `ColwiseParallel` on a `Float8Linear` casts to fp8 *inside* the
+    linear's compiled forward, which trips `as_strided not supported with
+    DTensor` under torch.compile + DTensor. The fp8-aware style instead casts
+    at the TP boundary (producing a DTensor(Float8TrainingTensor)) so the
+    linear sees an already-fp8 input and skips the offending path.
+    """
+    if fp8_enabled and _is_float8_linear(module):
+        from torchao.float8.float8_tensor_parallel import Float8ColwiseParallel
+
+        return Float8ColwiseParallel(**kwargs)
+    return ColwiseParallel(**kwargs)
+
+
+def _rowwise_style(module, fp8_enabled, **kwargs):
+    """RowwiseParallel style, fp8-aware for `Float8Linear` (see `_colwise_style`)."""
+    if fp8_enabled and _is_float8_linear(module):
+        from torchao.float8.float8_tensor_parallel import Float8RowwiseParallel
+
+        return Float8RowwiseParallel(**kwargs)
+    return RowwiseParallel(**kwargs)
+
+
+def _prepare_module_input_style(fp8_enabled, contains_float8, **kwargs):
+    """
+    Return a `PrepareModuleInput` style, upgraded to torchao's
+    `PrepareFloat8ModuleInput` when the downstream consumers are `Float8Linear`.
+
+    Casting the shared module input to fp8 once (before the Shard -> Replicate
+    all-gather) lets multiple fp8 consumers (e.g. `gate_proj` and `up_proj`)
+    reuse a single fp8 all-gather instead of each re-casting.
+    """
+    if fp8_enabled and contains_float8:
+        from torchao.float8.float8_tensor_parallel import PrepareFloat8ModuleInput
+
+        return PrepareFloat8ModuleInput(**kwargs)
+    return PrepareModuleInput(**kwargs)
+
+
+def build_sequence_parallel_plan(model, fp8_enabled=False):
     """Build a TP/SP plan from the modules present in a supported causal LM."""
     model_type = getattr(model.config, "model_type", None)
     if model_type not in SUPPORTED_SEQUENCE_PARALLEL_MODEL_TYPES:
@@ -1137,7 +1185,7 @@ def build_sequence_parallel_plan(model):
             use_local_input=True,
             output_layouts=(Replicate(), Replicate()),
             desired_output_layouts=(Replicate(), Replicate()),
-            use_local_output=False,
+            use_local_output=True,
         ),
         "lm_head": PrepareModuleInput(
             input_layouts=(Shard(1),),
@@ -1157,7 +1205,14 @@ def build_sequence_parallel_plan(model):
         plan[prefix] = PrepareModuleInput(
             input_layouts=layer_input_layouts,
             desired_input_layouts=layer_desired_layouts,
-            use_local_output=True,
+            # Keep the block boundary as a DTensor. With per-block torch.compile,
+            # emitting a `.to_local()` here makes the compiled block return a
+            # plain-tensor output whose backward tangent AOTAutograd guesses as a
+            # DTensor/AsyncCollectiveTensor, crashing in backward with
+            # "Expected a AsyncCollectiveTensor tangent but got a plain Tensor"
+            # (pytorch#172556). SequenceParallel on `input_layernorm` consumes
+            # the DTensor directly.
+            use_local_output=False,
         )
         plan[f"{prefix}.input_layernorm"] = SequenceParallel()
         plan[f"{prefix}.post_attention_layernorm"] = SequenceParallel()
@@ -1175,19 +1230,20 @@ def build_sequence_parallel_plan(model):
                 },
             )
             for projection in ("q_proj", "k_proj", "v_proj"):
-                plan[f"{attention_prefix}.{projection}"] = ColwiseParallel(use_local_output=False)
-            plan[f"{attention_prefix}.o_proj"] = RowwiseParallel(output_layouts=Shard(1))
-
-            for norm in ("q_norm", "k_norm"):
-                if hasattr(layer.self_attn, norm):
-                    plan[f"{attention_prefix}.{norm}"] = PrepareModuleInputOutput(
-                        input_layouts=(Shard(-1),),
-                        desired_input_layouts=(Replicate(),),
-                        use_local_input=True,
-                        output_layouts=Replicate(),
-                        desired_output_layouts=Replicate(),
-                        use_local_output=False,
-                    )
+                plan[f"{attention_prefix}.{projection}"] = _colwise_style(
+                    getattr(layer.self_attn, projection), fp8_enabled
+                )
+            # Emit a DTensor (not a local tensor) so the decoder layer's
+            # `residual + attn_out` stays DTensor+DTensor. The residual is a
+            # DTensor(Shard(1)) coming from the block-input prepare, and mixing
+            # it with a plain local tensor raises "aten.add.Tensor got mixed
+            # torch.Tensor and DTensor" under torch.compile.
+            plan[f"{attention_prefix}.o_proj"] = _rowwise_style(
+                layer.self_attn.o_proj,
+                fp8_enabled,
+                output_layouts=Shard(1),
+                use_local_output=False,
+            )
 
         if hasattr(layer, "linear_attn"):
             linear_attention_prefix = f"{prefix}.linear_attn"
@@ -1205,15 +1261,37 @@ def build_sequence_parallel_plan(model):
                 desired_output_layouts=Shard(1),
             )
             for projection in ("in_proj_qkv", "in_proj_z", "in_proj_b", "in_proj_a", "out_proj"):
-                plan[f"{linear_attention_prefix}.{projection}"] = ColwiseParallel(
-                    output_layouts=Replicate()
+                plan[f"{linear_attention_prefix}.{projection}"] = _colwise_style(
+                    getattr(layer.linear_attn, projection),
+                    fp8_enabled,
+                    output_layouts=Replicate(),
                 )
 
         mlp = layer.mlp
         if all(hasattr(mlp, projection) for projection in ("gate_proj", "up_proj", "down_proj")):
-            plan[f"{prefix}.mlp.gate_proj"] = ColwiseParallel()
-            plan[f"{prefix}.mlp.up_proj"] = ColwiseParallel()
-            plan[f"{prefix}.mlp.down_proj"] = RowwiseParallel(output_layouts=Shard(1))
+            # `post_attention_layernorm` (SequenceParallel) emits Shard(1); the
+            # colwise projections need a replicated input, so redistribute
+            # Shard(1) -> Replicate once at the MLP boundary (fp8-aware so the
+            # cast/all-gather is shared by `gate_proj` and `up_proj`). Without
+            # this prepare, ColwiseParallel would silently receive a Shard(1)
+            # input (its declared/desired layouts are both Replicate, so it
+            # never redistributes) and produce incorrect results.
+            mlp_has_float8 = _is_float8_linear(mlp.gate_proj)
+            plan[f"{prefix}.mlp"] = _prepare_module_input_style(
+                fp8_enabled,
+                mlp_has_float8,
+                input_layouts=(Shard(1),),
+                desired_input_layouts=(Replicate(),),
+            )
+            plan[f"{prefix}.mlp.gate_proj"] = _colwise_style(mlp.gate_proj, fp8_enabled)
+            plan[f"{prefix}.mlp.up_proj"] = _colwise_style(mlp.up_proj, fp8_enabled)
+            # DTensor output so `residual + mlp_out` stays DTensor+DTensor.
+            plan[f"{prefix}.mlp.down_proj"] = _rowwise_style(
+                mlp.down_proj,
+                fp8_enabled,
+                output_layouts=Shard(1),
+                use_local_output=False,
+            )
         else:
             plan[f"{prefix}.mlp"] = PrepareModuleInputOutput(
                 input_layouts=(Shard(1),),
@@ -1390,7 +1468,7 @@ def apply_fsdp_wrapping(
             f"Initialized 2D device mesh with shape: (dp={data_parallel_size}, sp={sp_size}) "
             "for FSDP2 + sequence parallelism.",
         )
-        tp_plan = build_sequence_parallel_plan(model)
+        tp_plan = build_sequence_parallel_plan(model, fp8_enabled=fp8_enabled)
         if fp8_enabled:
             _validate_fp8_sequence_parallel_plan(model, tp_plan, sp_size)
         parallelize_module(model, tp_mesh, tp_plan)
