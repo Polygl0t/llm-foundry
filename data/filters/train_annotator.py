@@ -150,7 +150,7 @@ def main(args):
     # Split the dataset into train and test sets.
     dataset = dataset.train_test_split(
         test_size=min(
-            args.test_size, len(dataset) * 0.1
+            args.test_size, int(len(dataset) * 0.1)
         ),  # Ensure test_size doesn't exceed dataset size
         seed=args.seed,
         stratify_by_column=args.target_column,
