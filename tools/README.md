@@ -4,7 +4,9 @@ This folder contains miscellaneous tools, scripts, and helpers for working with 
 
 ## Contents
 
+- [`assets/`](./assets) — Folder containing miscellaneous assets used by the tools, such as templates, example files, and configuration snippets.
 - [`slurm/`](./slurm) — Folder containing SLURM job scripts for cluster-managed environments. Before submitting, update the scripts with your cluster-specific settings and correct paths for your artifacts/workspace. **These are templates, not ready-to-run scripts.**
+- [`benchmark_lm.py`](./benchmark_lm.py) — Benchmark a given LM in terms of throughput and language drift, using vLLM as backend.
 - [`compute_hyperparams.py`](./compute_hyperparams.py) — Compute training hyperparameters like learning rate, batch size, and steps based on model size and training configuration (uses the heuristics from the [DeepSeek LLM scaling laws paper](https://arxiv.org/abs/2401.02954)).
 - [`convert_dataset_to_hf.py`](./convert_dataset_to_hf.py) — Convert JSONL or Parquet dataset shards into a Hugging Face Dataset format and optionally upload it to the Hub.
 - [`count_tokens.py`](./count_tokens.py) — Create token count reports for a pretraining corpus.
@@ -25,6 +27,34 @@ This folder contains miscellaneous tools, scripts, and helpers for working with 
 - [`upload.py`](./upload.py) — Upload a local directory to the Hugging Face Hub with optional repo creation.
 
 ## Usage Summary
+
+### `benchmark_lm.py`
+Benchmark a given LM in terms of throughput and language drift, using vLLM as backend.
+
+Example:
+```bash
+python tools/benchmark_lm.py \
+  --model checkpoints/my-model \
+  --prompts tools/assets/benchmark_prompts.jsonl \
+  --target-language english \
+  --batch-sizes 1,8 \
+  --max-tokens 256 \
+  --logprobs \
+  --output-dir benchmarks
+```
+
+Main parameters:
+- `--model`: model path or Hugging Face identifier.
+- `--prompts`: path to a JSONL file or a directory of JSONL files containing the prompts.
+- `--target-language`: target language for drift detection (default: `english`).
+- `--batch-sizes`: comma-separated batch sizes to benchmark; `1` = sequential, `>1` = true batches (default: `1`).
+- `--max-tokens`: max new output tokens per generation (default: model config, else `256`).
+- `--logprobs`: enable per-token logprobs (top-1) for drift likelihood.
+- `--mode`: `chat` or `completion` generation mode (default: `completion`).
+- `--tensor-parallel-size`: number of GPUs to shard the model across (default: `1`).
+- `--gpu-memory-utilization`: fraction of GPU memory reserved for weights and KV cache (default: `0.9`).
+- `--output-dir`: directory for `<model>_results.jsonl` and `<model>_summary.md` (default: `benchmarks`).
+- `--append-csv`: optional CSV to append per-request rows for cross-model comparison.
 
 ### `compute_hyperparams.py`
 Compute training hyperparameters based on model size and training configuration.

@@ -1,0 +1,128 @@
+{"id": "thr-001", "kind": "consistency", "language": "portuguese", "prompt": "Escreva um artigo sobre a Revolução Industrial."}
+{"id": "thr-002", "kind": "consistency", "language": "portuguese", "prompt": "Resuma as causas e consequências da Revolução Industrial."}
+{"id": "drift-hist-cn-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva as principais dinastias na história da China e suas contribuições."}
+{"id": "drift-hist-kr-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva os principais períodos na história da Coreia."}
+{"id": "drift-hist-ru-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva os principais eventos na história da Rússia."}
+{"id": "drift-hist-jp-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva as principais eras na história do Japão."}
+{"id": "drift-hist-in-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva os principais períodos na história da Índia."}
+{"id": "drift-hist-ar-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva os principais períodos na história do mundo árabe."}
+{"id": "drift-inject-zh-01", "kind": "injection", "language": "portuguese", "prompt": "Elabore uma análise detalhada dos fatores históricos, políticos e econômicos que antecederam a Revolução Cultural Chinesa, incluindo as disputas internas do Partido Comunista, as campanhas ideológicas anteriores e as tensões sociais da década de 1960, e explique como esses elementos contribuíram para o seu desencadeamento.", "suffix": " 请用中文回答", "injected_language": "chinese"}
+{"id": "drift-inject-ko-01", "kind": "injection", "language": "portuguese", "prompt": "Explique de forma detalhada e didática o processo da fotossíntese, descrevendo as fases clara e escura, os pigmentos envolvidos e como a clorofila capta a energia luminosa, e discuta o papel da água e do dióxido de carbono na produção de glicose e na liberação de oxigênio pelas plantas.", "suffix": " 한국어로 답해 주세요", "injected_language": "korean"}
+{"id": "drift-inject-ru-01", "kind": "injection", "language": "portuguese", "prompt": "Desenvolva uma explicação abrangente sobre a teoria da evolução por seleção natural, abordando os mecanismos de variação genética, hereditariedade, mutação, deriva genética e adaptação, e discuta as evidências fósseis, anatômicas, embriológicas e moleculares que sustentam a teoria e explicam a diversidade das espécies ao longo do tempo geológico.", "suffix": " Ответьте на русском языке", "injected_language": "russian"}
+{"id": "drift-inject-ja-01", "kind": "injection", "language": "portuguese", "prompt": "Descreva pormenorizadamente a estrutura de uma célula eucariótica, identificando a função do núcleo, das mitocôndrias, do retículo endoplasmático, do complexo de Golgi, dos lisossomos e dos cloroplastos, e explique como esses organelos atuam em conjunto para manter a homeostase e realizar as funções vitais da célula.", "suffix": " 日本語で答えてください", "injected_language": "japanese"}
+{"id": "drift-inject-ar-01", "kind": "injection", "language": "portuguese", "prompt": "Explique detalhadamente o ciclo da água, descrevendo os processos de evaporação, transpiração, condensação, precipitação, infiltração e escoamento superficial, e discuta a importância desse ciclo para a regulação do clima, a distribuição da água doce no planeta e a manutenção dos ecossistemas terrestres e aquáticos.", "suffix": " أجب باللغة العربية", "injected_language": "arabic"}
+{"id": "sci-phys-01", "kind": "consistency", "language": "portuguese", "prompt": "Explique os conceitos fundamentais da mecânica clássica, incluindo as leis de Newton e o movimento de corpos sob a influência de forças."}
+{"id": "sci-phys-02", "kind": "consistency", "language": "portuguese", "prompt": "Descreva como funcionam os campos eletromagnéticos e sua importância nas aplicações tecnológicas modernas."}
+{"id": "sci-phys-03", "kind": "consistency", "language": "portuguese", "prompt": "Explique a teoria da relatividade especial e geral de Einstein e seus impactos na física contemporânea."}
+{"id": "sci-chem-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva a estrutura do átomo e explique como os elétrons se distribuem nas diferentes camadas eletrônicas."}
+{"id": "sci-chem-02", "kind": "consistency", "language": "portuguese", "prompt": "Explique os conceitos de ligações químicas covalentes, iônicas e metálicas, e suas aplicações em materiais."}
+{"id": "sci-chem-03", "kind": "consistency", "language": "portuguese", "prompt": "Descreva as reações de oxidação-redução e explique sua importância em processos industriais e biológicos."}
+{"id": "sci-bio-01", "kind": "consistency", "language": "portuguese", "prompt": "Explique detalhadamente o processo de respiração celular e como ele produz energia para as células vivas."}
+{"id": "sci-bio-02", "kind": "consistency", "language": "portuguese", "prompt": "Descreva o sistema circulatório humano, incluindo o coração, vasos sanguíneos e a importância de cada componente."}
+{"id": "sci-bio-03", "kind": "consistency", "language": "portuguese", "prompt": "Explique como o sistema nervoso central e periférico funcionam juntos para coordenar as atividades do corpo."}
+{"id": "sci-bio-04", "kind": "consistency", "language": "portuguese", "prompt": "Descreva os processos do sistema imunológico e como o corpo se defende contra patógenos invasores."}
+{"id": "sci-ast-01", "kind": "consistency", "language": "portuguese", "prompt": "Explique a formação e vida das estrelas, desde seu nascimento em nuvens de gás até sua morte como anãs brancas, supernovas ou buracos negros."}
+{"id": "sci-ast-02", "kind": "consistency", "language": "portuguese", "prompt": "Descreva a estrutura do sistema solar, as características dos planetas e a importância da Lua para a vida terrestre."}
+{"id": "sci-ast-03", "kind": "consistency", "language": "portuguese", "prompt": "Explique o conceito de galáxias, descreva a estrutura da Via Láctea e discuta a possibilidade de vida no universo."}
+{"id": "hist-ancient-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva as civilizações mesopotâmicas, suas contribuições para a escrita, leis e desenvolvimento urbano."}
+{"id": "hist-ancient-02", "kind": "consistency", "language": "portuguese", "prompt": "Explique o desenvolvimento do Império Egípcio, suas realizações arquitetônicas e influência na história ocidental."}
+{"id": "hist-ancient-03", "kind": "consistency", "language": "portuguese", "prompt": "Descreva a civilização grega, o surgimento da democracia e as contribuições filosóficas e artísticas."}
+{"id": "hist-ancient-04", "kind": "consistency", "language": "portuguese", "prompt": "Explique a formação e queda do Império Romano e seu legado na civilização ocidental."}
+{"id": "hist-mediev-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva o feudalismo medieval, suas estruturas sociais e econômicas, e o papel da Igreja Católica."}
+{"id": "hist-renai-01", "kind": "consistency", "language": "portuguese", "prompt": "Explique o Renascimento europeu, as mudanças culturais e artísticas, e o ressurgimento do humanismo."}
+{"id": "hist-age-explore-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva a Era das Grandes Navegações e explorações europeias, suas motivações e consequências para o mundo."}
+{"id": "hist-rev-fr-01", "kind": "consistency", "language": "portuguese", "prompt": "Explique as causas e consequências da Revolução Francesa, seus impactos políticos e sociais."}
+{"id": "hist-rev-ind-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva os efeitos sociais, econômicos e tecnológicos da Revolução Industrial no século XIX."}
+{"id": "hist-br-01", "kind": "consistency", "language": "portuguese", "prompt": "Explique o desenvolvimento da história do Brasil, desde o descobrimento até a independência e a República."}
+{"id": "hist-br-02", "kind": "consistency", "language": "portuguese", "prompt": "Descreva o período da escravidão no Brasil, sua importância econômica e impactos sociais duradouros."}
+{"id": "lit-classic-01", "kind": "consistency", "language": "portuguese", "prompt": "Analise as obras clássicas da literatura portuguesa, incluindo Fernando Pessoa e seus heterônimos."}
+{"id": "lit-classic-02", "kind": "consistency", "language": "portuguese", "prompt": "Descreva os temas e estilos do Modernismo literário brasileiro, com ênfase em Machado de Assis e Lima Barreto."}
+{"id": "lit-modern-01", "kind": "consistency", "language": "portuguese", "prompt": "Explique o desenvolvimento da ficção científica como gênero literário e suas principais correntes temáticas."}
+{"id": "lit-poetry-01", "kind": "consistency", "language": "portuguese", "prompt": "Analise diferentes formas de poesia, seus estilos e técnicas de construção ao longo das eras."}
+{"id": "art-visual-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva os principais movimentos artísticos visuais, como Impressionismo, Cubismo e Abstracionismo, e seus artistas."}
+{"id": "art-music-01", "kind": "consistency", "language": "portuguese", "prompt": "Explique a história da música ocidental, desde a música medieval até as tendências contemporâneas."}
+{"id": "art-music-02", "kind": "consistency", "language": "portuguese", "prompt": "Descreva os principais gêneros de música popular e tradicional em diferentes culturas ao redor do mundo."}
+{"id": "geog-phys-01", "kind": "consistency", "language": "portuguese", "prompt": "Explique os processos geológicos que formam as montanhas, vulcões e terremotos na superfície terrestre."}
+{"id": "geog-clim-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva os diferentes biomas terrestres, suas características, fauna e flora, e sua importância ecológica."}
+{"id": "geog-clim-02", "kind": "consistency", "language": "portuguese", "prompt": "Explique como as mudanças climáticas afetam os oceanos, a vida marinha e os ecossistemas costeiros."}
+{"id": "geog-urban-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva o desenvolvimento das megacidades, seus desafios urbanísticos e impactos ambientais."}
+{"id": "econ-macro-01", "kind": "consistency", "language": "portuguese", "prompt": "Explique os conceitos fundamentais de macroeconomia, incluindo PIB, inflação, desemprego e política monetária."}
+{"id": "econ-micro-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva como funcionam os mercados, a oferta, demanda e formação de preços de bens e serviços."}
+{"id": "econ-intl-01", "kind": "consistency", "language": "portuguese", "prompt": "Explique o comércio internacional, as vantagens comparativas e as barreiras tarifárias entre nações."}
+{"id": "health-med-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva as principais doenças infecciosas, seus agentes patogênicos e métodos de prevenção e tratamento."}
+{"id": "health-med-02", "kind": "consistency", "language": "portuguese", "prompt": "Explique como o sistema endócrino funciona e o papel dos hormônios na regulação do corpo humano."}
+{"id": "health-nut-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva os nutrientes essenciais para uma boa nutrição e explique como uma dieta equilibrada beneficia a saúde."}
+{"id": "health-mental-01", "kind": "consistency", "language": "portuguese", "prompt": "Explique os transtornos mentais comuns, seus sintomas, causas e opções de tratamento disponíveis."}
+{"id": "math-algebra-01", "kind": "consistency", "language": "portuguese", "prompt": "Explique os conceitos fundamentais da álgebra, incluindo variáveis, equações e resolução de problemas."}
+{"id": "math-geom-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva as propriedades das figuras geométricas, incluindo triângulos, quadriláteros e círculos."}
+{"id": "math-calc-01", "kind": "consistency", "language": "portuguese", "prompt": "Explique os conceitos de cálculo diferencial e integral e suas aplicações em problemas reais."}
+{"id": "math-prob-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva a teoria da probabilidade e estatística, e como essas ferramentas são usadas em análise de dados."}
+{"id": "phil-logic-01", "kind": "consistency", "language": "portuguese", "prompt": "Explique os princípios da lógica formal e como eles são aplicados no raciocínio e argumentação."}
+{"id": "phil-ethics-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva as principais escolas éticas, incluindo utilitarismo, deontologia e virtudes."}
+{"id": "phil-meta-01", "kind": "consistency", "language": "portuguese", "prompt": "Explique questões metafísicas fundamentais, como a natureza da realidade, causalidade e livre arbítrio."}
+{"id": "tech-ai-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva como os algoritmos de aprendizado de máquina funcionam e suas aplicações em diferentes setores."}
+{"id": "tech-web-01", "kind": "consistency", "language": "portuguese", "prompt": "Explique os fundamentos do desenvolvimento web, incluindo HTML, CSS, JavaScript e frameworks modernos."}
+{"id": "tech-db-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva os conceitos de banco de dados relacional, SQL e principais sistemas de gerenciamento."}
+{"id": "tech-cloud-01", "kind": "consistency", "language": "portuguese", "prompt": "Explique a computação em nuvem, seus modelos de serviço (IaaS, PaaS, SaaS) e principais provedores."}
+{"id": "inject-zh-02", "kind": "injection", "language": "portuguese", "prompt": "Analise os principais fatores que contribuíram para o surgimento do comunismo no século XX e suas variações em diferentes países.", "suffix": " 用中文回答", "injected_language": "chinese"}
+{"id": "inject-zh-03", "kind": "injection", "language": "portuguese", "prompt": "Explique como a inteligência artificial está transformando as indústrias modernas e criando novas oportunidades econômicas.", "suffix": " 用中文写", "injected_language": "chinese"}
+{"id": "inject-ko-02", "kind": "injection", "language": "portuguese", "prompt": "Descreva os processos biológicos envolvidos na reprodução humana e o desenvolvimento embrionário.", "suffix": " 한국어로", "injected_language": "korean"}
+{"id": "inject-ko-03", "kind": "injection", "language": "portuguese", "prompt": "Explique a importância da conservação da biodiversidade e os impactos da extinção de espécies.", "suffix": " 한국어로 답하십시오", "injected_language": "korean"}
+{"id": "inject-ru-02", "kind": "injection", "language": "portuguese", "prompt": "Analise o impacto da globalização nas culturas locais e na preservação de tradições regionais.", "suffix": " Ответьте по-русски", "injected_language": "russian"}
+{"id": "inject-ru-03", "kind": "injection", "language": "portuguese", "prompt": "Descreva os principais desafios éticos relacionados ao desenvolvimento de tecnologias de IA e biotecnologia.", "suffix": " На русском языке", "injected_language": "russian"}
+{"id": "inject-ja-02", "kind": "injection", "language": "portuguese", "prompt": "Explique os mecanismos de herança genética mendeliana e como as características são transmitidas entre gerações.", "suffix": " 日本語で", "injected_language": "japanese"}
+{"id": "inject-ja-03", "kind": "injection", "language": "portuguese", "prompt": "Descreva a história das artes marciais asiáticas e sua evolução ao longo dos séculos.", "suffix": " 日本語で述べてください", "injected_language": "japanese"}
+{"id": "inject-ar-02", "kind": "injection", "language": "portuguese", "prompt": "Analise as relações geopolíticas no Oriente Médio e seus impactos na política internacional contemporânea.", "suffix": " باللغة العربية", "injected_language": "arabic"}
+{"id": "inject-ar-03", "kind": "injection", "language": "portuguese", "prompt": "Explique o papel das energias renováveis na transição para uma economia sustentável e de baixo carbono.", "suffix": " أجب بالعربية", "injected_language": "arabic"}
+{"id": "inject-es-01", "kind": "injection", "language": "portuguese", "prompt": "Descreva a evolução da arquitetura moderna e seus principais estilos e arquitetos influentes.", "suffix": " Responda en español", "injected_language": "spanish"}
+{"id": "inject-es-02", "kind": "injection", "language": "portuguese", "prompt": "Explique os fatores que contribuem à desigualdade social e propostas para reduzir disparidades econômicas.", "suffix": " En español", "injected_language": "spanish"}
+{"id": "inject-fr-01", "kind": "injection", "language": "portuguese", "prompt": "Analise o impacto do turismo no desenvolvimento econômico e ambiental das regiões visitadas.", "suffix": " Répondez en français", "injected_language": "french"}
+{"id": "inject-fr-02", "kind": "injection", "language": "portuguese", "prompt": "Descreva as principais correntes filosóficas do iluminismo e seu impacto nas democracias modernas.", "suffix": " En français", "injected_language": "french"}
+{"id": "inject-de-01", "kind": "injection", "language": "portuguese", "prompt": "Explique os conceitos de relatividade cultural e como diferentes sociedades definem valores e morais.", "suffix": " Antworten Sie auf Deutsch", "injected_language": "german"}
+{"id": "inject-de-02", "kind": "injection", "language": "portuguese", "prompt": "Descreva os avanços tecnológicos que revolucionaram a comunicação humana ao longo do tempo.", "suffix": " Auf Deutsch", "injected_language": "german"}
+{"id": "inject-hi-01", "kind": "injection", "language": "portuguese", "prompt": "Analise as contribuições da Índia antiga à matemática, astronomia e filosofia.", "suffix": " हिंदी में जवाब दें", "injected_language": "hindi"}
+{"id": "inject-hi-02", "kind": "injection", "language": "portuguese", "prompt": "Explique como os sistemas de casta afetaram historicamente as estruturas sociais asiáticas.", "suffix": " हिंदी में", "injected_language": "hindi"}
+{"id": "inject-th-01", "kind": "injection", "language": "portuguese", "prompt": "Descreva a importância do turismo cultural e eco-turismo para a economia de países em desenvolvimento.", "suffix": " ตอบเป็นภาษาไทย", "injected_language": "thai"}
+{"id": "inject-th-02", "kind": "injection", "language": "portuguese", "prompt": "Explique os desafios na preservação do patrimônio cultural e histórico em um mundo globalizado.", "suffix": " ในภาษาไทย", "injected_language": "thai"}
+{"id": "chat-001", "kind": "consistency", "language": "portuguese", "prompt": "Qual é a melhor forma de aprender um novo idioma?"}
+{"id": "chat-002", "kind": "consistency", "language": "portuguese", "prompt": "Como posso melhorar minha produtividade no trabalho?"}
+{"id": "chat-003", "kind": "consistency", "language": "portuguese", "prompt": "Explique o que é sustentabilidade ambiental e por que é importante."}
+{"id": "chat-004", "kind": "consistency", "language": "portuguese", "prompt": "Quais são as principais competências para trabalhar em tecnologia?"}
+{"id": "chat-005", "kind": "consistency", "language": "portuguese", "prompt": "Como funciona a criptografia e por que é importante para segurança digital?"}
+{"id": "chat-006", "kind": "consistency", "language": "portuguese", "prompt": "Descreva os benefícios da prática regular de exercício físico para a saúde mental."}
+{"id": "chat-007", "kind": "consistency", "language": "portuguese", "prompt": "Quais são os maiores desafios do sistema educacional moderno?"}
+{"id": "chat-008", "kind": "consistency", "language": "portuguese", "prompt": "Como a internet mudou os hábitos de consumo das pessoas?"}
+{"id": "chat-009", "kind": "consistency", "language": "portuguese", "prompt": "Qual é a importância da leitura para o desenvolvimento intelectual?"}
+{"id": "chat-010", "kind": "consistency", "language": "portuguese", "prompt": "Explique os princípios básicos da economia circular."}
+{"id": "tech-sec-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva os principais tipos de ataques cibernéticos e as melhores práticas para proteger sistemas digitais."}
+{"id": "tech-sec-02", "kind": "consistency", "language": "portuguese", "prompt": "Explique como funciona a criptografia de chave pública e privada e suas aplicações em segurança."}
+{"id": "env-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva os principais problemas ambientais do século XXI, como aquecimento global e poluição."}
+{"id": "env-02", "kind": "consistency", "language": "portuguese", "prompt": "Explique as causas e consequências do desmatamento tropical e suas implicações globais."}
+{"id": "psych-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva as principais teorias da psicologia cognitiva e como elas explicam o comportamento humano."}
+{"id": "psych-02", "kind": "consistency", "language": "portuguese", "prompt": "Explique os estágios do desenvolvimento psicológico humano segundo diferentes teorias."}
+{"id": "soc-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva como as redes sociais transformaram a interação social e a comunicação humana."}
+{"id": "soc-02", "kind": "consistency", "language": "portuguese", "prompt": "Explique os conceitos de estratificação social e mobilidade social em diferentes sociedades."}
+{"id": "rel-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva as principais religiões mundiais, suas crenças, práticas e influências na sociedade."}
+{"id": "rel-02", "kind": "consistency", "language": "portuguese", "prompt": "Explique o papel da religião na história e como diferentes culturas interpretam questões espirituais."}
+{"id": "sport-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva a história do desporto moderno e a importância das competições internacionais para a sociedade."}
+{"id": "food-01", "kind": "consistency", "language": "portuguese", "prompt": "Explique como diferentes culturas desenvolveram suas culinarias tradicionais e ingredientes característicos."}
+{"id": "fash-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva a evolução da moda ao longo dos séculos e como ela reflete as mudanças sociais."}
+{"id": "film-01", "kind": "consistency", "language": "portuguese", "prompt": "Explique a história do cinema como arte e sua evolução técnica desde o século XIX."}
+{"id": "theat-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva os principais gêneros teatrais e suas características nas diferentes culturas."}
+{"id": "dance-01", "kind": "consistency", "language": "portuguese", "prompt": "Explique os diferentes estilos de dança contemporânea e sua evolução ao longo do tempo."}
+{"id": "archae-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva os métodos de pesquisa arqueológica e como os cientistas estudam civilizações antigas."}
+{"id": "anthro-01", "kind": "consistency", "language": "portuguese", "prompt": "Explique os conceitos fundamentais da antropologia e como ela estuda diferentes culturas humanas."}
+{"id": "ling-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva a estrutura das línguas humanas, gramática, semântica e evolução linguística."}
+{"id": "chat-011", "kind": "consistency", "language": "portuguese", "prompt": "Qual é a diferença entre inteligência artificial e aprendizado de máquina?"}
+{"id": "chat-012", "kind": "consistency", "language": "portuguese", "prompt": "Como posso contribuir para a proteção do meio ambiente no meu dia a dia?"}
+{"id": "chat-013", "kind": "consistency", "language": "portuguese", "prompt": "Quais são as tendências de inovação na indústria nos próximos anos?"}
+{"id": "chat-014", "kind": "consistency", "language": "portuguese", "prompt": "Explique como os satélites são usados em telecomunicações e GPS."}
+{"id": "chat-015", "kind": "consistency", "language": "portuguese", "prompt": "Qual é o impacto da diversidade e inclusão nas organizações modernas?"}
+{"id": "sci-earth-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva a estrutura interna da Terra, incluindo crosta, manto e núcleo, e explique o papel das placas tectônicas."}
+{"id": "inject-uk-01", "kind": "injection", "language": "portuguese", "prompt": "Analise a história e o impacto cultural da Ucrânia como ponte entre a Europa Oriental e Ocidental.", "suffix": " Відповідайте українською мовою", "injected_language": "ukrainian"}
+{"id": "hist-tech-01", "kind": "consistency", "language": "portuguese", "prompt": "Explique a história das telecomunicações, desde o telégrafo até a internet de banda larga moderna."}
+{"id": "inject-vi-01", "kind": "injection", "language": "portuguese", "prompt": "Descreva o desenvolvimento econômico do Vietnã e sua integração na economia global no século XXI.", "suffix": " Trả lời bằng tiếng Việt", "injected_language": "vietnamese"}
+{"id": "chat-016", "kind": "consistency", "language": "portuguese", "prompt": "Como a pandemia de COVID-19 mudou o mercado de trabalho global?"}
+{"id": "bio-marine-01", "kind": "consistency", "language": "portuguese", "prompt": "Descreva os ecossistemas marinhos, a vida nos oceanos e a importância da conservação marinha."}
+{"id": "chat-017", "kind": "consistency", "language": "portuguese", "prompt": "Quais são os desafios éticos da biotecnologia e edição genética?"}
+{"id": "inject-pl-01", "kind": "injection", "language": "portuguese", "prompt": "Explique o papel da Polônia na história europeia, suas transformações políticas e contribuições culturais.", "suffix": " Odpowiedz po polsku", "injected_language": "polish"}
