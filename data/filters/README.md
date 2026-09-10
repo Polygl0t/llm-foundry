@@ -1,6 +1,6 @@
 # Data Filters
 
-Dataset filtering and annotation pipelines for text corpus curation. This folder contains scripts for language filtering, deduplication, quality filtering, SFT dataset cleaning, and annotator training/inference — covering the full filtering workflow from raw web data to curated training sets.
+Dataset filtering and annotation pipelines for text corpus curation. This folder contains scripts for language filtering, deduplication, quality filtering, and annotator training/inference — covering the full filtering workflow from raw web data to curated training sets.
 
 ## Contents
 
@@ -9,7 +9,6 @@ Dataset filtering and annotation pipelines for text corpus curation. This folder
 - [`language_filter.py`](./language_filter.py) — Filters datasets by language using one of two backends: `langdetect` (probabilistic) or `unicode` (Unicode character-range heuristics).
 - [`minhash.py`](./minhash.py) — MinHash-based fuzzy deduplication pipeline using DataTrove and LSH.
 - [`quality_filters.py`](./quality_filters.py) — Multi-stage quality filtering pipeline using FastText, GlotLID, Gopher, and FineWeb quality checks.
-- [`sft_filters.py`](./sft_filters.py) — Filters and cleans instruction-tuning datasets (malformed code, repetition loops, Unicode issues, etc.).
 - [`train_annotator.py`](./train_annotator.py) — Trains regression-based sequence classification models for annotation tasks.
 - [`run_annotator.py`](./run_annotator.py) — Runs inference with a trained annotator on a dataset.
 
@@ -104,41 +103,6 @@ Main parameters:
 - `--cache_dir` — cache directory for datasets.
 - `--logs_folder` — directory for logs.
 - `--expand_metadata` — include additional metadata fields in output.
-
-### `sft_filters.py`
-
-Instruction-tuning dataset filtering and cleaning for SFT corpora.
-
-Example:
-```bash
-python data/filters/sft_filters.py \
-    --input_dir ./raw_data --output_dir ./filtered_data \
-    --input_type jsonl --output_type jsonl \
-    --filter_malformed_code_blocks \
-    --filter_repetition_loops \
-    --filter_undecoded_sequences \
-    --remove_system_messages
-```
-
-Main parameters:
-- `--input_dir` — directory containing dataset files.
-- `--output_dir` — directory to save cleaned dataset.
-- `--input_type` / `--output_type` — choose `jsonl` or `parquet`.
-- `--cache_dir` — optional cache directory for datasets.
-- `--max_tokens_per_chunk` — maximum token count per output chunk.
-- `--filter_incomplete_sentences` — remove samples whose final message lacks terminal punctuation.
-- `--max_token_count` / `--min_token_count` — filter by token count range.
-- `--filter_malformed_code_blocks` — remove malformed or invalid code block samples.
-- `--filter_corrupted_code` — remove code with corrupted characters or invalid source text.
-- `--filter_undecoded_sequences` — remove samples containing undecoded Unicode escape sequences.
-- `--filter_invalid_markers` — remove samples with invalid structural markers.
-- `--remove_system_messages` — strip system messages before processing.
-- `--filter_repetition_loops` — remove samples stuck in repetitive model loops.
-- `--quality_score_column` / `--min_quality_score` — filter by quality score fields if present.
-- `--messages_column` — column name for message arrays.
-- `--token_count_column` — column name for token count metadata.
-- `--num_proc` — number of processes to use.
-
 
 ### `train_annotator.py`
 
