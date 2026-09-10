@@ -318,7 +318,7 @@ def main(args):
         weight_decay=args.weight_decay,
         max_grad_norm=args.max_grad_norm,
         lr_scheduler_type=args.lr_scheduler_type,
-        warmup_ratio=args.warmup_ratio,
+        warmup_steps=args.warmup_ratio,
         num_train_epochs=args.num_train_epochs,
         seed=args.seed,
         per_device_train_batch_size=args.per_device_train_batch_size,
