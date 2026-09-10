@@ -17,6 +17,7 @@ import argparse
 import fnmatch
 import glob
 import os
+import shutil
 import time
 
 import datasets
@@ -208,6 +209,13 @@ def process_folder(
     else:
         output_dir = os.path.join(output_path, folder_name)
     os.makedirs(output_dir, exist_ok=True)
+
+    # Copy the .metadata file from the source folder to the output folder, if present
+    source_metadata = os.path.join(folder_path, ".metadata")
+    if os.path.isfile(source_metadata):
+        dest_metadata = os.path.join(output_dir, ".metadata")
+        shutil.copy2(source_metadata, dest_metadata)
+        tqdm.write(f"  ✓ Copied .metadata to {dest_metadata}")
 
     # Process files sequentially (one at a time to control memory)
     total_rows = 0
