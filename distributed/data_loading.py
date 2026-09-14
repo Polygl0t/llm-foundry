@@ -5,10 +5,34 @@ Provides:
     - create_collate_fn:          factory for the default collate function with token masking
     - prepare_dataloaders:        main entry point; returns fully configured dataloaders
     - DataLoaderBundle:           return type bundling dataloaders and metadata
+
+Dataset loading prefers a "prebuilt" dataset materialised once with
+`Dataset.save_to_disk` by `distributed/prebuilt_dataset.py`. Building straight from
+raw shards forks a `datasets` process pool on *every* rank, which on a shared cluster
+filesystem can start-up into an I/O storm; memory-mapping a prebuilt dataset avoids it
+entirely.
+
+The helpers for reading raw shards and for that layout live in this module too, since
+the builder needs the same contract:
+
+    - limit_num_proc / effective_num_proc:            bound the `datasets` worker count.
+    - discover_dataset_files:                         glob dataset shards from paths.
+    - load_raw_dataset:                               build a `Dataset` from raw shards.
+    - save_dataset_to_disk / write_metadata:          materialise one (builder side only).
+    - load_dataset_from_disk:                         read a materialised `Dataset` back.
+    - is_prebuilt_dataset / resolve_prebuilt_dataset: validate a prebuilt dataset path.
+
+On-disk layout of a prebuilt dataset:
+
+    <root>/
+        train/          # output of datasets.save_to_disk()
+        validation/     # output of datasets.save_to_disk()
+        .metadata       # build provenance, written by the builder
 """
 
 import glob
 import os
+import shutil
 from dataclasses import dataclass
 
 import datasets
@@ -18,13 +42,24 @@ from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 from transformers import default_data_collator
 
-# Map user-facing format names to HuggingFace datasets format names.
+# Map user-facing format names to HuggingFace `datasets` format names.
 _FORMAT_MAP = {
     "parquet": "parquet",
     "jsonl": "json",
 }
 
-SUPPORTED_FORMATS = set(_FORMAT_MAP)
+SUPPORTED_FORMATS = frozenset(_FORMAT_MAP)
+
+# Layout written by `prebuilt_dataset.py` and read by `resolve_prebuilt_dataset`.
+TRAIN_SUBDIR = "train"
+VAL_SUBDIR = "validation"
+
+# Files `Dataset.save_to_disk()` leaves behind, used by `is_prebuilt_dataset` for a
+# cheap check before attempting to load.
+_REQUIRED_FILES = ("dataset_info.json", "state.json")
+
+# Conservative default worker count
+DEFAULT_MAX_NUM_PROC = 16
 
 
 @dataclass
@@ -77,18 +112,277 @@ def create_collate_fn(mask_token_ids):
     return collate_fn
 
 
-def _collect_dataset_files(paths, dataset_type):
-    """Discover dataset files from a list of paths (files or directories)."""
-    if isinstance(paths, str):
-        paths = [paths]
+def _validate_dataset_type(dataset_type):
+    """Raise a helpful error when `dataset_type` is not supported."""
+    if dataset_type not in SUPPORTED_FORMATS:
+        raise ValueError(
+            f"Unsupported dataset_type '{dataset_type}'. "
+            f"Expected one of: {sorted(SUPPORTED_FORMATS)}."
+        )
+
+
+def _as_list(paths):
+    """Normalise a path or list of paths to a plain list."""
+    if paths is None:
+        return []
+    if isinstance(paths, str | os.PathLike):
+        return [paths]
+    return list(paths)
+
+
+def limit_num_proc(num_proc, max_num_proc=DEFAULT_MAX_NUM_PROC):
+    """Clamp a requested `datasets` worker count to a safe maximum.
+
+    Args:
+        num_proc: Requested number of worker processes.
+        max_num_proc: Hard upper bound. Pass `None` to disable clamping and keep the
+            historical behaviour.
+
+    Returns:
+        `int` >= 1 and never larger than `max_num_proc` (when a maximum is given).
+
+    Raises:
+        ValueError: If `num_proc` is not a positive integer, or `max_num_proc` is
+            given but is smaller than 1.
+    """
+    num_proc = int(num_proc)
+    if num_proc < 1:
+        raise ValueError(f"`num_proc` must be >= 1 (got {num_proc}).")
+
+    if max_num_proc is None:
+        return num_proc
+
+    max_num_proc = int(max_num_proc)
+    if max_num_proc < 1:
+        raise ValueError(
+            f"`max_num_proc` must be >= 1 (got {max_num_proc}). Use None to disable clamping."
+        )
+
+    return min(num_proc, max_num_proc)
+
+
+def effective_num_proc(num_proc, num_files, max_num_proc):
+    """Resolve the worker count to use for a build of `num_files` shards.
+
+    Defaults to one worker per shard (the `datasets` intent), then applies both the
+    configured maximum and the natural limit of one job per shard.
+    """
+    num_files = max(1, int(num_files))
+    requested = num_files if num_proc is None else num_proc
+    return min(limit_num_proc(requested, max_num_proc), num_files)
+
+
+def discover_dataset_files(paths, dataset_type):
+    """Return a sorted list of dataset shards from files and/or directories.
+
+    Args:
+        paths: A single path or a list of paths. A file must end in
+            `.<dataset_type>`; a directory is globbed one level deep for
+            `*.<dataset_type>`, matching the flat shard directories written by the
+            tokenization/packing scripts.
+        dataset_type: `'parquet'` or `'jsonl'`.
+
+    Returns:
+        Sorted list of file paths.
+
+    Raises:
+        ValueError: If no path is given, the format is unsupported, or a path is a
+            file whose extension does not match `dataset_type`.
+        FileNotFoundError: If a path does not exist.
+    """
+    _validate_dataset_type(dataset_type)
+
+    paths = _as_list(paths)
+    if not paths:
+        raise ValueError("At least one dataset path must be provided.")
 
     files = []
     for path in paths:
-        if os.path.isfile(path) and path.endswith(f".{dataset_type}"):
+        path = os.fspath(path)
+        if os.path.isfile(path):
+            if not path.endswith(f".{dataset_type}"):
+                raise ValueError(f"File '{path}' does not match dataset_type '{dataset_type}'.")
             files.append(path)
         elif os.path.isdir(path):
-            files += glob.glob(f"{path}/*.{dataset_type}")
+            files += glob.glob(os.path.join(path, f"*.{dataset_type}"))
+        else:
+            raise FileNotFoundError(f"Dataset path does not exist: '{path}'")
+
     return sorted(files)
+
+
+def load_raw_dataset(
+    data_files,
+    dataset_type,
+    *,
+    num_proc=None,
+    max_num_proc=DEFAULT_MAX_NUM_PROC,
+    cache_dir=None,
+    split="train",
+):
+    """Build a `datasets.Dataset` from raw shards, with a bounded worker count.
+
+    Args:
+        data_files: List of shard paths (see `discover_dataset_files`).
+        dataset_type: `'parquet'` or `'jsonl'`.
+        num_proc: Requested worker count. Defaults to one worker per shard, then
+            clamped by `max_num_proc`.
+        max_num_proc: Hard upper bound on workers. Pass `None` to disable clamping.
+        cache_dir: HuggingFace cache directory for the generated Arrow files.
+        split: Split name to read.
+
+    Returns:
+        The loaded `datasets.Dataset`.
+
+    Raises:
+        ValueError: If `data_files` is empty or the format is unsupported.
+    """
+    _validate_dataset_type(dataset_type)
+
+    data_files = _as_list(data_files)
+    if not data_files:
+        raise ValueError("`data_files` must contain at least one file.")
+
+    num_proc = effective_num_proc(num_proc, len(data_files), max_num_proc)
+
+    return datasets.load_dataset(
+        _FORMAT_MAP[dataset_type],
+        data_files=data_files,
+        split=split,
+        num_proc=num_proc,
+        cache_dir=cache_dir,
+    )
+
+
+def write_metadata(output_dir, **kwargs):
+    """Write `key: value` lines to `<output_dir>/.metadata`."""
+    os.makedirs(output_dir, exist_ok=True)
+    path = os.path.join(output_dir, ".metadata")
+    with open(path, "w") as f:
+        for key, value in kwargs.items():
+            f.write(f"{key}: {value}\n")
+    return path
+
+
+def save_dataset_to_disk(dataset, output_dir, *, metadata=None, overwrite=False):
+    """Materialise a dataset into `output_dir` via `Dataset.save_to_disk`.
+
+    Only used by the builder (`prebuilt_dataset.py`); the trainer reads the result
+    back with `load_dataset_from_disk`.
+
+    Args:
+        dataset: HuggingFace `Dataset` (or `DatasetDict`) to materialise.
+        output_dir: Destination directory.
+        metadata: Optional flat mapping of key/value pairs written to
+            `<output_dir>/.metadata` for provenance.
+        overwrite: Remove an existing `output_dir` first. Without this, an existing
+            directory is an error rather than being silently replaced.
+
+    Returns:
+        The absolute path that was written.
+
+    Raises:
+        FileExistsError: If `output_dir` exists and `overwrite` is False.
+    """
+    output_dir = os.path.abspath(os.fspath(output_dir))
+
+    if os.path.exists(output_dir):
+        if not overwrite:
+            raise FileExistsError(
+                f"'{output_dir}' already exists. Pass overwrite=True to replace it."
+            )
+        shutil.rmtree(output_dir)
+
+    dataset.save_to_disk(output_dir)
+
+    if metadata:
+        write_metadata(output_dir, **metadata)
+
+    return output_dir
+
+
+def load_dataset_from_disk(path, *, validate_column=None):
+    """Read a dataset materialised with `save_dataset_to_disk`.
+
+    Args:
+        path: Directory holding the output of `Dataset.save_to_disk()`.
+        validate_column: Optional column that must be present (e.g. `input_ids`).
+
+    Returns:
+        The loaded `datasets.Dataset`.
+
+    Raises:
+        FileNotFoundError: If `path` is not an existing directory.
+        ValueError: If `path` holds multiple splits (the trainer expects one split per
+            path) or is missing `validate_column`.
+    """
+    path = os.path.abspath(os.fspath(path))
+    if not os.path.isdir(path):
+        raise FileNotFoundError(f"Prebuilt dataset directory not found: '{path}'")
+
+    dataset = datasets.load_from_disk(path)
+
+    if isinstance(dataset, datasets.DatasetDict):
+        raise ValueError(
+            f"'{path}' contains multiple splits ({list(dataset)}); expected a single "
+            "dataset. Point at a split directory instead (e.g. '<root>/train')."
+        )
+
+    if validate_column is not None and validate_column not in dataset.column_names:
+        raise ValueError(
+            f"'{path}' is missing the required column '{validate_column}'. "
+            f"Found: {dataset.column_names}."
+        )
+
+    return dataset
+
+
+def is_prebuilt_dataset(path):
+    """Whether `path` looks like a dataset materialised with `Dataset.save_to_disk`."""
+    if not path:
+        return False
+
+    path = os.path.abspath(os.fspath(path))
+    if not os.path.isdir(path):
+        return False
+
+    return all(os.path.isfile(os.path.join(path, name)) for name in _REQUIRED_FILES)
+
+
+def resolve_prebuilt_dataset(root, *, train_subdir=TRAIN_SUBDIR, val_subdir=VAL_SUBDIR):
+    """Return the `(train, validation)` directories inside `root`.
+
+    Args:
+        root: The `prebuilt_dataset_dir` spec, typically `<packed>/prebuilt`. `None` (or
+            an empty string) means "no prebuilt dataset": the caller then builds from
+            the raw shards instead.
+        train_subdir: Name of the training subdirectory.
+        val_subdir: Name of the validation subdirectory.
+
+    Returns:
+        `(train_path, val_path)`, or `None` when `root` is not set.
+
+    Raises:
+        ValueError: If `root` is set but does not hold a materialised dataset pair.
+            Failing loudly keeps a typo from silently triggering an expensive rebuild
+            from raw shards.
+    """
+    if not root:
+        return None
+
+    root = os.path.abspath(os.fspath(root))
+    train_path = os.path.join(root, train_subdir)
+    val_path = os.path.join(root, val_subdir)
+
+    if not is_prebuilt_dataset(train_path) or not is_prebuilt_dataset(val_path):
+        raise ValueError(
+            f"`prebuilt_dataset_dir` is set to '{root}', but it does not hold a prebuilt "
+            f"dataset. Expected both '{train_path}' and '{val_path}' to exist. Build it "
+            "with distributed/prebuilt_dataset.py, or unset `prebuilt_dataset_dir` to "
+            "build from the raw shards."
+        )
+
+    return train_path, val_path
 
 
 class RandomTokenDataset(torch.utils.data.Dataset):
@@ -193,52 +487,86 @@ def _load_sanity_check_datasets(args):
 
 
 def _load_disk_datasets(args, logger=None, file_logger=None):
-    """Load train and validation datasets from disk."""
+    """Load train and validation datasets from disk.
+
+    Either `prebuilt_dataset_dir` points at a dataset materialised with
+    `Dataset.save_to_disk` — whose Arrow files are then memory-mapped, so no `datasets`
+    build happens on the compute nodes and there is no per-rank process pool — or the
+    raw shards are read with the worker count capped by
+    `max_num_proc_for_dataset_loading`. There is no in-between: nothing is guessed.
+
+    A prebuilt dataset defines both splits, so `train_dataset_dir`/`val_dataset_dir`
+    are bypassed when one is used.
+    """
     dataset_type = args.dataset_type
 
     assert dataset_type in SUPPORTED_FORMATS, (
         f"Dataset type must be one of {SUPPORTED_FORMATS}, got '{dataset_type}'."
     )
 
-    # Collect training files.
-    train_files = _collect_dataset_files(args.train_dataset_dir, dataset_type)
-    assert len(train_files) > 0, (
-        f"No {dataset_type} files found in train_dataset_dir: {args.train_dataset_dir}"
-    )
+    # A configured-but-invalid path raises instead of silently rebuilding from shards.
+    prebuilt = resolve_prebuilt_dataset(args.prebuilt_dataset_dir)
 
-    if args.shuffle_dataset:
+    if prebuilt is not None:
+        train_path, val_path = prebuilt
+
         if logger:
-            logger.info(f"Shuffling enabled. Shuffling {len(train_files)} dataset files.")
+            logger.info(f"Loading prebuilt dataset (memory-mapped): {train_path}")
+        if file_logger:
+            file_logger.log_metadata(f"Using prebuilt dataset: {train_path}")
+
+        train_dataset = load_dataset_from_disk(train_path)
+        val_dataset = load_dataset_from_disk(val_path)
+    else:
+        # Collect training files.
+        train_files = discover_dataset_files(args.train_dataset_dir, dataset_type)
+        assert len(train_files) > 0, (
+            f"No {dataset_type} files found in train_dataset_dir: {args.train_dataset_dir}"
+        )
+
+        if args.shuffle_dataset:
+            if logger:
+                logger.info(f"Shuffling enabled. Shuffling {len(train_files)} dataset files.")
+            if file_logger:
+                file_logger.log_metadata(
+                    f"Shuffling enabled. Shuffling {len(train_files)} dataset files."
+                )
+            np.random.seed(args.seed)
+            np.random.shuffle(train_files)
+
+        # Validation files.
+        val_files = discover_dataset_files(args.val_dataset_dir, dataset_type)
+        assert len(val_files) > 0, (
+            f"No {dataset_type} files found in val_dataset_dir: {args.val_dataset_dir}"
+        )
+
+        # The worker count is bounded inside `load_raw_dataset`: `datasets` defaults to
+        # one process per shard, and every rank builds its own dataset.
+        max_num_proc = args.max_num_proc_for_dataset_loading
+
+        if logger:
+            logger.info(
+                f"Building dataset from raw shards (num_proc capped at {max_num_proc}: "
+                f"{len(train_files)} training file(s), {len(val_files)} validation file(s))."
+            )
         if file_logger:
             file_logger.log_metadata(
-                f"Shuffling enabled. Shuffling {len(train_files)} dataset files."
+                f"Building dataset from raw shards with num_proc capped at {max_num_proc}."
             )
-        np.random.seed(args.seed)
-        np.random.shuffle(train_files)
 
-    # Validation files.
-    val_files = sorted(glob.glob(f"{args.val_dataset_dir}/*.{dataset_type}"))
-    assert len(val_files) > 0, (
-        f"No {dataset_type} files found in val_dataset_dir: {args.val_dataset_dir}"
-    )
+        train_dataset = load_raw_dataset(
+            train_files,
+            dataset_type,
+            max_num_proc=max_num_proc,
+            cache_dir=args.cache_dir,
+        )
 
-    hf_format = _FORMAT_MAP[dataset_type]
-
-    train_dataset = datasets.load_dataset(
-        hf_format,
-        data_files=train_files,
-        split="train",
-        num_proc=len(train_files),
-        cache_dir=args.cache_dir,
-    )
-
-    val_dataset = datasets.load_dataset(
-        hf_format,
-        data_files=val_files,
-        split="train",
-        num_proc=len(val_files),
-        cache_dir=args.cache_dir,
-    )
+        val_dataset = load_raw_dataset(
+            val_files,
+            dataset_type,
+            max_num_proc=max_num_proc,
+            cache_dir=args.cache_dir,
+        )
 
     if args.shuffle_dataset:
         train_dataset = train_dataset.shuffle(seed=args.seed)

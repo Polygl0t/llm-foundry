@@ -8,9 +8,9 @@ All tests use synthetic data and tiny model configs so they complete
 in seconds on a standard desktop CPU without any GPU, DDP, FSDP, or SLURM dependency.
 
 Requirements:
-- torch>=2.0
-- transformers>=4.40
-- datasets>=2.0
+- torch
+- transformers
+- datasets
 - numpy
 - pyyaml
 """
@@ -85,6 +85,8 @@ def test_training_args_defaults():
     assert args.explicit_prefetching is False
     assert args.enable_expert_parallelism is False
     assert args.use_kernels is False
+    assert args.max_num_proc_for_dataset_loading == 16
+    assert args.prebuilt_dataset_dir is None
 
 
 def test_training_args_from_yaml():
@@ -3116,5 +3118,261 @@ def test_fsdp_trainer_validation_runs_after_training():
         assert train_idx < val_idx, (
             f"validation (line {val_idx}) must be logged AFTER training step 2 (line {train_idx})"
         )
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+# %%
+#######################################
+# 10. Prebuilt Dataset Utilities
+#######################################
+
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+
+import data_loading  # noqa: E402
+from data_loading import (  # noqa: E402
+    discover_dataset_files,
+    is_prebuilt_dataset,
+    limit_num_proc,
+    load_dataset_from_disk,
+    resolve_prebuilt_dataset,
+)
+from prebuilt_dataset import build_prebuilt_dataset  # noqa: E402
+
+
+def _write_jsonl_shards(directory, prefix, n_files, rows):
+    """Write tiny `input_ids` shards so these tests never need real data."""
+    os.makedirs(directory, exist_ok=True)
+    for i in range(n_files):
+        with open(os.path.join(directory, f"{prefix}-{i:05d}.jsonl"), "w") as fh:
+            for j in range(rows):
+                fh.write(json.dumps({"input_ids": [j, j + 1, j + 2]}) + "\n")
+    return directory
+
+
+def _make_raw_tree(tmpdir):
+    """Build a small raw tree: 5 training files (10 rows each) and 2 validation files."""
+    train_dir = _write_jsonl_shards(os.path.join(tmpdir, "raw_train"), "train", 5, 10)
+    val_dir = _write_jsonl_shards(os.path.join(tmpdir, "raw_val"), "val", 2, 3)
+    return train_dir, val_dir
+
+
+def _build_prebuilt(tmpdir, max_num_proc=8):
+    """Materialise a small prebuilt dataset and return its root directory."""
+    train_dir, val_dir = _make_raw_tree(tmpdir)
+    output_dir = os.path.join(tmpdir, "prebuilt")
+    build_prebuilt_dataset(
+        train_dataset_dir=[train_dir],
+        val_dataset_dir=[val_dir],
+        output_dir=output_dir,
+        dataset_type="jsonl",
+        cache_dir=os.path.join(tmpdir, "cache"),
+        # A deliberately absurd request: it must be clamped, not honoured.
+        num_proc=1006,
+        max_num_proc=max_num_proc,
+        shuffle=True,
+        seed=1337,
+    )
+    return output_dir
+
+
+def test_limit_num_proc_caps_the_worker_count():
+    """The build worker count must never exceed the configured maximum."""
+    assert limit_num_proc(1006) == 16
+    assert limit_num_proc(1006, max_num_proc=8) == 8
+    assert limit_num_proc(3, max_num_proc=16) == 3
+    # None disables clamping and keeps the one-worker-per-file intent.
+    assert limit_num_proc(1006, max_num_proc=None) == 1006
+    for invalid in (0, -5):
+        try:
+            limit_num_proc(invalid)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"limit_num_proc({invalid}) must raise ValueError")
+
+
+def test_discover_dataset_files_from_files_and_directories():
+    """Shard discovery accepts files and directories, and fails loudly otherwise."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        train_dir, val_dir = _make_raw_tree(tmpdir)
+
+        files = discover_dataset_files(train_dir, "jsonl")
+        assert len(files) == 5, files
+        assert sorted(files) == files, "discovery must be deterministic (sorted)"
+
+        assert len(discover_dataset_files([train_dir, val_dir], "jsonl")) == 7
+        assert discover_dataset_files(files[0], "jsonl") == [files[0]]
+        assert discover_dataset_files(train_dir, "parquet") == []
+
+        try:
+            discover_dataset_files(os.path.join(tmpdir, "missing"), "jsonl")
+        except FileNotFoundError:
+            pass
+        else:
+            raise AssertionError("a missing path must raise FileNotFoundError")
+
+        try:
+            discover_dataset_files(train_dir, "csv")
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("an unsupported dataset_type must raise ValueError")
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+def test_build_prebuilt_dataset_writes_and_loads_back():
+    """Building materialises both splits and the result can be memory-mapped back."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        train_dir, val_dir = _make_raw_tree(tmpdir)
+        output_dir = os.path.join(tmpdir, "prebuilt")
+
+        result = build_prebuilt_dataset(
+            train_dataset_dir=[train_dir],
+            val_dataset_dir=[val_dir],
+            output_dir=output_dir,
+            dataset_type="jsonl",
+            cache_dir=os.path.join(tmpdir, "cache"),
+            num_proc=1006,  # must be clamped to the shard counts below
+            max_num_proc=8,
+            shuffle=True,
+            seed=1337,
+        )
+
+        assert result["num_proc_train"] == 5, result
+        assert result["num_proc_validation"] == 2, result
+        assert result["num_train_examples"] == 50, result
+        assert result["num_validation_examples"] == 6, result
+
+        assert is_prebuilt_dataset(os.path.join(output_dir, "train"))
+        assert is_prebuilt_dataset(os.path.join(output_dir, "validation"))
+        assert not is_prebuilt_dataset(os.path.join(output_dir, "nope"))
+        assert not is_prebuilt_dataset(None)
+        assert os.path.isfile(os.path.join(output_dir, ".metadata"))
+
+        train_ds = load_dataset_from_disk(
+            os.path.join(output_dir, "train"), validate_column="input_ids"
+        )
+        assert len(train_ds) == 50
+        assert train_ds.column_names == ["input_ids"]
+        assert len(load_dataset_from_disk(os.path.join(output_dir, "validation"))) == 6
+
+        # A missing required column must be reported, not silently accepted.
+        try:
+            load_dataset_from_disk(os.path.join(output_dir, "train"), validate_column="labels")
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("a missing validate_column must raise ValueError")
+
+        # Rebuilding without overwrite must refuse rather than clobber.
+        try:
+            build_prebuilt_dataset(
+                train_dataset_dir=[train_dir],
+                val_dataset_dir=[val_dir],
+                output_dir=output_dir,
+                dataset_type="jsonl",
+            )
+        except FileExistsError:
+            pass
+        else:
+            raise AssertionError("rebuilding must require overwrite=True")
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+def test_resolve_prebuilt_dataset_validates_the_configured_path():
+    """The configured path is either valid, unset, or an error — nothing is guessed."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        output_dir = _build_prebuilt(tmpdir)
+
+        assert resolve_prebuilt_dataset(output_dir) == (
+            os.path.join(output_dir, "train"),
+            os.path.join(output_dir, "validation"),
+        )
+
+        # Unset means "build from the raw shards", not "go looking for one".
+        assert resolve_prebuilt_dataset(None) is None
+        assert resolve_prebuilt_dataset("") is None
+
+        # A configured-but-broken path must fail loudly instead of silently rebuilding.
+        for broken in (
+            os.path.join(tmpdir, "broken"),
+            os.path.join(tmpdir, "raw_train"),
+            os.path.join(tmpdir, "prebuilt", "train"),
+        ):
+            try:
+                resolve_prebuilt_dataset(broken)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError(f"'{broken}' must raise ValueError")
+    finally:
+        shutil.rmtree(tmpdir)
+
+
+def test_load_disk_datasets_uses_prebuilt_or_raw_shards():
+    """The trainer memory-maps a configured prebuilt dataset, else reads the raw shards."""
+    tmpdir = tempfile.mkdtemp()
+    try:
+        # The prebuilt dataset holds 50 train / 6 validation examples.
+        output_dir = _build_prebuilt(tmpdir)
+
+        # Different shards (8 train / 5 validation examples) are used to tell the two
+        # code paths apart: whichever counts come back identify the source that was read.
+        other_train = _write_jsonl_shards(os.path.join(tmpdir, "other_train"), "o", 2, 4)
+        other_val = _write_jsonl_shards(os.path.join(tmpdir, "other_val"), "ov", 1, 5)
+
+        # Prebuilt: both splits come from the materialised dataset, so the
+        # `train_dataset_dir`/`val_dataset_dir` shards are bypassed.
+        args_prebuilt = TrainingArguments(
+            train_dataset_dir=[other_train],
+            val_dataset_dir=[other_val],
+            dataset_type="jsonl",
+            cache_dir=os.path.join(tmpdir, "cache"),
+            prebuilt_dataset_dir=output_dir,
+            num_workers_for_dataloader=0,
+            prefetch_factor=None,
+            pin_memory=False,
+            shuffle_dataset=False,
+        )
+        train_ds, val_ds = data_loading._load_disk_datasets(args_prebuilt)
+        assert len(train_ds) == 50, len(train_ds)
+        assert len(val_ds) == 6, len(val_ds)
+
+        # Unset: the raw shards are read instead, with the worker count capped.
+        args_raw = TrainingArguments(
+            train_dataset_dir=[other_train],
+            val_dataset_dir=[other_val],
+            dataset_type="jsonl",
+            cache_dir=os.path.join(tmpdir, "cache_raw"),
+            num_workers_for_dataloader=0,
+            prefetch_factor=None,
+            pin_memory=False,
+            shuffle_dataset=False,
+        )
+        assert args_raw.prebuilt_dataset_dir is None
+        raw_train, raw_val = data_loading._load_disk_datasets(args_raw)
+        assert len(raw_train) == 8, len(raw_train)
+        assert len(raw_val) == 5, len(raw_val)
+
+        # An invalid configured path fails the run rather than silently reading shards.
+        args_broken = TrainingArguments(
+            train_dataset_dir=[other_train],
+            val_dataset_dir=[other_val],
+            dataset_type="jsonl",
+            prebuilt_dataset_dir=os.path.join(tmpdir, "broken"),
+        )
+        try:
+            data_loading._load_disk_datasets(args_broken)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("an invalid prebuilt_dataset_dir must raise ValueError")
     finally:
         shutil.rmtree(tmpdir)

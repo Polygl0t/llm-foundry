@@ -118,6 +118,31 @@ class TrainingArguments:
             )
         },
     )
+    max_num_proc_for_dataset_loading: int | None = field(
+        default=16,
+        metadata={
+            "help": (
+                "Hard upper bound on the number of worker processes used to build the dataset "
+                "from raw files (passed to `datasets.load_dataset(..., num_proc=...)`). "
+                "Ignored when a prebuilt dataset is loaded."
+            )
+        },
+    )
+    prebuilt_dataset_dir: str | None = field(
+        default=None,
+        metadata={
+            "help": (
+                "Directory holding a dataset materialised with `Dataset.save_to_disk` "
+                "(see `distributed/prebuilt_dataset.py`). It must contain `train/` and "
+                "`validation/` subdirectories. When set, both splits are read from there "
+                "(so `train_dataset_dir`/`val_dataset_dir` are ignored) and the Arrow files "
+                "are memory-mapped instead of being rebuilt from the raw shards. When None, "
+                "the dataset is built from `train_dataset_dir`/`val_dataset_dir` with the "
+                "worker count capped by `max_num_proc_for_dataset_loading`. A path that is "
+                "set but invalid fails the run instead of silently rebuilding."
+            )
+        },
+    )
     additional_mask_token_ids: list[int] | None = field(
         default=None,
         metadata={

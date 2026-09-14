@@ -9,7 +9,8 @@ This folder contains distributed training scripts for large language models usin
 - [train_fsdp.py](train_fsdp.py) — Fully Sharded Data Parallel (FSDP) training script for larger models requiring parameter and optimizer state sharding across nodes.
 - [trainer.py](trainer.py) — Contains `DDPTrainer` and `FSDPTrainer` classes that encapsulate the training and validation loops, checkpointing, and per-step logging.
 - [model_setup.py](model_setup.py) — Pre-DDP/FSDP model and tokenizer initialization, including architecture setup and optional context extension for continual pretraining.
-- [data_loading.py](data_loading.py) — Dataset loading and DataLoader creation with support for multiple data formats (JSONL, Parquet).
+- [data_loading.py](data_loading.py) — Dataset loading and DataLoader creation, including the raw-shard/prebuilt-dataset helpers shared with [prebuilt_dataset.py](prebuilt_dataset.py). Prefers a prebuilt (memory-mapped) dataset; otherwise reads raw JSONL/Parquet shards with a bounded worker count.
+- [prebuilt_dataset.py](prebuilt_dataset.py) — Builds a "prebuilt" dataset: materialises the tokenized train/validation splits to disk once, so training jobs memory-map them instead of rebuilding on every rank. Run it on a login node or as a small CPU-only job.
 - [optimizers.py](optimizers.py) — Optimizer and learning rate scheduler creation for both AdamW and Muon + Adam configurations.
 - [mfu.py](mfu.py) — Model FLOPs Utilization (MFU) calculation utilities for performance monitoring and benchmarking.
 - [specifications.py](specifications.py) — Dataclass definitions and type hints for all training arguments.
@@ -57,6 +58,51 @@ sbatch train_fsdp.sh
 
 Main parameters:
 - See [specifications.py](specifications.py) files for detailed argument definitions and defaults.
+
+### `prebuilt_dataset.py`
+
+Materialises the tokenized train/validation splits to disk once with `Dataset.save_to_disk`, producing a directory the trainers memory-map with `datasets.load_from_disk` at start-up.
+
+**Why this exists.** Building a dataset straight from raw shards forks a `datasets` process pool on *every* rank. With one process per input file reading the same files from the shared parallel filesystem can cause an I/O storm that sometimes, if a node fails, kills a job. A prebuilt dataset removes the build from the compute nodes entirely.
+
+Example:
+
+```bash
+python distributed/prebuilt_dataset.py \
+    --train_dataset_dir data/packed_4096/gigaverbo_v2_3 \
+                        data/packed_4096/fineweb_edu \
+    --val_dataset_dir   data/packed_4096/validation \
+    --output_dir        data/packed_4096/prebuilt \
+    --dataset_type parquet \
+    --num_proc 16 \
+    --shuffle --seed 1337
+```
+
+For builds too large for a login node, use the CPU-only template [`slurm/prebuilt_dataset.sh`](slurm/prebuilt_dataset.sh).
+
+Output layout:
+
+```
+<output_dir>/
+    train/          # datasets.save_to_disk() output
+    validation/     # datasets.save_to_disk() output
+    .metadata       # build provenance (counts, worker counts, seed)
+```
+
+Then point a run at it explicitly from the specs file:
+
+```yaml
+prebuilt_dataset_dir: "/data/packed_4096/prebuilt"
+```
+
+Main parameters:
+- `--train_dataset_dir` / `--val_dataset_dir` — One or more directories (or files) holding the raw shards; repeat a directory to up-weight it.
+- `--output_dir` — Root directory for the prebuilt dataset; `train/` and `validation/` are created inside.
+- `--dataset_type` — Format of the raw shards: `parquet` or `jsonl` (default: `parquet`).
+- `--num_proc` / `--max_num_proc` — Requested and maximum worker processes per split.
+- `--shuffle` / `--seed` — Shuffle the training shard paths before building (mirrors `shuffle_dataset`).
+- `--overwrite` — Replace existing output directories.
+- `--cache_dir` — Cache directory for the intermediate HuggingFace Arrow files.
 
 ### Validation-only runs
 
