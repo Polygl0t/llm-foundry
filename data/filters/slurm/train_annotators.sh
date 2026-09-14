@@ -47,7 +47,7 @@ source "$workdir/.modules.sh"
 source "$workdir/.venv_amd/bin/activate"
 
 # ===== Installation =====
-# See distributed/slurm/create_venv_marvin.sh for the installation of the venv and packages.
+# See data/filters/slurm/create_venv_marvin.sh for the installation of the venv and packages.
 
 #############################################
 # Environment Setup
