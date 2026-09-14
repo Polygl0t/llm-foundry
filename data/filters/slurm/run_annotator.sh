@@ -35,8 +35,8 @@ ulimit -c 0
 
 
 for i in $(seq 0 $((SLURM_NTASKS_PER_NODE - 1))); do
-    eval "out$i=\"\$workdir/run_filter/out$i.\$SLURM_JOB_ID\""
-    eval "err$i=\"\$workdir/run_filter/err$i.\$SLURM_JOB_ID\""
+    eval "out$i=\"\$workdir/run_outputs/out-run-annotator.\$SLURM_JOB_ID.$i\""
+    eval "err$i=\"\$workdir/run_outputs/err-run-annotator.\$SLURM_JOB_ID.$i\""
 done
 
 #############################################
@@ -78,6 +78,7 @@ export INT_SCORE="instruct_int_score"
 export TEXT_COLUMN="messages"
 export MAX_LENGTH=512
 export CLEAN_CACHE="1"  # <-- Set to "1" to clean cache after job completion
+export NUM_CLASSES=5
 
 for i in $(seq 0 $((SLURM_NTASKS_PER_NODE - 1))); do
     eval "out_var=\"\$out$i\""
@@ -110,7 +111,8 @@ python3 $workdir/llm-foundry/data/filters/run_annotator.py \
     --num_proc $NUM_PROC \
     --float_score $FLOAT_SCORE \
     --int_score $INT_SCORE \
-    --max_length $MAX_LENGTH 1>$out0 2>$err0 &
+    --max_length $MAX_LENGTH \
+    --num_classes $NUM_CLASSES 1>$out0 2>$err0 &
 
 export CUDA_VISIBLE_DEVICES=1
 export UCX_NET_DEVICES=mlx5_1:1
@@ -127,7 +129,8 @@ python3 $workdir/llm-foundry/data/filters/run_annotator.py \
     --num_proc $NUM_PROC \
     --float_score $FLOAT_SCORE \
     --int_score $INT_SCORE \
-    --max_length $MAX_LENGTH 1>$out1 2>$err1 &
+    --max_length $MAX_LENGTH \
+    --num_classes $NUM_CLASSES 1>$out1 2>$err1 &
 
 export CUDA_VISIBLE_DEVICES=2
 export UCX_NET_DEVICES=mlx5_2:1
@@ -144,7 +147,8 @@ python3 $workdir/llm-foundry/data/filters/run_annotator.py \
     --num_proc $NUM_PROC \
     --float_score $FLOAT_SCORE \
     --int_score $INT_SCORE \
-    --max_length $MAX_LENGTH 1>$out2 2>$err2 &
+    --max_length $MAX_LENGTH \
+    --num_classes $NUM_CLASSES 1>$out2 2>$err2 &
 
 export CUDA_VISIBLE_DEVICES=3
 export UCX_NET_DEVICES=mlx5_3:1
@@ -161,7 +165,8 @@ python3 $workdir/llm-foundry/data/filters/run_annotator.py \
     --num_proc $NUM_PROC \
     --float_score $FLOAT_SCORE \
     --int_score $INT_SCORE \
-    --max_length $MAX_LENGTH 1>$out3 2>$err3 &
+    --max_length $MAX_LENGTH \
+    --num_classes $NUM_CLASSES 1>$out3 2>$err3 &
 
 export CUDA_VISIBLE_DEVICES=4
 export UCX_NET_DEVICES=mlx5_4:1
@@ -178,7 +183,8 @@ python3 $workdir/llm-foundry/data/filters/run_annotator.py \
     --num_proc $NUM_PROC \
     --float_score $FLOAT_SCORE \
     --int_score $INT_SCORE \
-    --max_length $MAX_LENGTH 1>$out4 2>$err4 &
+    --max_length $MAX_LENGTH \
+    --num_classes $NUM_CLASSES 1>$out4 2>$err4 &
 
 export CUDA_VISIBLE_DEVICES=5
 export UCX_NET_DEVICES=mlx5_5:1
@@ -195,7 +201,8 @@ python3 $workdir/llm-foundry/data/filters/run_annotator.py \
     --num_proc $NUM_PROC \
     --float_score $FLOAT_SCORE \
     --int_score $INT_SCORE \
-    --max_length $MAX_LENGTH 1>$out5 2>$err5 &
+    --max_length $MAX_LENGTH \
+    --num_classes $NUM_CLASSES 1>$out5 2>$err5 &
 
 export CUDA_VISIBLE_DEVICES=6
 export UCX_NET_DEVICES=mlx5_6:1
@@ -212,7 +219,8 @@ python3 $workdir/llm-foundry/data/filters/run_annotator.py \
     --num_proc $NUM_PROC \
     --float_score $FLOAT_SCORE \
     --int_score $INT_SCORE \
-    --max_length $MAX_LENGTH 1>$out6 2>$err6 &
+    --max_length $MAX_LENGTH \
+    --num_classes $NUM_CLASSES 1>$out6 2>$err6 &
 
 export CUDA_VISIBLE_DEVICES=7
 export UCX_NET_DEVICES=mlx5_7:1
@@ -229,7 +237,8 @@ python3 $workdir/llm-foundry/data/filters/run_annotator.py \
     --num_proc $NUM_PROC \
     --float_score $FLOAT_SCORE \
     --int_score $INT_SCORE \
-    --max_length $MAX_LENGTH 1>$out7 2>$err7 &
+    --max_length $MAX_LENGTH \
+    --num_classes $NUM_CLASSES 1>$out7 2>$err7 &
 
 wait
 
