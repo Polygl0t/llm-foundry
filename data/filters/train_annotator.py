@@ -223,14 +223,13 @@ def main(args):
             f"Text column '{args.text_column}' not found in the dataset. Available columns: {dataset['train'].column_names}"
         )
 
+    def preprocess(examples):
+        batch = tokenizer(examples[args.text_column], truncation=True)
+        batch["labels"] = np.float32(examples[args.target_column])
+        return batch
+
     # Only main process runs the preprocessing and mapping
     if master_process:
-
-        def preprocess(examples):
-            batch = tokenizer(examples[args.text_column], truncation=True)
-            batch["labels"] = np.float32(examples[args.target_column])
-            return batch
-
         dataset = dataset.map(
             preprocess,
             batched=True,
