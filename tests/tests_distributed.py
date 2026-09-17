@@ -1953,7 +1953,13 @@ def test_load_checkpoint_state_no_resume():
 
 
 def test_load_checkpoint_state_resume():
-    """Restores optimizer and returns checkpoint state when resuming."""
+    """Restores optimizer and returns checkpoint state when resuming.
+
+    Also covers the context-extension exemption: an extension stage resumes the weights and the
+    training counters from a pre-extension checkpoint, but must skip the optimizer state restore
+    because that checkpoint was saved with the full (non-frozen) parameter set, which does not
+    match the attention-only parameter set of the extension stage.
+    """
     tmpdir = tempfile.mkdtemp()
     try:
         # Create a fake checkpoint
@@ -1968,8 +1974,9 @@ def test_load_checkpoint_state_resume():
 
         # Minimal optimizer mock with load_state_dict
         class FakeOptimizer:
-            def __init__(self):
+            def __init__(self, num_params=1):
                 self.loaded = False
+                self.param_groups = [{"params": list(range(num_params))}]
 
             def load_state_dict(self, state_dict):
                 self.loaded = True
@@ -1987,6 +1994,47 @@ def test_load_checkpoint_state_resume():
         assert iter_count == 200
         assert epoch == 2
         assert fake_opt.loaded
+
+        # Checkpoint saved by a pre-extension stage: its optimizer holds 4 params, while the
+        # context-extension optimizer only holds 1 (the frozen-down attention subset).
+        pre_extension_dir = os.path.join(tmpdir, "pre_extension")
+        os.makedirs(pre_extension_dir, exist_ok=True)
+        torch.save(
+            {
+                "optimizer": {"param_groups": [{"params": list(range(4))}]},
+                "resume_step": 50,
+                "iteration": 200,
+                "epoch": 2,
+                "config": {},
+            },
+            os.path.join(pre_extension_dir, "checkpoint.pt"),
+        )
+
+        extension_args = TrainingArguments(
+            resume_from_checkpoint="some/path",
+            continual_pretraining=True,
+            new_max_position_embeddings=16384,
+        )
+        extension_args.begin_new_stage = False
+
+        extension_opt = FakeOptimizer(num_params=1)
+        resume_step, iter_count, epoch = load_checkpoint_state(
+            args=extension_args,
+            checkpoint_path=pre_extension_dir,
+            optimizer=extension_opt,
+        )
+        assert not extension_opt.loaded, "context extension must not restore the optimizer state"
+        assert (resume_step, iter_count, epoch) == (50, 200, 2)
+
+        # A re-queued job of the *same* extension stage sees a matching parameter set, so its
+        # optimizer state is still restored.
+        requeue_opt = FakeOptimizer(num_params=4)
+        load_checkpoint_state(
+            args=extension_args,
+            checkpoint_path=pre_extension_dir,
+            optimizer=requeue_opt,
+        )
+        assert requeue_opt.loaded
     finally:
         shutil.rmtree(tmpdir)
 

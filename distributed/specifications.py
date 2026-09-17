@@ -495,7 +495,16 @@ class TrainingArguments:
     # Checkpoint settings
     resume_from_checkpoint: str | None = field(
         default=None,
-        metadata={"help": "The path to the checkpoint to resume from."},
+        metadata={
+            "help": (
+                "The path to the checkpoint to resume from."
+                "During context extension (`continual_pretraining` set together with "
+                "`new_max_position_embeddings`), the weights and the training counters are "
+                "restored but the optimizer state is not, because the trainable parameter set "
+                "changed (only the attention blocks stay trainable). The extension stage starts "
+                "from a freshly initialized optimizer state."
+            )
+        },
     )
     checkpointing_steps: int | None = field(
         default=2000,

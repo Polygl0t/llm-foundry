@@ -6,7 +6,9 @@ Provides:
     - setup_triton_cache:           per-rank Triton cache with cleanup
     - StructuredTrainingLogger:     structured metadata/stats file writer
     - DistributedEnvironment:       Environment manager for distributed training (SLURM, torchrun, or local)
+    - is_context_extension:         whether the run freezes down to attention-only training
     - load_checkpoint_state:        load optimizer and training state from checkpoint
+                                    (context extension skips the optimizer state restore)
     - initialize_wandb:             login and init W&B run (one run per training stage, all
                                     stages of a multistage run sharing one `group` and one
                                     continuous step axis)
@@ -201,6 +203,39 @@ class DistributedEnvironment:
             dist.destroy_process_group()
 
 
+def is_context_extension(args):
+    """
+    Whether this run performs context extension.
+    """
+    return bool(getattr(args, "continual_pretraining", False)) and (
+        getattr(args, "new_max_position_embeddings", None) is not None
+    )
+
+
+def _optimizer_state_is_loadable(optimizer, optimizer_state):
+    """
+    Whether a saved optimizer state dict describes the same parameter set as `optimizer`.
+
+    Returns True when the state can be loaded (also when the pair cannot be inspected, e.g. a
+    duck-typed optimizer without `param_groups` — `load_state_dict` itself then decides).
+    """
+    current_groups = getattr(optimizer, "param_groups", None)
+    saved_groups = (
+        optimizer_state.get("param_groups") if isinstance(optimizer_state, dict) else None
+    )
+
+    if current_groups is None or not isinstance(saved_groups, list):
+        return True
+
+    if len(current_groups) != len(saved_groups):
+        return False
+
+    return all(
+        len(current_group.get("params", ())) == len(saved_group.get("params", ()))
+        for current_group, saved_group in zip(current_groups, saved_groups, strict=False)
+    )
+
+
 def load_checkpoint_state(
     args,
     checkpoint_path,
@@ -213,17 +248,37 @@ def load_checkpoint_state(
     """
     Load checkpoint state and restore the optimizer if resuming from a checkpoint.
 
+    Context extension is exempt from the optimizer restore: the checkpoint was saved by a stage
+    whose optimizer held the full (unfrozen) parameter set, while this stage's optimizer only
+    holds the frozen-down attention subset, so `load_state_dict` would raise.
+
+    Note that this exemption only kicks in when the saved state really is incompatible: a
+    re-queued job of the *same* extension stage restores its optimizer state as usual, since the
+    parameter set then matches.
+
     Returns a tuple of (resume_step, iter_count, epoch).
     """
     if args.resume_from_checkpoint:
         checkpoint = os.path.join(checkpoint_path, "checkpoint.pt")
         checkpoint = torch.load(checkpoint, map_location=torch.device(device), weights_only=False)
 
-        # The optimizer is updated in-place, so we don't need to return it.
-        optimizer.load_state_dict(checkpoint["optimizer"])
-        if master_process:
-            logger.info(f"Resumed optimizer from checkpoint: {checkpoint_path}")
-            file_logger.log_metadata(f"Resumed optimizer from checkpoint: {checkpoint_path}")
+        if is_context_extension(args) and not _optimizer_state_is_loadable(
+            optimizer, checkpoint["optimizer"]
+        ):
+            if master_process:
+                message = (
+                    f"Context extension detected: skipping the optimizer state restore from "
+                    f"{checkpoint_path} because the checkpoint was saved with a different "
+                    f"(non-frozen) parameter set. Continuing with a freshly initialized optimizer."
+                )
+                logger.info(message)
+                file_logger.log_metadata(message)
+        else:
+            # The optimizer is updated in-place, so we don't need to return it.
+            optimizer.load_state_dict(checkpoint["optimizer"])
+            if master_process:
+                logger.info(f"Resumed optimizer from checkpoint: {checkpoint_path}")
+                file_logger.log_metadata(f"Resumed optimizer from checkpoint: {checkpoint_path}")
 
         if not args.begin_new_stage:
             resume_step = int(checkpoint["resume_step"])
