@@ -31,6 +31,16 @@ from utils import checkpoint_already_validated
 # own row) carried into every subsequent training log entry that goes to W&B / trackio.
 _latest_validation_metrics = {}
 
+# Offset added to every step that is logged to W&B / trackio. It is 0 for a single-stage run
+# and is filled in by `utils.initialize_wandb()` for the later stages of a multistage run, so
+# that all stages of the run share one continuous x axis on the dashboard.
+_step_offset = 0
+
+
+def _tracker_step(completed_steps):
+    """The step number to report to W&B / trackio (local step + multistage offset)."""
+    return completed_steps + _step_offset
+
 
 def clip_grad_norm_mesh_aware(parameters, max_norm, norm_type=2.0):
     """
@@ -149,7 +159,7 @@ def _log_validation(
     _latest_validation_metrics = validation_metrics
 
     if wandb_enabled:
-        wandb.log(validation_metrics, step=completed_steps)
+        wandb.log(validation_metrics, step=_tracker_step(completed_steps))
 
 
 def _save_checkpoint(
@@ -285,7 +295,7 @@ def _log_training_step(
         # training step itself already logged.
         for key, value in _latest_validation_metrics.items():
             metrics.setdefault(key, value)
-        wandb.log(metrics, step=completed_steps)
+        wandb.log(metrics, step=_tracker_step(completed_steps))
 
 
 def _finalize_training(*, tracker, wandb_enabled):
