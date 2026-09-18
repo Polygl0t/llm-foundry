@@ -148,7 +148,20 @@ class TrainingArguments:
         metadata={
             "help": (
                 "A list of extra token IDs to mask (set to -100) in the labels during training. "
-                "Pad, EOS, and BOS tokens are always masked automatically when defined in the tokenizer."
+                "Pad, EOS, and BOS tokens are masked automatically when defined in the tokenizer, "
+                "unless `disable_token_masking` is set."
+            )
+        },
+    )
+    disable_token_masking: bool | None = field(
+        default=False,
+        metadata={
+            "help": (
+                "Whether to disable the automatic masking of the tokenizer's pad, EOS, and BOS tokens. "
+                "When True those IDs are kept as training targets instead of being set to -100, so the "
+                "model learns to emit them (e.g. `<|im_start|>`, `<|im_end|>`, `<|pad|>`). "
+                "`additional_mask_token_ids` is still applied, so set it to an empty list to disable "
+                "masking entirely."
             )
         },
     )

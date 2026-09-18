@@ -778,6 +778,36 @@ def test_prepare_dataloaders_sanity_without_tokenizer_uses_additional_mask_ids()
     assert torch.all(train_batch["labels"][masked_positions] == -100)
 
 
+def test_prepare_dataloaders_disable_token_masking():
+    """`disable_token_masking` keeps pad/EOS/BOS as targets; extra IDs are still masked."""
+    special = {
+        token_id
+        for token_id in (
+            _tokenizer.pad_token_id,
+            _tokenizer.eos_token_id,
+            _tokenizer.bos_token_id,
+        )
+        if token_id is not None
+    }
+
+    # Default: the tokenizer's special tokens are masked automatically.
+    bundle = prepare_dataloaders(_make_sanity_args(), _tokenizer, world_size=1, rank=0)
+    assert bundle.mask_token_ids == special
+
+    # Disabled: the special tokens are kept, but explicitly requested IDs still apply.
+    extra_id = 1234
+    args = _make_sanity_args(disable_token_masking=True, additional_mask_token_ids=[extra_id])
+    bundle = prepare_dataloaders(args, _tokenizer, world_size=1, rank=0)
+    assert bundle.mask_token_ids == {extra_id}
+
+    # Disabled with no extra IDs: nothing is masked at all.
+    args = _make_sanity_args(disable_token_masking=True)
+    bundle = prepare_dataloaders(args, _tokenizer, world_size=1, rank=0)
+    assert bundle.mask_token_ids == set()
+    batch = next(iter(bundle.train_dataloader))
+    assert torch.equal(batch["labels"], batch["input_ids"])
+
+
 def test_dataloader_custom_collate():
     """Custom collate function is respected when passed to prepare_dataloaders."""
     args = _make_sanity_args()
