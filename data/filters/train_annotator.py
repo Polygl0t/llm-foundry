@@ -5,8 +5,8 @@ Trains regression-based classifiers for scoring text quality, educational value,
 Designed for creating custom filters for dataset curation pipelines.
 
 Input data format:
-- Dataset with text_column and target_column (scores in range [1, 5])
-- Automatically converts scores to [0, 4] for training
+- Dataset with text_column and target_column (scores in range [1, num_classes]; default [1, 5])
+- Automatically converts scores to [0, num_classes - 1] for training
 - Supports JSONL, Parquet, or HuggingFace datasets
 
 Output:
@@ -46,11 +46,11 @@ text = "This is a test sentence."
 inputs = tokenizer(text, return_tensors="pt", padding="longest", truncation=True)
 outputs = model(**inputs)
 logits = outputs.logits.squeeze(-1).float().detach().numpy()
-score = logits.item() + 1 # scores are produced in the range [0, 4]. To convert to the range [1, 5], we add 1 to the score.
+score = logits.item() + 1 # scores are produced in the range [0, num_classes - 1]. To convert to the range [1, num_classes], we add 1 to the score.
 result = {
    "text": text,
    "score": score,
-   "edu_score": int(round(max(0, min(score, 4)))) + 1, # scores are produced in the range [0, 4]. To convert to the range [1, 5], we add 1 to the rounded score.
+   "edu_score": int(round(max(0, min(score, num_classes - 1)))) + 1, # scores are produced in the range [0, num_classes - 1]. To convert to the range [1, num_classes], we add 1 to the rounded score.
 }
 
 print(result)
@@ -80,41 +80,46 @@ from utils import DatasetLoader, get_logger
 logger = get_logger("AnnotatorTrainer")
 
 
-def compute_metrics(eval_pred):
-    """Compute metrics for the evaluation step"""
-
+def get_compute_metrics(num_classes):
     precision_metric = evaluate.load("precision")
     recall_metric = evaluate.load("recall")
     f1_metric = evaluate.load("f1")
     accuracy_metric = evaluate.load("accuracy")
 
-    logits, labels = eval_pred
-    preds = (
-        np.round(logits.squeeze()).clip(0, 4).astype(int)
-    )  # Clip the predictions to the range [0, 4]
-    labels = np.round(labels.squeeze()).astype(int)
+    def compute_metrics(eval_pred):
+        """Compute metrics for the evaluation step"""
 
-    precision = precision_metric.compute(predictions=preds, references=labels, average="macro")[
-        "precision"
-    ]
-    recall = recall_metric.compute(predictions=preds, references=labels, average="macro")["recall"]
-    f1 = f1_metric.compute(predictions=preds, references=labels, average="macro")["f1"]
-    accuracy = accuracy_metric.compute(predictions=preds, references=labels)["accuracy"]
+        logits, labels = eval_pred
+        preds = (
+            np.round(logits.squeeze()).clip(0, num_classes - 1).astype(int)
+        )  # Clip the predictions to the range [0, num_classes - 1]
+        labels = np.round(labels.squeeze()).astype(int)
 
-    # See https://scikit-learn.org/stable/modules/generated/sklearn.metrics.classification_report.html
-    report = classification_report(labels, preds)
-    # See https://scikit-learn.org/stable/modules/generated/sklearn.metrics.confusion_matrix.html
-    cm = confusion_matrix(labels, preds)
+        precision = precision_metric.compute(predictions=preds, references=labels, average="macro")[
+            "precision"
+        ]
+        recall = recall_metric.compute(predictions=preds, references=labels, average="macro")[
+            "recall"
+        ]
+        f1 = f1_metric.compute(predictions=preds, references=labels, average="macro")["f1"]
+        accuracy = accuracy_metric.compute(predictions=preds, references=labels)["accuracy"]
 
-    logger.info("Validation Report:\n%s", report)
-    logger.info("Confusion Matrix:\n%s", str(cm))
+        # See https://scikit-learn.org/stable/modules/generated/sklearn.metrics.classification_report.html
+        report = classification_report(labels, preds)
+        # See https://scikit-learn.org/stable/modules/generated/sklearn.metrics.confusion_matrix.html
+        cm = confusion_matrix(labels, preds)
 
-    return {
-        "precision": precision,
-        "recall": recall,
-        "f1_macro": f1,
-        "accuracy": accuracy,
-    }
+        logger.info("Validation Report:\n%s", report)
+        logger.info("Confusion Matrix:\n%s", str(cm))
+
+        return {
+            "precision": precision,
+            "recall": recall,
+            "f1_macro": f1,
+            "accuracy": accuracy,
+        }
+
+    return compute_metrics
 
 
 def main(args):
@@ -137,15 +142,17 @@ def main(args):
         num_proc=args.num_proc,
     ).load()
 
-    # Given that the scores we generated in `llm_filter.py` are in the range [1, 5],
-    # we need to convert them to the range [0, 4] for training.
+    num_classes = args.num_classes
+
+    # Given that the scores in the dataset are in the range [1, num_classes],
+    # we need to convert them to the range [0, num_classes - 1] for training.
     dataset = dataset.map(
-        lambda x: {args.target_column: np.clip(int(x[args.target_column]) - 1, 0, 4)},
+        lambda x: {args.target_column: np.clip(int(x[args.target_column]) - 1, 0, num_classes - 1)},
         num_proc=args.num_proc,
     )
     # Cast the target column to ClassLabel.
     dataset = dataset.cast_column(
-        args.target_column, datasets.ClassLabel(names=[str(i) for i in range(0, 5)])
+        args.target_column, datasets.ClassLabel(names=[str(i) for i in range(0, num_classes)])
     )
     # Split the dataset into train and test sets.
     dataset = dataset.train_test_split(
@@ -351,7 +358,7 @@ def main(args):
         args=training_args,
         train_dataset=dataset["train"],
         eval_dataset=dataset["test"],
-        compute_metrics=compute_metrics,
+        compute_metrics=get_compute_metrics(num_classes=num_classes),
     )
 
     # Make sure every process is synced before training
@@ -470,6 +477,8 @@ if __name__ == "__main__":
         action="store_true",
         help="Freeze the embeddings and decoder/encoder layers. Only the classifier head will be trained.",
     )
+    parser.add_argument("--num_classes", type=int, default=5)
+
     # Training and optimizer
     parser.add_argument("--eval_steps", type=int, default=1000)
     parser.add_argument("--save_steps", type=int, default=1000)

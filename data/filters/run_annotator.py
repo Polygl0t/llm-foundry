@@ -4,7 +4,7 @@ Inference Pipeline for Dataset Annotation
 Runs inference with HuggingFace sequence classification models to annotate datasets.
 
 Methodology:
-- Loads pre-trained classifier (trained with train_classifier.py)
+- Loads pre-trained classifier (trained with train_annotator.py) on specific number of classes (default 5)
 - Applies optional chat template formatting to text
 - Runs batched inference with configurable batch size
 - Outputs both float scores (raw logits + 1) and rounded integer scores (e.g., 1-5)
@@ -109,9 +109,11 @@ def main(args):
             model_output = model(**encoded_input)
             logits = model_output.logits.squeeze(-1).float().cpu().numpy()
 
-        # Convert logits to scores in range [1, 5]
+        # Convert logits to scores in range [1, num_classes]
         batch[args.float_score] = [x + 1 for x in logits.tolist()]
-        batch[args.int_score] = [int(round(max(0, min(score, 4)))) + 1 for score in logits]
+        batch[args.int_score] = [
+            int(round(max(0, min(score, args.num_classes - 1)))) + 1 for score in logits
+        ]
 
         return batch
 
@@ -178,6 +180,7 @@ if __name__ == "__main__":
         default=512,
         help="The maximum length of the text to be tokenized.",
     )
+    parser.add_argument("--num_classes", type=int, default=5)
     parser.add_argument(
         "--float_score",
         type=str,
