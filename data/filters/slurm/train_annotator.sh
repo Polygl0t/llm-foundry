@@ -45,7 +45,7 @@ source $workdir/.modules.sh > "$out" 2>&1
 source $workdir/.venv_distributed/bin/activate
 
 # ===== Installation =====
-# See distributed/slurm/create_venv_marvin.sh for the installation of the venv and packages.
+# See data/filters/slurm/create_venv_marvin.sh for the installation of the venv and packages.
 
 #############################################
 # Environment Setup
