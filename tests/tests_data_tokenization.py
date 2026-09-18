@@ -124,6 +124,29 @@ class FakeDatasetsModule(types.ModuleType):
         self.datasets_by_file = {}
         self.next_datasets = []
 
+    def disable_caching(self):
+        """No-op stand-in for datasets.disable_caching()."""
+
+    @staticmethod
+    def _read_written_file(path):
+        """Read back a file produced by TinyDataset.to_json/to_parquet.
+
+        make_validation_split.py rewrites the source files and writes one staging
+        file per contributing shard into a fresh temporary directory, so those
+        paths cannot be registered in `datasets_by_file` up front.
+        """
+        if not path or not os.path.isfile(path) or os.path.getsize(path) == 0:
+            return None
+        with open(path) as f:
+            text = f.read().strip()
+        if not text:
+            return None
+        if text.startswith("["):  # TinyDataset.to_parquet stores a JSON list
+            rows = json.loads(text)
+        else:  # TinyDataset.to_json stores one JSON object per line
+            rows = [json.loads(line) for line in text.splitlines() if line.strip()]
+        return TinyDataset(rows)
+
     def load_dataset(self, fmt, data_files=None, split="train", cache_dir=None, **kwargs):
         self.load_calls.append(
             {
@@ -145,6 +168,9 @@ class FakeDatasetsModule(types.ModuleType):
             return self.datasets_by_file[data_files]
         if self.next_datasets:
             return self.next_datasets.pop(0)
+        from_disk = self._read_written_file(data_files)
+        if from_disk is not None:
+            return from_disk
         return TinyDataset([])
 
     def concatenate_datasets(self, datasets_list):
