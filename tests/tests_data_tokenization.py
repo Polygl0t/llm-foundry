@@ -195,10 +195,10 @@ def _reset_fake_datasets():
 #######################################
 
 
-def test_01_read_metadata_returns_empty_dict_for_missing_file():
+def test_01_read_metadata_returns_none_for_missing_file():
     with tempfile.TemporaryDirectory() as tmpdir:
         result = make_validation_split.read_metadata(os.path.join(tmpdir, ".metadata"))
-        assert result == {}
+        assert result is None
 
 
 def test_02_read_metadata_parses_key_value_strings():
@@ -208,7 +208,7 @@ def test_02_read_metadata_parses_key_value_strings():
             f.write("Samples: 10\n")
             f.write("Tokens: 40\n")
             f.write("ignored line\n")
-        assert make_validation_split.read_metadata(meta_path) == {"Samples": "10", "Tokens": "40"}
+        assert make_validation_split.read_metadata(meta_path) == {"Samples": 10, "Tokens": 40}
 
 
 def test_03_get_files_from_dirs_returns_sorted_json_files():
@@ -276,11 +276,11 @@ def test_06_validation_split_main_writes_json_split_and_metadata():
             valid_rows = [json.loads(line) for line in f]
         assert [row["id"] for row in valid_rows] == ["a0", "a1", "b0", "b1"]
         assert make_validation_split.read_metadata(os.path.join(output_dir, ".metadata")) == {
-            "Samples": "4",
-            "Tokens": "16",
-            "Tokens per chunk": "16",
-            "Block size": "4",
-            "Chunks": "1",
+            "Samples": 4,
+            "Tokens": 16,
+            "Tokens per chunk": 16,
+            "Block size": 4,
+            "Chunks": 1,
             "Tokenizer": "toy-tokenizer",
         }
 
@@ -305,9 +305,9 @@ def test_07_validation_split_main_accumulates_existing_metadata():
         make_validation_split.main([input_dir], output_dir, "json", "valid", n_samples=1)
 
         meta = make_validation_split.read_metadata(os.path.join(output_dir, ".metadata"))
-        assert meta["Samples"] == "3"
-        assert meta["Tokens"] == "10"
-        assert meta["Chunks"] == "2"
+        assert meta["Samples"] == 3
+        assert meta["Tokens"] == 10
+        assert meta["Chunks"] == 2
 
 
 def test_08_validation_split_main_rejects_too_many_samples():
@@ -458,8 +458,8 @@ def test_16_pack_main_saves_packed_dataset_and_metadata():
         files = sorted(name for name in os.listdir(tmpdir) if name.endswith(".jsonl"))
         assert files == ["train-00000-of-00001.jsonl"]
         meta = make_validation_split.read_metadata(os.path.join(tmpdir, ".metadata"))
-        assert meta["samples"] == "2"
-        assert meta["tokens"] == "6"
+        assert meta["samples"] == 2
+        assert meta["tokens"] == 6
         assert meta["strategy"] == "concatenate"
         assert meta["packed_columns"] == "input_ids"
 
@@ -686,8 +686,8 @@ def test_23_tokenize_main_filters_truncates_saves_and_metadata():
             rows = [json.loads(line) for line in f]
         assert rows == [{"input_ids": [101, 47, 48, 102]}]
         meta = make_validation_split.read_metadata(os.path.join(tmpdir, ".metadata"))
-        assert meta["samples"] == "1"
-        assert meta["tokens"] == "4"
+        assert meta["samples"] == 1
+        assert meta["tokens"] == 4
         assert meta["tokenizer"] == "fake-tokenizer"
         assert meta["add_bos_token"] == "True"
 

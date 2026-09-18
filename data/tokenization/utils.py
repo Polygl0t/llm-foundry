@@ -16,6 +16,7 @@ from shared.dataset_loader import DatasetLoader as DatasetLoader  # noqa: E402
 from shared.files import infer_file_features as infer_file_features  # noqa: E402
 from shared.files import list_matching_files as list_matching_files  # noqa: E402
 from shared.logging import get_logger as get_logger  # noqa: E402
+from shared.metadata import read_metadata as read_metadata  # noqa: E402
 from shared.save_dataset import save_dataset as save_dataset  # noqa: E402
 
 
