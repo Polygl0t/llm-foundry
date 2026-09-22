@@ -6,7 +6,10 @@ Usage:
 
 Outputs (in output-dir):
     metadata.json     — structured metadata from the log's [metadata] sections,
-                        plus emissions info (null if no emissions file is provided).
+                        grouped per training stage, plus emissions info (null if no
+                        emissions file is provided). A stage is identified by its config
+                        block, or by the stage-start/resume/event notes when a run does
+                        not re-print its config for later stages.
     training.jsonl    — one JSON object per line for training stats.
     validation.jsonl  — one JSON object per line for validation stats (if any exist).
     ./plots/          — PNG plots of all numeric fields in training/validation stats (if --plot is used).
@@ -100,6 +103,10 @@ def parse_log_file(log_path):
     """
     Parse a training log file.
 
+    Stage attribution: a stage name is taken from a full config block when the log has
+    one, and otherwise from the notes of the section itself (see the section kinds in the
+    body) -- runs that only print their config once announce later stages by name.
+
     Returns:
         metadata  (dict)  — stage-organised metadata with resume counts.
                             Structure:
@@ -164,10 +171,13 @@ def parse_log_file(log_path):
     # Organise metadata sections by stage, processing in document order so
     # resume/event sections can be attributed to the most-recently-seen stage.
     #
-    # Three kinds of [metadata] sections:
+    # Four kinds of [metadata] sections:
     #   1. Full config  — has "run_info" (initial start or not: same structure)
-    #   2. Resume       — no "run_info", but contains "Resumed model from checkpoint"
-    #   3. Event        — no "run_info"; a lightweight annotation (e.g. LR stage change)
+    #   2. Stage start  — no "run_info"; announces "Starting new training stage | <stage>"
+    #                     (e.g. a context extension resumed from the previous stage)
+    #   3. Resume       — no "run_info", but contains "Resumed model from checkpoint"
+    #   4. Event        — no "run_info"; a lightweight annotation (e.g. LR stage change),
+    #                     which can name its own stage via the '<message> | <stage>.' suffix
     stages = {}
     current_stage_name = None
     total_resume_count = 0
@@ -175,9 +185,8 @@ def parse_log_file(log_path):
     for md in raw_metadata_sections:
         notes = md.get("initialization_notes", [])
         is_resume = any("Resumed model from checkpoint" in note for note in notes)
-        is_config = "run_info" in md
 
-        if is_config:
+        if "run_info" in md:
             stage_name = md["run_info"].get("Training stage", "unknown")
             current_stage_name = stage_name
 
@@ -193,24 +202,79 @@ def parse_log_file(log_path):
                 if key not in ("initialization_notes", "notes"):
                     stage[key] = value
 
+            continue
+
+        # A new stage can be announced without repeating the config block. The section
+        # then belongs to the stage it starts, not to the one it resumed from.
+        started_stage = _stage_from_start_note(notes)
+        if started_stage is not None:
+            current_stage_name = started_stage
+            stage = stages.setdefault(started_stage, _empty_stage())
+            stage["initialization_notes"].extend(notes)
+
         elif is_resume:
             # Resume of the current stage — no config block is repeated.
             target = current_stage_name or "_global"
-            stages.setdefault(target, _empty_stage())
-            stages[target]["resume_count"] += 1
-            stages[target]["initialization_notes"].extend(notes)
-            total_resume_count += 1
+            stage = stages.setdefault(target, _empty_stage())
+            stage["initialization_notes"].extend(notes)
 
         else:
-            # Lightweight event annotation (e.g. LR stage change).
+            # Lightweight event annotation (e.g. LR stage change), which may name the
+            # stage it belongs to.
+            event_stage = _stage_from_event_note(notes)
+            if event_stage is not None:
+                current_stage_name = event_stage
             target = current_stage_name or "_global"
-            stages.setdefault(target, _empty_stage())["events"].extend(notes)
+            stage = stages.setdefault(target, _empty_stage())
+            stage["events"].extend(notes)
+
+        if is_resume:
+            stage["resume_count"] += 1
+            total_resume_count += 1
 
     return {"resume_count": total_resume_count, "stages": stages}, stats_by_status
 
 
 def _empty_stage():
     return {"resume_count": 0, "initialization_notes": [], "events": []}
+
+
+# A new training stage is not always accompanied by a full config block: the stage name
+# then has to be read from the notes of the section that starts it.
+_STAGE_START_MARKER = "Starting new training stage"
+
+
+def _stage_from_start_note(notes):
+    """
+    Return the stage announced by a 'Starting new training stage | <stage>' note, else None.
+
+    Runs that print their config only once start later stages (e.g. a context extension)
+    by resuming from the previous checkpoint while naming the new stage here.
+    """
+    for note in notes:
+        if note.startswith(_STAGE_START_MARKER) and "|" in note:
+            stage = note.split("|", 1)[1].strip().rstrip(".")
+            if stage:
+                return stage
+    return None
+
+
+def _stage_from_event_note(notes):
+    """
+    Return the stage named by an event note's trailing '| <stage>.' marker, else None.
+
+    Events are written as '<message> | <stage>.', e.g.
+    'Learning rate stage changed to: cosine_decay at step 200 | Ext-4k-to-16k.'
+    A suffix containing ':' is not a stage name (e.g. the '| Frozen: 314,573,824.' of a
+    context-extension note) and is rejected.
+    """
+    for note in notes:
+        if "|" not in note:
+            continue
+        stage = note.rsplit("|", 1)[1].strip().rstrip(".")
+        if stage and ":" not in stage:
+            return stage
+    return None
 
 
 _SKIP_PLOT_FIELDS = {"status", "stage_name", "lr_stage"}
@@ -314,19 +378,54 @@ def compute_emissions(emissions_path, num_nodes):
     }
 
 
+def infer_num_nodes(metadata, emissions_path):
+    """
+    Infer the number of nodes from the log's world size and the CSV's gpu_count.
+
+    The emissions CSV holds a tracker that measured one machine (the `gpu_count` GPUs it
+    reports), while the log records the job's total GPU count ("World size (total GPUs)",
+    in the run_info of a stage). Their ratio is the node count:
+    128 GPUs / 4 GPUs per tracker = 32 nodes.
+
+    Returns None when either signal is missing, ambiguous, or does not divide evenly --
+    in which case the caller falls back to assuming a single node.
+    """
+    world_size = 0
+    for stage in metadata.get("stages", {}).values():
+        raw = (stage.get("run_info") or {}).get("World size (total GPUs)")
+        if not raw:
+            continue
+        try:
+            world_size = int(str(raw).replace(",", "").strip())
+        except ValueError:
+            continue
+        if world_size > 0:
+            break
+    if world_size <= 0:
+        return None
+
+    try:
+        import pandas as pd
+
+        gpu_counts = {
+            int(v) for v in pd.read_csv(emissions_path, usecols=["gpu_count"])["gpu_count"].dropna()
+        }
+    except (ImportError, KeyError, OSError, ValueError):
+        return None
+
+    gpu_counts = {count for count in gpu_counts if count > 0}
+    if len(gpu_counts) != 1:
+        return None
+
+    gpus_per_tracker = gpu_counts.pop()
+    if world_size < gpus_per_tracker or world_size % gpus_per_tracker:
+        return None
+    return world_size // gpus_per_tracker
+
+
 def main(args):
     if not args.log and not args.emissions:
         parser.error("At least one of --log or --emissions must be provided.")
-
-    if args.emissions and args.nodes is None:
-        print(
-            "Warning: --nodes not specified; assuming 1 node for emissions calculation. "
-            "Pass --nodes N for multi-node training.",
-            file=sys.stderr,
-        )
-        num_nodes = 1
-    else:
-        num_nodes = args.nodes if args.nodes is not None else 1
 
     os.makedirs(args.output_dir, exist_ok=True)
 
@@ -336,8 +435,26 @@ def main(args):
     if args.log:
         metadata, stats_by_status = parse_log_file(args.log)
 
-    # Parse emissions
-    emissions_info = compute_emissions(args.emissions, num_nodes) if args.emissions else None
+    # Parse emissions. An explicit --nodes always wins; otherwise infer it, because
+    # silently assuming 1 node on a multi-node run understates the result by that factor.
+    num_nodes = args.nodes
+    emissions_info = None
+    if args.emissions:
+        if num_nodes is None:
+            num_nodes = infer_num_nodes(metadata, args.emissions)
+            if num_nodes is None:
+                print(
+                    "Warning: --nodes not specified and it could not be inferred from the "
+                    "log/CSV; assuming 1 node for emissions calculation. "
+                    "Pass --nodes N for multi-node training.",
+                    file=sys.stderr,
+                )
+                num_nodes = 1
+            else:
+                print(
+                    f"--nodes not specified; inferred {num_nodes} node(s) for the emissions calculation."
+                )
+        emissions_info = compute_emissions(args.emissions, num_nodes)
 
     metadata["emissions"] = emissions_info
 
@@ -405,8 +522,9 @@ if __name__ == "__main__":
         default=None,
         metavar="N",
         help=(
-            "Number of nodes used in multi-node training. "
-            "Required for correct emissions scaling when --emissions is provided."
+            "Number of nodes used in multi-node training; the energy/emissions of the "
+            "emissions CSV are scaled by it. If omitted, it is inferred from the log's "
+            "world size and the CSV's gpu_count (an explicit value always wins)."
         ),
     )
     parser.add_argument(
