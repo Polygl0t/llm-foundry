@@ -87,7 +87,7 @@ echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --ve
 
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 
-export LAUNCHER="accelerate launch --config_file $workdir/llm-foundry/data/filters/configs/.ddp_config.yaml/"
+export LAUNCHER="accelerate launch --config_file $workdir/llm-foundry/data/filters/configs/.ddp_config.yaml"
 
 export PYTHON_FILE="$workdir/llm-foundry/data/filters/train_annotator.py"
 
@@ -117,6 +117,7 @@ export ARGS="--train_dataset_dir ./data \
 --bf16 \
 --tf32 \
 --id_label INS-Score \
+--num_classes 5
 "
 
 # This step is necessary because accelerate launch does not handle multiline arguments properly
