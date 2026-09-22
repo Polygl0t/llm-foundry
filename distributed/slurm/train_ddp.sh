@@ -69,6 +69,7 @@ export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE"
 export WANDB_DIR="$HF_DATASETS_CACHE/wandb"
 export TRACKIO_STORAGE_MODE=sqlite
 export TRITON_CACHE_DIR="$HF_DATASETS_CACHE/triton_cache/$SLURM_JOB_ID"
+export TORCHINDUCTOR_CACHE_DIR="$HF_DATASETS_CACHE/inductor_cache/$SLURM_JOB_ID"
 export NCCL_TIMEOUT=300
 export TORCH_FR_BUFFER_SIZE=1000
 export CUDA_LAUNCH_BLOCKING=0
@@ -87,7 +88,9 @@ if ! getent hosts "$MASTER_ADDR" >/dev/null 2>&1 && [[ "$MASTER_ADDR" != *.* ]];
     MASTER_ADDR="${MASTER_ADDR}.$(hostname -d)"
 fi
 export MASTER_ADDR
-export MASTER_PORT=12340                                                      # <-- Ensure this port is open in your SLURM cluster
+# Derive MASTER_PORT from SLURM_JOB_ID so concurrent jobs don't collide on the same port.
+# Kept within the dynamic/private port range (49152-65535).
+export MASTER_PORT=$(( 49152 + (SLURM_JOB_ID % 16384) ))                                                     # <-- Ensure this port is open in your SLURM cluster
 
 echo "# [${SLURM_JOB_ID}] Job started at: $(date)" >> "$out"
 echo "# [${SLURM_JOB_ID}] Using $SLURM_NNODES node(s)" >> "$out"
