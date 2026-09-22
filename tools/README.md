@@ -22,6 +22,7 @@ This folder contains miscellaneous tools, scripts, and helpers for working with 
 - [`pdf2markdown.sh`](./slurm/pdf2markdown.sh) — Example SLURM batch job for converting PDFs to Markdown using Marker.
 - [`reset_weights.py`](./reset_weights.py) — Reset selected model weights while optionally preserving or saving the modified model.
 - [`resize_embedding_layer.py`](./resize_embedding_layer.py) — Validate and resize a model embedding layer to match tokenizer vocabulary size.
+- [`subset_packed_tokens.py`](./subset_packed_tokens.py) — Carve a token-budgeted subset out of a packed (parquet) dataset folder by linking a selection of its shards into a new sibling folder.
 - [`upload_ckpts_to_hf.py`](./upload_ckpts_to_hf.py) — Upload checkpoint directories to the Hugging Face Hub, one branch per training step.
 - [`upload_quick.py`](./upload_quick.py) — Quickly upload files or folders to a Hugging Face repo with minimal arguments.
 - [`upload.py`](./upload.py) — Upload a local directory to the Hugging Face Hub with optional repo creation.
@@ -323,6 +324,33 @@ Main parameters:
 - `--pad-to-multiple-of`: pad vocabulary size to a hardware-friendly multiple.
 - `--save-missing`: save mismatched token/embedding info.
 - `--dtype`: data type used when loading the model.
+
+### `subset_packed_tokens.py`
+Carve a token-budgeted subset out of one or more packed (parquet) dataset folders, by linking (or copying) a selection of shards into a new folder. Runs as a dry run (report only) unless `--apply` is passed.
+
+Example:
+```bash
+# report only (safe)
+python tools/subset_packed_tokens.py \
+  --source data/portuguese/packed_4096/gigaverbo_v2_3 --tokens 12.8b
+
+# create the subset folder(s)
+python tools/subset_packed_tokens.py --apply \
+  --source data/portuguese/packed_4096/gigaverbo_v2_3 \
+           data/portuguese/packed_4096/fineweb_edu \
+  --tokens 12.8b 5.9b \
+  --output-dir data/portuguese/packed_4096/_mix
+```
+
+Main parameters:
+- `--source`: one or more source packed dataset folders (containing `*.parquet` + `.metadata`).
+- `--tokens`: target token count(s), e.g. `12.8b`; broadcast to every source, or one per source.
+- `--output-dir`: where to put the subset(s) (default: beside the source folder).
+- `--name`: output folder name(s) (default: `<source>_<tokens>b`).
+- `--selection`: how to choose shards — `spread`, `first`, or `shuffle` (default: `spread`).
+- `--mode`: how to reference shards — `symlink`, `hardlink`, or `copy` (default: `symlink`).
+- `--apply`: write the subset(s); without it, the script only reports what it would do.
+- `--overwrite`: replace an existing subset folder.
 
 ### `upload_ckpts_to_hf.py`
 Upload checkpoint step folders to a Hugging Face repo.
