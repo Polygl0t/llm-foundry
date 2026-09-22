@@ -10,7 +10,14 @@ from decimal import Decimal, InvalidOperation
 
 import langdetect
 
-import utils
+try:
+    # Part of the `gym` package: the alignment directory is first on sys.path when
+    # `grpo_trainer.py` is the entry point, so a bare `import utils` would silently
+    # resolve to `alignment/utils.py` instead of this sibling module.
+    from . import utils
+except ImportError:
+    # Imported as a top-level module (a script run from inside gym/).
+    import utils
 
 logger = logging.getLogger(__name__)
 
