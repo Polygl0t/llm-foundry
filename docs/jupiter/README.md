@@ -1,13 +1,15 @@
 # JSC Jupiter Support
 
-This folder contains module and installation scripts for the JSC Jupiter booster environment,
-plus a quick reference on how to run jobs on JUPITER.
+This folder contains module and installation scripts for the JSC Jupiter booster environment, plus a quick reference on how to run jobs on JUPITER.
 
 ## What is included
 
 - [`download.sh`](download.sh) — Simple download script for HuggingFace repos on the JSC JUPITER login node.
 - [`jupiter_modules_2026.sh`](jupiter_modules_2026.sh) — a module setup script for the JSC Stages/2026 software stack. This is equivalent to the [`.modules.sh`](../../.modules.sh) script that we use for the other clusters, but it is tailored to the JSC environment.
 - [`jupiter_installation_2026.sh`](jupiter_installation_2026.sh) — an installation script that creates a Python virtual environment, installs the project dependencies, and builds or installs CUDA-aware PyTorch and attention extensions for the 2026 stack.
+- [`jupiter_installation_trl_2026.sh`](jupiter_installation_trl_2026.sh) — builds an environment for the post-training pipeline (`alignment/sft_trainer.py`, `dpo_trainer.py`, `reward_trainer.py`, `grpo_trainer.py`).
+- [`jupiter_installation_eval_harness_2026.sh`](jupiter_installation_eval_harness_2026.sh) — installs the dependencies needed for `lm-evaluation-harness` and pre-caches task datasets/NLTK data/RULER haystack.
+- [`ruler_patch.sh`](ruler_patch.sh) — helper sourced by the eval-harness installer to download the RULER haystack file into the shared cache so the `ruler_pt` task can run offline.
 
 > - **Note:** On Jupiter/JSC, we do not have internet access from the compute nodes, so the installation script must be run on a login node.
 
