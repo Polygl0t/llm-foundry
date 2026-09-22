@@ -961,8 +961,8 @@ def test_34_pack_main_applies_guardrail_and_records_it_in_metadata():
             pack.main(args)
 
         meta = make_validation_split.read_metadata(os.path.join(tmpdir, ".metadata"))
-        assert meta["samples"] == "2"
-        assert meta["tokens"] == "8"
+        assert meta["samples"] == 2
+        assert meta["tokens"] == 8
         assert meta["filler_guardrail"] == "on"
-        assert meta["filler_token_ids"] == "3"
-        assert meta["max_filler_fraction"] == "1.0"
+        assert meta["filler_token_ids"] == 3
+        assert meta["max_filler_fraction"] == 1.0

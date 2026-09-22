@@ -198,7 +198,7 @@ def main(
 
     # Read existing metadata from output dir if it exists
     output_metadata_path = os.path.join(output_dir, ".metadata")
-    existing_metadata = read_metadata(output_metadata_path)
+    existing_metadata = read_metadata(output_metadata_path) or {}
 
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
