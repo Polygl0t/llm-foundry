@@ -43,6 +43,11 @@ modules_file="$workdir/.modules.sh"
 #   8.6 = NVIDIA A40  (Ampere)
 flash_attn_cuda_archs="8.0;8.6"
 
+# Post-training stack (installed further down):
+#   torch 2.6.0+cu124 (fixed by this cluster's CUDA 12.4)  transformers 5.14.0
+#   trl 1.13.0   NO vLLM (see the TRL install step: vLLM >=0.19.1 requires torch >=2.11,
+#   while CUDA 12.4 caps torch at 2.6.0)
+
 # Stack override (remove or change if needed).
 export LLM_FOUNDRY_STACK=intel
 
@@ -142,12 +147,37 @@ uv pip install wandb trackio codecarbon --no-cache \
 
 echo "===== Installing Liger-Kernel ====="
 # Fused kernels for faster, memory-efficient training.
-uv pip install liger-kernel==0.8.0 --no-cache \
+# trl 1.13.0 requires liger-kernel>=0.8.2 for `use_liger_kernel`.
+uv pip install liger-kernel==0.8.3 --no-cache \
     -c "$torch_constraints"
 
-echo "===== Installing TRL ====="
-# Install TRL after the torch + attention stack has resolved.
-uv pip install --no-cache -c "$torch_constraints" "trl==1.10.0"
+echo "===== Installing TRL (newest that runs on torch 2.6.0) ====="
+# vLLM is NOT INSTALLABLE on this stack:
+#   * trl's `[vllm]` extra requires vllm>=0.19.1
+#   * every vllm>=0.19.1 pins torch>=2.11 (0.19.1 -> 2.11.0, 0.20-0.26 -> 2.11.0,
+#     0.27-0.30 -> 2.13.0)
+#   * CUDA 12.4 caps torch at 2.6.0, whose newest vllm is 0.8.5 -- below trl's floor
+# Only `grpo_trainer.py --use_vllm` needs vLLM; SFT/DPO/reward run without it.
+uv pip install --no-cache -c "$torch_constraints" \
+    "trl==1.13.0" \
+    "transformers==5.14.0" \
+    "datasets==5.0.1" \
+    "accelerate==1.13.0"
+
+echo "===== Installing alignment/gym dependencies ====="
+uv pip install --no-cache -c "$torch_constraints" \
+    nltk==3.10.3 \
+    langdetect==1.0.9 \
+    immutabledict==4.3.1
+
+echo "===== Downloading the NLTK data the gym verifiers need ====="
+export NLTK_DATA="${NLTK_DATA:-$HOME/nltk_data}"
+mkdir -p "$NLTK_DATA"
+python3 - <<'PY'
+import nltk
+
+print("  nltk.download('punkt_tab') ->", nltk.download("punkt_tab"))
+PY
 
 rm -f "$torch_constraints"
 
@@ -164,6 +194,8 @@ packages = [
     "torch", "trl", "transformers", "datasets", "accelerate",
     "peft", "sentencepiece", "wandb", "pyyaml", "liger-kernel",
     "flash-attn", "codecarbon", "trackio",
+    # alignment/gym dependencies
+    "nltk", "langdetect", "immutabledict",
 ]
 for pkg in packages:
     try:
@@ -179,6 +211,16 @@ python3 -c "import trl; print(f'  trl {trl.__version__} OK')"
 
 echo "===== Verifying flash-attn import ====="
 python3 -c "from flash_attn import flash_attn_func; print('  flash_attn OK')"
+
+echo "===== Verifying the alignment gym stack (GRPO reward functions) ====="
+(cd "$workdir/llm-foundry/alignment" && python3 -c "
+import nltk.data
+nltk.data.find('tokenizers/punkt_tab')
+import gym.verifier
+from gym import utils
+assert utils.count_sentences('Uma frase. E outra!') == 2
+print('  gym.verifier OK, and the Portuguese punkt_tab data resolves offline')
+")
 
 echo "===== Verifying GPU ====="
 python3 -c "import torch; print(f'  CUDA available: {torch.cuda.is_available()}'); print(f'  GPU: {torch.cuda.get_device_name(0)}')"

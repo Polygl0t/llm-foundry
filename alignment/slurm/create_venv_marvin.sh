@@ -129,16 +129,31 @@ uv pip install wandb trackio codecarbon --no-cache \
     -c "$torch_constraints"
 
 echo "===== Installing Liger-Kernel ====="
-# Fused kernels for faster, memory-efficient training.
-uv pip install liger-kernel==0.8.0 --no-cache \
+uv pip install liger-kernel==0.8.3 --no-cache \
     -c "$torch_constraints"
 
-echo "===== Installing TRL + vLLM ====="
-# Install TRL and vLLM after the torch + attention stack has resolved, keeping
-# the pinned torch via the constraints file. Note: vLLM wheels are compiled for
-# a specific torch/CUDA build — make sure the vLLM wheel you get is compatible
-# with torch 2.13.0+cu126, otherwise pin an appropriate vLLM version here.
-uv pip install --no-cache -c "$torch_constraints" "trl[vllm]==1.10.0"
+echo "===== Installing TRL + vLLM (newest supported by TRL) ====="
+uv pip install --no-cache -c "$torch_constraints" \
+    "trl[vllm]==1.13.0" \
+    "vllm==0.28.0" \
+    "transformers==5.14.0" \
+    "datasets==5.0.1" \
+    "accelerate==1.13.0"
+
+echo "===== Installing alignment/gym dependencies ====="
+uv pip install --no-cache -c "$torch_constraints" \
+    nltk==3.10.3 \
+    langdetect==1.0.9 \
+    immutabledict==4.3.1
+
+echo "===== Downloading the NLTK data the gym verifiers need ====="
+export NLTK_DATA="${NLTK_DATA:-$HOME/nltk_data}"
+mkdir -p "$NLTK_DATA"
+python3 - <<'PY'
+import nltk
+
+print("  nltk.download('punkt_tab') ->", nltk.download("punkt_tab"))
+PY
 
 rm -f "$torch_constraints"
 
@@ -156,6 +171,8 @@ packages = [
     "peft", "sentencepiece", "wandb", "pyyaml", "liger-kernel",
     "flash-attn", "causal-conv1d", "flash-linear-attention",
     "codecarbon", "trackio",
+    # alignment/gym dependencies
+    "nltk", "langdetect", "immutabledict",
 ]
 for pkg in packages:
     try:
@@ -171,6 +188,16 @@ python3 -c "import trl, vllm; print(f'  trl {trl.__version__} OK'); print(f'  vl
 
 echo "===== Verifying flash-attn import ====="
 python3 -c "from flash_attn import flash_attn_func; print('  flash_attn OK')"
+
+echo "===== Verifying the alignment gym stack (GRPO reward functions) ====="
+(cd "$workdir/llm-foundry/alignment" && python3 -c "
+import nltk.data
+nltk.data.find('tokenizers/punkt_tab')
+import gym.verifier
+from gym import utils
+assert utils.count_sentences('Uma frase. E outra!') == 2
+print('  gym.verifier OK, and the Portuguese punkt_tab data resolves offline')
+")
 
 echo "===== Verifying GPU ====="
 python3 -c "import torch; print(f'  CUDA available: {torch.cuda.is_available()}'); print(f'  GPU: {torch.cuda.get_device_name(0)}')"
