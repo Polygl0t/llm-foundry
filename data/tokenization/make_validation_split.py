@@ -43,21 +43,9 @@ from concurrent.futures import ProcessPoolExecutor
 
 import datasets
 import pyarrow.parquet as pq
-from utils import get_logger, list_matching_files
+from utils import get_logger, list_matching_files, read_metadata
 
 logger = get_logger("MakeValidationSplit")
-
-
-def read_metadata(metadata_path):
-    """Read metadata file and return a dictionary of key-value pairs."""
-    metadata = {}
-    if os.path.exists(metadata_path):
-        with open(metadata_path) as f:
-            for line in f:
-                if ":" in line:
-                    key, value = line.split(":", 1)
-                    metadata[key.strip()] = value.strip()
-    return metadata
 
 
 def get_files_from_dirs(input_dirs, input_type, n_files=None):
@@ -205,7 +193,7 @@ def main(
 
     # Read tokenizer name from the first source folder metadata
     source_metadata_path = os.path.join(input_dirs[0], ".metadata")
-    source_metadata = read_metadata(source_metadata_path)
+    source_metadata = read_metadata(source_metadata_path) or {}
     tokenizer_name = source_metadata.get("Tokenizer", "")
 
     # Read existing metadata from output dir if it exists
