@@ -93,6 +93,9 @@ Main parameters:
 - `--max_tokens` — Truncate output to at most this many tokens.
 - `--output_type` — Output format: `parquet` or `jsonl`.
 - `--num_proc` — Number of parallel workers.
+- `--filter_filler` / `--no-filter_filler` — enable/disable the guardrail (default: enabled).
+- `--filler_token_ids` — token ids with no learning signal (default: `3`, the NUL byte).
+- `--max_filler_fraction` — fraction of filler tokens at or above which a *source* sequence is dropped (default: `1.0`, i.e. only sequences made entirely of filler tokens).
 
 ### `run_tokenization.py`
 

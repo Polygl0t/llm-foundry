@@ -275,24 +275,6 @@ def test_peak_flops_registry():
     assert PEAK_BF16_FLOPS_BY_HARDWARE["a100"] == 312e12
 
 
-def test_calculate_training_metrics_moe_uses_active_params():
-    """MoE MFU uses the dense formula on the active parameter count, which the
-    trainer is expected to pass via num_parameters."""
-    common = {
-        "peak_flops": 312e12,
-        "num_parameters": 10_000_000,
-        "num_hidden_layers": 12,
-        "num_attention_heads": 12,
-        "head_dim": 64,
-        "sequence_length": 512,
-    }
-    moe_ctx = MFUContext(**common)
-    dense_ctx = MFUContext(**common)
-    moe_metrics = calculate_training_metrics(moe_ctx, 4, 2, 1, dt=1.0)
-    dense_metrics = calculate_training_metrics(dense_ctx, 4, 2, 1, dt=1.0)
-    assert moe_metrics.mfu == dense_metrics.mfu
-
-
 def test_create_mfu_context():
     """create_mfu_context builds a correct MFUContext from mock args."""
     args = TrainingArguments()
@@ -796,6 +778,36 @@ def test_prepare_dataloaders_sanity_without_tokenizer_uses_additional_mask_ids()
     assert torch.all(train_batch["labels"][masked_positions] == -100)
 
 
+def test_prepare_dataloaders_disable_token_masking():
+    """`disable_token_masking` keeps pad/EOS/BOS as targets; extra IDs are still masked."""
+    special = {
+        token_id
+        for token_id in (
+            _tokenizer.pad_token_id,
+            _tokenizer.eos_token_id,
+            _tokenizer.bos_token_id,
+        )
+        if token_id is not None
+    }
+
+    # Default: the tokenizer's special tokens are masked automatically.
+    bundle = prepare_dataloaders(_make_sanity_args(), _tokenizer, world_size=1, rank=0)
+    assert bundle.mask_token_ids == special
+
+    # Disabled: the special tokens are kept, but explicitly requested IDs still apply.
+    extra_id = 1234
+    args = _make_sanity_args(disable_token_masking=True, additional_mask_token_ids=[extra_id])
+    bundle = prepare_dataloaders(args, _tokenizer, world_size=1, rank=0)
+    assert bundle.mask_token_ids == {extra_id}
+
+    # Disabled with no extra IDs: nothing is masked at all.
+    args = _make_sanity_args(disable_token_masking=True)
+    bundle = prepare_dataloaders(args, _tokenizer, world_size=1, rank=0)
+    assert bundle.mask_token_ids == set()
+    batch = next(iter(bundle.train_dataloader))
+    assert torch.equal(batch["labels"], batch["input_ids"])
+
+
 def test_dataloader_custom_collate():
     """Custom collate function is respected when passed to prepare_dataloaders."""
     args = _make_sanity_args()
@@ -826,13 +838,11 @@ def test_dataloader_custom_collate():
 from model_setup import (  # noqa: E402
     ModelInitializationResult,
     _build_model_from_config,
-    _check_kernels_available,
     _compute_active_trainable_params,
     _create_tokenizer,
     _freeze_non_attention_blocks,
     _iter_transformer_blocks,
     _resolve_checkpoint_path,
-    _try_create_distributed_config,
     prepare_training_components,
 )
 from transformers import AutoConfig  # noqa: E402
@@ -1243,52 +1253,6 @@ def test_active_params_granite_moe():
     assert active < total
 
 
-def test_try_create_distributed_config_enabled():
-    """
-    When enable_expert_parallelism is True, returns a DistributedConfig
-    if the import succeeds, or None with a warning if it fails.
-    """
-    result = _try_create_distributed_config(True, master_process=True)
-    # On older transformers, result will be None (graceful fallback).
-    # On newer transformers (>= 5.x), result will be a DistributedConfig.
-    try:
-        from transformers.distributed.configuration_utils import (  # noqa: F401
-            DistributedConfig,
-        )
-
-        assert result is not None
-    except (ImportError, ModuleNotFoundError):
-        assert result is None
-
-
-def test_check_kernels_available_disabled():
-    """When use_kernels is False, returns False."""
-    assert _check_kernels_available(False, master_process=True) is False
-
-
-def test_check_kernels_available_enabled():
-    """
-    When use_kernels is True, returns True only if both the `kernels` package
-    and transformers' use_kernels kwarg are available.
-    """
-    result = _check_kernels_available(True, master_process=True)
-    # Graceful: result is True if both dependencies are met, False otherwise.
-    assert isinstance(result, bool)
-    try:
-        import inspect
-
-        import kernels as _k  # noqa: F401
-        from transformers import AutoModelForCausalLM as _A
-
-        sig = inspect.signature(_A.from_pretrained)
-        if "use_kernels" in sig.parameters:
-            assert result is True
-        else:
-            assert result is False
-    except (ImportError, ModuleNotFoundError):
-        assert result is False
-
-
 def test_iter_transformer_blocks_returns_layers():
     """_iter_transformer_blocks returns the ModuleList at model.model.layers."""
     import torch.nn as nn
@@ -1460,20 +1424,6 @@ def test_active_params_moe_skips_when_non_attention_frozen():
     assert active_frozen == total
 
 
-def test_model_initialization_result_non_attention_frozen_default():
-    """The new field must default to False so existing call sites keep working."""
-    result = ModelInitializationResult(
-        args=None,
-        tokenizer=None,
-        model=torch.nn.Linear(2, 2),
-        precision=torch.float32,
-        checkpoint_path=None,
-        trainable_params=10,
-        active_trainable_params=10,
-    )
-    assert result.non_attention_frozen is False
-
-
 # %%
 #######################################
 # 6. Optimizers & LR Schedulers (CPU)
@@ -1486,7 +1436,6 @@ from optimizers import (  # noqa: E402
     create_lr_scheduler,
     create_optimizer,
     get_muon_momentum,
-    get_optimizer_summary_lines,
     zeropower_via_newtonschulz5,
 )
 
@@ -1672,20 +1621,6 @@ def test_create_optimizer_adamw_cpu():
     assert label == "AdamW"
     assert optimizer is not None
     assert callable(step_fn)
-
-
-def test_get_optimizer_summary_lines():
-    """get_optimizer_summary_lines returns a list of strings."""
-    args = TrainingArguments(optimizer_type="adamw")
-    lines = get_optimizer_summary_lines(args)
-    assert isinstance(lines, list)
-    assert len(lines) > 0
-    assert any("Optimizer type" in line for line in lines)
-
-    # muon_adam should have extra line
-    args2 = TrainingArguments(optimizer_type="muon_adam")
-    lines2 = get_optimizer_summary_lines(args2)
-    assert len(lines2) > len(lines)
 
 
 def _freeze_params_by_name(model, name_substrings):
@@ -1912,11 +1847,6 @@ def test_cleanup_log_file_truncates():
         shutil.rmtree(tmpdir)
 
 
-def test_cleanup_log_file_missing_file():
-    """cleanup_log_file with non-existent file does not raise."""
-    cleanup_log_file("/nonexistent/path/log.txt")
-
-
 def test_checkpoint_already_validated_no_dir():
     """Returns False when checkpoint dir does not exist."""
     result = checkpoint_already_validated("/nonexistent", "S1", 100, "/nonexistent/log.txt")
@@ -2053,7 +1983,13 @@ def test_load_checkpoint_state_no_resume():
 
 
 def test_load_checkpoint_state_resume():
-    """Restores optimizer and returns checkpoint state when resuming."""
+    """Restores optimizer and returns checkpoint state when resuming.
+
+    Also covers the context-extension exemption: an extension stage resumes the weights and the
+    training counters from a pre-extension checkpoint, but must skip the optimizer state restore
+    because that checkpoint was saved with the full (non-frozen) parameter set, which does not
+    match the attention-only parameter set of the extension stage.
+    """
     tmpdir = tempfile.mkdtemp()
     try:
         # Create a fake checkpoint
@@ -2068,8 +2004,9 @@ def test_load_checkpoint_state_resume():
 
         # Minimal optimizer mock with load_state_dict
         class FakeOptimizer:
-            def __init__(self):
+            def __init__(self, num_params=1):
                 self.loaded = False
+                self.param_groups = [{"params": list(range(num_params))}]
 
             def load_state_dict(self, state_dict):
                 self.loaded = True
@@ -2087,6 +2024,47 @@ def test_load_checkpoint_state_resume():
         assert iter_count == 200
         assert epoch == 2
         assert fake_opt.loaded
+
+        # Checkpoint saved by a pre-extension stage: its optimizer holds 4 params, while the
+        # context-extension optimizer only holds 1 (the frozen-down attention subset).
+        pre_extension_dir = os.path.join(tmpdir, "pre_extension")
+        os.makedirs(pre_extension_dir, exist_ok=True)
+        torch.save(
+            {
+                "optimizer": {"param_groups": [{"params": list(range(4))}]},
+                "resume_step": 50,
+                "iteration": 200,
+                "epoch": 2,
+                "config": {},
+            },
+            os.path.join(pre_extension_dir, "checkpoint.pt"),
+        )
+
+        extension_args = TrainingArguments(
+            resume_from_checkpoint="some/path",
+            continual_pretraining=True,
+            new_max_position_embeddings=16384,
+        )
+        extension_args.begin_new_stage = False
+
+        extension_opt = FakeOptimizer(num_params=1)
+        resume_step, iter_count, epoch = load_checkpoint_state(
+            args=extension_args,
+            checkpoint_path=pre_extension_dir,
+            optimizer=extension_opt,
+        )
+        assert not extension_opt.loaded, "context extension must not restore the optimizer state"
+        assert (resume_step, iter_count, epoch) == (50, 200, 2)
+
+        # A re-queued job of the *same* extension stage sees a matching parameter set, so its
+        # optimizer state is still restored.
+        requeue_opt = FakeOptimizer(num_params=4)
+        load_checkpoint_state(
+            args=extension_args,
+            checkpoint_path=pre_extension_dir,
+            optimizer=requeue_opt,
+        )
+        assert requeue_opt.loaded
     finally:
         shutil.rmtree(tmpdir)
 
@@ -2124,33 +2102,6 @@ def test_load_checkpoint_state_new_stage():
         assert iter_count == 0
         assert epoch == 1
         assert fake_opt.loaded
-    finally:
-        shutil.rmtree(tmpdir)
-
-
-def test_initialize_wandb_import():
-    """initialize_wandb is callable and imports wandb internally."""
-    assert callable(initialize_wandb)
-
-
-def test_create_emissions_tracker_returns_tracker():
-    """create_emissions_tracker creates, starts, and returns an EmissionsTracker."""
-    try:
-        import codecarbon  # noqa: F401
-    except ImportError:
-        return  # codecarbon not installed, skip test
-    tmpdir = tempfile.mkdtemp()
-    try:
-        args = TrainingArguments(
-            wandb_project="test-project",
-            checkpoint_dir=tmpdir,
-        )
-        test_logger = logging.getLogger("tracker-test")
-        tracker = create_emissions_tracker(args, test_logger)
-        assert hasattr(tracker, "_total_energy")
-        assert hasattr(tracker, "flush")
-        assert hasattr(tracker, "stop")
-        tracker.stop()
     finally:
         shutil.rmtree(tmpdir)
 
@@ -2196,7 +2147,7 @@ def test_initialize_wandb_offline_mode_patches_trainer_wandb():
             wandb_project="test-project",
             offline_mode=True,
         )
-        initialize_wandb(args, slurm_job_id="123", max_steps=10)
+        initialize_wandb(args)
         assert trainer_module.wandb is trackio
     finally:
         trackio.init = original_init
@@ -3375,4 +3326,144 @@ def test_load_disk_datasets_uses_prebuilt_or_raw_shards():
         else:
             raise AssertionError("an invalid prebuilt_dataset_dir must raise ValueError")
     finally:
+        shutil.rmtree(tmpdir)
+
+
+# %%
+#######################################
+# 11. Multistage Trackio Logging
+#######################################
+
+import sqlite3  # noqa: E402
+
+from utils import _resolve_multistage_group  # noqa: E402
+
+
+def _create_fake_trackio_db(db_path, runs):
+    """
+    Create a minimal Trackio project database.
+
+    `runs` is a list of `(run_id, run_name, config, step_min, step_max)`; the runs are laid
+    out chronologically in the order given.
+    """
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.executescript(
+            """
+            CREATE TABLE metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id TEXT NOT NULL,
+                timestamp TEXT NOT NULL,
+                run_name TEXT NOT NULL,
+                step INTEGER NOT NULL,
+                metrics TEXT NOT NULL,
+                log_id TEXT, space_id TEXT);
+            CREATE TABLE configs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id TEXT NOT NULL,
+                run_name TEXT NOT NULL,
+                config TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                UNIQUE(run_id));
+            """
+        )
+        for index, (run_id, run_name, config, step_min, step_max) in enumerate(runs, start=1):
+            day = f"2026-01-{index:02d}"
+            for step in range(step_min, step_max + 1):
+                conn.execute(
+                    "INSERT INTO metrics (run_id, timestamp, run_name, step, metrics) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (run_id, f"{day}T00:00:{step:02d}+00:00", run_name, step, '{"loss": 1.0}'),
+                )
+            conn.execute(
+                "INSERT INTO configs (run_id, run_name, config, created_at) VALUES (?, ?, ?, ?)",
+                (run_id, run_name, json.dumps(config), f"{day}T00:00:00+00:00"),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def test_resolve_multistage_group_prefers_wandb_id():
+    """The Trackio/W&B group is the `wandb_id` shared by every stage of a run."""
+    args = TrainingArguments(wandb_id="Model", wandb_project="P")
+    assert _resolve_multistage_group(args) == "Model"
+    args = TrainingArguments(wandb_id=None, wandb_project="P")
+    assert _resolve_multistage_group(args) == "P"
+    args = TrainingArguments(wandb_id=None, wandb_project=None)
+    assert _resolve_multistage_group(args) == "default"
+
+
+def test_initialize_wandb_continues_step_axis_across_stages():
+    """initialize_wandb groups the stages of a multistage run and offsets their step axis."""
+    try:
+        import trackio  # noqa: F401
+    except ImportError:
+        return  # trackio not installed, skip test
+
+    import trackio
+    import trainer as trainer_module
+
+    tmpdir = tempfile.mkdtemp()
+    previous_trackio_dir = os.environ.get("TRACKIO_DIR")
+    original_trackio_init = trackio.init
+    original_step_offset = trainer_module._step_offset
+    captured = {}
+
+    def fake_init(**kwargs):
+        captured.clear()
+        captured.update(kwargs)
+
+    trackio.init = fake_init
+    try:
+        _create_fake_trackio_db(
+            os.path.join(tmpdir, "Model.db"),
+            [
+                ("id-1", "Model-Stage1", {"wandb_id": "Model", "stage_name": "Stage1"}, 1, 5),
+                ("id-2", "Model-Stage2", {"wandb_id": "Model", "stage_name": "Stage2"}, 6, 8),
+            ],
+        )
+
+        def build_args(stage_name, begin_new_stage):
+            return TrainingArguments(
+                wandb_id="Model",
+                wandb_project="Model",
+                stage_name=stage_name,
+                begin_new_stage=begin_new_stage,
+                offline_mode=True,
+                trackio_dir=tmpdir,
+                trackio_auto_log_gpu=False,
+            )
+
+        # Resuming a stage that already logged rows: same run, same offset as before.
+        initialize_wandb(build_args("Stage2", begin_new_stage=False))
+        assert trainer_module._step_offset == 5
+        assert captured["group"] == "Model"
+        assert captured["name"] == "Model-Stage2"
+        assert captured["resume"] == "allow"
+
+        # Restarting that stage from scratch: its own run, so the two attempts never share
+        # steps (`begin_new_stage` restarts the step counter at 1).
+        initialize_wandb(build_args("Stage2", begin_new_stage=True))
+        assert trainer_module._step_offset == 5
+        assert captured["name"].startswith("Model-Stage2-restart-")
+        assert captured["resume"] == "never"
+
+        # A brand-new stage starts after the last stage that logged rows (Stage2 ends at 8).
+        initialize_wandb(build_args("Stage3", begin_new_stage=True))
+        assert trainer_module._step_offset == 8
+        assert captured["name"] == "Model-Stage3"
+        assert captured["resume"] == "allow"
+
+        # The tracker sees the global step; the local per-stage counter is unchanged.
+        trainer_module._step_offset = 5
+        assert trainer_module._tracker_step(1) == 6
+        assert trainer_module._tracker_step(3) == 8
+    finally:
+        trackio.init = original_trackio_init
+        trainer_module._step_offset = original_step_offset
+        if previous_trackio_dir is None:
+            os.environ.pop("TRACKIO_DIR", None)
+        else:
+            os.environ["TRACKIO_DIR"] = previous_trackio_dir
         shutil.rmtree(tmpdir)

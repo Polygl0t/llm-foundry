@@ -6,8 +6,12 @@ Provides:
     - setup_triton_cache:           per-rank Triton cache with cleanup
     - StructuredTrainingLogger:     structured metadata/stats file writer
     - DistributedEnvironment:       Environment manager for distributed training (SLURM, torchrun, or local)
+    - is_context_extension:         whether the run freezes down to attention-only training
     - load_checkpoint_state:        load optimizer and training state from checkpoint
-    - initialize_wandb:             login and init W&B run
+                                    (context extension skips the optimizer state restore)
+    - initialize_wandb:             login and init W&B run (one run per training stage, all
+                                    stages of a multistage run sharing one `group` and one
+                                    continuous step axis)
     - create_emissions_tracker:     create and start a CodeCarbon EmissionsTracker
     - cleanup_log_file:             truncate log after last validation entry
     - checkpoint_already_validated: check if a step was already validated
@@ -199,6 +203,39 @@ class DistributedEnvironment:
             dist.destroy_process_group()
 
 
+def is_context_extension(args):
+    """
+    Whether this run performs context extension.
+    """
+    return bool(getattr(args, "continual_pretraining", False)) and (
+        getattr(args, "new_max_position_embeddings", None) is not None
+    )
+
+
+def _optimizer_state_is_loadable(optimizer, optimizer_state):
+    """
+    Whether a saved optimizer state dict describes the same parameter set as `optimizer`.
+
+    Returns True when the state can be loaded (also when the pair cannot be inspected, e.g. a
+    duck-typed optimizer without `param_groups` — `load_state_dict` itself then decides).
+    """
+    current_groups = getattr(optimizer, "param_groups", None)
+    saved_groups = (
+        optimizer_state.get("param_groups") if isinstance(optimizer_state, dict) else None
+    )
+
+    if current_groups is None or not isinstance(saved_groups, list):
+        return True
+
+    if len(current_groups) != len(saved_groups):
+        return False
+
+    return all(
+        len(current_group.get("params", ())) == len(saved_group.get("params", ()))
+        for current_group, saved_group in zip(current_groups, saved_groups, strict=False)
+    )
+
+
 def load_checkpoint_state(
     args,
     checkpoint_path,
@@ -211,17 +248,37 @@ def load_checkpoint_state(
     """
     Load checkpoint state and restore the optimizer if resuming from a checkpoint.
 
+    Context extension is exempt from the optimizer restore: the checkpoint was saved by a stage
+    whose optimizer held the full (unfrozen) parameter set, while this stage's optimizer only
+    holds the frozen-down attention subset, so `load_state_dict` would raise.
+
+    Note that this exemption only kicks in when the saved state really is incompatible: a
+    re-queued job of the *same* extension stage restores its optimizer state as usual, since the
+    parameter set then matches.
+
     Returns a tuple of (resume_step, iter_count, epoch).
     """
     if args.resume_from_checkpoint:
         checkpoint = os.path.join(checkpoint_path, "checkpoint.pt")
         checkpoint = torch.load(checkpoint, map_location=torch.device(device), weights_only=False)
 
-        # The optimizer is updated in-place, so we don't need to return it.
-        optimizer.load_state_dict(checkpoint["optimizer"])
-        if master_process:
-            logger.info(f"Resumed optimizer from checkpoint: {checkpoint_path}")
-            file_logger.log_metadata(f"Resumed optimizer from checkpoint: {checkpoint_path}")
+        if is_context_extension(args) and not _optimizer_state_is_loadable(
+            optimizer, checkpoint["optimizer"]
+        ):
+            if master_process:
+                message = (
+                    f"Context extension detected: skipping the optimizer state restore from "
+                    f"{checkpoint_path} because the checkpoint was saved with a different "
+                    f"(non-frozen) parameter set. Continuing with a freshly initialized optimizer."
+                )
+                logger.info(message)
+                file_logger.log_metadata(message)
+        else:
+            # The optimizer is updated in-place, so we don't need to return it.
+            optimizer.load_state_dict(checkpoint["optimizer"])
+            if master_process:
+                logger.info(f"Resumed optimizer from checkpoint: {checkpoint_path}")
+                file_logger.log_metadata(f"Resumed optimizer from checkpoint: {checkpoint_path}")
 
         if not args.begin_new_stage:
             resume_step = int(checkpoint["resume_step"])
@@ -407,16 +464,96 @@ def checkpoint_already_validated(checkpoint_dir, stage_name, step, log_file):
     return False
 
 
-def initialize_wandb(args, slurm_job_id, max_steps):
+def _resolve_multistage_group(args):
     """
-    Login to W&B (or trackio, in offline mode) and initialize a run.
+    Return the W&B / Trackio group name that ties the stages of one training run together.
+    """
+    if args.wandb_id is not None:
+        return str(args.wandb_id)
+    if args.wandb_project is not None:
+        return str(args.wandb_project)
+    return "default"
+
+
+def _inspect_multistage_state(args, group, project):
+    """
+    Inspect the Trackio project database for the state of this stage's multistage group.
+
+    Returns a tuple of `(step_offset, previous_attempt_run_id)`:
+
+    Both lookups are best effort: a missing or unreadable database (or an older trackio
+    version) degrades to "no offset, no previous attempt" rather than failing the job.
+    """
+    step_offset = 0
+    previous_attempt_run_id = None
+
+    try:
+        import pathlib
+
+        from trackio import sqlite_storage
+        from trackio import utils as trackio_utils
+
+        # trackio resolves `TRACKIO_DIR` once, when it is first imported. The trainer sets the
+        # environment variable before importing it, but re-align the cached value anyway so the
+        # lookup is deterministic no matter what imported trackio first (an earlier stage in the
+        # same process, a notebook, a test, ...).
+        if os.environ.get("TRACKIO_DIR"):
+            configured_dir = pathlib.Path(os.environ["TRACKIO_DIR"])
+            if configured_dir != trackio_utils.TRACKIO_DIR:
+                trackio_utils.TRACKIO_DIR = configured_dir
+                sqlite_storage.TRACKIO_DIR = configured_dir
+
+        for record in sqlite_storage.SQLiteStorage.get_run_records(project):
+            config = (
+                sqlite_storage.SQLiteStorage.get_run_config(
+                    project, run=record["name"], run_id=record["id"]
+                )
+                or {}
+            )
+
+            record_group = config.get("_Group") or config.get("wandb_id")
+            if record_group != group:
+                continue
+
+            if config.get("stage_name") == args.stage_name:
+                # Our own stage: never counted towards the offset (see above). When the stage
+                # is being restarted from scratch, its rows are a previous attempt.
+                if args.begin_new_stage:
+                    previous_attempt_run_id = record["id"]
+                continue
+
+            last_step = sqlite_storage.SQLiteStorage.get_max_step_for_run(
+                project, run=record["name"], run_id=record["id"]
+            )
+            if last_step is not None:
+                step_offset = max(step_offset, int(last_step))
+    except Exception as error:
+        print(
+            "* Warning: trackio could not read the project database to continue the step "
+            f"axis across stages: {error}"
+        )
+
+    return step_offset, previous_attempt_run_id
+
+
+def initialize_wandb(args):
+    """
+    Login to W&B (or trackio, in offline mode) and initialize a run for the current stage.
 
     When `args.offline_mode` is True (for HPC clusters without internet access on
     compute nodes), trackio is used instead of W&B. trackio exposes a W&B-compatible
     API, so `trainer.py` keeps calling `wandb.log(...)` / `wandb.finish()` unchanged;
     here we simply patch the `wandb` name that `trainer.py` already imported to point
-    at trackio instead. trackio's log directory is set to `{checkpoint_dir}/.trackio`,
-    isolating each run's local trackio data alongside its checkpoints.
+    at trackio instead. trackio's log directory comes from `args.trackio_dir` (falling
+    back to `TRACKIO_DIR`, then `~/.trackio`).
+
+    Multistage runs (`begin_new_stage: [...Warmup-Stable..., ...Cooldown...]`) get:
+
+    - one run per stage, named `<group>-<stage_name>` -- stable across job requeues, so a
+      resumed stage appends to its own run instead of creating a new one;
+    - a shared `group` (= `wandb_id`) covering every stage of the run;
+    - a step offset, so that all stages sit on one continuous x axis. `trainer.py` picks the
+      offset up from `trainer._step_offset` and adds it to `completed_steps` before logging.
 
     Only call this on the master process and when `args.wandb_token` is not None.
 
@@ -427,36 +564,62 @@ def initialize_wandb(args, slurm_job_id, max_steps):
     """
     import time as _time
 
-    run_name = (
-        f"""{args.wandb_id}-{args.stage_name}-{_time.strftime("%d-%m-%Y")}"""
-        f"""-bs-{args.total_batch_size}-epochs-{args.num_train_epochs}"""
-        f"""-steps-{max_steps}-lr-{args.max_learning_rate}-sch-{args.lr_decay_type}"""
-    )
+    # `trainer.py` owns the `wandb` name that the training loop logs through (it does
+    # `import wandb` at module load time) and the step offset applied to those logs.
+    import trainer
+
+    project = args.wandb_project if args.wandb_project is not None else "default"
+    group = _resolve_multistage_group(args)
+    step_offset = 0
+    previous_attempt_run_id = None
 
     if args.offline_mode:
         # Resolve TRACKIO_DIR with a three-tier precedence:
         #   1. args.trackio_dir  (explicit config)
         #   2. TRACKIO_DIR env var
         #   3. ~/.trackio  (default fallback)
+        # It has to be set before the lookup below, since trackio resolves its database path
+        # from the environment.
         if args.trackio_dir is not None:
             os.environ["TRACKIO_DIR"] = str(args.trackio_dir)
         elif "TRACKIO_DIR" not in os.environ:
             os.environ["TRACKIO_DIR"] = os.path.expanduser("~/.trackio")
 
+        step_offset, previous_attempt_run_id = _inspect_multistage_state(args, group, project)
+
+    # W&B run id / step axis: unlike trackio there is no local database to read the offset
+    # from, so online W&B runs keep the per-stage step numbering (`trainer._step_offset` = 0).
+    run_name = f"{group}-{args.stage_name}"
+    resume = "allow"
+
+    if previous_attempt_run_id is not None:
+        # `begin_new_stage` restarts this stage's step counter, so its rows must not be mixed
+        # with the earlier attempt's. Keep that attempt untouched and log this one separately.
+        run_name = f"{run_name}-restart-{_time.strftime('%Y%m%d-%H%M%S')}"
+        resume = "never"
+        print(
+            f"* An earlier attempt of stage '{args.stage_name}' already exists in group "
+            f"'{group}'; logging this attempt as a separate run '{run_name}'."
+        )
+
+    # `trainer.py` turns these into the step number it reports to the tracker (see
+    # `trainer._step_offset`). The `.log` file and the console keep the LOCAL per-stage steps.
+    trainer._step_offset = step_offset
+
+    if args.offline_mode:
         import trackio
 
         # `trainer.py` does `import wandb` at module load time. Since trackio's API
         # is W&B-compatible, we patch that already-imported reference in place so the
         # rest of the codebase does not need to change.
-        import trainer
-
         trainer.wandb = trackio
 
         trackio.init(
-            project=args.wandb_project if args.wandb_project is not None else "default",
+            project=project,
             name=run_name,
+            group=group,
             config=args.to_dict(),
-            resume="allow",
+            resume=resume,
             auto_log_gpu=args.trackio_auto_log_gpu,
         )
         return
@@ -466,12 +629,13 @@ def initialize_wandb(args, slurm_job_id, max_steps):
     wandb.login(key=args.wandb_token)
 
     wandb.init(
-        project=args.wandb_project if args.wandb_project is not None else "default",
+        project=project,
         notes=args.wandb_desc if args.wandb_desc is not None else "N/A",
         name=run_name,
+        group=group,
         config=args.to_dict(),
-        resume="allow",
-        id=f"{args.wandb_id}-{slurm_job_id}" if args.wandb_id is not None else f"{slurm_job_id}",
+        resume=resume,
+        id=f"{group}-{args.stage_name}",
     )
 
 

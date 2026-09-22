@@ -124,6 +124,29 @@ class FakeDatasetsModule(types.ModuleType):
         self.datasets_by_file = {}
         self.next_datasets = []
 
+    def disable_caching(self):
+        """No-op stand-in for datasets.disable_caching()."""
+
+    @staticmethod
+    def _read_written_file(path):
+        """Read back a file produced by TinyDataset.to_json/to_parquet.
+
+        make_validation_split.py rewrites the source files and writes one staging
+        file per contributing shard into a fresh temporary directory, so those
+        paths cannot be registered in `datasets_by_file` up front.
+        """
+        if not path or not os.path.isfile(path) or os.path.getsize(path) == 0:
+            return None
+        with open(path) as f:
+            text = f.read().strip()
+        if not text:
+            return None
+        if text.startswith("["):  # TinyDataset.to_parquet stores a JSON list
+            rows = json.loads(text)
+        else:  # TinyDataset.to_json stores one JSON object per line
+            rows = [json.loads(line) for line in text.splitlines() if line.strip()]
+        return TinyDataset(rows)
+
     def load_dataset(self, fmt, data_files=None, split="train", cache_dir=None, **kwargs):
         self.load_calls.append(
             {
@@ -145,6 +168,9 @@ class FakeDatasetsModule(types.ModuleType):
             return self.datasets_by_file[data_files]
         if self.next_datasets:
             return self.next_datasets.pop(0)
+        from_disk = self._read_written_file(data_files)
+        if from_disk is not None:
+            return from_disk
         return TinyDataset([])
 
     def concatenate_datasets(self, datasets_list):
@@ -838,3 +864,105 @@ def test_28_decontaminate_argument_parser_defaults_and_required_args():
     assert args.allow_one_token_mismatch is False
     assert args.approx_max_k == 10
     assert args.reference_path == "eval_set/"
+
+
+# %%
+#######################################
+# Section 5 - pack.py degenerate-sample guardrail
+#######################################
+
+
+def _reset_pack_filter_stats():
+    pack._FILTER_STATS["sequences"] = 0
+    pack._FILTER_STATS["blocks"] = 0
+
+
+def test_29_concatenate_pack_drops_filler_only_source_sequences():
+    _reset_pack_filter_stats()
+    pack_fn = pack.create_concatenate_function(4, ["input_ids"])
+    result = pack_fn({"input_ids": [[3, 3, 3, 3], [1, 2, 3, 4], [3, 3, 3, 3], [5, 6, 7, 8]]})
+    assert result["input_ids"] == [[1, 2, 3, 4], [5, 6, 7, 8]]
+    assert result["seq_lengths"] == [4, 4]
+    # Both all-filler sequences were removed at the source, not as blocks.
+    assert pack._FILTER_STATS == {"sequences": 2, "blocks": 0}
+
+
+def test_30_concatenate_pack_drops_filler_only_blocks():
+    _reset_pack_filter_stats()
+    # The source sequence is NOT all filler (it holds 1, 2 and 4), so the source
+    # filter keeps it -- but its leading filler run lines up with a block boundary.
+    pack_fn = pack.create_concatenate_function(4, ["input_ids"])
+    result = pack_fn({"input_ids": [[3, 3, 3, 3, 1, 2, 3, 4]]})
+    assert result["input_ids"] == [[1, 2, 3, 4]]
+    assert result["seq_lengths"] == [4]
+    assert pack._FILTER_STATS == {"sequences": 0, "blocks": 1}
+
+
+def test_31_bfd_pack_never_packs_filler_only_sequences():
+    _reset_pack_filter_stats()
+    pack_fn = pack.create_bfd_function(4, ["input_ids"], {"input_ids": 0})
+    # A dataset made only of filler sequences packs to nothing at all.
+    assert pack_fn({"input_ids": [[3, 3, 3, 3]]}) == {"input_ids": [], "seq_lengths": []}
+    result = pack_fn({"input_ids": [[3, 3, 3, 3], [1, 2], [5, 6]]})
+    assert result["input_ids"] == [[1, 2, 5, 6]]
+    assert result["seq_lengths"] == [4]
+    assert pack._FILTER_STATS["sequences"] == 2
+
+
+def test_32_pack_guardrail_drops_sequences_without_trainable_labels():
+    _reset_pack_filter_stats()
+    pack_fn = pack.create_concatenate_function(4, ["input_ids", "labels"])
+    result = pack_fn(
+        {
+            "input_ids": [[1, 2, 3, 4], [5, 6, 7, 8]],
+            "labels": [[-100, -100, -100, -100], [5, 6, 7, 8]],
+        }
+    )
+    assert result["input_ids"] == [[5, 6, 7, 8]]
+    assert result["labels"] == [[5, 6, 7, 8]]
+    assert pack._FILTER_STATS["sequences"] == 1
+
+
+def test_33_pack_guardrail_can_be_disabled():
+    _reset_pack_filter_stats()
+    pack_fn = pack.create_concatenate_function(4, ["input_ids"], filler_token_ids=())
+    result = pack_fn({"input_ids": [[3, 3, 3, 3], [1, 2, 3, 4]]})
+    assert result["input_ids"] == [[3, 3, 3, 3], [1, 2, 3, 4]]
+    assert pack._FILTER_STATS == {"sequences": 0, "blocks": 0}
+
+
+def test_34_pack_main_applies_guardrail_and_records_it_in_metadata():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Deliberately omits the guardrail attributes: they must default to ON, so
+        # hand-built Namespaces (and older callers) keep the protection.
+        args = argparse.Namespace(
+            input_path="ignored",
+            cache_dir=None,
+            seed=None,
+            strategy="concatenate",
+            block_size=4,
+            pad_token_id=None,
+            num_proc=1,
+            max_tokens=None,
+            output_dir=tmpdir,
+            output_type="jsonl",
+            tokens_per_chunk=6,
+            return_seq_lengths=False,
+        )
+        dataset = TinyDataset(
+            [
+                {"input_ids": [3, 3, 3, 3]},
+                {"input_ids": [1, 2, 3, 4]},
+                {"input_ids": [5, 6, 7, 8]},
+            ]
+        )
+        with patch.object(pack, "DatasetLoader") as loader_cls:
+            loader_cls.return_value.load.return_value = dataset
+            pack.main(args)
+
+        meta = make_validation_split.read_metadata(os.path.join(tmpdir, ".metadata"))
+        assert meta["samples"] == "2"
+        assert meta["tokens"] == "8"
+        assert meta["filler_guardrail"] == "on"
+        assert meta["filler_token_ids"] == "3"
+        assert meta["max_filler_fraction"] == "1.0"

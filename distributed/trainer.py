@@ -27,6 +27,20 @@ from mfu import calculate_training_metrics
 from model_setup import get_full_model_state_dict, get_full_optimizer_state_dict
 from utils import checkpoint_already_validated
 
+# Validation-only metrics (measured once every `checkpointing_steps` and logged as their
+# own row) carried into every subsequent training log entry that goes to W&B / trackio.
+_latest_validation_metrics = {}
+
+# Offset added to every step that is logged to W&B / trackio. It is 0 for a single-stage run
+# and is filled in by `utils.initialize_wandb()` for the later stages of a multistage run, so
+# that all stages of the run share one continuous x axis on the dashboard.
+_step_offset = 0
+
+
+def _tracker_step(completed_steps):
+    """The step number to report to W&B / trackio (local step + multistage offset)."""
+    return completed_steps + _step_offset
+
 
 def clip_grad_norm_mesh_aware(parameters, max_norm, norm_type=2.0):
     """
@@ -117,6 +131,8 @@ def _log_validation(
     wandb_enabled,
 ):
     """Log validation results to console, file logger, and optionally W&B."""
+    global _latest_validation_metrics
+
     logger.info(
         f"Validation | step: {completed_steps:5d} | loss: {val_loss_accum.item():.4f} | kWh: {tracker._total_energy.kWh:.2f} | val_time: {val_time:.2f}s"
     )
@@ -131,8 +147,19 @@ def _log_validation(
         }
     )
 
+    # Remember the measurements so the following training steps can re-log them (see the
+    # `_latest_validation_metrics` note at the top of this module). NOTE: the file logger
+    # above calls the loss `loss` (its `status` field disambiguates it); in W&B / trackio
+    # it is `val_loss`.
+    validation_metrics = {
+        "val_loss": val_loss_accum.item(),
+        "kwh": tracker._total_energy.kWh,
+        "val_time_s": val_time,
+    }
+    _latest_validation_metrics = validation_metrics
+
     if wandb_enabled:
-        wandb.log({"val_loss": val_loss_accum.item()}, step=completed_steps)
+        wandb.log(validation_metrics, step=_tracker_step(completed_steps))
 
 
 def _save_checkpoint(
@@ -261,7 +288,14 @@ def _log_training_step(
         }
         if muon_lr is not None:
             metrics["muon_lr"] = muon_lr
-        wandb.log(metrics, step=completed_steps)
+        # Keep the validation-only metrics present in (almost) every row so they survive
+        # trackio's row subsampling (see the `_latest_validation_metrics` note at the top
+        # of this module). Values are the last ones actually measured; they step on the
+        # next training step after each validation pass. `setdefault` keeps any metric the
+        # training step itself already logged.
+        for key, value in _latest_validation_metrics.items():
+            metrics.setdefault(key, value)
+        wandb.log(metrics, step=_tracker_step(completed_steps))
 
 
 def _finalize_training(*, tracker, wandb_enabled):

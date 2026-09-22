@@ -14,6 +14,7 @@ shuffle_dataset: true
 max_num_proc_for_dataset_loading: 16
 prebuilt_dataset_dir: null
 additional_mask_token_ids: null
+disable_token_masking: false
 
 # Model and tokenizer settings
 # All architecture parameters (hidden_size, num_layers, etc.) are

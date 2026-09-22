@@ -607,8 +607,10 @@ def prepare_dataloaders(
     mask_token_ids = set()
 
     if collate_fn is None:
-        # Always mask pad, eos, and bos tokens when they are defined in the tokenizer.
-        if tokenizer is not None:
+        # Mask pad, eos, and bos tokens when they are defined in the tokenizer.
+        # `disable_token_masking` keeps them as training targets (so the model learns to
+        # emit them); `additional_mask_token_ids` below is still applied either way.
+        if tokenizer is not None and not args.disable_token_masking:
             for token_id in (
                 tokenizer.pad_token_id,
                 tokenizer.eos_token_id,

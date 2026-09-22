@@ -35,7 +35,6 @@ from optimizers import create_lr_scheduler, create_optimizer, get_optimizer_summ
 from specifications import TrainingArguments
 from torch.nn.parallel import DistributedDataParallel as DDP
 from trainer import DDPTrainer
-
 from utils import (
     DistributedEnvironment,
     StructuredTrainingLogger,
@@ -99,8 +98,14 @@ def main(specs, slurm_job_id, hardware):
     # The SLURM job ID is used to create a unique checkpoint directory for this training run,
     # which allows us to avoid conflicts between different runs.
     if args.resume_from_checkpoint:
-        rel = os.path.relpath(args.resume_from_checkpoint, args.checkpoint_dir)
-        slurm_job_id = rel.split(os.sep)[0]
+        resume_path = args.resume_from_checkpoint
+        if not os.path.isabs(resume_path):
+            resume_path = os.path.join(args.checkpoint_dir, resume_path)
+        first_component = os.path.relpath(resume_path, args.checkpoint_dir).split(os.sep)[0]
+        # When the checkpoint is not nested under `checkpoint_dir`, there is no run ID
+        # to reuse: keep this job's own SLURM job ID.
+        if first_component not in ("", os.curdir, os.pardir):
+            slurm_job_id = first_component
 
     args.checkpoint_dir = os.path.join(args.checkpoint_dir, f"{slurm_job_id}")
     log_file = os.path.join(args.checkpoint_dir, f"{slurm_job_id}.log")
@@ -393,7 +398,7 @@ def main(specs, slurm_job_id, hardware):
     if master_process:
         # Initialize W&B (if configured) and CodeCarbon.
         if args.wandb_enabled:
-            initialize_wandb(args, slurm_job_id, max_steps)
+            initialize_wandb(args)
 
         # Create and start the CodeCarbon emissions tracker.
         tracker = create_emissions_tracker(args, logger)
