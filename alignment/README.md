@@ -147,6 +147,8 @@ Main parameters:
 
 ## Dataset Formats
 
+Besides the dataset format specific to each fine-tuning method, it is also important to use the correct chat template. See `tokenizer/chat_template.ipynb` for an explanation on chat templates.
+
 ### `sft_trainer.py`
 
 Expected chat-formatted messages or pre-tokenized input:
