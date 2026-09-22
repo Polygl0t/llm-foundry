@@ -15,15 +15,31 @@ enable_cpu_affinity: true           # Enable CPU affinity for better NUMA perfor
 
 # Multi-Node Configuration
 # -------------------------
-machine_rank: 0                     # Rank of this machine in multi-node setup (0 for single-node)
-main_process_ip: null               # IP address of the main process (null for automatic detection)
-main_process_port: null             # Port for inter-process communication (null for automatic)
+# NOTE: the alignment job scripts (slurm/*.sh, via $ACCELERATE_CONFIG) OVERRIDE every
+# key in this section on the `accelerate launch` command line, deriving them from
+# Slurm, so multi-node needs `--nodes=N` in the SBATCH header and nothing else:
+#     --num_machines $SLURM_NNODES
+#     --num_processes <nodes x GPUs per node>     # TOTAL across all nodes
+#     --machine_rank $SLURM_NODEID
+#     --main_process_ip <first allocated node>    # MASTER_ADDR
+#     --main_process_port <49152 + SLURM_JOB_ID % 16384>
+# The values below are the single-node defaults, used when this file is run on its
+# own (e.g. `accelerate launch --config_file .ddp_config.yaml --num_processes 2 ...`).
+# To run multi-node WITHOUT the job scripts, start this once on EVERY node, each with
+# its own rank (and --num_processes = num_machines x GPUs per node):
+#     accelerate launch --config_file .ddp_config.yaml \
+#         --num_machines 2 --num_processes 8 --machine_rank $RANK \
+#         --main_process_ip <node0> --main_process_port 29500 \
+#         --rdzv_backend static train.py
+machine_rank: 0                     # Rank of THIS machine (overridden per node)
+main_process_ip: null               # Node 0's address. MUST be set for multi-node.
+main_process_port: null             # Null -> accelerate uses 29500; the job scripts
+                                    # pass a port derived from SLURM_JOB_ID instead.
 main_training_function: main        # Entry point function name in your training script
-num_machines: 1                     # Total number of machines/nodes in the cluster
-gpu_ids: all                        # Specify GPU IDs to use (all = use all available GPUs)
-num_processes: 4                    # Number of GPUs/processes to use (typically equals number of GPUs)
-                                    # For multi-node: num_machines * GPUs_per_machine
-                                    # Each process runs on one GPU with a full model replica
+num_machines: 1                     # Total machines. MUST be > 1 for multi-node.
+gpu_ids: all                        # GPUs per machine ("all" = every visible GPU)
+num_processes: 4                    # TOTAL processes = num_machines x GPUs per machine
+                                    # (each process holds a full model replica under DDP)
 
 # Distributed Backend Configuration
 # ------------------------
