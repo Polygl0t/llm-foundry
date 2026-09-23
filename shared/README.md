@@ -11,6 +11,8 @@ This folder contains utility modules shared across the major pipeline folders.
 | [`save_dataset.py`](save_dataset.py)     | `save_dataset`  | Saves a dataset to disk, splitting into token-counted chunks.     |
 | [`files.py`](files.py) | `list_matching_files`, `infer_file_features` | Glob file listing and feature inference from parquet/jsonl shards. |
 | [`metadata.py`](metadata.py) | Helpers for reading and writing `.metadata` files. |
+| [`cli_parsing.py`](cli_parsing.py) | `num_or_ratio` | Allows passing both int and float by command line. |
+
 ## Usage
 
 Each pipeline folder re-exports these utilities from its own `utils.py`, so the existing `from utils import ...` imports keep working.
