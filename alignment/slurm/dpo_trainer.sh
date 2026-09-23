@@ -6,19 +6,22 @@
 # Learn about SLURM sbatch options at:
 # - https://slurm.schedmd.com/sbatch.html
 #
-# Learn about job submissions (Marvin|Bender) at:
-# - https://wiki.hpc.uni-bonn.de/en/running_jobs
-#
-# Learn about Marvin|Bender dual software stacks at:
-# - https://wiki.hpc.uni-bonn.de/en/dualstacks
+# Learn about JSC JUPITER at:
+# - https://www.fz-juelich.de/en/ias/jsc/systems/supercomputers/jupiter
+#############################################
+# MULTI-NODE: set `--nodes=N` below and submit the SAME script -- nothing else needs
+# editing. `srun` starts ONE `accelerate launch` per node, each with its own
+# --machine_rank, and accelerate forks the per-GPU workers on every node
+# (--num_processes = N x 4). Requirements: all nodes must share the filesystem that
+# holds HF_DATASETS_CACHE, the checkpoint dir, and any other shared resources.
+# MASTER_ADDR/MASTER_PORT are derived below from SLURM_NODELIST / SLURM_JOB_ID.
 #############################################
 #SBATCH --account=ag_bit_flek              # <-- Change to your SLURM account
 #SBATCH --partition=sgpu_medium            # <-- Change to your partition
 #SBATCH --job-name=dpo
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=4
-#SBATCH --threads-per-core=1
-#SBATCH --cpus-per-task=32
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=128
 #SBATCH --time=1-00:00:00
 #SBATCH --gres=gpu:a100:4
 #SBATCH --exclusive
@@ -41,7 +44,6 @@ err="$workdir/run_outputs/err-dpo-trainer.$SLURM_JOB_ID"
 #############################################
 
 source $workdir/.modules.sh > "$out" 2>&1
-# python3 -m venv $workdir/.venv_trl
 source $workdir/.venv_trl/bin/activate
 
 # ===== Installation =====
@@ -60,7 +62,9 @@ source $workdir/.venv_trl/bin/activate
 # - https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html
 #############################################
 
-export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+# OMP_NUM_THREADS is derived in the distributed-topology block below: it must be the
+# per-node CPU count divided by the per-node GPU count, because ONE Slurm task runs all
+# the GPU workers.
 export HF_DATASETS_CACHE="$workdir/.cache/$SLURM_JOB_ID"
 export HUGGINGFACE_HUB_CACHE="$HF_DATASETS_CACHE"
 export HF_TOKEN="<your-token-here>"
@@ -79,20 +83,63 @@ export TORCH_DISTRIBUTED_DEBUG=OFF
 export NCCL_P2P_DISABLE=0
 export NCCL_SHM_DISABLE=0
 # export NCCL_DEBUG=INFO # Uncomment for NCCL debugging
-export CUDA_VISIBLE_DEVICES=0,1,2,3
-export GPUS_PER_NODE=$SLURM_NTASKS_PER_NODE
-export NUM_PROCESSES=$SLURM_NTASKS
-export NUM_MACHINES=$SLURM_NNODES
-export head_node_ip=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
+
+# ---- Distributed topology (single- AND multi-node) ---------------------------------#
+# accelerate needs the topology EXPLICITLY: the .yaml config holds single-node
+# defaults (`num_machines: 1`, `machine_rank: 0`), so a bare `accelerate launch` runs
+# a single-node job on the FIRST node even when --nodes > 1. These values are handed
+# to `accelerate launch` in the job-execution block below.
+#
+# `gpu_ids: all` in the .yaml means "every visible GPU", so the per-node count comes
+# from CUDA_VISIBLE_DEVICES -- Slurm sets it from --gres, and it is what accelerate
+# will use. It is deliberately NOT --ntasks-per-node: the launcher is ONE task per
+# node, and accelerate forks the per-GPU workers itself.
+# -----------------------------------------------------------------------------------#
+
+export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1,2,3}"
+GPUS_PER_NODE="$(awk -F, '{print NF}' <<< "$CUDA_VISIBLE_DEVICES")"
+NUM_MACHINES="${SLURM_NNODES:-1}"
+NUM_PROCESSES=$(( NUM_MACHINES * GPUS_PER_NODE ))
+MACHINE_RANK="${SLURM_NODEID:-0}"
+export GPUS_PER_NODE NUM_MACHINES NUM_PROCESSES MACHINE_RANK
+
+# MASTER_ADDR = the first allocated node. Slurm sometimes returns a short hostname
+# that the compute nodes cannot resolve; append the DNS domain when it does not.
+MASTER_ADDR="$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)"
+MASTER_ADDR="${MASTER_ADDR:-$(hostname -f)}"   # scontrol unavailable / returned nothing
+if ! getent hosts "$MASTER_ADDR" >/dev/null 2>&1 && [[ "$MASTER_ADDR" != *.* ]]; then
+    DOMAIN="$(hostname -d)"
+    [[ -n "$DOMAIN" ]] && MASTER_ADDR="${MASTER_ADDR}.${DOMAIN}"
+fi
+export MASTER_ADDR
+
+# Derive MASTER_PORT from SLURM_JOB_ID so concurrent jobs cannot collide on the
+# default 29500. Kept inside the dynamic/private range (49152-65535).
+MASTER_PORT=$(( 49152 + (SLURM_JOB_ID % 16384) ))
+export MASTER_PORT
+
+# Threads per GPU worker: this node's CPU allocation divided by its GPUs,
+# because that single Slurm task runs all four accelerate workers.
+export OMP_NUM_THREADS=$(( SLURM_CPUS_PER_TASK / GPUS_PER_NODE ))
 export CHECKPOINT_DIR="./checkpoints/MyModel-DPO-$SLURM_JOB_ID"
 export CLEAN_CACHE="1"  # <-- Set to "1" to clean cache after job completion
 
-hf auth login --token "$HF_TOKEN"
-wandb login "$WANDB_TOKEN"
+# In places like JUPITER compute nodes (jpbo-*), we have NO internet access. Log in only when the
+# Hub is actually reachable; on an offline node every artifact must be a local
+# path. Note the trainer only pushes to the Hub when BOTH --hub_token and
+# --hub_model_id are set, so with --hub_model_id unset this job never needs the
+# network at all.
+if curl -sSf --max-time 10 https://huggingface.co >/dev/null 2>&1; then
+    hf auth login --token "$HF_TOKEN"
+    wandb login "$WANDB_TOKEN"
+else
+    echo "# [${SLURM_JOB_ID}] No internet on this node: skipping hub/wandb login." >> "$out"
+fi
 
 echo "# [${SLURM_JOB_ID}] Job started on $SLURM_JOB_NODELIST at: $(date)" >> "$out"
 echo "# [${SLURM_JOB_ID}] Using $SLURM_NNODES nodes" >> "$out"
-echo "# [${SLURM_JOB_ID}] Using $SLURM_NTASKS GPUs in total ($SLURM_NTASKS_PER_NODE per node)" >> "$out"
+echo "# [${SLURM_JOB_ID}] Using $NUM_PROCESSES processes in total ($GPUS_PER_NODE per node on $NUM_MACHINES node(s))" >> "$out"
+echo "# [${SLURM_JOB_ID}] MASTER_ADDR: $MASTER_ADDR:$MASTER_PORT ; machine_rank: $MACHINE_RANK" >> "$out"
 echo "# [${SLURM_JOB_ID}] Running on nodes: $(scontrol show hostnames "$SLURM_NODELIST" | tr '\n' ' ')" >> "$out"
 echo "# [${SLURM_JOB_ID}] GLIBC version: $(ldd --version | head -n1)" >> "$out"
 echo "# [${SLURM_JOB_ID}] Working directory: $workdir" >> "$out"
@@ -106,14 +153,31 @@ echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --ve
 # - `--use_liger_kernel` \ BUG in liger kernel with DPO training
 #############################################
 
-export LAUNCHER="accelerate launch --config_file $workdir/llm-foundry/alignment/configs/.ddp_config.yaml"
+# Multi-node: change `--nodes=1` in the SBATCH header to the number of nodes you
+# want. `srun` then starts ONE `accelerate launch` per node, each with its own
+# --machine_rank, and accelerate forks the per-GPU workers on every node.
+#
+#   --num_machines / --machine_rank  the shape of the job, and this node's rank
+#   --num_processes                  TOTAL processes (machines x GPUs per machine)
+#   --main_process_ip/port           node 0's address, the rendezvous point
+#   --rdzv_backend static            matches `rdzv_backend: static` in the config
+#
+# Set ACCELERATE_CONFIG=.fsdp_config.yaml to switch to FSDP.
+export ACCELERATE_CONFIG="${workdir}/llm-foundry/alignment/configs/.ddp_config.yaml"
+
+export LAUNCHER="accelerate launch \
+--config_file $ACCELERATE_CONFIG \
+--num_machines $NUM_MACHINES \
+--num_processes $NUM_PROCESSES \
+--machine_rank $MACHINE_RANK \
+--main_process_ip $MASTER_ADDR \
+--main_process_port $MASTER_PORT \
+--rdzv_backend static"
 
 export PYTHON_FILE="$workdir/llm-foundry/alignment/dpo_trainer.py"
 
 export ARGS="--dataset_type jsonl \
 --train_dataset_dir /data/harmfull-no-reasoning \
-/data/harmfull-no-reasoning \
-/data/harmless-no-reasoning \
 --shuffle_dataset \
 --cache_dir $HF_DATASETS_CACHE \
 --num_proc $SLURM_CPUS_PER_TASK \
@@ -123,19 +187,18 @@ export ARGS="--dataset_type jsonl \
 --hub_token $HF_TOKEN \
 --max_length 4096 \
 --precompute_ref_log_probs \
---padding_free \
---truncation_mode keep_end \
+--truncation_mode keep_start \
 --save_steps 1000 \
 --logging_steps 1 \
 --beta 0.1 \
---chat_template_path /assets/chat_template.jinja \
+--chat_template_path checkpoints/portuguese/tokenizer/chat_template.jinja \
 --loss_type apo_zero \
 --learning_rate 0.000005 \
 --weight_decay 0.0 \
 --lr_scheduler_type cosine \
---warmup_ratio 0.1 \
---num_train_epochs 2 \
---attn_implementation flash_attention_2 \
+--warmup_steps 0.1 \
+--num_train_epochs 5 \
+--attn_implementation flash_attention_4 \
 --per_device_train_batch_size 8 \
 --gradient_accumulation_steps 4 \
 --bf16 \
@@ -145,10 +208,14 @@ export ARGS="--dataset_type jsonl \
 
 # This step is necessary because accelerate launch does not handle multiline arguments properly
 export CMD="$LAUNCHER $PYTHON_FILE $ARGS"
-$CMD 1>>"$out" 2>>"$err"
+
+# ONE launcher per node (the job allocates exactly one Slurm task per node), each with
+# its own --machine_rank; accelerate forks the per-GPU workers inside it.
+srun --nodes="$NUM_MACHINES" --ntasks="$NUM_MACHINES" --cpu-bind=none \
+    bash -c "$CMD" 1>>"$out" 2>>"$err"
 
 #############################################
-# End of Script
+# Cleanup
 #############################################
 # Clean HF_DATASETS_CACHE folder if requested
 if [ "$CLEAN_CACHE" = "1" ]; then
