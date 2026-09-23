@@ -30,14 +30,16 @@ Example usage:
 """
 
 import argparse
+import importlib.util
 import os
 
 import torch
 import trl
+from datasets import DatasetDict
 from gym.verifier import Verifier
-
 from utils import (
     get_logger,
+    has_column,
     load_tokenizer,
     load_training_dataset,
     resolve_checkpoint_path,
@@ -108,7 +110,8 @@ def verifier_reward_func(
         verifier_kwargs = _normalize_verifier_kwargs(verifier_kwargs)
 
         try:
-            # See alignment/gym/verifier.py for details on the Verifier class and how it processes the completion and kwargs.
+            # See alignment/gym/verifier.py for details on the Verifier class and
+            # how it processes the completion and kwargs.
             verifier = Verifier(
                 verifier_id_list=verifier_ids,
                 kwargs=verifier_kwargs,
@@ -142,9 +145,13 @@ def verifier_reward_func(
 
 
 def validate_dataset_columns(dataset):
-    """Ensure the dataset contains the required columns for GRPO training."""
+    """Ensure the dataset contains the required columns for GRPO training.
+
+    `has_column` accepts both a bare `Dataset` and the `DatasetDict` a prebuilt
+    dataset comes back as.
+    """
     required_columns = {"prompt", "verifier_id_list", "kwargs"}
-    missing_columns = required_columns.difference(dataset.column_names)
+    missing_columns = {column for column in required_columns if not has_column(dataset, column)}
     if missing_columns:
         raise ValueError(
             "GRPO verifier datasets must contain columns: "
@@ -163,6 +170,7 @@ def parse_scale_rewards(value):
 def main(args):
     logger = get_logger("GRPO-Trainer")
 
+    # Initialize the partial state for distributed training
     state, master_process = setup_distributed_state(logger)
 
     dataset = load_training_dataset(
@@ -171,6 +179,8 @@ def main(args):
         args.num_proc,
         args.cache_dir,
         state,
+        prebuilt_dataset_dir=args.prebuilt_dataset_dir,
+        logger=logger,
     )
     validate_dataset_columns(dataset)
 
@@ -187,6 +197,12 @@ def main(args):
         state,
     )
 
+    if isinstance(dataset, DatasetDict):
+        train_dataset, eval_dataset = dataset["train"], dataset.get("test")
+    else:
+        train_dataset, eval_dataset = dataset, None
+    has_eval = eval_dataset is not None
+
     tokenizer = load_tokenizer(
         args.model_name_or_path,
         args.max_prompt_length + args.max_completion_length,
@@ -198,6 +214,33 @@ def main(args):
     os.environ["WANDB_PROJECT"] = args.wandb_project
 
     model_dtype = torch.bfloat16 if args.bf16 else torch.float32
+
+    # transformers >= 5.x replaced `TrainingArguments.warmup_ratio` with
+    # `warmup_steps`.
+    if args.warmup_ratio is not None:
+        if args.warmup_steps:
+            raise SystemExit(
+                "--warmup_ratio and --warmup_steps are mutually exclusive. "
+                "--warmup_ratio is deprecated; pass --warmup_steps instead."
+            )
+        args.warmup_steps = args.warmup_ratio
+        if master_process:
+            logger.warning(
+                f"--warmup_ratio={args.warmup_ratio} is deprecated (transformers >= 5.x "
+                f"removed it). Forwarding as --warmup_steps={args.warmup_ratio}: a float "
+                f"in [0, 1) means the same ratio of total steps."
+            )
+
+    # Without vLLM, GRPO generates with `model.generate()`. Refuse
+    # --use_vllm up front rather than letting TRL fail after the model is loaded.
+    if args.use_vllm and importlib.util.find_spec("vllm") is None:
+        raise SystemExit(
+            "--use_vllm was requested but vLLM is not installed in this environment. "
+            "Rebuild the venv with WITH_VLLM=1 WITH_FLASH_ATTN=0 (vLLM and flash-attn-4 "
+            "are mutually exclusive -- they pin different `apache-tvm-ffi` versions), or "
+            "drop --use_vllm: GRPO falls back to `model.generate()` and runs without it."
+        )
+
     model_init_kwargs = {
         "cache_dir": args.cache_dir,
         "attn_implementation": args.attn_implementation,
@@ -232,18 +275,17 @@ def main(args):
         vllm_server_port=args.vllm_server_port,
         vllm_gpu_memory_utilization=args.vllm_gpu_memory_utilization,
         vllm_importance_sampling_correction=args.vllm_importance_sampling_correction,
-        vllm_importance_sampling_cap=args.vllm_importance_sampling_cap,
+        vllm_importance_sampling_clip_max=args.vllm_importance_sampling_clip_max,
         vllm_importance_sampling_mode=args.vllm_importance_sampling_mode,
         use_liger_kernel=args.use_liger_kernel,
-        activation_offloading=args.activation_offloading,
         gradient_checkpointing=args.gradient_checkpointing,
         gradient_checkpointing_kwargs={"use_reentrant": False}
         if torch.cuda.device_count() > 1 and args.gradient_checkpointing
         else None,
         seed=args.seed,
-        eval_strategy="steps" if "test" in dataset else "no",
+        eval_strategy="steps" if has_eval else "no",
         save_strategy="steps",
-        eval_steps=args.eval_steps if "test" in dataset else None,
+        eval_steps=args.eval_steps if has_eval else None,
         save_steps=args.save_steps,
         logging_steps=args.logging_steps,
         learning_rate=args.learning_rate,
@@ -253,11 +295,11 @@ def main(args):
         adam_epsilon=args.adam_epsilon,
         max_grad_norm=args.max_grad_norm,
         lr_scheduler_type=args.lr_scheduler_type,
-        warmup_ratio=args.warmup_ratio,
+        warmup_steps=args.warmup_steps,
         num_train_epochs=args.num_train_epochs,
         max_steps=-1 if args.max_steps is None else args.max_steps,
         per_device_train_batch_size=args.per_device_train_batch_size,
-        per_device_eval_batch_size=args.per_device_eval_batch_size if "test" in dataset else None,
+        per_device_eval_batch_size=args.per_device_eval_batch_size if has_eval else None,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         ddp_find_unused_parameters=args.ddp_find_unused_parameters
         if torch.cuda.device_count() > 1
@@ -269,7 +311,6 @@ def main(args):
         hub_model_id=args.hub_model_id,
         push_to_hub=bool(args.hub_token is not None and args.hub_model_id is not None),
         report_to=args.report_to,
-        include_tokens_per_second=True,
         hub_private_repo=True,
         run_name=f"{args.model_name_or_path.split('/')[-1]}-jobid-{jobid}-bs-{args.per_device_train_batch_size}-accumulation-{args.gradient_accumulation_steps}-ngpu-{torch.cuda.device_count()}-epochs-{args.num_train_epochs}",
     )
@@ -296,8 +337,8 @@ def main(args):
         reward_funcs=reward_func,
         processing_class=tokenizer,
         args=training_args,
-        train_dataset=dataset.get("train", dataset),
-        eval_dataset=dataset.get("test", None),
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
     )
 
     state.wait_for_everyone()
@@ -329,8 +370,23 @@ if __name__ == "__main__":
         "--train_dataset_dir",
         type=str,
         nargs="+",
-        required=True,
-        help="Path(s) to the training dataset directory or file.",
+        default=None,
+        help=(
+            "Path(s) to the training dataset directory or file. Required unless "
+            "--prebuilt_dataset_dir is set."
+        ),
+    )
+    parser.add_argument(
+        "--prebuilt_dataset_dir",
+        type=str,
+        default=None,
+        help=(
+            "Path to a dataset already materialised on disk with Dataset.save_to_disk, laid "
+            "out as <root>/train and <root>/validation. The Arrow files are memory-mapped, so "
+            "no `datasets` build runs on the compute nodes and no per-rank worker pool is "
+            "forked. When set, --train_dataset_dir is ignored and --test_size must not be "
+            "used: the prebuilt dataset already defines both splits."
+        ),
     )
     parser.add_argument(
         "--shuffle_dataset",
@@ -437,7 +493,25 @@ if __name__ == "__main__":
         default="linear",
         help="Type of learning rate scheduler to use.",
     )
-    parser.add_argument("--warmup_ratio", type=float, default=0.0)
+    parser.add_argument(
+        "--warmup_steps",
+        type=float,
+        default=0.0,
+        help=(
+            "Warmup length: an int >= 1 is an exact number of steps, a float in [0, 1) is a "
+            "RATIO of total steps. Replaces the removed --warmup_ratio."
+        ),
+    )
+    parser.add_argument(
+        "--warmup_ratio",
+        type=float,
+        default=None,
+        help=(
+            "DEPRECATED: transformers >= 5.x removed `warmup_ratio` from TrainingArguments. "
+            "Kept so existing job scripts still parse; the value is forwarded to "
+            "--warmup_steps unchanged, which means the same ratio."
+        ),
+    )
     parser.add_argument("--num_train_epochs", type=int, default=1)
     parser.add_argument(
         "--max_steps",
@@ -448,11 +522,6 @@ if __name__ == "__main__":
     parser.add_argument("--bf16", action="store_true", help="Use bfloat16 precision for training.")
     parser.add_argument(
         "--tf32", action="store_true", help="Use TensorFloat-32 precision for training."
-    )
-    parser.add_argument(
-        "--activation_offloading",
-        action="store_true",
-        help="Use activation offloading to CPU to save GPU memory.",
     )
     parser.add_argument(
         "--gradient_checkpointing",
@@ -499,7 +568,16 @@ if __name__ == "__main__":
         default=True,
         help="Correct vLLM training-inference mismatch with importance sampling.",
     )
-    parser.add_argument("--vllm_importance_sampling_cap", type=float, default=3.0)
+    parser.add_argument(
+        "--vllm_importance_sampling_clip_max",
+        type=float,
+        default=3.0,
+        help=(
+            "Upper bound C_max on the vLLM importance-sampling ratio (only used with "
+            "--use_vllm). Renamed from --vllm_importance_sampling_cap, which TRL 1.13 "
+            "deprecates and removes in 2.0. The default is unchanged."
+        ),
+    )
     parser.add_argument("--vllm_importance_sampling_mode", type=str, default="sequence_mask")
     parser.add_argument("--hub_token", type=str, default=None)
     parser.add_argument("--hub_model_id", type=str, default=None)

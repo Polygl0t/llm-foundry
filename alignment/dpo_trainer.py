@@ -41,9 +41,10 @@ import os
 import torch
 import transformers
 import trl
-
+from datasets import DatasetDict
 from utils import (
     get_logger,
+    has_column,
     load_tokenizer,
     load_training_dataset,
     resolve_checkpoint_path,
@@ -76,9 +77,14 @@ def main(args):
     # Initialize the partial state for distributed training
     state, master_process = setup_distributed_state(logger)
 
-    # Collect and load the training dataset
     dataset = load_training_dataset(
-        args.train_dataset_dir, args.dataset_type, args.num_proc, args.cache_dir, state
+        args.train_dataset_dir,
+        args.dataset_type,
+        args.num_proc,
+        args.cache_dir,
+        state,
+        prebuilt_dataset_dir=args.prebuilt_dataset_dir,
+        logger=logger,
     )
 
     if args.shuffle_dataset:
@@ -86,7 +92,7 @@ def main(args):
 
     # Convert the dataset so that the prompt is explicitly defined.
     # Why? -> https://huggingface.co/docs/trl/main/en/dpo_trainer#expected-dataset-type
-    if "prompt" not in dataset.column_names:
+    if not has_column(dataset, "prompt"):
         if master_process:
             dataset = dataset.map(
                 trl.extract_prompt,
@@ -114,6 +120,12 @@ def main(args):
         master_process,
         state,
     )
+
+    if isinstance(dataset, DatasetDict):
+        train_dataset, eval_dataset = dataset["train"], dataset.get("test")
+    else:
+        train_dataset, eval_dataset = dataset, None
+    has_eval = eval_dataset is not None
 
     # Load the tokenizer and validate it
     tokenizer = load_tokenizer(
@@ -164,15 +176,36 @@ def main(args):
     # Set the `WANDB_PROJECT` to args.wandb_project
     os.environ["WANDB_PROJECT"] = args.wandb_project
 
+    # transformers >= 5.x replaced `TrainingArguments.warmup_ratio` with
+    # `warmup_steps`.
+    if args.warmup_ratio is not None:
+        if args.warmup_steps:
+            raise SystemExit(
+                "--warmup_ratio and --warmup_steps are mutually exclusive. "
+                "--warmup_ratio is deprecated; pass --warmup_steps instead."
+            )
+        args.warmup_steps = args.warmup_ratio
+        if master_process:
+            logger.warning(
+                f"--warmup_ratio={args.warmup_ratio} is deprecated (transformers >= 5.x "
+                f"removed it). Forwarding as --warmup_steps={args.warmup_ratio}: a float "
+                f"in [0, 1) means the same ratio of total steps."
+            )
+
+    # TRL >= 0.29 removed the prompt/completion split from `DPOConfig`, so the
+    # prompt can no longer be capped separately.
+    if args.truncation_mode == "keep_end" and master_process:
+        logger.warning(
+            "truncation_mode='keep_end' is deprecated by TRL (removal in TRL 2.0.0). "
+            "It keeps the completion and drops the start of the prompt; the "
+            "forward-compatible 'keep_start' does the opposite. Choose deliberately."
+        )
+
     # See https://huggingface.co/docs/trl/main/en/dpo_trainer#trl.DPOConfig
     # See https://huggingface.co/docs/transformers/main_classes/trainer#transformers.TrainingArguments
     training_args = trl.DPOConfig(
         dataset_num_proc=args.num_proc,
-        pad_token=tokenizer.pad_token,
-        label_pad_token_id=tokenizer.pad_token_id,
         max_length=args.max_length,
-        max_prompt_length=args.max_prompt_length,
-        max_completion_length=args.max_length - args.max_prompt_length,
         truncation_mode=args.truncation_mode,
         padding_free=args.padding_free,
         precompute_ref_log_probs=args.precompute_ref_log_probs,
@@ -181,9 +214,7 @@ def main(args):
         else args.per_device_train_batch_size * 2,
         loss_type=args.loss_type,
         beta=args.beta,
-        loss_weights=args.loss_weights
-        if isinstance(args.loss_type, list)
-        else [1.0 for _ in range(len(args.loss_type))],
+        loss_weights=args.loss_weights,
         sync_ref_model=args.sync_ref_model if not args.precompute_ref_log_probs else False,
         ref_model_sync_steps=args.ref_model_sync_steps
         if not args.precompute_ref_log_probs
@@ -195,9 +226,9 @@ def main(args):
         if torch.cuda.device_count() > 1 and args.gradient_checkpointing
         else None,
         seed=args.seed,
-        eval_strategy="steps" if "test" in dataset else "no",
+        eval_strategy="steps" if has_eval else "no",
         save_strategy="steps",
-        eval_steps=args.eval_steps if "test" in dataset else None,
+        eval_steps=args.eval_steps if has_eval else None,
         save_steps=args.save_steps,
         logging_steps=args.logging_steps,
         learning_rate=args.learning_rate,
@@ -207,11 +238,11 @@ def main(args):
         adam_epsilon=args.adam_epsilon,
         max_grad_norm=args.max_grad_norm,
         lr_scheduler_type=args.lr_scheduler_type,
-        warmup_ratio=args.warmup_ratio,
+        warmup_steps=args.warmup_steps,
         num_train_epochs=args.num_train_epochs,
         max_steps=-1 if args.max_steps is None else args.max_steps,
         per_device_train_batch_size=args.per_device_train_batch_size,
-        per_device_eval_batch_size=args.per_device_eval_batch_size if "test" in dataset else None,
+        per_device_eval_batch_size=args.per_device_eval_batch_size if has_eval else None,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         ddp_find_unused_parameters=args.ddp_find_unused_parameters
         if torch.cuda.device_count() > 1
@@ -222,7 +253,7 @@ def main(args):
         hub_model_id=args.hub_model_id,
         push_to_hub=bool(args.hub_token is not None and args.hub_model_id is not None),
         report_to=args.report_to,
-        include_tokens_per_second=True,
+        include_num_input_tokens_seen=True,
         hub_private_repo=True,
         run_name=f"{args.model_name_or_path.split('/')[-1]}-jobid-{jobid}-bs-{args.per_device_train_batch_size}-acumulation-{args.gradient_accumulation_steps}-ngpu-{torch.cuda.device_count()}-epochs-{args.num_train_epochs}",
     )
@@ -233,8 +264,8 @@ def main(args):
         ref_model=ref_model,
         processing_class=tokenizer,
         args=training_args,
-        train_dataset=dataset.get("train", dataset),
-        eval_dataset=dataset.get("test", None),
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
     )
 
     # Make sure every process is synced before training
@@ -270,8 +301,24 @@ if __name__ == "__main__":
         "--train_dataset_dir",
         type=str,
         nargs="+",
-        required=True,
-        help="Path(s) to the training dataset directory or file. Can be a single directory/file or a list of directories/files.",
+        default=None,
+        help=(
+            "Path(s) to the training dataset directory or file. Can be a single "
+            "directory/file or a list of directories/files. Required unless "
+            "--prebuilt_dataset_dir is set."
+        ),
+    )
+    parser.add_argument(
+        "--prebuilt_dataset_dir",
+        type=str,
+        default=None,
+        help=(
+            "Path to a dataset already materialised on disk with Dataset.save_to_disk, laid "
+            "out as <root>/train and <root>/validation. The Arrow files are memory-mapped, so "
+            "no `datasets` build runs on the compute nodes and no per-rank worker pool is "
+            "forked. When set, --train_dataset_dir is ignored and --test_size must not be "
+            "used: the prebuilt dataset already defines both splits."
+        ),
     )
     parser.add_argument(
         "--shuffle_dataset",
@@ -320,17 +367,17 @@ if __name__ == "__main__":
         help="Maximum sequence length for tokenization / model.",
     )
     parser.add_argument(
-        "--max_prompt_length",
-        type=int,
-        default=1024,
-        help="Maximum length of the prompt part of the input.",
-    )
-    parser.add_argument(
         "--truncation_mode",
         type=str,
         choices=["keep_start", "keep_end"],
-        default="keep_end",
-        help="Truncation mode to use when sequences exceed max_length.",
+        default="keep_start",
+        help=(
+            "Which end of an over-long sequence survives truncation. TRL's only "
+            "forward-compatible value is 'keep_start' (its default); 'keep_end' is "
+            "deprecated by TRL and will be removed in TRL 2.0. NOTE the behaviour: with "
+            "'keep_start' a long prompt can push the completion out of the window, "
+            "whereas 'keep_end' keeps the completion and drops the prompt's beginning."
+        ),
     )
     parser.add_argument(
         "--padding_free",
@@ -398,7 +445,25 @@ if __name__ == "__main__":
         default="linear",
         help="Type of learning rate scheduler to use.",
     )
-    parser.add_argument("--warmup_ratio", type=float, default=0.0)
+    parser.add_argument(
+        "--warmup_steps",
+        type=float,
+        default=0.0,
+        help=(
+            "Warmup length: an int >= 1 is an exact number of steps, a float in [0, 1) is a "
+            "RATIO of total steps. Replaces the removed --warmup_ratio."
+        ),
+    )
+    parser.add_argument(
+        "--warmup_ratio",
+        type=float,
+        default=None,
+        help=(
+            "DEPRECATED: transformers >= 5.x removed `warmup_ratio` from TrainingArguments. "
+            "Kept so existing job scripts still parse; the value is forwarded to "
+            "--warmup_steps unchanged, which means the same ratio."
+        ),
+    )
     parser.add_argument("--num_train_epochs", type=int, default=1)
     parser.add_argument(
         "--max_steps",
@@ -420,7 +485,12 @@ if __name__ == "__main__":
         "--attn_implementation",
         type=str,
         default="eager",
-        help="Attention implementation to use. Options: 'eager', 'sdpa', 'flash_attention_2', 'flash_attention_3', and 'flash_attention_4'.",
+        help=(
+            "Attention implementation to use: 'eager', 'sdpa', 'flash_attention_2', "
+            "'flash_attention_3' or 'flash_attention_4'. Which flash variant works depends "
+            "on the installed package - flash-attn-4 only provides 'flash_attention_4' "
+            "(it has no v2 API) and wants --bf16 so the dtype is explicit."
+        ),
     )
     # Data loader / batch sizes
     parser.add_argument("--per_device_train_batch_size", type=int, default=8)
@@ -434,7 +504,11 @@ if __name__ == "__main__":
         type=str,
         nargs="+",
         default="none",
-        help="The list of integrations to report the results and logs to. Supported platforms are 'tensorboard', 'wandb', 'comet_ml', 'mlflow', 'clearml', 'wandb' etc. See https://huggingface.co/docs/transformers/main/en/main_classes/trainer#transformers.TrainingArguments.report_to for more details.",
+        help=(
+            "Integrations to report results and logs to (default 'none'). Common values: "
+            "'tensorboard', 'wandb', 'codecarbon', 'trackio'. See "
+            "https://huggingface.co/docs/transformers/main/en/main_classes/trainer#transformers.TrainingArguments.report_to"
+        ),
     )
     parser.add_argument("--wandb_project", type=str, default="Polyglot")
     # Experimental / other

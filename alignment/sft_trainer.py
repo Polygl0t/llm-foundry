@@ -3,20 +3,13 @@ Supervised Fine-Tuning (SFT) Trainer for Large Language Models
 
 This script fine-tunes LLMs using the Hugging Face Transformers and TRL libraries.
 
-Expected Dataset Format:
+Expected Dataset Format (always RAW; tokenising and packing are left to TRL):
 {
     "messages": [
         {"role": "user", "content": "User message here."},
         {"role": "assistant", "content": "Assistant response here."},
         ...
     ]
-}
-
-If the dataset is already tokenized, it should contain:
-{
-    "input_ids": [...], # Required (list of token IDs)
-    "seq_lengths": [...], # Required (list of sequence lengths)
-    "assistant_tokens_mask": [...]  # Optional, required if assistant_only_loss is used
 }
 
 Example usage:
@@ -39,7 +32,7 @@ import os
 
 import torch
 import trl
-
+from datasets import DatasetDict
 from utils import (
     get_logger,
     load_tokenizer,
@@ -57,13 +50,15 @@ def main(args):
     # Initialize the partial state for distributed training
     state, master_process = setup_distributed_state(logger)
 
-    # Collect and load the training dataset
     dataset = load_training_dataset(
-        args.train_dataset_dir, args.dataset_type, args.num_proc, args.cache_dir, state
+        args.train_dataset_dir,
+        args.dataset_type,
+        args.num_proc,
+        args.cache_dir,
+        state,
+        prebuilt_dataset_dir=args.prebuilt_dataset_dir,
+        logger=logger,
     )
-
-    # Set a flag indicating whether the dataset is already processed (tokenized)
-    is_processed = "input_ids" in dataset.column_names
 
     if args.shuffle_dataset:
         dataset = dataset.shuffle(seed=args.seed)
@@ -84,57 +79,84 @@ def main(args):
         args.model_name_or_path, args.max_length, args.cache_dir, args.chat_template_path
     )
 
-    # Filter out samples that exceed max_length after applying chat template
-    # This prevents truncated samples during packing
-    # We only apply this filtering if the dataset is not already processed
-    if not is_processed:
-
-        def filter_by_length(example):
-            """Apply chat template and check if token count exceeds max_length.
-            Also filters out samples where the last message is not from the assistant.
-            """
-            try:
-                # Check if the last message is from the assistant
-                # This will prevent issues with samples that do not have an assistant response
-                if not example["messages"] or example["messages"][-1]["role"] != "assistant":
-                    return False
-
-                # Apply chat template and tokenize in one step
-                token_ids = tokenizer.apply_chat_template(
-                    example["messages"], tokenize=True, add_generation_prompt=False
-                )
-                # Return True to keep the sample, False to filter it out
-                return len(token_ids) <= args.max_length
-            except Exception as e:
-                logger.warning(f"Error processing sample: {e}")
+    # This filter drops samples that exceed max_length once the chat template is applied, which
+    # would otherwise be truncated during packing.
+    def filter_by_length(example):
+        """Apply chat template and check if token count exceeds max_length.
+        Also filters out samples where the last message is not from the assistant.
+        """
+        try:
+            # Check if the last message is from the assistant
+            # This will prevent issues with samples that do not have an assistant response
+            if not example["messages"] or example["messages"][-1]["role"] != "assistant":
                 return False
 
-        # Only main process runs the filter; others wait and load from cache
-        if master_process:
-            dataset = dataset.filter(
-                filter_by_length,
-                num_proc=args.num_proc,
-                load_from_cache_file=True,
-                desc=f"Filtering samples exceeding {args.max_length} tokens",
+            token_ids = tokenizer.apply_chat_template(
+                example["messages"],
+                tokenize=True,
+                add_generation_prompt=False,
+                return_dict=False,
             )
+            # Return True to keep the sample, False to filter it out
+            return len(token_ids) <= args.max_length
+        except Exception as e:
+            logger.warning(f"Error processing sample: {e}")
+            return False
 
-        # Wait for main process to finish filtering
-        state.wait_for_everyone()
+    # Only main process runs the filter; others wait and load from cache
+    if master_process:
+        dataset = dataset.filter(
+            filter_by_length,
+            num_proc=args.num_proc,
+            load_from_cache_file=True,
+            desc=f"Filtering samples exceeding {args.max_length} tokens",
+        )
+        sizes = (
+            ", ".join(f"{name}={split.num_rows:,}" for name, split in dataset.items())
+            if isinstance(dataset, DatasetDict)
+            else f"{dataset.num_rows:,}"
+        )
+        logger.info(f"Rows kept after the >{args.max_length}-token filter: {sizes}")
 
-        # Non-main processes reload from cache
-        if not master_process:
-            dataset = dataset.filter(
-                filter_by_length,
-                num_proc=args.num_proc,
-                load_from_cache_file=True,  # Will load from cache created by main process
-                desc=f"Filtering samples exceeding {args.max_length} tokens",
-            )
+    # Wait for main process to finish filtering
+    state.wait_for_everyone()
+
+    # Non-main processes reload from cache
+    if not master_process:
+        dataset = dataset.filter(
+            filter_by_length,
+            num_proc=args.num_proc,
+            load_from_cache_file=True,  # Will load from cache created by main process
+            desc=f"Filtering samples exceeding {args.max_length} tokens",
+        )
+
+    if isinstance(dataset, DatasetDict):
+        train_dataset, eval_dataset = dataset["train"], dataset.get("test")
+    else:
+        train_dataset, eval_dataset = dataset, None
+    has_eval = eval_dataset is not None
 
     # Get the job ID from the environment variable or set it to "local" if not available
     jobid = os.getenv("SLURM_JOB_ID", "local")
 
     # Set the `WANDB_PROJECT` to args.wandb_project
     os.environ["WANDB_PROJECT"] = args.wandb_project
+
+    # transformers >= 5.x replaced `TrainingArguments.warmup_ratio` with
+    # `warmup_steps`.
+    if args.warmup_ratio is not None:
+        if args.warmup_steps:
+            raise SystemExit(
+                "--warmup_ratio and --warmup_steps are mutually exclusive. "
+                "--warmup_ratio is deprecated; pass --warmup_steps instead."
+            )
+        args.warmup_steps = args.warmup_ratio
+        if master_process:
+            logger.warning(
+                f"--warmup_ratio={args.warmup_ratio} is deprecated (transformers >= 5.x "
+                f"removed it). Forwarding as --warmup_steps={args.warmup_ratio}: a float "
+                f"in [0, 1) means the same ratio of total steps."
+            )
 
     # See https://huggingface.co/docs/trl/main/en/sft_trainer#trl.SFTConfig
     # See https://huggingface.co/docs/transformers/main/en/main_classes/trainer#transformers.TrainingArguments
@@ -151,7 +173,6 @@ def main(args):
         max_length=args.max_length,
         assistant_only_loss=args.assistant_only_loss,
         eos_token=tokenizer.eos_token,
-        pad_token=tokenizer.pad_token,
         dataset_num_proc=args.num_proc,
         shuffle_dataset=args.shuffle_dataset,
         use_liger_kernel=args.use_liger_kernel,
@@ -163,9 +184,9 @@ def main(args):
         packing=args.packing,  # Enable packing to optimize training (see https://huggingface.co/docs/trl/main/en/sft_trainer#packing-dataset)
         packing_strategy="bfd",  # Best-Fit Decreasing packing strategy (good default)
         seed=args.seed,
-        eval_strategy="steps" if "test" in dataset else "no",
+        eval_strategy="steps" if has_eval else "no",
         save_strategy="steps",
-        eval_steps=args.eval_steps if "test" in dataset else None,
+        eval_steps=args.eval_steps if has_eval else None,
         save_steps=args.save_steps,
         logging_steps=args.logging_steps,
         learning_rate=args.learning_rate,
@@ -175,11 +196,11 @@ def main(args):
         adam_epsilon=args.adam_epsilon,
         max_grad_norm=args.max_grad_norm,
         lr_scheduler_type=args.lr_scheduler_type,
-        warmup_ratio=args.warmup_ratio,
+        warmup_steps=args.warmup_steps,
         num_train_epochs=args.num_train_epochs,
         max_steps=-1 if args.max_steps is None else args.max_steps,
         per_device_train_batch_size=args.per_device_train_batch_size,
-        per_device_eval_batch_size=args.per_device_eval_batch_size if "test" in dataset else None,
+        per_device_eval_batch_size=args.per_device_eval_batch_size if has_eval else None,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         ddp_find_unused_parameters=args.ddp_find_unused_parameters
         if torch.cuda.device_count() > 1
@@ -191,7 +212,7 @@ def main(args):
         push_to_hub=bool(args.hub_token is not None and args.hub_model_id is not None),
         report_to=args.report_to,
         pad_to_multiple_of=args.pad_to_multiple_of,
-        include_tokens_per_second=True,  # Include tokens per second in the logs
+        include_num_input_tokens_seen=True,
         hub_private_repo=True,  # If you want to push to a private repo
         run_name=f"{args.model_name_or_path.split('/')[-1]}-jobid-{jobid}-bs-{args.per_device_train_batch_size}-acumulation-{args.gradient_accumulation_steps}-ngpu-{torch.cuda.device_count()}-epochs-{args.num_train_epochs}",
     )
@@ -201,8 +222,8 @@ def main(args):
         model=args.model_name_or_path,
         processing_class=tokenizer,
         args=training_args,
-        train_dataset=dataset.get("train", dataset),
-        eval_dataset=dataset.get("test", None),
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
     )
 
     # Make sure every process is synced before training
@@ -238,8 +259,24 @@ if __name__ == "__main__":
         "--train_dataset_dir",
         type=str,
         nargs="+",
-        required=True,
-        help="Path(s) to the training dataset directory or file. Can be a single directory/file or a list of directories/files.",
+        default=None,
+        help=(
+            "Path(s) to the training dataset directory or file. Can be a single "
+            "directory/file or a list of directories/files. Required unless "
+            "--prebuilt_dataset_dir is set."
+        ),
+    )
+    parser.add_argument(
+        "--prebuilt_dataset_dir",
+        type=str,
+        default=None,
+        help=(
+            "Path to a dataset already materialised on disk with Dataset.save_to_disk, laid "
+            "out as <root>/train and <root>/validation. The Arrow files are memory-mapped, so "
+            "no `datasets` build runs on the compute nodes and no per-rank worker pool is "
+            "forked. When set, --train_dataset_dir is ignored and --test_size must not be "
+            "used: the prebuilt dataset already defines both splits."
+        ),
     )
     parser.add_argument(
         "--shuffle_dataset",
@@ -315,7 +352,25 @@ if __name__ == "__main__":
         default="linear",
         help="Type of learning rate scheduler to use. Options: 'linear', 'cosine', and all the other types listed here: https://huggingface.co/docs/transformers/main/en/main_classes/optimizer_schedules#transformers.SchedulerType",
     )
-    parser.add_argument("--warmup_ratio", type=float, default=0.0)
+    parser.add_argument(
+        "--warmup_steps",
+        type=float,
+        default=0.0,
+        help=(
+            "Warmup length: an int >= 1 is an exact number of steps, a float in [0, 1) is a "
+            "RATIO of total steps. Replaces the removed --warmup_ratio."
+        ),
+    )
+    parser.add_argument(
+        "--warmup_ratio",
+        type=float,
+        default=None,
+        help=(
+            "DEPRECATED: transformers >= 5.x removed `warmup_ratio` from TrainingArguments. "
+            "Kept so existing job scripts still parse; the value is forwarded to "
+            "--warmup_steps unchanged, which means the same ratio."
+        ),
+    )
     parser.add_argument("--num_train_epochs", type=int, default=1)
     parser.add_argument(
         "--max_steps",
@@ -348,7 +403,12 @@ if __name__ == "__main__":
         "--attn_implementation",
         type=str,
         default="eager",
-        help="Attention implementation to use. Options: 'eager', 'sdpa', 'flash_attention_2', 'flash_attention_3', and 'flash_attention_4'.",
+        help=(
+            "Attention implementation to use: 'eager', 'sdpa', 'flash_attention_2', "
+            "'flash_attention_3' or 'flash_attention_4'. Which flash variant works depends "
+            "on the installed package - flash-attn-4 only provides 'flash_attention_4' "
+            "(it has no v2 API) and wants --bf16 so the dtype is explicit."
+        ),
     )
     # Data loader / batch sizes
     parser.add_argument("--per_device_train_batch_size", type=int, default=8)
@@ -362,7 +422,11 @@ if __name__ == "__main__":
         type=str,
         nargs="+",
         default="none",
-        help="The list of integrations to report the results and logs to. Supported platforms are 'tensorboard', 'wandb', 'comet_ml', 'mlflow', 'clearml', 'wandb' etc. See https://huggingface.co/docs/transformers/main/en/main_classes/trainer#transformers.TrainingArguments.report_to for more details.",
+        help=(
+            "Integrations to report results and logs to (default 'none'). Common values: "
+            "'tensorboard', 'wandb', 'codecarbon', 'trackio'. See "
+            "https://huggingface.co/docs/transformers/main/en/main_classes/trainer#transformers.TrainingArguments.report_to"
+        ),
     )
     parser.add_argument("--wandb_project", type=str, default="Polyglot")
     # Experimental / other

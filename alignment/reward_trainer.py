@@ -42,7 +42,7 @@ import os
 
 import torch
 import trl
-
+from datasets import DatasetDict
 from utils import (
     get_logger,
     load_tokenizer,
@@ -56,7 +56,7 @@ from utils import (
 
 def uses_conversational_format(dataset):
     """Return True when the dataset stores prompt/chosen/rejected as messages."""
-    sample = dataset["train"][0] if "train" in dataset else dataset[0]
+    sample = dataset["train"][0] if isinstance(dataset, DatasetDict) else dataset[0]
 
     for field_name in ("prompt", "chosen", "rejected"):
         value = sample.get(field_name)
@@ -71,6 +71,7 @@ def uses_conversational_format(dataset):
 def main(args):
     logger = get_logger("Reward-Trainer")
 
+    # Initialize the partial state for distributed training
     state, master_process = setup_distributed_state(logger)
 
     dataset = load_training_dataset(
@@ -79,6 +80,8 @@ def main(args):
         args.num_proc,
         args.cache_dir,
         state,
+        prebuilt_dataset_dir=args.prebuilt_dataset_dir,
+        logger=logger,
     )
 
     if args.shuffle_dataset:
@@ -94,12 +97,19 @@ def main(args):
         state,
     )
 
+    if isinstance(dataset, DatasetDict):
+        train_dataset, eval_dataset = dataset["train"], dataset.get("test")
+    else:
+        train_dataset, eval_dataset = dataset, None
+    has_eval = eval_dataset is not None
+
     tokenizer = load_tokenizer(
         args.model_name_or_path,
         args.max_length,
         args.cache_dir,
         args.chat_template_path,
         allow_eos_pad_token=True,
+        require_chat_template=False,
     )
 
     if uses_conversational_format(dataset) and tokenizer.chat_template is None:
@@ -112,6 +122,22 @@ def main(args):
     os.environ["WANDB_PROJECT"] = args.wandb_project
 
     model_dtype = torch.bfloat16 if args.bf16 else torch.float32
+
+    # transformers >= 5.x replaced `TrainingArguments.warmup_ratio` with
+    # `warmup_steps`.
+    if args.warmup_ratio is not None:
+        if args.warmup_steps:
+            raise SystemExit(
+                "--warmup_ratio and --warmup_steps are mutually exclusive. "
+                "--warmup_ratio is deprecated; pass --warmup_steps instead."
+            )
+        args.warmup_steps = args.warmup_ratio
+        if master_process:
+            logger.warning(
+                f"--warmup_ratio={args.warmup_ratio} is deprecated (transformers >= 5.x "
+                f"removed it). Forwarding as --warmup_steps={args.warmup_ratio}: a float "
+                f"in [0, 1) means the same ratio of total steps."
+            )
 
     # See https://huggingface.co/docs/trl/en/reward_trainer#trl.RewardConfig
     # See https://huggingface.co/docs/transformers/main/en/main_classes/trainer#transformers.TrainingArguments
@@ -133,9 +159,9 @@ def main(args):
         if torch.cuda.device_count() > 1 and args.gradient_checkpointing
         else None,
         seed=args.seed,
-        eval_strategy="steps" if "test" in dataset else "no",
+        eval_strategy="steps" if has_eval else "no",
         save_strategy="steps",
-        eval_steps=args.eval_steps if "test" in dataset else None,
+        eval_steps=args.eval_steps if has_eval else None,
         save_steps=args.save_steps,
         logging_steps=args.logging_steps,
         learning_rate=args.learning_rate,
@@ -145,11 +171,11 @@ def main(args):
         adam_epsilon=args.adam_epsilon,
         max_grad_norm=args.max_grad_norm,
         lr_scheduler_type=args.lr_scheduler_type,
-        warmup_ratio=args.warmup_ratio,
+        warmup_steps=args.warmup_steps,
         num_train_epochs=args.num_train_epochs,
         max_steps=-1 if args.max_steps is None else args.max_steps,
         per_device_train_batch_size=args.per_device_train_batch_size,
-        per_device_eval_batch_size=args.per_device_eval_batch_size if "test" in dataset else None,
+        per_device_eval_batch_size=args.per_device_eval_batch_size if has_eval else None,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         ddp_find_unused_parameters=args.ddp_find_unused_parameters
         if torch.cuda.device_count() > 1
@@ -160,7 +186,7 @@ def main(args):
         hub_model_id=args.hub_model_id,
         push_to_hub=bool(args.hub_token is not None and args.hub_model_id is not None),
         report_to=args.report_to,
-        include_tokens_per_second=True,
+        include_num_input_tokens_seen=True,
         hub_private_repo=True,
         run_name=f"{args.model_name_or_path.split('/')[-1]}-jobid-{jobid}-bs-{args.per_device_train_batch_size}-acumulation-{args.gradient_accumulation_steps}-ngpu-{torch.cuda.device_count()}-epochs-{args.num_train_epochs}",
     )
@@ -170,8 +196,8 @@ def main(args):
         model=args.model_name_or_path,
         processing_class=tokenizer,
         args=training_args,
-        train_dataset=dataset.get("train", dataset),
-        eval_dataset=dataset.get("test", None),
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
     )
 
     state.wait_for_everyone()
@@ -203,8 +229,24 @@ if __name__ == "__main__":
         "--train_dataset_dir",
         type=str,
         nargs="+",
-        required=True,
-        help="Path(s) to the training dataset directory or file. Can be a single directory/file or a list of directories/files.",
+        default=None,
+        help=(
+            "Path(s) to the training dataset directory or file. Can be a single "
+            "directory/file or a list of directories/files. Required unless "
+            "--prebuilt_dataset_dir is set."
+        ),
+    )
+    parser.add_argument(
+        "--prebuilt_dataset_dir",
+        type=str,
+        default=None,
+        help=(
+            "Path to a dataset already materialised on disk with Dataset.save_to_disk, laid "
+            "out as <root>/train and <root>/validation. The Arrow files are memory-mapped, so "
+            "no `datasets` build runs on the compute nodes and no per-rank worker pool is "
+            "forked. When set, --train_dataset_dir is ignored and --test_size must not be "
+            "used: the prebuilt dataset already defines both splits."
+        ),
     )
     parser.add_argument(
         "--shuffle_dataset",
@@ -225,7 +267,11 @@ if __name__ == "__main__":
         "--chat_template_path",
         type=str,
         default=None,
-        help="Path to the chat template file to use for conversational datasets.",
+        help=(
+            "Path to the chat template file to use for conversational datasets. Not "
+            "required for plain-text preference pairs (chosen/rejected as strings), "
+            "which are tokenized verbatim."
+        ),
     )
     parser.add_argument("--checkpoint_dir", type=str, required=True)
     parser.add_argument(
@@ -266,7 +312,25 @@ if __name__ == "__main__":
         default="linear",
         help="Type of learning rate scheduler to use.",
     )
-    parser.add_argument("--warmup_ratio", type=float, default=0.0)
+    parser.add_argument(
+        "--warmup_steps",
+        type=float,
+        default=0.0,
+        help=(
+            "Warmup length: an int >= 1 is an exact number of steps, a float in [0, 1) is a "
+            "RATIO of total steps. Replaces the removed --warmup_ratio."
+        ),
+    )
+    parser.add_argument(
+        "--warmup_ratio",
+        type=float,
+        default=None,
+        help=(
+            "DEPRECATED: transformers >= 5.x removed `warmup_ratio` from TrainingArguments. "
+            "Kept so existing job scripts still parse; the value is forwarded to "
+            "--warmup_steps unchanged, which means the same ratio."
+        ),
+    )
     parser.add_argument("--num_train_epochs", type=int, default=1)
     parser.add_argument(
         "--max_steps",
