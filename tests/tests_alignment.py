@@ -42,6 +42,10 @@ class FakeState:
         self.process_index = process_index
         self.wait_calls = 0
 
+    @property
+    def is_main_process(self):
+        return self.process_index == 0
+
     def wait_for_everyone(self):
         self.wait_calls += 1
 
@@ -59,9 +63,14 @@ class FakeAccelerateModule:
         return cls.last_state
 
 
+class FakeDatasetDict:
+    """Stand-in for datasets.DatasetDict; a prebuilt dataset is an instance of this."""
+
+
 class FakeDatasetsModule:
     last_load_dataset_kwargs = None
     return_value = object()
+    DatasetDict = FakeDatasetDict
 
     @classmethod
     def load_dataset(cls, *args, **kwargs):
@@ -167,7 +176,8 @@ def test_05_loadtrainingdataset_collects_sorted_jsonl_files_and_waits():
         expected_files = sorted([shard_a, shard_b, explicit_file])
         call = FakeDatasetsModule.last_load_dataset_kwargs
         assert result == "loaded-dataset"
-        assert state.wait_calls == 1
+        # One barrier before the master builds the Arrow cache, one after.
+        assert state.wait_calls == 2
         assert call["args"] == ("json",)
         assert call["kwargs"]["data_files"] == expected_files
         assert call["kwargs"]["split"] == "train"
