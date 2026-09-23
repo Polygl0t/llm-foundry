@@ -2,6 +2,8 @@
 
 This document is a high-level overview of the steps involved in training a large language model (LLM) using the LLM Foundry. It is intended to provide a general understanding of the process and the various components involved.
 
+For more detailed explanations, resources, and step-by-step tutorials we refer to the [Polyglot workshop](https://github.com/Polygl0t/workshop-exercises).
+
 ## Step 1: Data Collection and Preprocessing
 
 The first step in training an LLM is to collect and preprocess the data that will be used for training. This involves gathering a large corpus of text data, which can come from various sources. Two of the most common sources are:
@@ -57,7 +59,7 @@ In [`synthetic/`](synthetic/) you can find scripts and tools to help you generat
 
 * Find a seed of documents that are relevant for your use case (e.g., 10K documents). These can be, for example, wikipedia articles, or documents from the small subset of your data that you know are good for your use case.
 * Select a generator that you will use to generate the synthetic data. This can be, for example, a model from the Hugging Face Hub (e.g., Qwen3-32B), or an API model (e.g., GPT-4). Depending on the task (e.g., generate summaries, generate GAQs, etc.) you can use smaller models (e.g., 3B parameter models) as generators. See *"[The Synthetic Data Playbook: Generating Trillions of the Finest Tokens](https://huggingface.co/spaces/HuggingFaceFW/finephrase)"* for some cool lessons on how to optimize the generation of synthetic data with the help of LLMs.
-* Scripts like [`synthetic/generate.py`](synthetic/generate.py) and [`synthetic/generate_datatrove.py`](synthetic/generate_datatrove.py) can be used to create data generation pipelines. [`synthetic/generate_cai.py`](synthetic/generate_cai.py) can be used to create synthetic data with a Constitutional AI approach, which can be very useful to create alignment data for post-training.
+* Scripts like [`synthetic/generate.py`](synthetic/generate.py) and [`synthetic/generate_datatrove.py`](synthetic/generate_datatrove.py) can be used to create data generation pipelines. [`synthetic/generate_cai.py`](synthetic/generate_cai.py) can be used to create synthetic data with a Constitutional AI approach, which can be very useful to create alignment data for post-training. See [here](https://github.com/Polygl0t/workshop-exercises/tree/main/day3/post_training#exercise-2-creating-alignment-datasets-with-constitutional-ai) for a tutorial.
 
 ## Step 2: Tokenization
 
@@ -115,6 +117,7 @@ You have data. You have a tokenizer. You have evaluations. Now you are ready to 
     * [`distributed/slurm/train_ddp.sh`](distributed/slurm/train_ddp.sh) for DDP training.
     * [`distributed/slurm/train_fsdp.sh`](distributed/slurm/train_fsdp.sh) for FSDP2 training.
 
+See the [workshop exercises](https://github.com/Polygl0t/workshop-exercises/tree/main/day3/pretraining) for more details and a step-by-step tutorial on implementing DDP training yourself.
 > **Note**: DDP is suited for training models that you can fit in a single GPU, since it relies on only data parallelism and a single `all_reduce` on the gradients. FSDP2 is suited for training larger models that cannot fit in a single GPU, since it relies on model parallelism as well (model/gradient/optimizer sharding, and a lot of `all_gather` and `reduce_scatter` gymnastics). According to our scaling tests, both our DDP and FSDP2 implementations scale almost linearly up to 256 GPUs (training a 7B parameter dense model). See [this](https://arxiv.org/html/2603.03543v1#A8) section of our Tucano paper for more details on the scaling performance of our implementations.
 
 ### What about merging and transplantation?
@@ -130,6 +133,8 @@ After you have pretrained your model, if you want to go further than having just
 * **Supervised fine-tuning (SFT)**: This consists in fine-tuning your model on a specific task or set of tasks with supervised data. For example, if you want to improve the performance of your model on question answering tasks, you can fine-tune it on a question answering dataset (see [`alignment/sft_trainer.py`](alignment/sft_trainer.py)).
 * **Direct preference optimization (DPO)**: This consists in fine-tuning your model with a DPO objective, which optimizes the model via contrastive pairs of better and worse model outputs ranked by humans or by a reward model (see [`alignment/dpo_trainer.py`](alignment/dpo_trainer.py)). The same type of data used to perform DPO can be used to train reward models (see [`alignment/reward_trainer.py`](alignment/reward_trainer.py)), which can then be used to perform either reinforcement learning or serve as a preference-based sampler during inference.
 * **Group Relative Policy Optimization (GRPO)**: This consists in fine-tuning your model with verifiable rewards. For this, we use [`alignment/gym`](alignment/gym) to procedurally generate samples with verifiable group identities, and then we use those samples to fine-tune the model with a GRPO objective.
+
+See [here](https://github.com/Polygl0t/workshop-exercises/tree/main/day3/post_training#exercise-4-implementing-post-training-sft-or-dpo) for more details and tutorials on SFT and DPO.
 
 ## FAQ (Frequently Asked Questions)
 
