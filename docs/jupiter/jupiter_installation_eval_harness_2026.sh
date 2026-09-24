@@ -98,6 +98,7 @@ GEN_KWARGS="${GEN_KWARGS-${PRECACHE_GEN_KWARGS-max_gen_toks=16}}"
 export UV_LINK_MODE=copy
 export HF_DATASETS_CACHE="$cache_dir/datasets"
 export HF_HUB_CACHE="$cache_dir/models"
+export HF_MODULES_CACHE="$cache_dir/modules"
 
 # NLTK corpora and the RULER haystack live in their own directories, NOT in the
 # HF cache, so the eval job must export these too.
@@ -294,7 +295,8 @@ precache_datasets() {
     local unsafe_note="<none>"
     if (( ${#unsafe_tasks[@]} > 0 )); then
         unsafe_args=(--confirm_run_unsafe_code)
-        unsafe_note="${unsafe_tasks[*]} (execution confirmed)"
+        export HF_ALLOW_CODE_EVAL=1
+        unsafe_note="${unsafe_tasks[*]} (execution confirmed, HF_ALLOW_CODE_EVAL=1)"
     fi
 
     local tmp

@@ -39,6 +39,7 @@ export HF_DATASETS_CACHE="$workdir/.cache/eval_harness/datasets"
 export HF_HUB_CACHE="$workdir/.cache/eval_harness/models"
 export NLTK_DATA="$workdir/.cache/eval_harness/nltk_data"
 export RULER_HAYSTACK_DIR="$workdir/.cache/eval_harness/ruler_haystack"
+export HF_MODULES_CACHE="$workdir/.cache/eval_harness/modules"
 export HF_DATASETS_OFFLINE=1
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
@@ -147,12 +148,19 @@ if [[ "$ENABLE_THINKING" == "1" ]]; then
     echo "      cloze task in TASKS will fail. Use thinking only with generation tasks."
 fi
 
-# humaneval/humaneval_instruct (and mbpp, cruxeval, etc.) are marked `unsafe_code: true`
-# in lm-evaluation-harness: they execute model-generated code to check test cases, and
-# lm_eval refuses to run them unless this is explicitly confirmed.
+# humaneval (and mbpp, cruxeval, ...) are marked `unsafe_code: true` in
+# lm-evaluation-harness: they execute model-generated code to check test cases. TWO
+# separate go-aheads are needed and neither substitutes for the other:
+#   --confirm_run_unsafe_code  lm_eval's own gate
+#   HF_ALLOW_CODE_EVAL=1       the `evaluate` code_eval metric's gate, raised while
+#                              scoring ("set the environment variable
+#                              HF_ALLOW_CODE_EVAL=\"1\""); the check is `!= "1"`.
 CONFIRM_UNSAFE_CODE="0"
-if [[ ",$TASKS," == *",humaneval,"* || ",$TASKS," == *",humaneval_instruct,"* ]]; then
+if [[ ",$TASKS," == *humaneval* || ",$TASKS," == *mbpp* || ",$TASKS," == *cruxeval* ]]; then
     CONFIRM_UNSAFE_CODE="1"
+fi
+if [[ "$CONFIRM_UNSAFE_CODE" == "1" ]]; then
+    export HF_ALLOW_CODE_EVAL=1
 fi
 
 mkdir -p "$LOGS_DIR" "$RESULTS_DIR" "$TMP_ROOT"
@@ -175,7 +183,7 @@ if [[ -n "$RULER_METADATA" ]]; then
 else
     echo "RULER lengths   : <ruler_pt default: 4096>"
 fi
-echo "Unsafe code run : $([[ "$CONFIRM_UNSAFE_CODE" == "1" ]] && echo "yes (humaneval)" || echo "no")"
+echo "Unsafe code run : $([[ "$CONFIRM_UNSAFE_CODE" == "1" ]] && echo "yes (HF_ALLOW_CODE_EVAL=1)" || echo "no")"
 echo "========================================="
 
 #############################################
