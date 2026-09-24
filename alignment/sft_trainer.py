@@ -188,6 +188,7 @@ def main(args):
         save_strategy="steps",
         eval_steps=args.eval_steps if has_eval else None,
         save_steps=args.save_steps,
+        save_total_limit=args.save_total_limit,
         logging_steps=args.logging_steps,
         learning_rate=args.learning_rate,
         weight_decay=args.weight_decay,
@@ -339,6 +340,16 @@ if __name__ == "__main__":
     # Training and optimizer
     parser.add_argument("--eval_steps", type=int, default=1000)
     parser.add_argument("--save_steps", type=int, default=1000)
+    parser.add_argument(
+        "--save_total_limit",
+        type=int,
+        default=None,
+        help=(
+            "Maximum number of `checkpoint-*` directories kept in --checkpoint_dir; the "
+            "oldest are deleted as new ones are written (the best one is always kept). "
+            "None (default) keeps every checkpoint."
+        ),
+    )
     parser.add_argument("--logging_steps", type=int, default=1)
     parser.add_argument("--learning_rate", type=float, default=3e-4)
     parser.add_argument("--weight_decay", type=float, default=0.0)

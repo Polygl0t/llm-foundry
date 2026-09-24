@@ -196,6 +196,7 @@ export ARGS="--dataset_type jsonl \
 --save_test_set \
 --max_length 4096 \
 --save_steps 2000 \
+--save_total_limit 4 \
 --logging_steps 1 \
 --packing \
 --assistant_only_loss \
