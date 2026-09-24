@@ -6,6 +6,7 @@ This folder contains miscellaneous tools, scripts, and helpers for working with 
 
 - [`assets/`](./assets) — Folder containing miscellaneous assets used by the tools, such as templates, example files, and configuration snippets.
 - [`slurm/`](./slurm) — Folder containing SLURM job scripts for cluster-managed environments. Before submitting, update the scripts with your cluster-specific settings and correct paths for your artifacts/workspace. **These are templates, not ready-to-run scripts.**
+- [`aggregate_evals.py`](./aggregate_evals.py) — Aggregate `lm-evaluation-harness` results across models into a Markdown report and comparison plots.
 - [`benchmark_lm.py`](./benchmark_lm.py) — Benchmark a given LM in terms of throughput and language drift, using vLLM as backend.
 - [`compute_hyperparams.py`](./compute_hyperparams.py) — Compute training hyperparameters like learning rate, batch size, and steps based on model size and training configuration (uses the heuristics from the [DeepSeek LLM scaling laws paper](https://arxiv.org/abs/2401.02954)).
 - [`convert_dataset_to_hf.py`](./convert_dataset_to_hf.py) — Convert JSONL or Parquet dataset shards into a Hugging Face Dataset format and optionally upload it to the Hub.
@@ -28,6 +29,22 @@ This folder contains miscellaneous tools, scripts, and helpers for working with 
 - [`upload.py`](./upload.py) — Upload a local directory to the Hugging Face Hub with optional repo creation.
 
 ## Usage Summary
+
+### `aggregate_evals.py`
+Aggregate `lm-evaluation-harness` results into a Markdown report (with a ranking table and Normalized Preferred Metric summary) plus optional comparison plots.
+
+Example:
+```bash
+python tools/aggregate_evals.py --input models/.evals --outdir reports
+```
+
+`<input_dir>` must contain a `.evals_config.yaml` defining the benchmarks to report on and their random-chance baselines, plus one `*.yaml` result file per evaluated model (as produced by the `evals/` scripts).
+
+Main parameters:
+- `--input`, `-i`: directory with `*.yaml` result files and `.evals_config.yaml` (default: `.evals`).
+- `--outdir`, `-o`: output directory for the report/plots (default: same as `--input`).
+- `--decimals`: decimal places in the report tables (default: `4`).
+- `--no-plot`: skip generating the comparison bar plots.
 
 ### `benchmark_lm.py`
 Benchmark a given LM in terms of throughput and language drift, using vLLM as backend.
