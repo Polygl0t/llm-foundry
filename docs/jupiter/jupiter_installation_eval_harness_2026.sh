@@ -68,6 +68,8 @@ precache_tasks=(
     ifeval_pt
     gsm8k_pt
     ruler_pt
+    humaneval
+    humaneval_instruct
 )
 
 # Task names on the command line mean "pre-cache only": adding a dataset must
@@ -135,6 +137,13 @@ drop_active_venv() {
         echo "[$(date)] Deactivating the currently active venv: $VIRTUAL_ENV"
         deactivate 2>/dev/null || true
     fi
+}
+
+task_is_unsafe() {
+    local yaml_path
+    yaml_path="$(find "$harness_dir/lm_eval/tasks" -name "$1.yaml" -print -quit 2>/dev/null)"
+    [[ -n "$yaml_path" ]] || return 1
+    grep -rqs "unsafe_code: *true" "$(dirname "$yaml_path")"
 }
 
 
@@ -221,7 +230,7 @@ maybe_install_vllm() {
         echo "[$(date)] vLLM installed. The eval script can now use MODE=\"vllm\"."
     else
         echo "WARNING: vLLM install failed -- non-fatal." >&2
-        echo "         Keep MODE=\"hf\" in scripts/portuguese/eval_harness_pt_booster.sh." >&2
+        echo "         Keep MODE=\"hf\" in run_eval_harness." >&2
     fi
 }
 
@@ -276,6 +285,18 @@ precache_datasets() {
         gen_args=(--gen_kwargs "$GEN_KWARGS")
     fi
 
+    local t
+    local unsafe_tasks=()
+    for t in "${tasks[@]}"; do
+        task_is_unsafe "$t" && unsafe_tasks+=("$t")
+    done
+    local unsafe_args=()
+    local unsafe_note="<none>"
+    if (( ${#unsafe_tasks[@]} > 0 )); then
+        unsafe_args=(--confirm_run_unsafe_code)
+        unsafe_note="${unsafe_tasks[*]} (execution confirmed)"
+    fi
+
     local tmp
     tmp="$(mktemp -d "${TMPDIR:-/tmp}/harness-precache-XXXXXX")"
     local failures=() ok=0
@@ -289,6 +310,7 @@ precache_datasets() {
     echo "  limit      : $LIMIT docs per task"
     echo "  gen_kwargs : ${GEN_KWARGS:-<task defaults>}"
     echo "  datasets   : $HF_DATASETS_CACHE"
+    echo "  unsafe code: $unsafe_note"
     echo "=============================================="
 
     if [[ "$SIMULATE_OFFLINE" == "1" ]]; then
@@ -311,6 +333,7 @@ precache_datasets() {
                 --limit "$LIMIT" \
                 --device "$DEVICE" \
                 "${gen_args[@]}" \
+                "${unsafe_args[@]}" \
                 --output_path "$tmp/$t" >"$tmp/$t.log" 2>&1; then
             echo "OK"
             ok=$((ok + 1))
@@ -388,7 +411,7 @@ print_cache_status() {
     echo "The eval job runs offline and reads exactly these paths, so it must export"
     echo "the same HF_DATASETS_CACHE, HF_HUB_CACHE, NLTK_DATA and RULER_HAYSTACK_DIR."
     echo ""
-    echo "Next: sbatch $workdir/scripts/portuguese/eval_harness_pt_booster.sh"
+    echo "Next: sbatch $workdir/scripts/portuguese/run_eval_harness.sh"
     echo "=============================================="
 }
 
