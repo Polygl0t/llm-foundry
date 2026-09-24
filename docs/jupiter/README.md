@@ -10,6 +10,7 @@ This folder contains module and installation scripts for the JSC Jupiter booster
 - [`jupiter_installation_trl_2026.sh`](jupiter_installation_trl_2026.sh) — builds an environment for the post-training pipeline (`alignment/sft_trainer.py`, `dpo_trainer.py`, `reward_trainer.py`, `grpo_trainer.py`).
 - [`jupiter_installation_eval_harness_2026.sh`](jupiter_installation_eval_harness_2026.sh) — installs the dependencies needed for `lm-evaluation-harness` and pre-caches task datasets/NLTK data/RULER haystack.
 - [`ruler_patch.sh`](ruler_patch.sh) — helper sourced by the eval-harness installer to download the RULER haystack file into the shared cache so the `ruler_pt` task can run offline.
+- [`run_eval_harness.sh`](run_eval_harness.sh) — SLURM batch script that runs `lm-evaluation-harness` on a JUPITER booster node, evaluating multiple checkpoints in parallel (one per GH200) and post-processing the JSON results into YAML.
 
 > - **Note:** On Jupiter/JSC, we do not have internet access from the compute nodes, so the installation script must be run on a login node.
 
