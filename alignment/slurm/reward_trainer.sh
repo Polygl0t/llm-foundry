@@ -71,7 +71,9 @@ export HF_TOKEN="<your-token-here>"
 export WANDB_TOKEN="<your-token-here>"
 export WANDB_DIR="$HF_DATASETS_CACHE/wandb"
 export TRACKIO_STORAGE_MODE=sqlite
-export TRITON_CACHE_DIR="$HF_DATASETS_CACHE/triton_cache/$SLURM_JOB_ID"
+export TRITON_CACHE_DIR="$HF_DATASETS_CACHE/triton_cache"
+export TORCHINDUCTOR_CACHE_DIR="$HF_DATASETS_CACHE/inductor_cache"
+export TRACKIO_STORAGE_MODE=sqlite
 export NCCL_TIMEOUT=3600
 export TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC=3600
 export NCCL_IB_TIMEOUT=24
@@ -100,8 +102,7 @@ export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1,2,3}"
 GPUS_PER_NODE="$(awk -F, '{print NF}' <<< "$CUDA_VISIBLE_DEVICES")"
 NUM_MACHINES="${SLURM_NNODES:-1}"
 NUM_PROCESSES=$(( NUM_MACHINES * GPUS_PER_NODE ))
-MACHINE_RANK="${SLURM_NODEID:-0}"
-export GPUS_PER_NODE NUM_MACHINES NUM_PROCESSES MACHINE_RANK
+export GPUS_PER_NODE NUM_MACHINES NUM_PROCESSES
 
 # MASTER_ADDR = the first allocated node. Slurm sometimes returns a short hostname
 # that the compute nodes cannot resolve; append the DNS domain when it does not.
@@ -164,14 +165,18 @@ echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --ve
 # Set ACCELERATE_CONFIG=.fsdp_config.yaml to switch to FSDP.
 export ACCELERATE_CONFIG="${ACCELERATE_CONFIG:-$workdir/llm-foundry/alignment/configs/.ddp_config.yaml}"
 
+# NOTE: `--machine_rank` MUST be expanded by each task. `\$SLURM_NODEID` stays
+# literal in this string and is resolved inside the `srun ... bash -c "$CMD"` below, so
+# every node gets its own rank.
 export LAUNCHER="accelerate launch \
 --config_file $ACCELERATE_CONFIG \
 --num_machines $NUM_MACHINES \
 --num_processes $NUM_PROCESSES \
---machine_rank $MACHINE_RANK \
+--machine_rank \$SLURM_NODEID \
 --main_process_ip $MASTER_ADDR \
 --main_process_port $MASTER_PORT \
---rdzv_backend static"
+--rdzv_backend static \
+--rdzv_conf timeout=300"
 
 export PYTHON_FILE="$workdir/llm-foundry/alignment/reward_trainer.py"
 
