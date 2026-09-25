@@ -146,10 +146,15 @@ Scale with `--nodes=N` and one task per GPU (4 per node). `--gres=gpu:4` applies
 #SBATCH --gres=gpu:4
 #SBATCH --time=06:00:00
 
-# Torch distributed: derive MASTER_ADDR from the first allocated node.
-MASTER_ADDR="$(scontrol show hostnames "$SLURM_NODELIST" | head -n 1)"
+# Torch distributed: rank 0's address. Prefer a NUMERIC IPv4 -- on JUPITER a node answers
+# to several names (jpbo-028-33 == r28-nod30 == jpbo-028-33-interconnect-1) and every
+# node's /etc/hosts maps its OWN short name to loopback, so a hostname is not guaranteed
+# to mean the same address on every node. See "Multi-node accelerate / TRL jobs" below.
+MASTER_NODE="$(scontrol show hostnames "$SLURM_NODELIST" | head -n 1)"
+MASTER_ADDR="$(scontrol show node "$MASTER_NODE" | tr ' ' '\n' | sed -n 's/^NodeAddr=//p' | head -n 1)"
 export MASTER_ADDR
-export MASTER_PORT=29500
+# Derive the port from the job id so concurrent jobs cannot collide on 29500.
+export MASTER_PORT=$(( 49152 + (SLURM_JOB_ID % 16384) ))
 
 srun --cpu-bind=none python3 train.py ...
 ```
@@ -170,6 +175,181 @@ srun --cpu-bind=none --nodes=2 --ntasks-per-node=4 --cpus-per-task=72 --gres=gpu
 ```
 
 Remember: the allocation is billed whether or not you use it, so prefer batch jobs.
+
+---
+
+## Multi-node accelerate / TRL jobs (DDP, SFT, DPO, GRPO, Reward)
+
+`accelerate launch` across several nodes is the one place on JUPITER where a job needs more than an `#SBATCH` header. accelerate builds a **rendezvous**: one node runs a `TCPStore` server and the other N-1 launchers must reach it and agree on who is who. Four things about this cluster break the obvious way of writing that down, and all four are silent — the job just stalls until a timeout, with no error naming the culprit.
+
+The shape of an accelerate job on booster:
+
+| Setting | Value | Why |
+|---|---|---|
+| `#SBATCH --nodes=N` | N | one launcher **per node** is what makes the ranks meaningful |
+| `#SBATCH --ntasks-per-node=1` | 1 | accelerate forks the 4 per-GPU workers itself |
+| `#SBATCH --cpus-per-task=288` | 288 | the single launcher owns the whole node |
+| `--gres=gpu:4` | 4 | accelerate's `gpu_ids: all` then sees all four |
+| `--machine_rank` | `$SLURM_NODEID` | resolved **per task** (see trap 1) |
+
+Everything the `.ddp_config.yaml` carries for the topology (`num_machines`, `machine_rank`, `main_process_ip`, `main_process_port`) is a single-node default here, so all of it has to be overridden on the `accelerate launch` command line.
+
+### `--machine_rank` must be expanded by each task
+
+A batch script runs **once**, on the first allocated node, where `SLURM_NODEID` is *always* 0. Capture it there and `export` it and every node inherits rank 0, because `srun` propagates the submitting environment verbatim:
+
+```bash
+# WRONG -- this script only ever runs on node 0, so MACHINE_RANK is 0 for everybody
+MACHINE_RANK="${SLURM_NODEID:-0}"
+export GPUS_PER_NODE NUM_MACHINES NUM_PROCESSES MACHINE_RANK
+...
+--machine_rank $MACHINE_RANK \
+```
+
+```bash
+# RIGHT -- export only node-INDEPENDENT values, and let each task expand its own rank.
+# The backslash keeps `$SLURM_NODEID` literal in $CMD, so the `bash -c "$CMD"` that srun
+# runs on every node expands it to that node's rank.
+export GPUS_PER_NODE NUM_MACHINES NUM_PROCESSES
+
+export LAUNCHER="accelerate launch \
+--config_file $ACCELERATE_CONFIG \
+--num_machines $NUM_MACHINES \
+--num_processes $NUM_PROCESSES \
+--machine_rank \$SLURM_NODEID \
+--main_process_ip $MASTER_ADDR \
+--main_process_port $MASTER_PORT \
+--rdzv_backend static \
+--rdzv_conf timeout=300"
+```
+
+With `--rdzv_backend static`, `StaticTCPRendezvous` decides who serves the store with `is_master = (self.rank == 0)`. If all N agents claim rank 0, **all N of them build the rendezvous store as the master** (the extra binds do not fail because it passes `multi_tenant=True`, i.e. `SO_REUSEPORT`). Nobody writes `role_info/1..N-1`, every agent's self-dial lands on a random sibling store with a different keyspace, and only rank 0 performs the collective read, so every node waits out the whole timeout and dies together.
+
+The signature to recognise:
+
+```
+torch.distributed.DistStoreError: wait timeout after 900000ms, keys:
+/none/torchelastic/role_info/0, ..., /none/torchelastic/role_info/N-1
+```
+
+You can prove the per-task expansion on a login node without submitting anything:
+
+```bash
+bash -c '
+SLURM_NODEID=0                                   # what the batch script sees
+
+export LAUNCHER="echo accelerate launch --machine_rank \$SLURM_NODEID"
+export CMD="$LAUNCHER trainer.py"
+for rank in 0 1 5 15; do SLURM_NODEID=$rank bash -c "$CMD"; done   # what each task prints
+'
+# -> --machine_rank 0 / 1 / 5 / 15        (with $MACHINE_RANK exported you get 0 four times)
+```
+
+### `MASTER_ADDR` should be a numeric IPv4
+
+Names are ambiguous on JUPITER:
+
+- **One node, several names.** `jpbo-028-33` == `r28-nod30` == `jpbo-028-33-interconnect-1`; every agent may pick a different one, so they disagree about which name is "the" master.
+- **Bare names resolve to loopback.** Every node's `/etc/hosts` maps its *own* short name to `127.0.0.1` / `::1`, so the usual guard (i.e., "append the domain if `getent hosts $NODE` fails") never fires: the lookup *succeeds*, returning loopback, which is meaningless to the other N-1 nodes.
+- **IPv4-mapped IPv6 answers exist,** and c10d tries every `getaddrinfo` candidate. On a compute node (which has no IPv6) each unusable candidate logs `errno: 97 - Address family not supported by protocol`. **These warnings are noise**, i.e., they appear even when the endpoint is already a numeric IP.
+
+So resolve rank 0 to a single numeric IPv4, preferring Slurm's own record of the node (`NodeAddr`), which slurmctld reports identically to every node:
+
+```bash
+MASTER_NODE="$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)"
+
+numeric_ipv4() {                     # one numeric IPv4, never loopback, never IPv6
+    local name="$1"
+    [[ -n "$name" ]] || return 1
+    if [[ "$name" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        [[ "$name" != 127.* ]] && printf '%s' "$name"
+        return 0
+    fi
+    getent ahostsv4 "$name" 2>/dev/null \
+        | awk '$2 == "STREAM" && $1 !~ /^127\./ {print $1; exit}'
+}
+
+MASTER_ADDR=""
+_slurm_addr="$(scontrol show node "$MASTER_NODE" 2>/dev/null \
+    | tr ' ' '\n' | sed -n 's/^NodeAddr=//p' | head -n 1)"
+# NodeAddr first; then DNS, trying the FQDN before the bare name (/etc/hosts only
+# short-circuits the bare name to loopback).
+for cand in "$_slurm_addr" "$MASTER_NODE" \
+            ${MASTER_NODE:+$(sed -n 's/^search[[:space:]]*//p' /etc/resolv.conf 2>/dev/null \
+                              | tr ' ' '\n' | sed "s|^|${MASTER_NODE}.|")}; do
+    MASTER_ADDR="$(numeric_ipv4 "$cand")"
+    [[ -n "$MASTER_ADDR" ]] && break
+done
+[[ -n "$MASTER_ADDR" ]] || MASTER_ADDR="$MASTER_NODE"   # last resort: log a warning
+
+export MASTER_ADDR MASTER_NODE
+MASTER_PORT=$(( 49152 + (SLURM_JOB_ID % 16384) ))   # unique per job, in the private range
+export MASTER_PORT
+```
+
+Rank 0 must be the node whose address you publish: `scontrol show hostnames ... | head -n 1` is the first node of the allocation, i.e. `SLURM_NODEID == 0`. Keep those two in sync.
+
+### The rendezvous timeout defaults to 15 minutes
+
+`--rdzv_conf timeout=300` caps the wait at 5 minutes. Without it a mis-addressed rendezvous eats the entire wall clock silently. This avoids wasting time when the rendezvous is misconfigured.
+
+### Slurm can report a dead job as `COMPLETED`
+
+If the training `srun` fails and the script then runs a couple of `echo`s and a cache cleanup, the script's exit status is whatever the last command returned (i.e., `0`), so `sacct` shows `COMPLETED 0:0` even though every rank died. It is better to capture the step's status and return it:
+
+```bash
+srun --nodes="$NUM_MACHINES" --ntasks="$NUM_MACHINES" --cpu-bind=none \
+    bash -c "$CMD" 1>>"$out" 2>>"$err"
+TRAIN_RC=$?
+...
+# last line of the script, after the cleanup:
+exit "$TRAIN_RC"
+```
+
+Then always double-check with `sacct -j <jobid>` and look for the **step** lines. A `FAILED` step under a `COMPLETED` job is the tell:
+
+```
+1995708     sft-0.5B  COMPLETED  0:0   00:18:30  16    <- batch script (echoes to success)
+1995708.0   bash      FAILED     1:0   00:17:21  16    <- the step that did the work
+```
+
+### Pre-flight checks (fail in 15 s instead of 15 min)
+
+Both failure modes above are cheap to test before any GPU time is spent. Put this between building `$CMD` and launching it:
+
+```bash
+if [ "$NUM_MACHINES" -gt 1 ]; then
+    TRAIN_RC=0
+
+    # (1) Ranks: exactly 0..N-1, each once.
+    RANK_MAP="$(srun --nodes="$NUM_MACHINES" --ntasks="$NUM_MACHINES" --cpu-bind=none \
+        bash -c 'printf "%s:%s " "${SLURM_NODEID:-unset}" "$(hostname -s)"' 2>>"$err")"
+    echo "#   $RANK_MAP" >> "$out"
+    DISTINCT_RANKS="$(tr ' ' '\n' <<< "$RANK_MAP" \
+        | sed -n 's/^\([0-9][0-9]*\):.*/\1/p' | sort -n -u | wc -l)"
+    [ "$DISTINCT_RANKS" -eq "$NUM_MACHINES" ] || TRAIN_RC=1
+
+    # (2) Reachability: rank 0 listens on the rendezvous port, every node dials it.
+    python3 "$workdir/rendezvous_preflight.py" --listen "$MASTER_PORT" \
+        >> "$out" 2>&1 &
+    PREFLIGHT_PID=$!
+    sleep 3
+    srun --nodes="$NUM_MACHINES" --ntasks="$NUM_MACHINES" --cpu-bind=none \
+        python3 "$workdir/rendezvous_preflight.py" \
+        --connect "$MASTER_ADDR" "$MASTER_PORT" 1>>"$out" 2>>"$err" || TRAIN_RC=1
+    kill "$PREFLIGHT_PID" 2>/dev/null; wait "$PREFLIGHT_PID" 2>/dev/null
+
+    [ "$TRAIN_RC" -eq 0 ] || echo "# Pre-flight FAILED -- not launching." >> "$out"
+fi
+
+if [ "$TRAIN_RC" -eq 0 ]; then
+    srun --nodes="$NUM_MACHINES" --ntasks="$NUM_MACHINES" --cpu-bind=none \
+        bash -c "$CMD" 1>>"$out" 2>>"$err"
+    TRAIN_RC=$?
+fi
+```
+
+The helper is [`rendezvous_preflight.py`](../../tools/rendezvous_preflight.py) (stdlib only, ~15 lines of logic).
 
 ---
 
