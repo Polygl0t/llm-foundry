@@ -21,6 +21,7 @@ This folder contains miscellaneous tools, scripts, and helpers for working with 
 - [`marvin_create_workspace.sh`](./slurm/marvin_create_workspace.sh) — Allocate a workspace and clone the repo on the Marvin HPC cluster.
 - [`parse_run.py`](./parse_run.py) — Parse and summarize distributed training logs and emissions files.
 - [`pdf2markdown.sh`](./slurm/pdf2markdown.sh) — Example SLURM batch job for converting PDFs to Markdown using Marker.
+- [`rendezvous_preflight.py`](./rendezvous_preflight.py) — Check whether all nodes can reach the multi-node rendezvous port before launching a distributed training job.
 - [`reset_weights.py`](./reset_weights.py) — Reset selected model weights while optionally preserving or saving the modified model.
 - [`resize_embedding_layer.py`](./resize_embedding_layer.py) — Validate and resize a model embedding layer to match tokenizer vocabulary size.
 - [`subset_packed_tokens.py`](./subset_packed_tokens.py) — Carve a token-budgeted subset out of a packed (parquet) dataset folder by linking a selection of its shards into a new sibling folder.
@@ -298,6 +299,24 @@ Key variables to customize inside the script:
 - `OUTPUT_DIR`: directory for Markdown output.
 - `NUM_DEVICES` / `NUM_WORKERS`: GPUs and workers used by the job.
 - `CLEAN_CACHE`: whether to clean the HF cache after completion.
+
+### `rendezvous_preflight.py`
+Check whether all nodes can reach the multi-node rendezvous port (both torchrun's elastic store and c10d's own TCPStore are built on a `TCPStore` served by rank 0's node), so a misconfigured job fails in seconds instead of after the full rendezvous timeout.
+
+Example:
+```bash
+# on rank 0's node:
+python3 tools/rendezvous_preflight.py --listen 62396
+
+# on every node:
+python3 tools/rendezvous_preflight.py --connect <rank0_ip> 62396
+```
+
+Main parameters:
+- `--listen`: port to bind on all interfaces and accept connections on (run on rank 0's node).
+- `--connect`: `HOST PORT` to dial (run on every node); exits non-zero and prints the node's own name on failure, so the job log names the offending node instead of just timing out.
+- `--deadline`: seconds to keep the listener open (default: `120`).
+- `--timeout`: seconds to wait for a connection to succeed (default: `10`).
 
 ### `reset_weights.py`
 Reset model weights in place or save the modified model.
