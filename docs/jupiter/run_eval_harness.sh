@@ -62,7 +62,7 @@ MODELS=(
 )
 
 # --- Tasks to evaluate ---------------------------------------------------------
-TASKS="arc_challenge_poly_pt,\
+BASE_TASKS="arc_challenge_poly_pt,\
 mmlu_poly_pt,\
 hellaswag_poly_pt,\
 lambada_poly_pt,\
@@ -74,12 +74,15 @@ bluex_cloze,\
 enem_cloze,\
 oab_exams_cloze"
 
-# --- Chat tasks inclusion ------------------------------------------------------
-ADD_CHAT_TASKS="0" # <-- Set to 1 to include chat tasks in the evaluation
-CHAT_TASKS="ifeval_pt,gsm8k_pt,ruler_pt,humaneval,humaneval_instruct"
-if [[ "$ADD_CHAT_TASKS" == "1" ]]; then
-    TASKS="$TASKS,$CHAT_TASKS"
-fi
+CHAT_TASKS="global_piqa_nonparallel_generation_por_latn_braz,\
+global_piqa_parallel_generation_por_latn_braz,\
+bluex_generative,\
+enem_generative,\
+oab_exams_generative,\
+ifeval_pt,\
+gsm8k_pt,\
+ruler_pt,\
+humaneval_instruct"
 
 # --- Evaluation settings ------------------------------------------------------
 NUM_FEWSHOT=0
@@ -91,17 +94,28 @@ LIMIT=""
 # --- Chat-model flags --------------------------------------------------------
 #
 # lm-eval knobs -> variables:
+#   --tasks <base|chat suite>              CHAT_MODEL (1 -> CHAT_TASKS, 0 -> BASE_TASKS)
 #   --apply_chat_template                  CHAT_MODEL=1
 #   --fewshot_as_multiturn <bool>          MULTITURN_FEWSHOT=1|0 (auto-on with CHAT_MODEL)
 #   --model_args=...,enable_thinking=True  ENABLE_THINKING=1    (generation only)
 #   --model_args=...,think_end_token='</think>'  THINK_END_TOKEN
 #   --model_args=...,max_length=32768      MAX_MODEL_LEN
 #   --metadata '{"max_seq_lengths":[...]}' RULER_SEQ_LENGTHS
+#   --gen_kwargs max_gen_toks=<N>          THINKING_MAX_GEN_TOKS (only if ENABLE_THINKING=1)
 
-CHAT_MODEL="0"                  # 1 -> --apply_chat_template
-MULTITURN_FEWSHOT="auto"        # 1 forces it on, 0 forces it off, auto leaves it alone.
+CHAT_MODEL="0"                  # 1 -> chat tasks + --apply_chat_template
 ENABLE_THINKING="0"             # 1 -> model_args enable_thinking=True (needs CHAT_MODEL=1)
+MULTITURN_FEWSHOT="auto"        # 1 forces it on, 0 forces it off, auto leaves it alone.
 THINK_END_TOKEN="</think>"      # required by enable_thinking; Qwen3 uses </think>
+THINKING_MAX_GEN_TOKS="8000"
+# NOTE: RULER @32k + 8000 gen tokens doesn't fit a 32k window. If you run thinking on a
+# 32k model, set MAX_MODEL_LEN=40960 or trim RULER_SEQ_LENGTHS.
+
+if [[ "$CHAT_MODEL" == "1" ]]; then
+    TASKS="$CHAT_TASKS"
+else
+    TASKS="$BASE_TASKS"
+fi
 
 # --- RULER (long context) ----------------------------------------------------
 # RULER's context lengths live outside its task YAML: each `niah_pt_*` sub-task is
@@ -109,10 +123,10 @@ THINK_END_TOKEN="</think>"      # required by enable_thinking; Qwen3 uses </thin
 # supplied at runtime as --metadata '{"max_seq_lengths":[...]}'. Use the ladder
 # (4096 8192 16384 ...) for a long-context stage, never a length the model was not
 # trained for, and keep MAX_MODEL_LEN >= the largest entry.
-RULER_SEQ_LENGTHS=(4096)
+RULER_SEQ_LENGTHS=(4000 8000 16000 32000)
 
 # --- Scheduling --------------------------------------------------------------
-MAX_PARALLEL=4        # one eval per GH200
+MAX_PARALLEL=4
 
 # --- Output ------------------------------------------------------------------
 RESULTS_TAG="${RESULTS_TAG:-$([[ "$CHAT_MODEL" == "1" ]] && echo chat)}"
@@ -177,6 +191,9 @@ if [[ "$CHAT_MODEL" == "1" ]]; then
     echo "Chat template   : yes (multiturn fewshot: $MULTITURN_FEWSHOT, thinking: $ENABLE_THINKING)"
 else
     echo "Chat template   : no (base model)"
+fi
+if [[ "$ENABLE_THINKING" == "1" && -n "$THINKING_MAX_GEN_TOKS" ]]; then
+    echo "Gen budget      : max_gen_toks=$THINKING_MAX_GEN_TOKS (overrides every task default)"
 fi
 if [[ -n "$RULER_METADATA" ]]; then
     echo "RULER lengths   : ${RULER_SEQ_LENGTHS[*]}"
@@ -296,6 +313,12 @@ launch_eval() {
         1) extra+=(--fewshot_as_multiturn true) ;;
         0) extra+=(--fewshot_as_multiturn false) ;;
     esac
+    # Thinking models spend most of the budget on the reasoning trace, which is
+    # discarded, so the task's own max_gen_toks has to be raised. --gen_kwargs is
+    # global to every generative task and overrides the keys it names.
+    if [[ "$ENABLE_THINKING" == "1" && -n "$THINKING_MAX_GEN_TOKS" ]]; then
+        extra+=(--gen_kwargs "max_gen_toks=$THINKING_MAX_GEN_TOKS")
+    fi
     # RULER context lengths. Must stay LAST: --metadata is `nargs="+"`, so it
     # swallows every following token that is not an option.
     [[ -n "$RULER_METADATA" ]] && extra+=(--metadata "$RULER_METADATA")
