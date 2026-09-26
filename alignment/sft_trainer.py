@@ -166,7 +166,7 @@ def main(args):
             "attn_implementation": args.attn_implementation,
             "dtype": torch.bfloat16 if args.bf16 else torch.float32,
             "trust_remote_code": True,
-            "device_map": {"": state.process_index},
+            "device_map": {"": state.device},
             "use_cache": not args.gradient_checkpointing,  # Disable cache if using gradient checkpointing
         },
         output_dir=args.checkpoint_dir,

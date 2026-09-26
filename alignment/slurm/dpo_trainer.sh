@@ -151,7 +151,6 @@ echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --ve
 #############################################
 # Accelerate Documentation
 # - https://huggingface.co/docs/accelerate/package_reference/cli
-# - `--use_liger_kernel` \ BUG in liger kernel with DPO training
 #############################################
 
 # Multi-node: change `--nodes=1` in the SBATCH header to the number of nodes you
@@ -208,7 +207,7 @@ export ARGS="--dataset_type jsonl \
 --gradient_accumulation_steps 4 \
 --bf16 \
 --tf32 \
---gradient_checkpointing \
+--use_liger_kernel \
 "
 
 # This step is necessary because accelerate launch does not handle multiline arguments properly

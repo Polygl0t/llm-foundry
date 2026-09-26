@@ -121,6 +121,11 @@ def main(args):
         state,
     )
 
+    # `split_dataset` returns a `DatasetDict` only when `--test_size` is set, and
+    # the bare `Dataset` otherwise. A `Dataset` has neither `.get()` nor
+    # `__contains__`: `dataset.get("train", ...)` raised AttributeError (so the
+    # script could not run without --test_size), and `"test" in dataset` silently
+    # fell back to iterating EVERY ROW. Resolve train/eval once, here.
     if isinstance(dataset, DatasetDict):
         train_dataset, eval_dataset = dataset["train"], dataset.get("test")
     else:
@@ -139,7 +144,7 @@ def main(args):
         "attn_implementation": args.attn_implementation,
         "dtype": dtype,
         "trust_remote_code": True,
-        "device_map": {"": state.process_index},
+        "device_map": {"": state.device},
         "use_cache": not args.gradient_checkpointing,
     }
 
@@ -177,7 +182,11 @@ def main(args):
     os.environ["WANDB_PROJECT"] = args.wandb_project
 
     # transformers >= 5.x replaced `TrainingArguments.warmup_ratio` with
-    # `warmup_steps`.
+    # `warmup_steps`, where an int >= 1 is an exact step count and a float in
+    # [0, 1) is a RATIO of total steps (TrainingArguments.get_warmup_steps). The
+    # deprecated flag therefore maps onto the new one with identical behaviour,
+    # so forward it instead of dropping it: existing job scripts keep working and
+    # nothing passes the removed `warmup_ratio` to TrainingArguments.
     if args.warmup_ratio is not None:
         if args.warmup_steps:
             raise SystemExit(
@@ -193,7 +202,10 @@ def main(args):
             )
 
     # TRL >= 0.29 removed the prompt/completion split from `DPOConfig`, so the
-    # prompt can no longer be capped separately.
+    # prompt can no longer be capped separately: `--max_length` bounds the whole
+    # sequence and `truncation_mode` decides which end survives. The old
+    # `--max_prompt_length` flag was removed rather than left as a silent no-op -
+    # a prompt cap that looks applied but is not is worse than an argparse error.
     if args.truncation_mode == "keep_end" and master_process:
         logger.warning(
             "truncation_mode='keep_end' is deprecated by TRL (removal in TRL 2.0.0). "
@@ -205,6 +217,20 @@ def main(args):
     # See https://huggingface.co/docs/transformers/main_classes/trainer#transformers.TrainingArguments
     training_args = trl.DPOConfig(
         dataset_num_proc=args.num_proc,
+        # No `pad_token=`: TRL deprecated the config-level pad token (removal in
+        # TRL 2.0) in favour of `tokenizer.pad_token`, which `load_tokenizer` has
+        # already set and which `processing_class=tokenizer` below hands to the
+        # trainer. `padding_free` and the preference collator read it from there.
+        # TRL >= 0.29 removed `label_pad_token_id`, `max_prompt_length` and
+        # `max_completion_length` from `DPOConfig`:
+        #   - the collator (`DataCollatorForPreference`) pads with `pad_token`
+        #     above, so `label_pad_token_id` is no longer a separate knob;
+        #   - the prompt/completion split is gone. The collator caps the WHOLE
+        #     sequence (prompt + completion) at `max_length` and truncates it
+        #     with `truncation_mode`.
+        # `--max_length` keeps its exact old meaning (the old code capped the
+        # prompt at max_prompt_length *and* the completion at
+        # max_length - max_prompt_length, so the total was already max_length).
         max_length=args.max_length,
         truncation_mode=args.truncation_mode,
         padding_free=args.padding_free,
@@ -214,6 +240,8 @@ def main(args):
         else args.per_device_train_batch_size * 2,
         loss_type=args.loss_type,
         beta=args.beta,
+        # `args.loss_type` is always a list (argparse nargs="+"), and TRL only
+        # validates loss_weights against len(loss_type) when it is not None.
         loss_weights=args.loss_weights,
         sync_ref_model=args.sync_ref_model if not args.precompute_ref_log_probs else False,
         ref_model_sync_steps=args.ref_model_sync_steps
@@ -238,6 +266,9 @@ def main(args):
         adam_epsilon=args.adam_epsilon,
         max_grad_norm=args.max_grad_norm,
         lr_scheduler_type=args.lr_scheduler_type,
+        # transformers >= 5.x removed `warmup_ratio`; `warmup_steps` accepts a
+        # float in [0, 1) as a RATIO of total steps, so this is the same knob
+        # under the supported name.
         warmup_steps=args.warmup_steps,
         num_train_epochs=args.num_train_epochs,
         max_steps=-1 if args.max_steps is None else args.max_steps,
@@ -253,6 +284,10 @@ def main(args):
         hub_model_id=args.hub_model_id,
         push_to_hub=bool(args.hub_token is not None and args.hub_model_id is not None),
         report_to=args.report_to,
+        # transformers >= 5.0 removed `TrainingArguments.include_tokens_per_second`.
+        # `include_num_input_tokens_seen=True` is its successor: the Trainer still
+        # calls `speed_metrics(..., num_tokens=...)`, so `train_tokens_per_second`
+        # is logged exactly as before (plus `num_input_tokens_seen`).
         include_num_input_tokens_seen=True,
         hub_private_repo=True,
         run_name=f"{args.model_name_or_path.split('/')[-1]}-jobid-{jobid}-bs-{args.per_device_train_batch_size}-acumulation-{args.gradient_accumulation_steps}-ngpu-{torch.cuda.device_count()}-epochs-{args.num_train_epochs}",

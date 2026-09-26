@@ -151,7 +151,7 @@ def main(args):
             "attn_implementation": args.attn_implementation,
             "dtype": model_dtype,
             "trust_remote_code": True,
-            "device_map": {"": state.process_index},
+            "device_map": {"": state.device},
             "use_cache": not args.gradient_checkpointing,
         },
         gradient_checkpointing=args.gradient_checkpointing,

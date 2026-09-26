@@ -249,7 +249,7 @@ def main(args):
         "use_cache": not args.gradient_checkpointing,
     }
     if not args.use_vllm or args.vllm_mode != "server":
-        model_init_kwargs["device_map"] = {"": state.process_index}
+        model_init_kwargs["device_map"] = {"": state.device}
 
     # See https://huggingface.co/docs/trl/en/grpo_trainer#trl.GRPOConfig
     # See https://huggingface.co/docs/transformers/main/en/main_classes/trainer#transformers.TrainingArguments
