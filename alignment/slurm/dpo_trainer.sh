@@ -84,6 +84,7 @@ export TORCH_NCCL_ASYNC_ERROR_HANDLING=1
 export TORCH_DISTRIBUTED_DEBUG=OFF
 export NCCL_P2P_DISABLE=0
 export NCCL_SHM_DISABLE=0
+export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
 # export NCCL_DEBUG=INFO # Uncomment for NCCL debugging
 
 # ---- Distributed topology (single- AND multi-node) ---------------------------------#
