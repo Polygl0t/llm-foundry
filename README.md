@@ -211,4 +211,6 @@ This project is licensed under the Apache License 2.0. See [`LICENSE`](LICENSE) 
 
 Polyglot is a project funded by the Federal Ministry of Education and Research (BMBF) and the Ministry of Culture and Science of the State of North Rhine-Westphalia (MWK) as part of TRA Sustainable Futures (University of Bonn) and the Excellence Strategy of the federal and state governments.
 
-We also gratefully acknowledge access to the Marvin and Bender clusters, hosted by the University of Bonn, and maintained by the university's High Performance Computing Team. We also appreciate the work of the support team that maintains the Bonn Analysis Facility (BAF) for providing constant support and maintenance to the infrastructure we all share.
+We also gratefully acknowledge access to the Marvin and Bender clusters, hosted by the University of Bonn, and maintained by the university's High Performance Computing Team. We also appreciate the support team that maintains the Bonn Analysis Facility (BAF) for its constant support and maintenance of the infrastructure we all share.
+
+In addition to these local computing resources, we gratefully acknowledge the Gauss Centre for Supercomputing e.V. (www.gauss-centre.eu) for funding this project by providing computing time on the GCS Supercomputer JUPITER Booster at the Jülich Supercomputing Centre.
