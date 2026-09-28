@@ -43,6 +43,7 @@ synth = [
     "transformers",
     "datasets",
     "vllm",
+    "flashinfer-python==0.6.12",
 ]
 agents = [
     "vllm==0.23.0",
