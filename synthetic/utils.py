@@ -320,6 +320,19 @@ def run_rollouts(
             chunk=chunk_label,
         )
 
+def strip_thinking(text: str) -> str:
+    """Remove a thinking block from a model output, keeping only the answer.
+
+    The reasoning block("<think>reasoning</think>") if copied into a later prompt 
+    inside a user message, it can makes the model lose track of whose turn it is and
+    emits <|im_end|> halfway through thinking, which cuts the output off before the answer
+    is ever written.
+    """
+    if "</think>" in text:
+        return text.split("</think>", 1)[1].strip()
+    if "<think>" in text:
+        return ""
+    return text.strip()
 
 def critique_response(
     model: LLM,
@@ -338,7 +351,7 @@ def critique_response(
 Original user request: {user_prompt}
 
 Response to critique:
-{response}
+{strip_thinking(response)}
 
 Provide specific suggestions for improvement based on the constitution's guidelines for clarity, helpfulness, safety, and honesty. Be concise."""
         raw_prompts.append(
@@ -374,10 +387,10 @@ def revise_response(
 Original user request: {user_prompt}
 
 Original response:
-{original_response}
+{strip_thinking(original_response)}
 
 Critique:
-{critique}
+{strip_thinking(critique)}
 
 Provide the revised response that addresses the critique while following all constitutional principles:"""
         raw_prompts.append(
