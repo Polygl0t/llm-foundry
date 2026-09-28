@@ -36,9 +36,11 @@ from utils import (  # noqa: E402
     DatasetLoader,
     chunk_text,
     constitutional_generation,
+    critique_response,
     detect_failure_reason,
     get_nvidia_smi_vram,
     get_starting_row,
+    revise_response,
     run_cai_rollouts,
     run_rollouts,
     save_cai_sample,
@@ -71,6 +73,32 @@ def _mock_word_tokenizer():
     tokenizer.decode = lambda ids, **kwargs: " ".join(f"w{i}" for i in ids)
     return tokenizer
 
+def _mock_chat_tokenizer():
+    """
+    Fake tokenizer that turns chat messages into readable text.
+    """
+    tokenizer = MagicMock()
+    tokenizer.apply_chat_template = lambda messages, **kwargs: "\n".join(
+        f"<|{message['role']}|>{message['content']}" for message in messages
+    )
+    return tokenizer
+
+
+def _mock_capturing_model(text: str = "Generated text"):
+    """
+    Fake model that writes down the prompt instead of generating text.
+    """
+    model = MagicMock()
+    model.captured_prompts = []
+
+    def generate(prompts, *args, **kwargs):
+        model.captured_prompts.append(list(prompts))
+        output = MagicMock()
+        output.outputs = [MagicMock(text=text)]
+        return [output for _ in prompts]
+
+    model.generate.side_effect = generate
+    return model
 
 def test_detect_failure_reason_handles_known_failures_and_empty_inputs():
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -348,6 +376,87 @@ def test_constitutional_generation_runs_requested_critique_revision_iterations()
     assert critique_mock.call_count == 2
     assert revise_mock.call_count == 2
 
+# Stand-in for a model answer produced in thinking mode: reasoning first, then the answer.
+RESPONSE_WITH_THINKING = (
+    "<think>\nLet me reason about Paris.\n</think>\nParis is the capital of France."
+)
+
+
+def test_critique_response_excludes_previous_thinking_block():
+    """
+    The critique prompt must not carry over the previous answer's thinking block.
+    """
+    tokenizer = _mock_chat_tokenizer()
+    model = _mock_capturing_model()
+
+    critique_response(
+        model=model,
+        tokenizer=tokenizer,
+        user_prompt="What is the capital of France?",
+        responses=[RESPONSE_WITH_THINKING],
+        system="Be helpful.",
+        sampling_params=MagicMock(),
+        enable_thinking=True,
+    )
+
+    user_turn = model.captured_prompts[0][0].split("<|user|>", 1)[1]
+
+    assert "<think>" not in user_turn
+    assert "</think>" not in user_turn
+    # The answer itself must stay, otherwise the critique has nothing to judge.
+    assert "Paris is the capital of France." in user_turn
+
+
+def test_revise_response_excludes_previous_thinking_blocks():
+    """The revision prompt must not carry over thinking blocks from the draft or the critique.
+
+    Both of those are model output from the previous round, so both can contain a
+    thinking block.
+    """
+    tokenizer = _mock_chat_tokenizer()
+    model = _mock_capturing_model()
+
+    revise_response(
+        model=model,
+        tokenizer=tokenizer,
+        user_prompt="What is the capital of France?",
+        original_responses=[RESPONSE_WITH_THINKING],
+        critiques=["<think>\nWeighing concision.\n</think>\nBe more concise."],
+        system="Be helpful.",
+        sampling_params=MagicMock(),
+        enable_thinking=True,
+    )
+
+    user_turn = model.captured_prompts[0][0].split("<|user|>", 1)[1]
+
+    assert "<think>" not in user_turn
+    assert "</think>" not in user_turn
+    assert "Paris is the capital of France." in user_turn
+    assert "Be more concise." in user_turn
+
+
+def test_critique_response_preserves_answer_without_thinking_block():
+    """A response with no thinking block must reach the prompt exactly as written.
+
+    This guards against over-cleaning: removing a thinking block must not remove the
+    answer along with it.
+    """
+    tokenizer = _mock_chat_tokenizer()
+    model = _mock_capturing_model()
+
+    critique_response(
+        model=model,
+        tokenizer=tokenizer,
+        user_prompt="What is the capital of France?",
+        responses=["Paris is the capital of France."],
+        system="Be helpful.",
+        sampling_params=MagicMock(),
+        enable_thinking=False,
+    )
+
+    user_turn = model.captured_prompts[0][0].split("<|user|>", 1)[1]
+
+    assert "Paris is the capital of France." in user_turn
 
 def test_run_rollouts_generates_for_each_chunk_and_saves_metadata():
     with tempfile.TemporaryDirectory() as tmpdir:
