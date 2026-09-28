@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import torch
-from datatrove.utils.logging import logger
 from transformers import AutoTokenizer
 from vllm import LLM, SamplingParams
 
@@ -27,6 +26,8 @@ if str(_REPO_ROOT) not in sys.path:
 
 from shared.dataset_loader import DatasetLoader as DatasetLoader  # noqa: E402
 from shared.logging import get_logger as get_logger  # noqa: E402
+
+logger = get_logger(__name__)
 
 # Maximum GPUs per node for validation (adjust as needed for your cluster)
 MAX_GPUS_PER_NODE = 8
