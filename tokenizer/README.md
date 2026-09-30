@@ -43,21 +43,20 @@ Main parameters:
 ### `train_tokenizer_tokenizers.py`
 
 HuggingFace `tokenizers` library-based tokenizer training for modern tokenization algorithms.
+Currently, only `bpe` tokenizer algorithm is supported.
 
 Example:
 ```bash
 python tokenizer/train_tokenizer_tokenizers.py \
   --input_file data/raw_text.txt \
   --output_dir outputs/tokenizers \
-  --vocab_size 32000 \
-  --tokenizer_type bpe
+  --vocab_size 32000
 ```
 
 Main parameters:
 - `--input_file` — Path to input text file for training (required).
 - `--output_dir` — Directory to save tokenizer model (required).
 - `--vocab_size` — Vocabulary size for the tokenizer (default: 32000).
-- `--tokenizer_type` — Tokenizer algorithm: `bpe`, `wordpiece`, or `unigram` (default: `bpe`).
 - `--min_frequency` — Minimum frequency threshold for tokens (default: 2).
 - `--special_tokens` — List of special tokens to add (default: `['[UNK]', '[CLS]', '[SEP]', '[MASK]', '[PAD]']`).
 - `--model_name` — Name for the output model file (default: `tokenizer`).
@@ -69,14 +68,14 @@ Evaluation and comparison tool for analyzing tokenizer performance.
 Example:
 ```bash
 python tokenizer/tokenizer_eval.py \
-  --tokenizer_path outputs/tokenizers/sentencepiece.model \
-  --eval_dataset data/eval_text.txt \
+  --tokenizers_to_evaluate gpt2 bert-base-uncased meta-llama/Llama-2-7b-hf \
+  --input_file data/eval_text.txt \
   --output_file outputs/tokenizer_metrics.json
 ```
 
 Main parameters:
-- `--tokenizer_path` — Path to trained tokenizer model (required).
-- `--eval_dataset` — Path to evaluation dataset (required).
+- `--tokenizers_to_evaluate` — List of tokenizer names (HF Hub IDs) or local paths to evaluate (required).
+- `--input_file` — Path to the input text file for evaluation (required).
 - `--output_file` — Output file for evaluation metrics (default: `tokenizer_metrics.json`).
 - `--compute_compression_ratio` — Compute compression ratio vs raw bytes (default: enabled).
 - `--compute_entropy` — Compute token distribution entropy (default: enabled).
