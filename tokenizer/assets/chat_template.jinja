@@ -17,10 +17,10 @@
     {{- '<|im_start|>' + message.role + '\n' + content + '<|im_end|>\n' }}
   {#- Format assistant messages with generation block -#}
   {%- elif message.role == 'assistant' %}
-    {{- '<|im_start|>' + message.role }}
-    {% generation %}
-{{ content.strip('\n') + '<|im_end|>\n' }}
-    {% endgeneration %}
+    {{- '<|im_start|>' + message.role + '\n' }}
+    {%- generation %}
+    {{- content.strip('\n') + '<|im_end|>\n' }}
+    {%- endgeneration %}
   {%- endif %}
 {%- endfor %}
 

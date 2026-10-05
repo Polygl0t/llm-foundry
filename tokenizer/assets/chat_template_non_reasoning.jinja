@@ -34,8 +34,8 @@
 
     {#- Handle assistant messages without reasoning #}
     {%- elif message.role == "assistant" %}
-        {{- '<|im_start|>' + message.role }}
-        {% generation %}
+        {{- '<|im_start|>' + message.role + '\n' }}
+        {%- generation %}
         {{- content }}
 
         {#- Add tool calls if present #}
@@ -60,7 +60,7 @@
             {%- endfor %}
         {%- endif %}
         {{- '<|im_end|>' }}
-        {% endgeneration %}
+        {%- endgeneration %}
 
     {#- Handle tool response messages #}
     {%- elif message.role == "tool" %}

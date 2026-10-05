@@ -56,8 +56,8 @@
             {%- endif %}
         {%- endif %}
 
-        {{- '<|im_start|>' + message.role }}
-        {% generation %}
+        {{- '<|im_start|>' + message.role + '\n' }}
+        {%- generation %}
         {#- Add reasoning tags for messages after last user query #}
         {%- if loop.index0 > ns.last_query_index %}
             {%- if loop.last or (not loop.last and reasoning_content) %}
@@ -91,7 +91,7 @@
             {%- endfor %}
         {%- endif %}
         {{- '<|im_end|>' }}
-        {% endgeneration %}
+        {%- endgeneration %}
 
     {#- Handle tool response messages #}
     {%- elif message.role == "tool" %}
@@ -111,4 +111,9 @@
 {#- Add generation prompt if requested #}
 {%- if add_generation_prompt %}
     {{- '<|im_start|>assistant\n' }}
+    {%- if enable_thinking is defined and enable_thinking is true %}
+        {{- '<think>\n' }}
+    {%- else %}
+        {{- '<think>\n\n</think>\n\n' }}
+    {%- endif %}
 {%- endif %}
