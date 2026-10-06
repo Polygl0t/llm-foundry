@@ -124,6 +124,8 @@ LLM_FOUNDRY_STACK=intel source "$workdir/.modules.sh"   # CPU/data stack
 
 Sourcing prints whose stack was selected, why, and the resulting module list, so your job logs always show the resolved environment.
 
+> - You can always check the availability of Uni Bonn's HPC clusters (Marvin and Bender) at <https://unibonn.statuspage.io/>.
+>
 > - If you are working on JSC Jupiter, things work a little differently. See [`docs/jupiter/README.md`](docs/jupiter/README.md) for JSC-specific module and installation scripts.
 >
 > - If you are working in BAF, things also work a little differently. See [`docs/baf/README.md`](docs/baf/README.md) for how to run jobs on it. BAF uses containers (HTCondor) instead of SLURM.
