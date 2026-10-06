@@ -290,7 +290,12 @@ class TrainingArguments:
     )
     min_learning_rate: float | None = field(
         default=1e-4,
-        metadata={"help": "The minimum learning rate."},
+        metadata={
+            "help": (
+                "The minimum learning rate. Values below 1e-8 (e.g. 0) are raised to 1e-8: a "
+                "learning rate of exactly 0 can produce NaN weights in the compiled AdamW step."
+            )
+        },
     )
     muon_learning_rate: float | None = field(
         default=0.02,
@@ -361,6 +366,18 @@ class TrainingArguments:
     bf16: bool | None = field(
         default=False,
         metadata={"help": "Whether to use bf16 mode."},
+    )
+    master_weights_dtype: str | None = field(
+        default="fp32",
+        metadata={
+            "help": (
+                "Dtype of the trained (master) parameters, and therefore of the gradients and "
+                "optimizer states: `fp32` (default) or `bf16` (half the memory, but updates "
+                "smaller than bf16's resolution are rounded away). Compute still follows `bf16` "
+                "(autocast / FSDP mixed precision), and the saved Hugging Face weights are "
+                "always written in that compute precision."
+            )
+        },
     )
     fp8: bool | None = field(
         default=False,
@@ -511,6 +528,8 @@ class TrainingArguments:
         metadata={
             "help": (
                 "The path to the checkpoint to resume from."
+                "With FSDP, the master weights and the optimizer state are restored from the "
+                "sharded `dcp_state/` folder of the checkpoint (each rank reads only its shards). "
                 "During context extension (`continual_pretraining` set together with "
                 "`new_max_position_embeddings`), the weights and the training counters are "
                 "restored but the optimizer state is not, because the trainable parameter set "

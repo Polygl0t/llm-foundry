@@ -30,7 +30,12 @@ import os
 import torch
 from data_loading import prepare_dataloaders
 from mfu import create_mfu_context
-from model_setup import apply_fsdp_wrapping, prepare_training_components
+from model_setup import (
+    apply_fsdp_wrapping,
+    load_fsdp_checkpoint_state,
+    load_full_state_dict_into_sharded_model,
+    prepare_training_components,
+)
 from optimizers import create_lr_scheduler, create_optimizer, get_optimizer_summary_lines
 from specifications import TrainingArguments
 from trainer import FSDPTrainer
@@ -132,12 +137,14 @@ def main(specs, slurm_job_id, hardware):
         master_process=master_process,
         logger=logger,
         file_logger=file_logger if master_process else None,
+        meta_init=fsdp,
     )
 
     # It returns:
     # - the updated `args` object.
     # - the tokenizer (a HuggingFace tokenizer object).
-    # - the model (a PyTorch nn.Module object, on device but not yet FSDP-wrapped).
+    # - the model (a PyTorch nn.Module object, not yet FSDP-wrapped; on the meta device in fp32 when
+    #   `fsdp`, materialized by `load_full_state_dict_into_sharded_model` after sharding).
     # - the precision (torch.bfloat16 or torch.float32).
     # - the checkpoint path (if resuming from checkpoint, otherwise None).
     # - the number of trainable parameters in the model (int).
@@ -188,6 +195,7 @@ def main(specs, slurm_job_id, hardware):
             file_logger=file_logger if master_process else None,
         )
         world_size = data_parallel_size
+        load_full_state_dict_into_sharded_model(model, model_state, device)
     elif args.torch_compile:
         # Single-device fallback: no FSDP sharding happens, so there is no
         # per-block boundary to align with — compile the whole model, as we
@@ -230,7 +238,7 @@ def main(specs, slurm_job_id, hardware):
 
     # Create the learning rate scheduler.
     # See the `optimizers.py` script for details on what this function does.
-    lr_scheduler = create_lr_scheduler(args, max_steps)
+    lr_scheduler = create_lr_scheduler(args, max_steps, logger=logger if master_process else None)
 
     if master_process:
         logger.info(f"Using learning rate decay type: {args.lr_decay_type}")
@@ -249,20 +257,32 @@ def main(specs, slurm_job_id, hardware):
         logger=logger,
     )
 
-    # If we are resuming from checkpoint, we load the optimizer state from the checkpoint.
+    # If we are resuming from checkpoint, we load the training state from the checkpoint
+    # (with FSDP: the sharded master weights + optimizer state, each rank reading its shards).
     # It returns:
     # - resume_step: the step to resume from (int).
     # - iter_count: the number of batches consumed in the current epoch (int).
     # - epoch: the epoch to resume from (int).
-    resume_step, iter_count, epoch = load_checkpoint_state(
-        args=args,
-        checkpoint_path=checkpoint_path,
-        optimizer=optimizer,
-        device=device,
-        master_process=master_process,
-        logger=logger,
-        file_logger=file_logger if master_process else None,
-    )
+    if fsdp:
+        resume_step, iter_count, epoch = load_fsdp_checkpoint_state(
+            args=args,
+            checkpoint_path=checkpoint_path,
+            model=model,
+            optimizer=optimizer,
+            master_process=master_process,
+            logger=logger,
+            file_logger=file_logger if master_process else None,
+        )
+    else:
+        resume_step, iter_count, epoch = load_checkpoint_state(
+            args=args,
+            checkpoint_path=checkpoint_path,
+            optimizer=optimizer,
+            device=device,
+            master_process=master_process,
+            logger=logger,
+            file_logger=file_logger if master_process else None,
+        )
 
     if master_process:
         logger.info("=" * 50)
@@ -271,6 +291,7 @@ def main(specs, slurm_job_id, hardware):
         logger.info(f"  Hardware | {hardware.upper()}")
         logger.info(f"  World size (total GPUs) | {world_size}")
         logger.info(f"  Precision | {'bfloat16' if args.bf16 else 'float32'}")
+        logger.info(f"  Master weights | {args.master_weights_dtype}")
         logger.info(f"  Resuming from checkpoint | {args.resume_from_checkpoint is not None}")
         if args.resume_from_checkpoint:
             logger.info(f"    Checkpoint path | {args.resume_from_checkpoint}")
@@ -339,6 +360,7 @@ def main(specs, slurm_job_id, hardware):
             file_logger.log_metadata(f"  Hardware | {hardware.upper()}")
             file_logger.log_metadata(f"  World size (total GPUs) | {world_size}")
             file_logger.log_metadata(f"  Precision | {'bfloat16' if args.bf16 else 'float32'}")
+            file_logger.log_metadata(f"  Master weights | {args.master_weights_dtype}")
             file_logger.log_metadata("=" * 50)
             file_logger.log_metadata("Dataset Configuration:")
             file_logger.log_metadata(f"  Num train examples | {data.num_train_samples:,}")

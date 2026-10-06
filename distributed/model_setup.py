@@ -8,8 +8,9 @@ Provides:
     - `ModelInitializationResult` dataclass that encapsulates the tokenizer, model, and related state.
     - `prepare_training_components()` function that initializes the tokenizer and model.
     - `apply_fsdp_wrapping()` function that applies FSDP2 sharding to the model.
-    - `get_full_model_state_dict()` utility to gather the full model state dict for checkpointing.
-    - `get_full_optimizer_state_dict()` utility to gather the full optimizer state dict for checkpointing.
+    - `get_full_model_state_dict()` utility to gather the full model state dict (e.g. the bf16 HF export).
+    - `save_fsdp_training_state()` / `load_fsdp_checkpoint_state()` to save / resume the sharded (DCP)
+      master weights and optimizer state of an FSDP model.
 """
 
 import importlib
@@ -53,6 +54,10 @@ class ModelInitializationResult:
     non_attention_frozen: bool = False
     fp8_enabled: bool = False
     linear_attention_fast_path: bool = False
+    # Meta-device init only: rank 0's full weights / non-persistent buffers, consumed (and
+    # released) by `load_full_state_dict_into_sharded_model`. Empty on the other ranks.
+    full_state_dict: dict | None = None
+    non_persistent_buffers: dict | None = None
 
 
 def _log_message(master_process, logger, file_logger, message):
@@ -71,6 +76,8 @@ def _resolve_checkpoint_path(resume_from_checkpoint):
     Determine the correct checkpoint path to resume from, if any.
     We always want to resume from the latest checkpoint in the specified directory,
     but we also want to allow users to specify a specific checkpoint path if they choose to.
+    The latest `step_*` folder that holds a `checkpoint.pt` (written last, so it marks a
+    complete save) is preferred over a newer one that a job died while writing.
     """
     if not resume_from_checkpoint:
         return None
@@ -81,10 +88,15 @@ def _resolve_checkpoint_path(resume_from_checkpoint):
         checkpoint_dirs = [
             directory for directory in checkpoint_dirs if directory.startswith("step_")
         ]
+        complete_dirs = [
+            directory
+            for directory in checkpoint_dirs
+            if os.path.isfile(os.path.join(checkpoint_path, directory, "checkpoint.pt"))
+        ]
         checkpoint_path = os.path.join(
             checkpoint_path,
             sorted(
-                checkpoint_dirs,
+                complete_dirs or checkpoint_dirs,
                 key=lambda directory: int(directory.split("_")[-1].split(".")[0]),
             )[-1],
         )
@@ -92,6 +104,20 @@ def _resolve_checkpoint_path(resume_from_checkpoint):
         pass
 
     return checkpoint_path
+
+
+MASTER_WEIGHTS_DTYPES = {"fp32": torch.float32, "bf16": torch.bfloat16}
+
+
+def get_master_weights_dtype(args):
+    """Resolve `args.master_weights_dtype` (`fp32` | `bf16`) to a torch dtype."""
+    try:
+        return MASTER_WEIGHTS_DTYPES[args.master_weights_dtype]
+    except KeyError:
+        raise ValueError(
+            f"master_weights_dtype={args.master_weights_dtype!r} is not supported. "
+            f"Choose one of {sorted(MASTER_WEIGHTS_DTYPES)}."
+        ) from None
 
 
 def _create_tokenizer(args, master_process, logger=None, file_logger=None):
@@ -154,7 +180,13 @@ def _create_tokenizer(args, master_process, logger=None, file_logger=None):
 
 
 def _build_model_from_config(
-    args, tokenizer, precision, master_process, distributed_config=None, use_kernels=False
+    args,
+    tokenizer,
+    precision,
+    master_process,
+    distributed_config=None,
+    use_kernels=False,
+    synchronize=True,
 ):
     """
     Build and return a model with random weights from a Hugging Face config file.
@@ -219,7 +251,8 @@ def _build_model_from_config(
         del random_model
 
     # Step 2: synchronize so every rank sees the bootstrap checkpoint on disk.
-    if torch.distributed.is_available() and torch.distributed.is_initialized():
+    # `synchronize=False` when only rank 0 builds the model (FSDP meta-device init).
+    if synchronize and torch.distributed.is_available() and torch.distributed.is_initialized():
         torch.distributed.barrier()
 
     # Step 3 (all ranks): reload through `from_pretrained` so kernels and
@@ -347,6 +380,7 @@ def _load_model(
     file_logger=None,
     distributed_config=None,
     use_kernels=False,
+    synchronize=True,
 ):
     """
     Load a model from a checkpoint or initialize a new model based on the provided arguments.
@@ -390,6 +424,7 @@ def _load_model(
                 master_process,
                 distributed_config=distributed_config,
                 use_kernels=use_kernels,
+                synchronize=synchronize,
             ),
             None,
             False,
@@ -475,6 +510,87 @@ def _load_model(
         non_attention_frozen = True
 
     return model, checkpoint_path, non_attention_frozen
+
+
+def _load_meta_model_with_rank0_weights(
+    args,
+    tokenizer,
+    precision,
+    master_dtype,
+    master_process,
+    logger=None,
+    file_logger=None,
+    distributed_config=None,
+    use_kernels=False,
+):
+    """
+    FSDP model loading that never puts the full model on any GPU.
+
+    Rank 0 loads the real weights on CPU (same `_load_model` path as before, plus the
+    embedding resize and the GatedDeltaNet repair) and keeps its state dict. Every rank,
+    rank 0 included, then builds an empty replica (in `master_dtype`) on the meta device from
+    rank 0's config. After `fully_shard`, `load_full_state_dict_into_sharded_model` materializes
+    the shards and broadcasts the weights into them. The replica dtype is the dtype of the
+    sharded master weights (and therefore of the AdamW states); FSDP's `MixedPrecisionPolicy`
+    still runs forward/backward in bf16.
+
+    Returns `(model, checkpoint_path, non_attention_frozen, full_state_dict, non_persistent_buffers)`.
+    """
+    if use_kernels or distributed_config is not None:
+        _log_message(
+            master_process,
+            logger,
+            file_logger,
+            "WARNING: `use_kernels` / `enable_expert_parallelism` are not applied with FSDP "
+            "meta-device initialization (the trained replica is built with `from_config`).",
+        )
+
+    full_state_dict = {}
+    non_persistent_buffers = {}
+    payload = [None]
+    if torch.distributed.get_rank() == 0:
+        source_model, checkpoint_path, non_attention_frozen = _load_model(
+            args,
+            tokenizer,
+            precision,
+            master_process,
+            logger,
+            file_logger,
+            synchronize=False,
+        )
+        if args.continual_pretraining:
+            source_model = _resize_embeddings_for_tokenizer(
+                source_model, tokenizer, master_process, logger, file_logger
+            )
+        patch_qwen3_5_gdn_initialization(source_model, logger=logger, force_reinit=False)
+        full_state_dict = source_model.state_dict()
+        non_persistent_buffers = dict(source_model.named_non_persistent_buffers())
+        payload = [(source_model.config, checkpoint_path, non_attention_frozen)]
+        del source_model
+
+    torch.distributed.broadcast_object_list(payload, src=0)
+    config, checkpoint_path, non_attention_frozen = payload[0]
+
+    with torch.device("meta"):
+        model = AutoModelForCausalLM.from_config(
+            config,
+            dtype=master_dtype,
+            attn_implementation=args.attn_implementation,
+        )
+
+    if non_attention_frozen:
+        # Already logged by rank 0 while loading the source model.
+        _freeze_non_attention_blocks(model, master_process=False)
+
+    _log_message(
+        master_process,
+        logger,
+        file_logger,
+        "FSDP meta-device initialization: rank 0 holds the weights on CPU, every rank builds an "
+        f"empty replica ({args.master_weights_dtype} master weights); weights are broadcast after "
+        "sharding.",
+    )
+    return model, checkpoint_path, non_attention_frozen, full_state_dict, non_persistent_buffers
 
 
 def _resize_embeddings_for_tokenizer(
@@ -825,13 +941,21 @@ def _compute_active_trainable_params(config, trainable_params, non_attention_fro
     return trainable_params - inactive_params
 
 
-def prepare_training_components(args, device, master_process, logger=None, file_logger=None):
-    """Build tokenizer/model state needed by the trainer before DDP|FSDP wrapping."""
+def prepare_training_components(
+    args, device, master_process, logger=None, file_logger=None, meta_init=False
+):
+    """
+    Build tokenizer/model state needed by the trainer before DDP|FSDP wrapping.
+
+    `meta_init=True` (FSDP) returns a meta-device model plus rank 0's weights; call
+    `load_full_state_dict_into_sharded_model` after `apply_fsdp_wrapping`.
+    """
     torch.set_float32_matmul_precision(args.mat_mul_precision)
     torch.backends.cuda.matmul.allow_tf32 = args.tf32
     torch.backends.cudnn.allow_tf32 = args.tf32
     torch.backends.cuda.matmul.allow_bf16_reduced_precision_reduction = args.bf16
     precision = torch.bfloat16 if args.bf16 else torch.float32
+    master_dtype = get_master_weights_dtype(args)
 
     tokenizer = _create_tokenizer(args, master_process, logger, file_logger)
 
@@ -849,25 +973,46 @@ def prepare_training_components(args, device, master_process, logger=None, file_
         file_logger,
     )
 
-    model, checkpoint_path, non_attention_frozen = _load_model(
-        args,
-        tokenizer,
-        precision,
-        master_process,
-        logger,
-        file_logger,
-        distributed_config=distributed_config,
-        use_kernels=use_kernels,
-    )
-
-    if args.continual_pretraining:
-        model = _resize_embeddings_for_tokenizer(
+    full_state_dict = None
+    non_persistent_buffers = None
+    if meta_init:
+        (
             model,
+            checkpoint_path,
+            non_attention_frozen,
+            full_state_dict,
+            non_persistent_buffers,
+        ) = _load_meta_model_with_rank0_weights(
+            args,
             tokenizer,
+            precision,
+            master_dtype,
             master_process,
             logger,
             file_logger,
+            distributed_config=distributed_config,
+            use_kernels=use_kernels,
         )
+    else:
+        model, checkpoint_path, non_attention_frozen = _load_model(
+            args,
+            tokenizer,
+            precision,
+            master_process,
+            logger,
+            file_logger,
+            distributed_config=distributed_config,
+            use_kernels=use_kernels,
+        )
+
+        if args.continual_pretraining:
+            model = _resize_embeddings_for_tokenizer(
+                model,
+                tokenizer,
+                master_process,
+                logger,
+                file_logger,
+            )
 
     # Backfill runtime architecture fields declared in TrainingArguments
     # (consumed by mfu.py, data_loading.py, utils.py, train_ddp.py)
@@ -988,9 +1133,11 @@ def prepare_training_components(args, device, master_process, logger=None, file_
         # Defensive repair (no-op on healthy models): guarantee no GatedDeltaNet
         # layer carries a non-finite `A_log`, including checkpoints produced by a
         # pre-fix run. Deterministic, so it stays consistent across ranks.
-        patch_qwen3_5_gdn_initialization(
-            model, logger=logger if master_process else None, force_reinit=False
-        )
+        # With `meta_init` it already ran on rank 0's source weights.
+        if not meta_init:
+            patch_qwen3_5_gdn_initialization(
+                model, logger=logger if master_process else None, force_reinit=False
+            )
 
     if args.use_liger_kernel:
         _apply_liger_kernels(model, args)
@@ -1045,7 +1192,9 @@ def prepare_training_components(args, device, master_process, logger=None, file_
     # The model is moved to the device first so `Float8Linear` is built directly
     # on the accelerator. No-op (with a warning) when `torchao` is unavailable or
     # the hardware does not support fp8.
-    model.to(device)
+    if not meta_init:
+        # Master weights in `master_dtype`; autocast still runs the compute in `precision`.
+        model.to(device=device, dtype=master_dtype)
 
     fp8_enabled = _apply_fp8_training(model, args, master_process, logger, file_logger)
 
@@ -1060,18 +1209,23 @@ def prepare_training_components(args, device, master_process, logger=None, file_
         non_attention_frozen=non_attention_frozen,
         fp8_enabled=fp8_enabled,
         linear_attention_fast_path=linear_attention_fast_path,
+        full_state_dict=full_state_dict,
+        non_persistent_buffers=non_persistent_buffers,
     )
 
 
 # FSDP wrapping and state-dict utilities
+from torch.distributed import checkpoint as dcp  # noqa: E402
 from torch.distributed.checkpoint.state_dict import (  # noqa: E402
     StateDictOptions,
     get_model_state_dict,
     get_optimizer_state_dict,
+    set_model_state_dict,
+    set_optimizer_state_dict,
 )
 from torch.distributed.device_mesh import init_device_mesh  # noqa: E402
 from torch.distributed.fsdp import CPUOffloadPolicy, MixedPrecisionPolicy, fully_shard  # noqa: E402
-from torch.distributed.tensor import Replicate, Shard  # noqa: E402
+from torch.distributed.tensor import DTensor, Replicate, Shard  # noqa: E402
 from torch.distributed.tensor.parallel import (  # noqa: E402
     ColwiseParallel,
     PrepareModuleInput,
@@ -1080,6 +1234,15 @@ from torch.distributed.tensor.parallel import (  # noqa: E402
     SequenceParallel,
     parallelize_module,
 )
+from utils import (  # noqa: E402
+    _optimizer_state_is_loadable,
+    is_context_extension,
+    load_checkpoint_metadata,
+)
+
+# Sub-folder of an FSDP `step_*` checkpoint holding the sharded (DCP) master weights and
+# optimizer state. The bf16 Hugging Face export next to it is for evaluation / inference.
+DCP_STATE_DIRNAME = "dcp_state"
 
 SUPPORTED_SEQUENCE_PARALLEL_MODEL_TYPES = {
     "llama",
@@ -1550,38 +1713,207 @@ def apply_fsdp_wrapping(
     return data_parallel_size, data_parallel_rank
 
 
-def get_full_model_state_dict(model):
+def load_full_state_dict_into_sharded_model(model, model_state, device):
     """
-    Retrieve the full (un-sharded) model state dict from an FSDP-wrapped model.
-    Must be called on **all** ranks; rank-0 receives the complete dict.
-
-    References:
-        - https://pytorch.org/tutorials/intermediate/FSDP_tutorial.html#state-dict-with-dcp-apis
-        - https://docs.pytorch.org/docs/stable/distributed.checkpoint.html
+    Materialize a meta-device FSDP model on `device` and broadcast rank 0's weights into
+    its shards (one tensor at a time, so no rank ever holds the full model on GPU).
+    Must be called on **all** ranks after `apply_fsdp_wrapping`. Releases the CPU copy.
     """
-    return get_model_state_dict(
-        model=model,
-        options=StateDictOptions(
-            full_state_dict=True,
-            cpu_offload=True,
-        ),
+    model.to_empty(device=device)
+    set_model_state_dict(
+        model,
+        model_state.full_state_dict,
+        options=StateDictOptions(full_state_dict=True, broadcast_from_rank0=True),
     )
 
+    # Non-persistent buffers (e.g. RoPE `inv_freq`) are not in the state dict and are
+    # garbage after `to_empty`.
+    source_buffers = model_state.non_persistent_buffers
+    with torch.no_grad():
+        for name, buffer in model.named_non_persistent_buffers():
+            if torch.distributed.get_rank() == 0:
+                buffer.copy_(source_buffers[name.replace("_orig_mod.", "")])
+            torch.distributed.broadcast(buffer, src=0)
 
-def get_full_optimizer_state_dict(model, optimizer):
-    """
-    Retrieve the full (un-sharded) optimizer state dict from an FSDP-wrapped model.
-    Must be called on **all** ranks; rank-0 receives the complete dict.
+    model_state.full_state_dict = None
+    model_state.non_persistent_buffers = None
 
-    References:
-        - https://pytorch.org/tutorials/intermediate/FSDP_tutorial.html#state-dict-with-dcp-apis
-        - https://docs.pytorch.org/docs/stable/distributed.checkpoint.html
+
+def get_full_model_state_dict(model, dtype=None):
     """
-    return get_optimizer_state_dict(
-        model=model,
-        optimizers=optimizer,
-        options=StateDictOptions(
-            full_state_dict=True,
-            cpu_offload=True,
-        ),
+    Gather the full (un-sharded) model state dict of an FSDP-wrapped model onto rank 0's CPU,
+    one tensor at a time. Must be called on **all** ranks; the other ranks get an empty dict.
+    Each tensor is cast to `dtype` before its all-gather, so a bf16 export never materializes
+    the fp32 master weights, and rank 0 peaks at one `dtype` copy of the model.
+    """
+    is_rank0 = torch.distributed.get_rank() == 0
+    full_state_dict = {}
+    # Keyed by the Parameter object so tied weights are gathered once and stay aliased.
+    gathered = {}
+    with torch.no_grad():
+        for name, value in model.state_dict(keep_vars=True).items():
+            if id(value) not in gathered:
+                tensor = value.detach()
+                if dtype is not None and torch.is_floating_point(tensor):
+                    tensor = tensor.to(dtype)
+                if isinstance(tensor, DTensor):
+                    tensor = tensor.full_tensor()
+                gathered[id(value)] = tensor.cpu() if is_rank0 else None
+            if is_rank0:
+                full_state_dict[name.replace("_orig_mod.", "")] = gathered[id(value)]
+    return full_state_dict
+
+
+def cast_state_dict_(state_dict, dtype):
+    """Cast floating-point tensors in place, keeping aliased (tied) tensors aliased."""
+    casted = {}
+    for key, value in state_dict.items():
+        if torch.is_tensor(value) and torch.is_floating_point(value):
+            alias = (value.untyped_storage().data_ptr(), value.storage_offset(), tuple(value.shape))
+            if alias not in casted:
+                casted[alias] = value.to(dtype)
+            state_dict[key] = casted[alias]
+    return state_dict
+
+
+def save_fsdp_training_state(
+    model, optimizer, checkpoint_dir, process_group=None, async_save=False
+):
+    """
+    Write the master weights and the optimizer state of an FSDP model as sharded DCP files
+    under `<checkpoint_dir>/dcp_state`. Every rank writes only its own shards (no gather).
+    Must be called on **all** ranks. With `async_save=True` the state is copied to CPU before
+    returning and written in a background thread; the returned future completes once the
+    whole checkpoint (all ranks + metadata) is on disk.
+    """
+    state = {
+        "model": get_model_state_dict(model),
+        "optimizer": get_optimizer_state_dict(model, optimizer),
+    }
+    checkpoint_id = os.path.join(checkpoint_dir, DCP_STATE_DIRNAME)
+    if async_save:
+        return dcp.async_save(state, checkpoint_id=checkpoint_id, process_group=process_group)
+    dcp.save(state, checkpoint_id=checkpoint_id, process_group=process_group)
+    return None
+
+
+def _should_restore_optimizer(
+    args, param_sets_match, checkpoint_path, master_process, logger, file_logger
+):
+    """Optimizer restore policy shared by the DCP and the legacy FSDP checkpoint formats."""
+    if param_sets_match:
+        return True
+    if not is_context_extension(args):
+        raise ValueError(
+            f"The optimizer state in {checkpoint_path} was saved for a different set of "
+            "trainable parameters than the current optimizer holds."
+        )
+    _log_message(
+        master_process,
+        logger,
+        file_logger,
+        f"Context extension detected: skipping the optimizer state restore from "
+        f"{checkpoint_path} because the checkpoint was saved with a different (non-frozen) "
+        "parameter set. Continuing with a freshly initialized optimizer.",
     )
+    return False
+
+
+def load_fsdp_checkpoint_state(
+    args,
+    checkpoint_path,
+    model,
+    optimizer,
+    master_process=False,
+    logger=None,
+    file_logger=None,
+):
+    """
+    FSDP counterpart of `utils.load_checkpoint_state`. Must be called on **all** ranks.
+
+    Restores the master weights and the optimizer state from the sharded `dcp_state/` folder
+    (each rank reads only its own shards), replacing the bf16 weights the model was
+    initialized from. Older checkpoints, which carry the full optimizer state inside
+    `checkpoint.pt`, are still supported: rank 0 reads that state on CPU and broadcasts it
+    shard by shard (their weights come from the bf16 Hugging Face export).
+
+    Returns a tuple of (resume_step, iter_count, epoch).
+    """
+    if not args.resume_from_checkpoint:
+        return 0, 0, 1
+
+    # mmap: a legacy file embeds the full optimizer state, whose tensors only rank 0 reads.
+    checkpoint = load_checkpoint_metadata(
+        os.path.join(checkpoint_path, "checkpoint.pt"), map_location="cpu", mmap=True
+    )
+    dcp_dir = os.path.join(checkpoint_path, DCP_STATE_DIRNAME)
+
+    if os.path.isdir(dcp_dir):
+        model_state = get_model_state_dict(model)
+        optimizer_state = get_optimizer_state_dict(model, optimizer)
+        saved_keys = dcp.FileSystemReader(dcp_dir).read_metadata().state_dict_metadata
+        saved_params = {
+            key.removeprefix("optimizer.state.").rsplit(".", 1)[0]
+            for key in saved_keys
+            if key.startswith("optimizer.state.")
+        }
+        restore_optimizer = _should_restore_optimizer(
+            args,
+            set(optimizer_state["state"]) == saved_params,
+            checkpoint_path,
+            master_process,
+            logger,
+            file_logger,
+        )
+        state = {"model": model_state}
+        if restore_optimizer:
+            state["optimizer"] = optimizer_state
+        dcp.load(state, checkpoint_id=dcp_dir)
+        set_model_state_dict(model, state["model"])
+        if restore_optimizer:
+            set_optimizer_state_dict(model, optimizer, state["optimizer"])
+        _log_message(
+            master_process,
+            logger,
+            file_logger,
+            f"Resumed master weights{' and optimizer' if restore_optimizer else ''} from "
+            f"sharded checkpoint: {dcp_dir}",
+        )
+
+    elif "optimizer" in checkpoint:
+        full_optimizer_state = checkpoint["optimizer"]
+        restore_optimizer = _should_restore_optimizer(
+            args,
+            _optimizer_state_is_loadable(optimizer, full_optimizer_state),
+            checkpoint_path,
+            master_process,
+            logger,
+            file_logger,
+        )
+        if restore_optimizer:
+            set_optimizer_state_dict(
+                model,
+                optimizer,
+                full_optimizer_state if torch.distributed.get_rank() == 0 else {},
+                options=StateDictOptions(full_state_dict=True, broadcast_from_rank0=True),
+            )
+            _log_message(
+                master_process,
+                logger,
+                file_logger,
+                f"Resumed optimizer from legacy (full) checkpoint: {checkpoint_path}",
+            )
+
+    else:
+        raise FileNotFoundError(
+            f"{checkpoint_path} has neither a `{DCP_STATE_DIRNAME}/` folder nor an optimizer "
+            "state in `checkpoint.pt`."
+        )
+
+    if args.begin_new_stage:
+        _log_message(
+            master_process, logger, file_logger, f"Starting new training stage | {args.stage_name}"
+        )
+        return 0, 0, 1
+
+    return int(checkpoint["resume_step"]), int(checkpoint["iteration"]), int(checkpoint["epoch"])

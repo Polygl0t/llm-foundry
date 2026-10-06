@@ -245,7 +245,7 @@ def main(specs, slurm_job_id, hardware):
 
     # Create the learning rate scheduler.
     # See the `optimizers.py` script for details on what this function does.
-    lr_scheduler = create_lr_scheduler(args, max_steps)
+    lr_scheduler = create_lr_scheduler(args, max_steps, logger=logger if master_process else None)
 
     if master_process:
         logger.info(f"Using learning rate decay type: {args.lr_decay_type}")
@@ -286,6 +286,7 @@ def main(specs, slurm_job_id, hardware):
         logger.info(f"  Hardware | {hardware.upper()}")
         logger.info(f"  World size (total GPUs) | {world_size}")
         logger.info(f"  Precision | {'bfloat16' if args.bf16 else 'float32'}")
+        logger.info(f"  Master weights | {args.master_weights_dtype}")
         logger.info(f"  Resuming from checkpoint | {args.resume_from_checkpoint is not None}")
         if args.resume_from_checkpoint:
             logger.info(f"    Checkpoint path | {args.resume_from_checkpoint}")
@@ -344,6 +345,7 @@ def main(specs, slurm_job_id, hardware):
             file_logger.log_metadata(f"  Hardware | {hardware.upper()}")
             file_logger.log_metadata(f"  World size (total GPUs) | {world_size}")
             file_logger.log_metadata(f"  Precision | {'bfloat16' if args.bf16 else 'float32'}")
+            file_logger.log_metadata(f"  Master weights | {args.master_weights_dtype}")
             file_logger.log_metadata("=" * 50)
             file_logger.log_metadata("Dataset Configuration:")
             file_logger.log_metadata(f"  Num train examples | {data.num_train_samples:,}")

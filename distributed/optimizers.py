@@ -375,10 +375,23 @@ class SingleDeviceMuonWithAuxAdam(torch.optim.Optimizer):
         return loss
 
 
-def create_lr_scheduler(args, max_steps):
+# lr == 0 (e.g. the last cosine step with `min_learning_rate: 0`) makes the compiled, non-fused
+# AdamW step write NaN into parameters whose moments are still 0 (embedding rows of unseen tokens).
+MIN_LEARNING_RATE_FLOOR = 1e-8
+
+
+def create_lr_scheduler(args, max_steps, logger=None):
     """
     Create a learning rate scheduler based on the provided arguments and maximum steps.
+    `args.min_learning_rate` is raised to `MIN_LEARNING_RATE_FLOOR` if it is below it.
     """
+    if args.min_learning_rate < MIN_LEARNING_RATE_FLOOR:
+        if logger is not None:
+            logger.info(
+                f"WARNING: min_learning_rate={args.min_learning_rate} raised to "
+                f"{MIN_LEARNING_RATE_FLOOR} (a learning rate of exactly 0 can produce NaN weights)."
+            )
+        args.min_learning_rate = MIN_LEARNING_RATE_FLOOR
 
     def cosine_schedule(it, max_lr):
         """Cosine learning rate schedule with warmup."""

@@ -60,6 +60,7 @@ torch_compile: false
 mat_mul_precision: "highest"
 tf32: true
 bf16: true
+master_weights_dtype: "fp32"
 fp8: false
 fp8_recipe: "tensorwise"
 gradient_checkpointing: false

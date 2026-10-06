@@ -21,12 +21,34 @@ import json
 import logging
 import math
 import os
+import pickle
 import sys
 import time
+from datetime import timedelta
 
 import numpy as np
 import torch
 import torch.distributed as dist
+
+# Collective timeout (NCCL's default is 10 min). Rank-0-only phases such as loading the base model
+# from GPFS or gathering the bf16 export can leave the other ranks waiting for minutes.
+DISTRIBUTED_TIMEOUT = timedelta(minutes=20)
+
+
+def load_checkpoint_metadata(path, map_location="cpu", mmap=False):
+    """
+    Load a `checkpoint.pt` with `weights_only=True` (no arbitrary code execution). Files written
+    before the config was stored as a plain dict hold a pickled `PretrainedConfig`; those fall
+    back to a full unpickle with a warning (only do that for checkpoints you produced).
+    """
+    try:
+        return torch.load(path, map_location=map_location, mmap=mmap, weights_only=True)
+    except pickle.UnpicklingError:
+        logging.getLogger(__name__).warning(
+            f"{path} holds pickled Python objects (pre-dict checkpoint format); loading it with "
+            "weights_only=False."
+        )
+        return torch.load(path, map_location=map_location, mmap=mmap, weights_only=False)
 
 
 def _get_local_world_size():
@@ -153,6 +175,7 @@ class DistributedEnvironment:
                     world_size=self.world_size,
                     rank=self.rank,
                     device_id=torch.device("cuda", self.local_rank),
+                    timeout=DISTRIBUTED_TIMEOUT,
                 )
                 self.device = f"cuda:{self.local_rank}"
                 torch.cuda.set_device(self.device)
@@ -161,6 +184,7 @@ class DistributedEnvironment:
                     backend="gloo",
                     world_size=self.world_size,
                     rank=self.rank,
+                    timeout=DISTRIBUTED_TIMEOUT,
                 )
                 self.device = "cpu"
 
@@ -260,7 +284,7 @@ def load_checkpoint_state(
     """
     if args.resume_from_checkpoint:
         checkpoint = os.path.join(checkpoint_path, "checkpoint.pt")
-        checkpoint = torch.load(checkpoint, map_location=torch.device(device), weights_only=False)
+        checkpoint = load_checkpoint_metadata(checkpoint, map_location=torch.device(device))
 
         if is_context_extension(args) and not _optimizer_state_is_loadable(
             optimizer, checkpoint["optimizer"]

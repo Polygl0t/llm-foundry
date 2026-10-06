@@ -62,13 +62,33 @@ _REQUIRED_FILES = ("dataset_info.json", "state.json")
 DEFAULT_MAX_NUM_PROC = 16
 
 
+class ResumableDistributedSampler(DistributedSampler):
+    """
+    `DistributedSampler` whose next pass can start part-way through the epoch.
+
+    Set `start_index` (in samples of this rank) before creating the dataloader iterator to
+    skip what a resumed run already consumed, without loading those batches. It applies to
+    one pass only; `__len__` keeps the full epoch length, so the epoch bookkeeping of the
+    training loop is unchanged.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.start_index = 0
+
+    def __iter__(self):
+        indices = list(super().__iter__())[self.start_index :]
+        self.start_index = 0
+        return iter(indices)
+
+
 @dataclass
 class DataLoaderBundle:
     """Everything the training loop needs from the data pipeline."""
 
     train_dataloader: DataLoader
     val_dataloader: DataLoader
-    train_sampler: DistributedSampler
+    train_sampler: ResumableDistributedSampler
     num_train_samples: int
     num_val_samples: int
     mask_token_ids: set
@@ -632,7 +652,7 @@ def prepare_dataloaders(
                 f"Collate function will mask token IDs: {sorted(mask_token_ids)}"
             )
 
-    train_sampler = DistributedSampler(
+    train_sampler = ResumableDistributedSampler(
         train_dataset,
         num_replicas=world_size,
         rank=rank,

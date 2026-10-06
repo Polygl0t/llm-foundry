@@ -10,9 +10,11 @@ Provides:
 """
 
 import contextlib
+import json
 import math
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import torch
 import torch.distributed as dist
@@ -24,8 +26,12 @@ except ImportError:
     wandb = None
 
 from mfu import calculate_training_metrics
-from model_setup import get_full_model_state_dict, get_full_optimizer_state_dict
-from utils import checkpoint_already_validated
+from model_setup import (
+    cast_state_dict_,
+    get_full_model_state_dict,
+    save_fsdp_training_state,
+)
+from utils import DISTRIBUTED_TIMEOUT, checkpoint_already_validated
 
 # Validation-only metrics (measured once every `checkpointing_steps` and logged as their
 # own row) carried into every subsequent training log entry that goes to W&B / trackio.
@@ -173,8 +179,15 @@ def _save_checkpoint(
     config,
     optimizer_state,
     model_save_kwargs=None,
+    save_dtype=None,
+    wait_before_metadata=None,
 ):
-    """Save model, tokenizer, and training state to a checkpoint directory."""
+    """
+    Save model, tokenizer, and training state to a checkpoint directory.
+    `checkpoint.pt` is written last, so its presence marks a complete checkpoint. FSDP passes
+    `optimizer_state=None`: its optimizer state lives in the sharded `dcp_state/` folder, and
+    `wait_before_metadata` blocks until that folder is fully written.
+    """
     os.makedirs(output_dir, exist_ok=True)
 
     # Save the model and tokenizer.
@@ -182,20 +195,56 @@ def _save_checkpoint(
     if model_save_kwargs:
         save_kwargs.update(model_save_kwargs)
     model_to_save.save_pretrained(output_dir, **save_kwargs)
+    if save_dtype is not None:
+        # `save_pretrained` records the fp32 master-weight dtype; record the saved one instead.
+        model_to_save.config.dtype = save_dtype
+        model_to_save.config.save_pretrained(output_dir)
     if tokenizer is not None:
         tokenizer.save_pretrained(output_dir)
 
     # Save the optimizer state and other metadata.
-    torch.save(
-        {
-            "resume_step": completed_steps,
-            "iteration": iter_count,
-            "epoch": epoch,
-            "config": config,
-            "optimizer": optimizer_state,
-        },
-        f"{output_dir}/checkpoint.pt",
-    )
+    # The config is stored as a plain dict so the file loads with `weights_only=True`.
+    training_state = {
+        "resume_step": completed_steps,
+        "iteration": iter_count,
+        "epoch": epoch,
+        "config": json.loads(config.to_json_string(use_diff=False)),
+    }
+    if optimizer_state is not None:
+        training_state["optimizer"] = optimizer_state
+    if wait_before_metadata is not None:
+        wait_before_metadata()
+    torch.save(training_state, f"{output_dir}/checkpoint.pt")
+
+
+class _BackgroundCheckpointWriter:
+    """
+    Writes FSDP checkpoints off the training loop. Every rank's DCP shards go through
+    `dcp.async_save` on a dedicated gloo group (so its collectives never interleave with the
+    NCCL training traffic); rank 0's bf16 HF export and `checkpoint.pt` are written by a worker
+    thread, `checkpoint.pt` only once all shards are on disk. At most one checkpoint is in flight.
+    """
+
+    def __init__(self, master_process):
+        self.process_group = dist.new_group(backend="gloo", timeout=DISTRIBUTED_TIMEOUT)
+        self.executor = ThreadPoolExecutor(max_workers=1) if master_process else None
+        self.pending = []
+
+    def save(self, model, optimizer, output_dir, write_rank0_files):
+        """`write_rank0_files(wait_for_shards)` runs on rank 0's worker thread."""
+        self.wait()
+        shards_written = save_fsdp_training_state(
+            model, optimizer, output_dir, process_group=self.process_group, async_save=True
+        )
+        self.pending.append(shards_written)
+        if self.executor is not None:
+            self.pending.append(self.executor.submit(write_rank0_files, shards_written.result))
+
+    def wait(self):
+        """Block until the in-flight checkpoint is fully written (re-raises its errors)."""
+        for future in self.pending:
+            future.result()
+        self.pending = []
 
 
 def _push_to_hub(*, model_to_push, tokenizer, hub_model_id, hub_token, stage_name, completed_steps):
@@ -482,6 +531,10 @@ class DDPTrainer:
         # See https://docs.python.org/3/library/contextlib.html#contextlib.nullcontext
         null_context = contextlib.nullcontext()
 
+        # Resume mid-epoch by skipping the batches already consumed in `epoch` (not loading them).
+        if resume_step > 0:
+            train_sampler.start_index = iter_count * args.micro_batch_size
+
         # Create an iterator from the train dataloader.
         iter_train_dataloader = iter(train_dataloader)
 
@@ -495,22 +548,8 @@ class DDPTrainer:
         # Get the current learning rate stage
         current_lr_stage = lr_scheduler(resume_step)[-1]
 
-        # Start the training loop.
-        for completed_steps in range(1, max_steps + 1):
-            # Skip the steps that have already been completed when resuming from a checkpoint.
-            if resume_step >= completed_steps:
-                for _micro_step in range(gradient_accumulation_steps):
-                    try:
-                        next(iter_train_dataloader)
-                    except StopIteration:
-                        # If we reach the end of the dataloader, we need to reset the iterator.
-                        epoch += 1
-                        train_sampler.set_epoch(epoch)
-                        iter_train_dataloader = iter(train_dataloader)
-                        next(iter_train_dataloader)
-                    iter_count += 1
-                continue
-
+        # Start the training loop (after the steps already completed when resuming).
+        for completed_steps in range(resume_step + 1, max_steps + 1):
             # Reset the sampler if we have exhausted the dataloader for this epoch.
             # iter_count tracks the number of BATCHES consumed, not optimizer steps.
             if iter_count >= len(train_dataloader) and epoch < math.ceil(args.num_train_epochs):
@@ -705,6 +744,10 @@ class DDPTrainer:
                             epoch=epoch,
                             config=raw_model.config,
                             optimizer_state=optimizer.state_dict(),
+                            model_save_kwargs={
+                                "state_dict": cast_state_dict_(raw_model.state_dict(), precision)
+                            },
+                            save_dtype=precision,
                         )
 
                         # Push it to the hub.
@@ -855,6 +898,12 @@ class FSDPTrainer:
             )
             return
 
+        checkpoint_writer = _BackgroundCheckpointWriter(master_process) if fsdp else None
+
+        # Resume mid-epoch by skipping the batches already consumed in `epoch` (not loading them).
+        if resume_step > 0:
+            train_sampler.start_index = iter_count * args.micro_batch_size
+
         # Create an iterator from the train dataloader.
         iter_train_dataloader = iter(train_dataloader)
 
@@ -868,22 +917,8 @@ class FSDPTrainer:
         # Get the current learning rate stage
         current_lr_stage = lr_scheduler(resume_step)[-1]
 
-        # Start the training loop.
-        for completed_steps in range(1, max_steps + 1):
-            # Skip the steps that have already been completed when resuming from a checkpoint.
-            if resume_step >= completed_steps:
-                for _micro_step in range(gradient_accumulation_steps):
-                    try:
-                        next(iter_train_dataloader)
-                    except StopIteration:
-                        # If we reach the end of the dataloader, we need to reset the iterator.
-                        epoch += 1
-                        train_sampler.set_epoch(epoch)
-                        iter_train_dataloader = iter(train_dataloader)
-                        next(iter_train_dataloader)
-                    iter_count += 1
-                continue
-
+        # Start the training loop (after the steps already completed when resuming).
+        for completed_steps in range(resume_step + 1, max_steps + 1):
             # Reset the sampler if we have exhausted the dataloader for this epoch.
             # iter_count tracks the number of BATCHES consumed, not optimizer steps.
             if iter_count >= len(train_dataloader) and epoch < math.ceil(args.num_train_epochs):
@@ -909,7 +944,7 @@ class FSDPTrainer:
             optimizer.zero_grad(set_to_none=True)
 
             # Perform the gradient accumulation inner loop.
-            for micro_step in range(gradient_accumulation_steps):
+            for _micro_step in range(gradient_accumulation_steps):
                 # Get the next batch.
                 try:
                     batch = next(iter_train_dataloader)
@@ -931,15 +966,8 @@ class FSDPTrainer:
                 # Move the batch to the device.
                 batch = {k: v.to(device, non_blocking=True) for k, v in batch.items()}
 
-                # For FSDP2 gradient accumulation:
-                # - Use `set_requires_gradient_sync(False)` to skip gradient reduce-scatter on intermediate steps
-                # - On the final micro-step, enable sync so gradients are properly reduced across ranks
-                #
-                # Note: FSDP2 does NOT support the `model.no_sync()` context manager used by DDP.
-                # Instead, gradient synchronization is controlled via `set_requires_gradient_sync()`.
-                is_last_micro_step = micro_step == gradient_accumulation_steps - 1
-                if fsdp:
-                    model.set_requires_gradient_sync(is_last_micro_step)
+                # FSDP2 reduce-scatters on every micro-step on purpose: `set_requires_gradient_sync(False)`
+                # keeps the UNSHARDED grads of the whole model (upcast to reduce_dtype=fp32) on every rank.
 
                 # Autocast is a PyTorch context manager that enables mixed precision training.
                 # See https://docs.pytorch.org/tutorials/recipes/recipes/amp_recipe.html#adding-torch-autocast
@@ -1056,11 +1084,12 @@ class FSDPTrainer:
                         dist.all_reduce(val_loss_accum, op=dist.ReduceOp.SUM)
                         val_loss_accum = val_loss_accum / world_size
 
-                    # Retrieve full model and optimizer state dicts from all FSDP ranks.
-                    # These calls must happen on ALL processes (they trigger all-gather internally).
-                    model_state_dict = get_full_model_state_dict(model) if fsdp else None
-                    opt_state_dict = (
-                        get_full_optimizer_state_dict(model, optimizer) if fsdp else None
+                    checkpoint_name = f"step_{completed_steps:05d}"
+                    output_dir = os.path.join(args.checkpoint_dir, args.stage_name, checkpoint_name)
+
+                    # Collective, so it runs on ALL ranks: rank 0 receives the bf16 HF weights.
+                    model_state_dict = (
+                        get_full_model_state_dict(model, dtype=precision) if fsdp else None
                     )
 
                     if master_process:
@@ -1075,23 +1104,31 @@ class FSDPTrainer:
                             wandb_enabled=args.wandb_enabled,
                         )
 
-                        # Create the checkpoint directory.
-                        checkpoint_name = f"step_{completed_steps:05d}"
-                        output_dir = os.path.join(
-                            args.checkpoint_dir, args.stage_name, checkpoint_name
+                    checkpoint_kwargs = {
+                        "output_dir": output_dir,
+                        "model_to_save": model,
+                        "tokenizer": tokenizer,
+                        "completed_steps": completed_steps,
+                        "iter_count": iter_count,
+                        "epoch": epoch,
+                        "config": model.config,
+                        "optimizer_state": None if fsdp else optimizer.state_dict(),
+                        "model_save_kwargs": {"state_dict": model_state_dict} if fsdp else None,
+                        "save_dtype": precision if fsdp else None,
+                    }
+                    if fsdp:
+                        checkpoint_writer.save(
+                            model,
+                            optimizer,
+                            output_dir,
+                            lambda wait_for_shards, kwargs=checkpoint_kwargs: _save_checkpoint(
+                                **kwargs, wait_before_metadata=wait_for_shards
+                            ),
                         )
-                        _save_checkpoint(
-                            output_dir=output_dir,
-                            model_to_save=model,
-                            tokenizer=tokenizer,
-                            completed_steps=completed_steps,
-                            iter_count=iter_count,
-                            epoch=epoch,
-                            config=model.config,
-                            optimizer_state=opt_state_dict if fsdp else optimizer.state_dict(),
-                            model_save_kwargs={"state_dict": model_state_dict} if fsdp else None,
-                        )
+                    elif master_process:
+                        _save_checkpoint(**checkpoint_kwargs)
 
+                    if master_process:
                         # Push it to the hub.
                         if (
                             args.push_to_hub
@@ -1113,6 +1150,9 @@ class FSDPTrainer:
                     # Set barrier to ensure that all processes have finished the validation step before continuing.
                     if fsdp:
                         dist.barrier()
+
+        if checkpoint_writer is not None:
+            checkpoint_writer.wait()
 
         # Terminate the W&B tracker and the CodeCarbon tracker at the end of the training loop.
         if master_process:
