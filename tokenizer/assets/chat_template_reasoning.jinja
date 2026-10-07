@@ -1,119 +1,128 @@
-{#- Handle tool/function calling setup #}
-{%- if tools %}
-    {{- '<|im_start|>system\n' }}
-    {#- Include system message if present #}
-    {%- if messages[0].role == 'system' %}
-        {{- messages[0].content + '\n\n' }}
+{%- macro render_content(content) %}
+    {%- if content is string %}
+        {{- content }}
+    {%- elif content is iterable and content is not mapping %}
+        {%- for item in content %}
+            {%- if 'text' in item %}
+                {{- item.text }}
+            {%- else %}
+                {{- raise_exception('Unexpected item type in content.') }}
+            {%- endif %}
+        {%- endfor %}
+    {%- elif content is none or content is undefined %}
+        {{- '' }}
+    {%- else %}
+        {{- raise_exception('Unexpected content type.') }}
     {%- endif %}
-    {#- Add tool calling instructions in Portuguese #}
-    {{- "# Tools / Ferramentas\n\nVocê pode chamar uma ou mais funções para auxiliar na consulta do usuário.\n\nVocê recebe assinaturas de funções dentro de tags XML <tools></tools>:\n<tools>" }}
+{%- endmacro %}
+{%- if not messages %}
+    {{- raise_exception('No messages provided.') }}
+{%- endif %}
+{%- if tools and tools is iterable and tools is not mapping %}
+    {{- '<|im_start|>system\n' }}
+    {{- "# Tools / Ferramentas\n\nVocê tem acesso às seguintes funções:\n\n<tools>" }}
     {%- for tool in tools %}
         {{- "\n" }}
         {{- tool | tojson }}
     {%- endfor %}
-    {{- "\n</tools>\n\nPara cada chamada de função, retorne um objeto json com o nome da função e os argumentos dentro das tags XML <tool_call></tool_call>:\n<tool_call>\n{\"name\": <function-name>, \"arguments\": <args-json-object>}\n</tool_call><|im_end|>\n" }}
-{%- else %}
-    {#- Standard system message without tools #}
+    {{- "\n</tools>" }}
+    {{- '\n\nSe você optar por chamar uma função, responda APENAS no seguinte formato, SEM sufixo:\n\n<tool_call>\n<function=example_function_name>\n<parameter=example_parameter_1>\nvalue_1\n</parameter>\n<parameter=example_parameter_2>\nEste é o valor do segundo parâmetro,\nque pode ocupar\nvárias linhas\n</parameter>\n</function>\n</tool_call>\n\n<IMPORTANT>\nLembrete:\n- As chamadas de função DEVEM seguir o formato especificado: um bloco interno <function=...></function> deve estar aninhado dentro das tags XML <tool_call></tool_call>\n- Os parâmetros obrigatórios DEVEM ser informados\n- Você pode fornecer raciocínio opcional para a sua chamada de função em linguagem natural ANTES da chamada da função, mas NÃO depois\n- Se não houver nenhuma função disponível, responda à pergunta normalmente com o seu conhecimento atual e não mencione as chamadas de função ao usuário\n</IMPORTANT>' }}
     {%- if messages[0].role == 'system' %}
-        {{- '<|im_start|>system\n' + messages[0].content + '<|im_end|>\n' }}
+        {%- set content = render_content(messages[0].content)|trim %}
+        {%- if content %}
+            {{- '\n\n' + content }}
+        {%- endif %}
+    {%- endif %}
+    {{- '<|im_end|>\n' }}
+{%- else %}
+    {%- if messages[0].role == 'system' %}
+        {%- set content = render_content(messages[0].content)|trim %}
+        {{- '<|im_start|>system\n' + content + '<|im_end|>\n' }}
     {%- endif %}
 {%- endif %}
-
-{#- Detect multi-step tool usage by finding the last real user query #}
 {%- set ns = namespace(multi_step_tool=true, last_query_index=messages|length - 1) %}
 {%- for message in messages[::-1] %}
     {%- set index = (messages|length - 1) - loop.index0 %}
-    {%- if ns.multi_step_tool and message.role == "user" and message.content is string and not(message.content.startswith('<tool_response>') and message.content.endswith('</tool_response>')) %}
-        {%- set ns.multi_step_tool = false %}
-        {%- set ns.last_query_index = index %}
+    {%- if ns.multi_step_tool and message.role == "user" %}
+        {%- set content = render_content(message.content)|trim %}
+        {%- if not(content.startswith('<tool_response>') and content.endswith('</tool_response>')) %}
+            {%- set ns.multi_step_tool = false %}
+            {%- set ns.last_query_index = index %}
+        {%- endif %}
     {%- endif %}
 {%- endfor %}
-
-{#- Process each message in the conversation #}
+{%- if ns.multi_step_tool %}
+    {{- raise_exception('No user query found in messages.') }}
+{%- endif %}
 {%- for message in messages %}
-    {#- Normalize content to string #}
-    {%- if message.content is string %}
-        {%- set content = message.content %}
-    {%- else %}
-        {%- set content = '' %}
-    {%- endif %}
-
-    {#- Handle user messages and non-first system messages #}
-    {%- if (message.role == "user") or (message.role == "system" and not loop.first) %}
+    {%- set content = render_content(message.content)|trim %}
+    {%- if message.role == "system" %}
+        {%- if not loop.first %}
+            {{- raise_exception('System message must be at the beginning.') }}
+        {%- endif %}
+    {%- elif message.role == "user" %}
         {{- '<|im_start|>' + message.role + '\n' + content + '<|im_end|>' + '\n' }}
-
-    {#- Handle assistant messages with reasoning #}
     {%- elif message.role == "assistant" %}
-        {#- Extract reasoning content if present #}
         {%- set reasoning_content = '' %}
         {%- if message.reasoning_content is string %}
             {%- set reasoning_content = message.reasoning_content %}
         {%- else %}
-            {#- Parse <think></think> tags from content #}
             {%- if '</think>' in content %}
                 {%- set reasoning_content = content.split('</think>')[0].rstrip('\n').split('<think>')[-1].lstrip('\n') %}
                 {%- set content = content.split('</think>')[-1].lstrip('\n') %}
             {%- endif %}
         {%- endif %}
-
+        {%- set reasoning_content = reasoning_content|trim %}
         {{- '<|im_start|>' + message.role + '\n' }}
         {%- generation %}
-        {#- Add reasoning tags for messages after last user query #}
-        {%- if loop.index0 > ns.last_query_index %}
-            {%- if loop.last or (not loop.last and reasoning_content) %}
-                {{- '<think>\n' + reasoning_content.strip('\n') + '\n</think>\n\n' + content.lstrip('\n') }}
-            {%- else %}
-                {{- content }}
-            {%- endif %}
+        {%- if (preserve_thinking is defined and preserve_thinking is true) or (loop.index0 > ns.last_query_index) %}
+            {{- '<think>\n' + reasoning_content + '\n</think>\n\n' + content }}
         {%- else %}
             {{- content }}
         {%- endif %}
-
-        {#- Add tool calls if present #}
-        {%- if message.tool_calls %}
+        {%- if message.tool_calls and message.tool_calls is iterable and message.tool_calls is not mapping %}
             {%- for tool_call in message.tool_calls %}
-                {%- if (loop.first and content) or (not loop.first) %}
-                    {{- '\n' }}
-                {%- endif %}
-                {#- Normalize tool call format #}
-                {%- if tool_call.function %}
+                {%- if tool_call.function is defined %}
                     {%- set tool_call = tool_call.function %}
                 {%- endif %}
-                {{- '<tool_call>\n{"name": "' }}
-                {{- tool_call.name }}
-                {{- '", "arguments": ' }}
-                {%- if tool_call.arguments is string %}
-                    {{- tool_call.arguments }}
+                {%- if loop.first %}
+                    {%- if content|trim %}
+                        {{- '\n\n<tool_call>\n<function=' + tool_call.name + '>\n' }}
+                    {%- else %}
+                        {{- '<tool_call>\n<function=' + tool_call.name + '>\n' }}
+                    {%- endif %}
                 {%- else %}
-                    {{- tool_call.arguments | tojson }}
+                    {{- '\n<tool_call>\n<function=' + tool_call.name + '>\n' }}
                 {%- endif %}
-                {{- '}\n</tool_call>' }}
+                {%- if tool_call.arguments is defined %}
+                    {%- for args_name, args_value in tool_call.arguments|items %}
+                        {{- '<parameter=' + args_name + '>\n' }}
+                        {%- set args_value = args_value | string if args_value is string else args_value | tojson | safe %}
+                        {{- args_value }}
+                        {{- '\n</parameter>\n' }}
+                    {%- endfor %}
+                {%- endif %}
+                {{- '</function>\n</tool_call>' }}
             {%- endfor %}
         {%- endif %}
-        {{- '<|im_end|>' }}
+        {{- '<|im_end|>\n' }}
         {%- endgeneration %}
-
-    {#- Handle tool response messages #}
     {%- elif message.role == "tool" %}
-        {#- Group consecutive tool responses under one user message #}
-        {%- if loop.first or (messages[loop.index0 - 1].role != "tool") %}
+        {%- if loop.previtem and loop.previtem.role != "tool" %}
             {{- '<|im_start|>user' }}
         {%- endif %}
         {{- '\n<tool_response>\n' }}
         {{- content }}
         {{- '\n</tool_response>' }}
-        {%- if loop.last or (messages[loop.index0 + 1].role != "tool") %}
+        {%- if not loop.last and loop.nextitem.role != "tool" %}
+            {{- '<|im_end|>\n' }}
+        {%- elif loop.last %}
             {{- '<|im_end|>\n' }}
         {%- endif %}
+    {%- else %}
+        {{- raise_exception('Unexpected message role.') }}
     {%- endif %}
 {%- endfor %}
-
-{#- Add generation prompt if requested #}
 {%- if add_generation_prompt %}
-    {{- '<|im_start|>assistant\n' }}
-    {%- if enable_thinking is defined and enable_thinking is true %}
-        {{- '<think>\n' }}
-    {%- else %}
-        {{- '<think>\n\n</think>\n\n' }}
-    {%- endif %}
+    {{- '<|im_start|>assistant\n<think>\n' }}
 {%- endif %}
