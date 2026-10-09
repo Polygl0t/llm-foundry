@@ -1,0 +1,46 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    name: pytest
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # CPU-only torch avoids pulling multi-GB CUDA wheels on the runner.
+          pip install "torch>=2.13.0" --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[tests]"
+      - name: Run the test suite
+        run: pytest tests/ -q
+
+  modules:
+    name: module stack detection
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Run module loading tests
+        # The script always exits 0, so fail on its summary line instead.
+        run: |
+          bash tests/test_modules.sh | tee modules.log
+          grep -q "OVERALL: PASS" modules.log
