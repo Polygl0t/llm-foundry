@@ -347,6 +347,28 @@ class TrainingArguments:
         default=1.0,
         metadata={"help": "The maximum gradient norm for gradient clipping."},
     )
+    nan_guard: bool | None = field(
+        default=True,
+        metadata={
+            "help": (
+                "Whether to check every step for NaN/Inf gradients and refuse to apply the "
+                "optimizer step when any are found. The check is a single `isfinite` on the "
+                "gradient norm that is computed for clipping anyway, so it is free."
+            )
+        },
+    )
+    nan_guard_abort_after: int | None = field(
+        default=3,
+        metadata={
+            "help": (
+                "How many CONSECUTIVE non-finite steps `nan_guard` tolerates before "
+                "aborting the run with an error (default 3). A small value stops a "
+                "systematic failure within a few steps instead of burning the whole "
+                "allocation, while a single bad batch is merely skipped. Set to 0 (or a "
+                "negative value) to never abort and keep skipping the bad steps."
+            )
+        },
+    )
 
     # Precision and optimization settings
     torch_compile: bool | None = field(

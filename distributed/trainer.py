@@ -81,6 +81,96 @@ def clip_grad_norm_mesh_aware(parameters, max_norm, norm_type=2.0):
     return total_norm
 
 
+def _nan_guard_enabled(args):
+    """Whether the NaN/Inf gradient guard is active (`nan_guard`, default True).
+
+    Read through `getattr` so hand-built `argparse.Namespace` objects that predate
+    the setting still get the guard enabled.
+    """
+    value = getattr(args, "nan_guard", True)
+    return True if value is None else bool(value)
+
+
+def _nan_guard_abort_after(args):
+    """How many CONSECUTIVE non-finite steps to tolerate before aborting.
+
+    0 (or negative) means never abort: keep skipping the bad steps. Default 3.
+    """
+    value = getattr(args, "nan_guard_abort_after", 3)
+    if value is None:
+        value = 3
+    return int(value)
+
+
+def _step_has_nonfinite_gradients(norm, *, distributed, device):
+    """Whether this step produced NaN/+-Inf gradients."""
+    local = not bool(torch.isfinite(torch.as_tensor(norm)).all())
+    if not distributed:
+        return local
+
+    # 1 = "this rank's gradients are finite", 0 = "they are not".
+    flag = torch.tensor([0 if local else 1], dtype=torch.int32, device=device)
+    dist.all_reduce(flag, op=dist.ReduceOp.MIN)
+    return bool(flag.item() == 0)
+
+
+def _guard_nonfinite_step(
+    *,
+    args,
+    norm,
+    accumulated_loss,
+    step,
+    distributed,
+    device,
+    streak,
+    optimizer,
+    logger,
+    file_logger,
+    master_process,
+):
+    """Decide whether the update computed for this step may be applied."""
+    if not _nan_guard_enabled(args):
+        return True, 0
+
+    if not _step_has_nonfinite_gradients(norm, distributed=distributed, device=device):
+        # A healthy step resets the streak, so isolated bad batches are absorbed and
+        # only a systematic failure trips the abort below.
+        return True, 0
+
+    streak += 1
+    loss_value = float(accumulated_loss)
+    norm_value = float(norm)
+    summary = (
+        f"NON-FINITE GRADIENTS at step {step} | loss: {loss_value:.6f} | "
+        f"grad norm: {norm_value:.6f} | consecutive non-finite steps: {streak}"
+    )
+    if master_process:
+        logger.warning(f"{summary} - skipping the optimizer step. | {args.stage_name}")
+        file_logger.log_stats(
+            {
+                "status": "nonfinite_grad",
+                "step": step,
+                "loss": round(loss_value, 6),
+                "grad_norm": round(norm_value, 6),
+                "consecutive_nonfinite": streak,
+                "stage_name": args.stage_name,
+            }
+        )
+
+    # Throw the poisoned gradients away instead of applying them.
+    optimizer.zero_grad(set_to_none=True)
+
+    abort_after = _nan_guard_abort_after(args)
+    if abort_after > 0 and streak >= abort_after:
+        raise RuntimeError(
+            f"{summary}. Aborting: this many consecutive non-finite steps means the "
+            "failure is systematic rather than a single unlucky batch, and continuing "
+            "would only burn the allocation."
+        )
+
+    return False, streak
+
+
 # Shared helper functions used by both DDPTrainer and FSDPTrainer
 def _run_validation_forward(model, validation_dataloader, device, device_type, precision):
     """
@@ -531,6 +621,10 @@ class DDPTrainer:
         # See https://docs.python.org/3/library/contextlib.html#contextlib.nullcontext
         null_context = contextlib.nullcontext()
 
+        # Number of consecutive steps rejected by the NaN/Inf gradient guard. Kept as loop
+        # state (rather than inside the guard) so that a healthy step resets it.
+        nonfinite_streak = 0
+
         # Resume mid-epoch by skipping the batches already consumed in `epoch` (not loading them).
         if resume_step > 0:
             train_sampler.start_index = iter_count * args.micro_batch_size
@@ -636,6 +730,23 @@ class DDPTrainer:
             # Clip gradients up to `args.max_grad_norm`.
             norm = torch.nn.utils.clip_grad_norm_(raw_model.parameters(), args.max_grad_norm)
 
+            # Bail out of the update if the gradients are NaN/+-Inf. `optimizer_step` is the
+            # only place the parameters can be corrupted, so this is the last chance to
+            # cancel the step.
+            apply_update, nonfinite_streak = _guard_nonfinite_step(
+                args=args,
+                norm=norm,
+                accumulated_loss=accumulated_loss,
+                step=completed_steps,
+                distributed=ddp,
+                device=device,
+                streak=nonfinite_streak,
+                optimizer=optimizer,
+                logger=logger,
+                file_logger=file_logger,
+                master_process=master_process,
+            )
+
             # Determine the learning rate for the current step.
             adam_lr, muon_lr, lr_stage = lr_scheduler(completed_steps)
 
@@ -653,7 +764,8 @@ class DDPTrainer:
             else:
                 lr_stage_change = False
 
-            optimizer_step(adam_lr, muon_lr, completed_steps)
+            if apply_update:
+                optimizer_step(adam_lr, muon_lr, completed_steps)
             torch.cuda.synchronize() if device_type == "cuda" else None
             t1 = time.time()
 
@@ -900,6 +1012,10 @@ class FSDPTrainer:
 
         checkpoint_writer = _BackgroundCheckpointWriter(master_process) if fsdp else None
 
+        # Number of consecutive steps rejected by the NaN/Inf gradient guard. Kept as loop
+        # state (rather than inside the guard) so that a healthy step resets it.
+        nonfinite_streak = 0
+
         # Resume mid-epoch by skipping the batches already consumed in `epoch` (not loading them).
         if resume_step > 0:
             train_sampler.start_index = iter_count * args.micro_batch_size
@@ -1002,6 +1118,23 @@ class FSDPTrainer:
             # mesh, and `torch.nn.utils.clip_grad_norm_` cannot stack across meshes.
             norm = clip_grad_norm_mesh_aware(model.parameters(), args.max_grad_norm)
 
+            # Bail out of the update if the gradients are NaN/+-Inf. `optimizer_step` is the
+            # only place the parameters can be corrupted, so this is the last chance to
+            # cancel the step.
+            apply_update, nonfinite_streak = _guard_nonfinite_step(
+                args=args,
+                norm=norm,
+                accumulated_loss=accumulated_loss,
+                step=completed_steps,
+                distributed=fsdp,
+                device=device,
+                streak=nonfinite_streak,
+                optimizer=optimizer,
+                logger=logger,
+                file_logger=file_logger,
+                master_process=master_process,
+            )
+
             # Determine the learning rate for the current step.
             adam_lr, muon_lr, lr_stage = lr_scheduler(completed_steps)
 
@@ -1019,7 +1152,8 @@ class FSDPTrainer:
             else:
                 lr_stage_change = False
 
-            optimizer_step(adam_lr, muon_lr, completed_steps)
+            if apply_update:
+                optimizer_step(adam_lr, muon_lr, completed_steps)
             torch.cuda.synchronize() if device_type == "cuda" else None
             t1 = time.time()
 

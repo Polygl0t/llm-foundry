@@ -54,6 +54,8 @@ beta1: 0.9
 beta2: 0.95
 eps: 0.00000001
 max_grad_norm: 1.0
+nan_guard: true
+nan_guard_abort_after: 3
 
 # Precision and optimization settings
 torch_compile: false
