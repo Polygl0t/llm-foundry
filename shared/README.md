@@ -11,6 +11,7 @@ This folder contains utility modules shared across the major pipeline folders.
 | [`save_dataset.py`](save_dataset.py)     | `save_dataset`  | Saves a dataset to disk, splitting into token-counted chunks.     |
 | [`files.py`](files.py) | `list_matching_files`, `infer_file_features` | Glob file listing and feature inference from parquet/jsonl shards. |
 | [`metadata.py`](metadata.py) | Helpers for reading and writing `.metadata` files. |
+| [`triton_cache.py`](triton_cache.py) | `setup_triton_cache` | Per-rank Triton cache directory (SLURM/job-scoped) with stale-file cleanup |
 ## Usage
 
 Each pipeline folder re-exports these utilities from its own `utils.py`, so the existing `from utils import ...` imports keep working.

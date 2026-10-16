@@ -12,7 +12,6 @@ import logging
 import os
 import re
 import sys
-import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -45,6 +44,9 @@ from smolagents.models import (
 from smolagents.monitoring import LogLevel
 from smolagents.tools import Tool
 
+from shared.triton_cache import (
+    setup_triton_cache,
+)
 from tools import get_custom_tools
 
 # Logger for generate_agent_traces.py and utils.py
@@ -57,8 +59,6 @@ TRACE_STATUS_FAIL = "fail"
 # Supported file formats for dataset loading
 _FILE_FORMATS = {".jsonl": "json", ".json": "json", ".parquet": "parquet"}
 
-# Time threshold for cleaning up old Triton cache files (in seconds)
-TRITON_CACHE_CLEANUP_AGE = 3600
 
 # Maximum number of JSON objects per consolidated output file before rotation
 DEFAULT_MAX_ENTRIES_PER_FILE = 50_000
@@ -340,61 +340,6 @@ class OutputManager:
         self._append_to_json_array(path, entry, is_first)
         self._fmt_count += 1
         return path
-
-
-def setup_triton_cache() -> None:
-    """Setup a per-rank Triton cache directory with stale-file cleanup.
-
-    Determines the local rank using (in order of preference):
-    1. torch.distributed.get_rank() if distributed is initialized
-    2. LOCAL_RANK environment variable
-    3. CUDA_VISIBLE_DEVICES environment variable (comma-joined values
-       replaced with hyphens)
-    4. Falls back to "0"
-
-    Creates a directory scoped to the SLURM job (if running under SLURM)
-    and the determined rank, then cleans up cache files older than
-    TRITON_CACHE_CLEANUP_AGE seconds.
-    """
-    cache_dir = os.environ.get("TRITON_CACHE_DIR", "./.cache/triton_cache")
-    slurm_job_id = os.environ.get("SLURM_JOB_ID", "local")
-
-    # Determine rank: prefer torch.distributed, then env vars, then default.
-    try:
-        import torch
-
-        if torch.distributed.is_available() and torch.distributed.is_initialized():
-            rank = str(torch.distributed.get_rank())
-        elif "LOCAL_RANK" in os.environ:
-            rank = os.environ["LOCAL_RANK"]
-        elif "CUDA_VISIBLE_DEVICES" in os.environ:
-            rank = os.environ["CUDA_VISIBLE_DEVICES"].replace(",", "-")
-        else:
-            rank = "0"
-    except ImportError:
-        rank = os.environ.get(
-            "LOCAL_RANK",
-            os.environ.get("CUDA_VISIBLE_DEVICES", "0").replace(",", "-"),
-        )
-
-    rank_cache_dir = f"{cache_dir}/{slurm_job_id}/rank_{rank}"
-
-    os.makedirs(rank_cache_dir, exist_ok=True)
-    os.environ["TRITON_CACHE_DIR"] = rank_cache_dir
-
-    # Clean up stale cache files
-    try:
-        current_time = time.time()
-        for root, _, files in os.walk(rank_cache_dir):
-            for file in files:
-                file_path = os.path.join(root, file)
-                try:
-                    if os.path.getmtime(file_path) < current_time - TRITON_CACHE_CLEANUP_AGE:
-                        os.remove(file_path)
-                except OSError:
-                    pass
-    except Exception:
-        pass
 
 
 def load_dataset(
