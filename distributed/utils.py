@@ -3,7 +3,7 @@ Utility helpers for the distributed trainers.
 
 Provides:
     - compute_training_schedule:    gradient accumulation steps and step counts
-    - setup_triton_cache:           per-rank Triton cache with cleanup
+    - setup_triton_cache:           re-exported from shared.triton_cache
     - StructuredTrainingLogger:     structured metadata/stats file writer
     - DistributedEnvironment:       Environment manager for distributed training (SLURM, torchrun, or local)
     - is_context_extension:         whether the run freezes down to attention-only training
@@ -23,7 +23,6 @@ import math
 import os
 import pickle
 import sys
-import time
 from datetime import timedelta
 
 import numpy as np
@@ -376,40 +375,6 @@ def compute_training_schedule(args, train_dataloader_length, world_size):
         )
 
     return gradient_accumulation_steps, num_update_steps_per_epoch, max_steps
-
-
-def setup_triton_cache():
-    """
-    Setup Triton cache directory with proper permissions and cleanup.
-
-    -   This helps to avoid conflicts where different processes
-        might try to access cache files that have been modified
-        or deleted.
-    """
-
-    # Use SLURM_JOB_ID to create a unique cache directory for each job.
-    slurm_job_id = os.environ.get("SLURM_JOB_ID", "local")
-    cache_dir = os.environ.get("TRITON_CACHE_DIR", f"./.cache/triton_cache/{slurm_job_id}")
-
-    # Create rank-specific cache directory to avoid conflicts.
-    rank = dist.get_rank() if dist.is_initialized() else 0
-    rank_cache_dir = f"{cache_dir}/rank_{rank}"
-
-    os.makedirs(rank_cache_dir, exist_ok=True)
-    os.environ["TRITON_CACHE_DIR"] = rank_cache_dir
-
-    # Cleanup old cache files older than 1 hour.
-    try:
-        for root, _, files in os.walk(rank_cache_dir):
-            for file in files:
-                file_path = os.path.join(root, file)
-                try:
-                    if os.path.getmtime(file_path) < time.time() - 3600:
-                        os.remove(file_path)
-                except OSError:
-                    pass
-    except Exception:
-        pass
 
 
 def cleanup_log_file(log_file):

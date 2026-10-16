@@ -34,9 +34,6 @@ MAX_GPUS_PER_NODE = 8
 
 VRAM_MB_TO_GB = 1024
 
-# Time threshold for cleaning up old Triton cache files (in seconds)
-TRITON_CACHE_CLEANUP_AGE = 3600
-
 # Failure pattern definitions: (pattern_string, failure_reason)
 _FAILURE_PATTERNS: list[tuple[str, str]] = [
     # OOM errors
@@ -58,61 +55,6 @@ QUANTIZATION_METHODS = ("bitsandbytes",)
 
 # Valid KV cache dtype options
 KV_CACHE_DTYPE_OPTIONS = ("auto", "fp8_e4m3", "fp8_e5m2")
-
-
-def setup_triton_cache() -> None:
-    """Setup a per-rank Triton cache directory with stale-file cleanup.
-
-    Determines the local rank using (in order of preference):
-    1. torch.distributed.get_rank() if distributed is initialized
-    2. LOCAL_RANK environment variable
-    3. CUDA_VISIBLE_DEVICES environment variable (comma-joined values
-       replaced with hyphens)
-    4. Falls back to "0"
-
-    Creates a directory scoped to the SLURM job (if running under SLURM)
-    and the determined rank, then cleans up cache files older than
-    TRITON_CACHE_CLEANUP_AGE seconds.
-    """
-    cache_dir = os.environ.get("TRITON_CACHE_DIR", "./.cache/triton_cache")
-    slurm_job_id = os.environ.get("SLURM_JOB_ID", "local")
-
-    # Determine rank: prefer torch.distributed, then env vars, then default.
-    try:
-        import torch
-
-        if torch.distributed.is_available() and torch.distributed.is_initialized():
-            rank = str(torch.distributed.get_rank())
-        elif "LOCAL_RANK" in os.environ:
-            rank = os.environ["LOCAL_RANK"]
-        elif "CUDA_VISIBLE_DEVICES" in os.environ:
-            rank = os.environ["CUDA_VISIBLE_DEVICES"].replace(",", "-")
-        else:
-            rank = "0"
-    except ImportError:
-        rank = os.environ.get(
-            "LOCAL_RANK",
-            os.environ.get("CUDA_VISIBLE_DEVICES", "0").replace(",", "-"),
-        )
-
-    rank_cache_dir = f"{cache_dir}/{slurm_job_id}/rank_{rank}"
-
-    os.makedirs(rank_cache_dir, exist_ok=True)
-    os.environ["TRITON_CACHE_DIR"] = rank_cache_dir
-
-    # Clean up stale cache files
-    try:
-        current_time = time.time()
-        for root, _, files in os.walk(rank_cache_dir):
-            for file in files:
-                file_path = os.path.join(root, file)
-                try:
-                    if os.path.getmtime(file_path) < current_time - TRITON_CACHE_CLEANUP_AGE:
-                        os.remove(file_path)
-                except OSError:
-                    pass
-    except Exception:
-        pass
 
 
 def get_nvidia_smi_vram() -> list[float]:
@@ -321,10 +263,11 @@ def run_rollouts(
             chunk=chunk_label,
         )
 
+
 def strip_thinking(text: str) -> str:
     """Remove a thinking block from a model output, keeping only the answer.
 
-    The reasoning block("<think>reasoning</think>") if copied into a later prompt 
+    The reasoning block("<think>reasoning</think>") if copied into a later prompt
     inside a user message, it can makes the model lose track of whose turn it is and
     emits <|im_end|> halfway through thinking, which cuts the output off before the answer
     is ever written.
@@ -334,6 +277,7 @@ def strip_thinking(text: str) -> str:
     if "<think>" in text:
         return ""
     return text.strip()
+
 
 def critique_response(
     model: LLM,

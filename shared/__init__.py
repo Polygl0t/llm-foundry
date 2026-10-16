@@ -6,4 +6,5 @@ Modules:
     - save_dataset: save_dataset
     - files: list_matching_files, infer_file_features
     - metadata: read_metadata, write_metadata, initialize_or_load_metadata
+    - triton_cache: setup_triton_cache
 """
