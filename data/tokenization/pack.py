@@ -445,8 +445,7 @@ def main(args):
         if args.num_proc > 1:
             logger.info(
                 "Degenerate-sample guardrail is active; drop counts are per worker and "
-                "are not aggregated because num_proc=%d. Verify the output with "
-                "tools/clean_packed_samples.py --verify.",
+                "are not aggregated because num_proc=%d.",
                 args.num_proc,
             )
         else:
