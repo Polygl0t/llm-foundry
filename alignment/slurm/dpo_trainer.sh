@@ -84,7 +84,6 @@ export TORCH_NCCL_ASYNC_ERROR_HANDLING=1
 export TORCH_DISTRIBUTED_DEBUG=OFF
 export NCCL_P2P_DISABLE=0
 export NCCL_SHM_DISABLE=0
-export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
 # export NCCL_DEBUG=INFO # Uncomment for NCCL debugging
 
 # ---- Distributed topology (single- AND multi-node) ---------------------------------#
@@ -99,6 +98,7 @@ export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
 # node, and accelerate forks the per-GPU workers itself.
 # -----------------------------------------------------------------------------------#
 
+export PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1,2,3}"
 GPUS_PER_NODE="$(awk -F, '{print NF}' <<< "$CUDA_VISIBLE_DEVICES")"
 NUM_MACHINES="${SLURM_NNODES:-1}"
@@ -125,6 +125,7 @@ export MASTER_PORT
 export OMP_NUM_THREADS=$(( SLURM_CPUS_PER_TASK / GPUS_PER_NODE ))
 export CHECKPOINT_DIR="./checkpoints/MyModel-DPO-$SLURM_JOB_ID"
 export CLEAN_CACHE="1"  # <-- Set to "1" to clean cache after job completion
+export RESUME_FROM=""   # Path to resume checkpoint from, leave empty to start fresh
 
 # In places like JUPITER compute nodes (jpbo-*), we have NO internet access. Log in only when the
 # Hub is actually reachable; on an offline node every artifact must be a local
@@ -211,6 +212,10 @@ export ARGS="--dataset_type jsonl \
 --use_liger_kernel \
 "
 
+if [ -n "$RESUME_FROM" ]; then
+    ARGS="$ARGS --resume_from_checkpoint $RESUME_FROM"
+fi
+
 # This step is necessary because accelerate launch does not handle multiline arguments properly
 export CMD="$LAUNCHER $PYTHON_FILE $ARGS"
 
@@ -220,18 +225,101 @@ srun --nodes="$NUM_MACHINES" --ntasks="$NUM_MACHINES" --cpu-bind=none \
     bash -c "$CMD" 1>>"$out" 2>>"$err"
 
 #############################################
-# Cleanup
+# Post-processing
 #############################################
-# Clean HF_DATASETS_CACHE folder if requested
-if [ "$CLEAN_CACHE" = "1" ]; then
-    echo "# [${SLURM_JOB_ID}] Cleaning HF_DATASETS_CACHE" >> "$out"
-    if [ -d "$HF_DATASETS_CACHE" ]; then
-        find "$HF_DATASETS_CACHE" -mindepth 1 -delete 2>/dev/null || true
+
+if [ -f "$out" ]; then
+    echo "# [${SLURM_JOB_ID}] Splitting trainer metrics into $CHECKPOINT_DIR/{training,validation}.jsonl" >> "$out"
+    python3 - "$out" "$CHECKPOINT_DIR" >> "$out" 2>&1 <<'PYEOF'
+import ast
+import json
+import os
+import re
+import sys
+
+NUMBER = re.compile(r"^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$")
+
+def metric_rows(path):
+    for line in open(path, errors="replace"):
+        start, end = line.find("{"), line.rfind("}")
+        if start < 0 or end < start:
+            continue
+        try:
+            row = ast.literal_eval(line[start : end + 1])
+        except (ValueError, SyntaxError):
+            continue
+        if isinstance(row, dict) and row:
+            yield row
+
+def coerce(value):
+    if isinstance(value, str) and NUMBER.match(value):
+        try:
+            return int(value)
+        except ValueError:
+            return float(value)
+    return value
+
+def write_split(data, name, outdir):
+    path = os.path.join(outdir, name)
+    seen = set()
+    if os.path.exists(path):
+        seen = {line.strip() for line in open(path, errors="replace") if line.strip()}
+    rows = [json.dumps(row, ensure_ascii=False) for row in data]
+    new = [line for line in rows if line not in seen]
+    if new:
+        os.makedirs(outdir, exist_ok=True)
+        with open(path, "a", encoding="utf-8") as handle:
+            handle.write("\n".join(new) + "\n")
+    print(f"  {name:<18} {len(rows):>6} rows in this log | {len(new):>6} new | "
+          f"{len(rows) - len(new):>6} already present | {len(seen) + len(new):>6} total")
+
+
+log, outdir = sys.argv[1], sys.argv[2]
+buckets = {"training": [], "validation": []}
+for metric_row in metric_rows(log):
+    kind = "validation" if any(str(key).startswith("eval_") for key in metric_row) else "training"
+    buckets[kind].append({key: coerce(value) for key, value in metric_row.items()})
+
+print(f"parsed {log}: {len(buckets['training'])} training rows, "
+      f"{len(buckets['validation'])} validation rows -> {outdir}")
+for kind, filename in (("training", "training.jsonl"), ("validation", "validation.jsonl")):
+    write_split(buckets[kind], filename, outdir)
+PYEOF
+    if [ "$?" -ne 0 ]; then
+        echo "# [${SLURM_JOB_ID}] WARNING: log split failed, see above" >> "$out"
     fi
-else
-    echo "# [${SLURM_JOB_ID}] Skipping cache cleanup (CLEAN_CACHE=$CLEAN_CACHE)" >> "$out"
 fi
 
+#############################################
+# Cleanup
+#############################################
+
+if [ -d "$CHECKPOINT_DIR" ]; then
+    cp "$out" "$CHECKPOINT_DIR/logs.txt" 2>/dev/null || true
+    cp "${BASH_SOURCE[0]}" "$CHECKPOINT_DIR/job.sh" 2>/dev/null || true
+fi
+
+clean_dir() {
+    [ -d "$1" ] || return 0
+    find "$1" -mindepth 1 -delete 2>/dev/null || true
+}
+
+if [ "$CLEAN_CACHE" = "1" ]; then
+    if [ -n "$SLURM_JOB_ID" ]; then
+        echo "# [${SLURM_JOB_ID}] Cleaning caches: $HF_DATASETS_CACHE" >> "$out"
+        clean_dir "$HF_DATASETS_CACHE"
+    else
+        # Without a job id the path collapses to the shared $workdir/.cache.
+        echo "# [${SLURM_JOB_ID}] WARNING: CLEAN_CACHE=1 but SLURM_JOB_ID is unset -- skipping" >> "$out"
+    fi
+fi
+clean_dir "$TRITON_CACHE_DIR"
+clean_dir "$TORCHINDUCTOR_CACHE_DIR"
+
+for split in train validation; do
+    [ -d "$PREBUILT_DIR/$split" ] && \
+        find "$PREBUILT_DIR/$split" -maxdepth 1 -name 'cache*' -delete 2>/dev/null
+done
+
 echo "# [${SLURM_JOB_ID}] Job finished at: $(date)" >> "$out"
-cp "$out" "$CHECKPOINT_DIR/logs.txt"
-cp "${BASH_SOURCE[0]}" "$CHECKPOINT_DIR/job.sh"
+echo "# [${SLURM_JOB_ID}] Logs: $out (stdout) / $err (stderr)" >> "$out"

@@ -174,6 +174,7 @@ def main(args):
         assistant_only_loss=args.assistant_only_loss,
         eos_token=tokenizer.eos_token,
         dataset_num_proc=args.num_proc,
+        dataloader_num_workers=args.dataloader_num_workers,
         shuffle_dataset=args.shuffle_dataset,
         use_liger_kernel=args.use_liger_kernel,
         activation_offloading=args.activation_offloading,
@@ -286,6 +287,15 @@ if __name__ == "__main__":
     )
     parser.add_argument("--cache_dir", type=str, default=None)
     parser.add_argument("--num_proc", type=int, default=16)
+    parser.add_argument(
+        "--dataloader_num_workers",
+        type=int,
+        default=0,
+        help=(
+            "Worker processes per rank for the training DataLoader. 0 collates in the "
+            "main process, on the critical path between steps."
+        ),
+    )
     parser.add_argument("--test_size", type=int, default=None)
     parser.add_argument(
         "--save_test_set",
