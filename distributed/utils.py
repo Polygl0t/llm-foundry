@@ -37,6 +37,7 @@ while not (_REPO_ROOT / "pyproject.toml").exists() and _REPO_ROOT.parent != _REP
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from shared.triton_cache import setup_triton_cache as setup_triton_cache  # noqa: E402
 
 # Collective timeout (NCCL's default is 10 min). Rank-0-only phases such as loading the base model
 # from GPFS or gathering the bf16 export can leave the other ranks waiting for minutes.

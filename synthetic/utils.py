@@ -1,6 +1,7 @@
 """Utility functions for the vLLM inference scripts."""
 
 from __future__ import annotations
+# ruff: noqa: E402, I001
 
 import json
 import os
@@ -26,6 +27,10 @@ if str(_REPO_ROOT) not in sys.path:
 
 from shared.dataset_loader import DatasetLoader as DatasetLoader  # noqa: E402
 from shared.logging import get_logger as get_logger  # noqa: E402
+from shared.triton_cache import (
+    TRITON_CACHE_CLEANUP_AGE as TRITON_CACHE_CLEANUP_AGE,
+    setup_triton_cache as setup_triton_cache,
+)  # noqa: E402
 
 logger = get_logger(__name__)
 
