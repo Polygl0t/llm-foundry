@@ -89,6 +89,34 @@ def test_training_args_defaults():
     assert args.prebuilt_dataset_dir is None
 
 
+def test_distributed_utils_reexports_shared_triton_cache(tmp_path, monkeypatch):
+    """The distributed utils module re-exports the shared cache helper."""
+    import importlib.util
+
+    utils_path = os.path.join(DISTRIBUTED_DIR, "utils.py")
+    spec = importlib.util.spec_from_file_location("_distributed_utils_cache_test", utils_path)
+    assert spec is not None
+    assert spec.loader is not None
+
+    distributed_utils = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = distributed_utils
+    spec.loader.exec_module(distributed_utils)
+
+    assert distributed_utils.setup_triton_cache.__module__ == "shared.triton_cache"
+
+    cache_root = tmp_path / "explicit_cache"
+    monkeypatch.setenv("TRITON_CACHE_DIR", str(cache_root))
+    monkeypatch.delenv("SLURM_JOB_ID", raising=False)
+    monkeypatch.delenv("LOCAL_RANK", raising=False)
+    monkeypatch.delenv("CUDA_VISIBLE_DEVICES", raising=False)
+
+    distributed_utils.setup_triton_cache()
+
+    expected_dir = cache_root / "rank_0"
+    assert os.environ["TRITON_CACHE_DIR"] == str(expected_dir)
+    assert expected_dir.is_dir()
+
+
 def test_training_args_from_yaml():
     """TrainingArguments can be populated directly from a YAML file path."""
     cfg = {

@@ -11,6 +11,7 @@ Requirements:
 """
 
 import importlib
+import importlib.util
 import json
 import os
 import sys
@@ -32,21 +33,31 @@ sys.modules.setdefault("datatrove", MagicMock())
 sys.modules.setdefault("datatrove.utils", MagicMock())
 sys.modules.setdefault("datatrove.utils.logging", MagicMock(logger=MagicMock()))
 
-from utils import (  # noqa: E402
-    DatasetLoader,
-    chunk_text,
-    constitutional_generation,
-    critique_response,
-    detect_failure_reason,
-    get_nvidia_smi_vram,
-    get_starting_row,
-    revise_response,
-    run_cai_rollouts,
-    run_rollouts,
-    save_cai_sample,
-    save_samples,
-    setup_triton_cache,
-)
+
+_SYNTHETIC_UTILS_NAME = "synthetic_test_utils"
+_SYNTHETIC_UTILS_PATH = os.path.join(SYNTHETIC_DIR, "utils.py")
+
+_spec = importlib.util.spec_from_file_location(_SYNTHETIC_UTILS_NAME, _SYNTHETIC_UTILS_PATH)
+assert _spec is not None
+assert _spec.loader is not None
+
+_synthetic_utils = importlib.util.module_from_spec(_spec)
+sys.modules[_SYNTHETIC_UTILS_NAME] = _synthetic_utils
+_spec.loader.exec_module(_synthetic_utils)
+
+DatasetLoader = _synthetic_utils.DatasetLoader
+chunk_text = _synthetic_utils.chunk_text
+constitutional_generation = _synthetic_utils.constitutional_generation
+critique_response = _synthetic_utils.critique_response
+detect_failure_reason = _synthetic_utils.detect_failure_reason
+get_nvidia_smi_vram = _synthetic_utils.get_nvidia_smi_vram
+get_starting_row = _synthetic_utils.get_starting_row
+revise_response = _synthetic_utils.revise_response
+run_cai_rollouts = _synthetic_utils.run_cai_rollouts
+run_rollouts = _synthetic_utils.run_rollouts
+save_cai_sample = _synthetic_utils.save_cai_sample
+save_samples = _synthetic_utils.save_samples
+setup_triton_cache = _synthetic_utils.setup_triton_cache
 
 
 def _write_jsonl(path: str | Path, rows: list[dict]) -> None:
@@ -72,6 +83,7 @@ def _mock_word_tokenizer():
     tokenizer.__call__ = tokenize
     tokenizer.decode = lambda ids, **kwargs: " ".join(f"w{i}" for i in ids)
     return tokenizer
+
 
 def _mock_chat_tokenizer():
     """
@@ -99,6 +111,7 @@ def _mock_capturing_model(text: str = "Generated text"):
 
     model.generate.side_effect = generate
     return model
+
 
 def test_detect_failure_reason_handles_known_failures_and_empty_inputs():
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -229,7 +242,7 @@ def test_setup_triton_cache_sets_rank_directory_and_removes_stale_files():
             os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
             # The rank should come from LOCAL_RANK, not CUDA_VISIBLE_DEVICES.
-            rank_dir = os.path.join(cache_root, "99", "rank_2")
+            rank_dir = os.path.join(cache_root, "rank_2")
             os.makedirs(rank_dir, exist_ok=True)
             stale_file = os.path.join(rank_dir, "stale_kernel.so")
             fresh_file = os.path.join(rank_dir, "fresh_kernel.so")
@@ -244,6 +257,37 @@ def test_setup_triton_cache_sets_rank_directory_and_removes_stale_files():
             assert os.path.isdir(rank_dir)
             assert not os.path.exists(stale_file)
             assert os.path.exists(fresh_file)
+    finally:
+        for key, value in original_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
+def test_setup_triton_cache_respects_explicit_dir_without_slurm_job_id():
+    original_env = {
+        key: os.environ.get(key)
+        for key in [
+            "TRITON_CACHE_DIR",
+            "SLURM_JOB_ID",
+            "LOCAL_RANK",
+            "CUDA_VISIBLE_DEVICES",
+        ]
+    }
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache_root = os.path.join(tmpdir, "triton")
+            os.environ["TRITON_CACHE_DIR"] = cache_root
+            os.environ.pop("SLURM_JOB_ID", None)
+            os.environ["LOCAL_RANK"] = "0"
+            os.environ.pop("CUDA_VISIBLE_DEVICES", None)
+
+            setup_triton_cache()
+
+            expected_dir = os.path.join(cache_root, "rank_0")
+            assert os.environ["TRITON_CACHE_DIR"] == expected_dir
+            assert os.path.isdir(expected_dir)
     finally:
         for key, value in original_env.items():
             if value is None:
@@ -335,7 +379,7 @@ def test_get_nvidia_smi_vram_parses_output_and_falls_back_on_errors():
 
 
 def test_constitutional_generation_returns_initial_responses_when_critique_is_disabled():
-    with patch("utils.generate_rollouts", return_value=["Response A", "Response B"]):
+    with patch("synthetic_test_utils.generate_rollouts", return_value=["Response A", "Response B"]):
         result = constitutional_generation(
             model=MagicMock(),
             tokenizer=MagicMock(),
@@ -355,9 +399,11 @@ def test_constitutional_generation_returns_initial_responses_when_critique_is_di
 
 def test_constitutional_generation_runs_requested_critique_revision_iterations():
     with (
-        patch("utils.generate_rollouts", return_value=["Initial resp"]),
-        patch("utils.critique_response", return_value=["Critique text"]) as critique_mock,
-        patch("utils.revise_response", return_value=["Revised resp"]) as revise_mock,
+        patch("synthetic_test_utils.generate_rollouts", return_value=["Initial resp"]),
+        patch(
+            "synthetic_test_utils.critique_response", return_value=["Critique text"]
+        ) as critique_mock,
+        patch("synthetic_test_utils.revise_response", return_value=["Revised resp"]) as revise_mock,
     ):
         result = constitutional_generation(
             model=MagicMock(),
@@ -375,6 +421,7 @@ def test_constitutional_generation_runs_requested_critique_revision_iterations()
     assert result["revisions"] == [["Revised resp"], ["Revised resp"]]
     assert critique_mock.call_count == 2
     assert revise_mock.call_count == 2
+
 
 # Stand-in for a model answer produced in thinking mode: reasoning first, then the answer.
 RESPONSE_WITH_THINKING = (
@@ -458,12 +505,15 @@ def test_critique_response_preserves_answer_without_thinking_block():
 
     assert "Paris is the capital of France." in user_turn
 
+
 def test_run_rollouts_generates_for_each_chunk_and_saves_metadata():
     with tempfile.TemporaryDirectory() as tmpdir:
         output_path = os.path.join(tmpdir, "rollouts.jsonl")
         tokenizer = _mock_word_tokenizer()
 
-        with patch("utils.generate_rollouts", return_value=["Generated output"]) as generate_mock:
+        with patch(
+            "synthetic_test_utils.generate_rollouts", return_value=["Generated output"]
+        ) as generate_mock:
             run_rollouts(
                 sample={
                     "text": "one two three four five six",
@@ -504,7 +554,9 @@ def test_run_cai_rollouts_saves_result_and_skips_oversized_prompts():
             "revisions": [["Gravity is a force..."]],
         }
 
-        with patch("utils.constitutional_generation", return_value=cai_result) as generation_mock:
+        with patch(
+            "synthetic_test_utils.constitutional_generation", return_value=cai_result
+        ) as generation_mock:
             run_cai_rollouts(
                 sample={"instruction": "Explain gravity", "topic": "physics"},
                 counter=5,
@@ -530,7 +582,7 @@ def test_run_cai_rollouts_saves_result_and_skips_oversized_prompts():
         assert generation_mock.call_args.kwargs["user_prompt"] == "Q: Explain gravity?"
 
         tokenizer.return_value = MagicMock(input_ids=[0] * 10_000)
-        with patch("utils.constitutional_generation") as oversized_generation_mock:
+        with patch("synthetic_test_utils.constitutional_generation") as oversized_generation_mock:
             run_cai_rollouts(
                 sample={"instruction": "Very long prompt"},
                 counter=6,
