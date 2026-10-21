@@ -18,7 +18,7 @@ from vllm import LLM, SamplingParams
 if TYPE_CHECKING:
     from transformers import AutoConfig
 
-_REPO_ROOT = Path(__file__).resolve()
+_REPO_ROOT = Path(__file__).resolve().parent
 while not (_REPO_ROOT / "pyproject.toml").exists() and _REPO_ROOT.parent != _REPO_ROOT:
     _REPO_ROOT = _REPO_ROOT.parent
 if str(_REPO_ROOT) not in sys.path:

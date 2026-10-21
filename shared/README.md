@@ -20,6 +20,7 @@ Each pipeline folder re-exports these utilities from its own `utils.py`, so the 
 from shared.dataset_loader import DatasetLoader
 from shared.logging import get_logger
 from shared.save_dataset import save_dataset
+from shared.triton_cache import setup_triton_cache
 ```
 
 Local `utils.py` files add the repository root to `sys.path` (by walking up to `pyproject.toml`) before importing from `shared`, since the project is not installed as a Python package (for now).

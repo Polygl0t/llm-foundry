@@ -2,6 +2,7 @@
 Utilities for generating and saving traces of CodeAgent executions.
 """
 
+# ruff: noqa: E402
 import contextlib
 import glob
 import hashlib
@@ -16,6 +17,13 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+_REPO_ROOT = Path(__file__).resolve().parent
+while not (_REPO_ROOT / "pyproject.toml").exists() and _REPO_ROOT.parent != _REPO_ROOT:
+    _REPO_ROOT = _REPO_ROOT.parent
+
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 import datasets
 import yaml
@@ -44,7 +52,7 @@ from smolagents.models import (
 from smolagents.monitoring import LogLevel
 from smolagents.tools import Tool
 
-from shared.triton_cache import (
+from shared.triton_cache import (  # noqa: E402
     setup_triton_cache,
 )
 from tools import get_custom_tools

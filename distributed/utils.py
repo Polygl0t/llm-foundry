@@ -24,10 +24,19 @@ import os
 import pickle
 import sys
 from datetime import timedelta
+from pathlib import Path
 
 import numpy as np
 import torch
 import torch.distributed as dist
+
+_REPO_ROOT = Path(__file__).resolve().parent
+while not (_REPO_ROOT / "pyproject.toml").exists() and _REPO_ROOT.parent != _REPO_ROOT:
+    _REPO_ROOT = _REPO_ROOT.parent
+
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 
 # Collective timeout (NCCL's default is 10 min). Rank-0-only phases such as loading the base model
 # from GPFS or gathering the bf16 export can leave the other ranks waiting for minutes.

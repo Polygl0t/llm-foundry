@@ -24,10 +24,13 @@ sys.pycache_prefix = os.path.join(tempfile.gettempdir(), "pycache")
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
 AGENTS_DIR = os.path.join(REPO_ROOT, "synthetic", "agents")
-if AGENTS_DIR not in sys.path:
-    sys.path.insert(0, AGENTS_DIR)
+# Ensure `from utils import ...` resolves to synthetic/agents/utils.py.
+if AGENTS_DIR in sys.path:
+    sys.path.remove(AGENTS_DIR)
+sys.path.insert(0, AGENTS_DIR)
+
 if REPO_ROOT not in sys.path:
-    sys.path.insert(0, REPO_ROOT)
+    sys.path.insert(1, REPO_ROOT)
 
 # ---------------------------------------------------------------------------
 # Mock smolagents *before* importing utils, since utils.py does module-level
@@ -145,33 +148,42 @@ sys.modules["smolagents.tools"] = _smolagents_tools
 _tools_mock = MagicMock()
 sys.modules.setdefault("tools", _tools_mock)
 
-from utils import (  # noqa: E402
-    LANGUAGE_CONFIGS,
-    SUPPORTED_LANGUAGES,
-    AnswerSpec,
-    OutputManager,
-    TraceRecord,
-    _conversation_has_unclosed_think,
-    _extract_code_action,
-    _extract_deduplicated_steps,
-    _extract_error,
-    _extract_model_output_text,
-    _extract_observations,
-    _extract_step_type,
-    _make_tool_call_xml,
-    _make_tool_response_xml,
-    append_metadata_entry,
-    compare_answer,
-    format_trace_as_conversation,
-    grade_answer,
-    load_dataset,
-    load_metadata_entries,
-    load_processed_ids,
-    load_system_prompt,
-    normalize_answer,
-    setup_triton_cache,
-    summarize_trace_metadata,
-)
+# Load the agents-specific utils.py explicitly. The other synthetic test
+# module may already have imported synthetic/utils.py as top-level "utils".
+_agents_utils_path = os.path.join(AGENTS_DIR, "utils.py")
+_agents_utils_spec = importlib.util.spec_from_file_location("utils", _agents_utils_path)
+if _agents_utils_spec is None or _agents_utils_spec.loader is None:
+    raise ImportError(f"Cannot load agents utilities from {_agents_utils_path}")
+
+_agents_utils = importlib.util.module_from_spec(_agents_utils_spec)
+sys.modules["synthetic_agents_utils"] = _agents_utils
+_agents_utils_spec.loader.exec_module(_agents_utils)
+
+LANGUAGE_CONFIGS = _agents_utils.LANGUAGE_CONFIGS
+SUPPORTED_LANGUAGES = _agents_utils.SUPPORTED_LANGUAGES
+AnswerSpec = _agents_utils.AnswerSpec
+OutputManager = _agents_utils.OutputManager
+TraceRecord = _agents_utils.TraceRecord
+_conversation_has_unclosed_think = _agents_utils._conversation_has_unclosed_think
+_extract_code_action = _agents_utils._extract_code_action
+_extract_deduplicated_steps = _agents_utils._extract_deduplicated_steps
+_extract_error = _agents_utils._extract_error
+_extract_model_output_text = _agents_utils._extract_model_output_text
+_extract_observations = _agents_utils._extract_observations
+_extract_step_type = _agents_utils._extract_step_type
+_make_tool_call_xml = _agents_utils._make_tool_call_xml
+_make_tool_response_xml = _agents_utils._make_tool_response_xml
+append_metadata_entry = _agents_utils.append_metadata_entry
+compare_answer = _agents_utils.compare_answer
+format_trace_as_conversation = _agents_utils.format_trace_as_conversation
+grade_answer = _agents_utils.grade_answer
+load_dataset = _agents_utils.load_dataset
+load_metadata_entries = _agents_utils.load_metadata_entries
+load_processed_ids = _agents_utils.load_processed_ids
+load_system_prompt = _agents_utils.load_system_prompt
+normalize_answer = _agents_utils.normalize_answer
+setup_triton_cache = _agents_utils.setup_triton_cache
+summarize_trace_metadata = _agents_utils.summarize_trace_metadata
 
 # Re-export the stub classes under the canonical names so the test for
 # _extract_step_type reads naturally.
@@ -1326,7 +1338,7 @@ def test_setup_triton_cache_creates_rank_dir_and_removes_stale_files():
             os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
             # The rank should come from LOCAL_RANK, not CUDA_VISIBLE_DEVICES.
-            rank_dir = os.path.join(cache_root, "42", "rank_3")
+            rank_dir = os.path.join(cache_root, "rank_3")
             os.makedirs(rank_dir, exist_ok=True)
             stale_file = os.path.join(rank_dir, "old_kernel.so")
             fresh_file = os.path.join(rank_dir, "new_kernel.so")
@@ -1497,7 +1509,10 @@ def test_load_system_prompt_raises_on_unsupported_language():
 
 
 def test_load_system_prompt_raises_when_language_file_missing():
-    with tempfile.TemporaryDirectory() as tmpdir, patch("utils.PROMPTS_DIR", Path(tmpdir)):
+    with (
+        tempfile.TemporaryDirectory() as tmpdir,
+        patch("synthetic_agents_utils.PROMPTS_DIR", Path(tmpdir)),
+    ):
         try:
             load_system_prompt(None, language="en")
             raise AssertionError("Missing language file should raise FileNotFoundError")
