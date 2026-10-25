@@ -72,3 +72,7 @@ Multi-GPU specific configuration:
 - Results are post-processed from JSON to YAML and saved as `*.yaml` files for readability reasons.
 - Ensure model folders exist and are accessible before submission.
 - GPU memory and runtime requirements depend on model size and task complexity; adjust `--gpus`, `--mem`, and `--time` accordingly.
+- **Models that output thinking traces require extra attention.** The harness must be configured so the reasoning trace is stripped from the generation before scoring (e.g., via `think_end_token` in `--model_args`, such as `think_end_token=</think>`), and the behavior should be verified on the saved samples. Be aware that:
+  - Setting `think_end_token` does not enable thinking; it only post-processes the output. If the chat template pre-closes the thinking block (e.g., `<think>\n\n</think>\n\n`) or the model does not think, the token never appears in the generation.
+  - The post-processing can silently alter the answer. For example, in [lm-evaluation-harness#4458](https://github.com/EleutherAI/lm-evaluation-harness/issues/4458), `.lstrip()` is applied to every generation when `think_end_token` is set, even if the token is absent. This removes the leading whitespace on code-continuation tasks such as `humaneval_instruct`, producing unparseable programs and silently wrong scores (Qwen3-0.6B: 0.159 instead of 0.366).
+  - Always inspect a few saved samples (`--log_samples`) and compare against a run without trace post-processing before trusting the results.
