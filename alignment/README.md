@@ -51,6 +51,7 @@ Main parameters:
 
 Notes:
 - **Liger kernel (`--use_liger_kernel`) cannot be combined with `--precompute_ref_log_probs` (the fused loss never materialises logits, so TRL rejects the pair and the reference model is forwarded on the fly instead), and it only implements the `--loss_type` values `sigmoid`, `hinge`, `apo_zero`, `apo_down`, `robust`, `exo_pair`, `nca_pair`, `bco_pair`, `sppo_hard` and `discopop`. TRL's `ipo`, `aot`, `aot_pair` and `sft` have no kernel.
+- Under **FSDP** the Liger DPO loss is not usable (DTensor mismatch, see the backend section below) and the reference model is sharded too, so `fsdp_cpu_ram_efficient_loading` must stay `false`.
 
 ### `sft_trainer.py`
 
@@ -181,6 +182,35 @@ Main parameters:
 - `--use_vllm`, `--vllm_mode` — Enable vLLM-based rollout generation.
 - `--per_device_train_batch_size` — Training batch size per device.
 - `--learning_rate`, `--weight_decay`, `--adam_beta1`, `--adam_beta2`, `--adam_epsilon` — Optimizer settings.
+
+## Distributed backends: DDP and FSDP2
+
+Every trainer here runs unchanged under **DDP** (the default: one full model replica per GPU) or **FSDP2** (`torch.distributed.fsdp.fully_shard`, with weights, gradients and optimizer state sharded across every rank). The backend is chosen by the accelerate config passed to `accelerate launch --config_file`:
+
+| backend | config | when |
+|---|---|---|
+| DDP | [`configs/.ddp_config.yaml`](./configs/.ddp_config.yaml) | the model + optimizer state fit per GPU and the job is communication-bound |
+| FSDP2 | [`configs/.fsdp_config.yaml`](./configs/.fsdp_config.yaml) | they do not fit, or you want more GPUs than one replica allows |
+
+The SLURM scripts expose both through a single knob:
+
+```bash
+BACKEND=fsdp sbatch sft_trainer.sh
+BACKEND=ddp  sbatch trainer_apo.sh
+```
+
+### FSDP-specific notes
+
+- `fsdp_cpu_ram_efficient_loading: false` is the shipped default. It is only safe for a *single* model: `dpo_trainer.py` also shards a REFERENCE model, through TRL's `prepare_fsdp`, which never broadcasts rank 0's weights, so every other rank would keep the placeholder tensors transformers allocated. `dpo_trainer.py` raises on that combination; SFT may set it to `true`.
+- `fsdp_activation_checkpointing` must stay `false` while `--gradient_checkpointing` is passed (the HF Trainer refuses both; TrainingArguments' own checkpointing is used because it also works under DDP).
+- **Liger** splits by trainer: the SFT Liger forward is DTensor-safe and works under FSDP2, the DPO fused loss is not — `aten.embedding.default got mixed torch.Tensor and DTensor` — so `trainer_apo.sh` forces `USE_LIGER_KERNEL=0` when `BACKEND=fsdp`.
+- Every FSDP2 run warns `FSDP upcast of low precision parameters to fp32 ... may affect the precision of model checkpoints`. It is cosmetic in accelerate 1.13 (the upcast only rebinds a local variable); the exported `final/model.safetensors` stays BF16.
+- Without a `parallelism_config`, FSDP2 shards over the **whole job** (all nodes x GPUs), so a small model on many nodes turns every decoder layer into a cross-node all-gather. For e.g. a 3.7B model on 16 nodes DDP is usually faster; HSDP (shard per node, replicate across nodes) can be requested in the accelerate config:
+  ```yaml
+  parallelism_config:
+    dp_replicate_size: <num_machines>
+    dp_shard_size: <GPUs per machine>
+  ```
 
 ## Dataset Formats
 

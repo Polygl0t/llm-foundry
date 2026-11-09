@@ -1,9 +1,10 @@
 # ============================================================================
-# Fully Sharded Data Parallel (FSDP) Configuration for Accelerate/Transformers
+# Fully Sharded Data Parallel v2 (FSDP2) Configuration for Accelerate/Transformers
 # ============================================================================
-# This configuration file is used by Accelerate to set up FSDP training.
+# Used by Accelerate to set up FSDP2 training (`torch.distributed.fsdp.fully_shard`).
 # More configs: https://github.com/huggingface/trl/blob/main/examples/accelerate_configs
-# Accelerate Documentation: https://huggingface.co/docs/accelerate/package_reference/cli
+# Accelerate docs: https://huggingface.co/docs/accelerate/en/usage_guides/fsdp
+# FSDP1 -> FSDP2 migration: `accelerate to-fsdp2 --config_file <fsdp1.yaml>`
 # ============================================================================
 
 # Compute Environment Configuration
@@ -16,32 +17,40 @@ enable_cpu_affinity: true           # Enable CPU affinity for better NUMA perfor
 # FSDP-Specific Configuration
 # ----------------------------
 fsdp_config:
-  # Activation Checkpointing: Trades compute for memory by recomputing activations during backward pass
-  # WARNING: Cannot be enabled simultaneously with gradient_checkpointing in TrainingArguments
-  # Set one or the other, not both.
-  fsdp_activation_checkpointing: false
+  # FSDP Version: 2 = `fully_shard` + DTensor parameters (recommended, needs torch >= 2.6).
+  fsdp_version: 2
 
-  # Auto-wrap Policy: Determines how model layers are wrapped for sharding
-  # TRANSFORMER_BASED_WRAP: Automatically wraps transformer layers
-  fsdp_auto_wrap_policy: TRANSFORMER_BASED_WRAP
-
-  # Reduces CPU memory usage during model initialization
-  fsdp_cpu_ram_efficient_loading: true
-
-  # Parameter Offloading: Offload parameters to CPU when not in use
-  # Significantly reduces GPU memory but slows training
-  fsdp_offload_params: false
-
-  # Reshard After Forward: Free full parameters after forward pass
-  # Maximizes memory efficiency at the cost of some communication overhead (equivalent to a Zero Redundancy Optimizer stage 3 setup)
-  fsdp_reshard_after_forward: true
-
-  # State Dict Type: How model checkpoints are saved
-  # FULL_STATE_DICT: Gather full model on rank 0 (easy to load, high memory on rank 0)
+  # State Dict Type: how checkpoints are written and gathered.
+  # FULL_STATE_DICT is REQUIRED by the alignment trainers.
   fsdp_state_dict_type: FULL_STATE_DICT
 
-  # FSDP Version: Use FSDP2 for better performance and features (2 is recommended)
-  fsdp_version: 2
+  # Reshard After Forward: free the gathered parameters again after the forward pass.
+  # `true`  = ZeRO-3-style: least memory, one all-gather per group per forward/backward.
+  # `false` = ZeRO-2-style: parameters stay gathered, less traffic, more memory.
+  fsdp_reshard_after_forward: true
+
+  # Auto-wrap Policy: which submodules become their own shard group.
+  fsdp_auto_wrap_policy: TRANSFORMER_BASED_WRAP
+
+  # Activation Checkpointing: FSDP's own per-group recompute.
+  # MUST stay false here: the trainers pass `--gradient_checkpointing` and the HF
+  # Trainer raises when both are on ("The activation_checkpointing in FSDP config and
+  # the gradient_checkpointing in training arg can't be set to True simultaneously").
+  fsdp_activation_checkpointing: false
+
+  # CPU RAM peak during model load.
+  # `true`: only rank 0 loads the weights.
+  # `false`: every rank loads the full (bf16) model on CPU, `fully_shard` shards it.
+  # Kept FALSE because it is only safe for a single model: the DPO trainer also shards a
+  # REFERENCE model through TRL's `prepare_fsdp`, which does not broadcast, so non-rank-0
+  # processes would keep empty tensors (silently wrong reference log-probs).
+  # `dpo_trainer.py` raises on that combination. Flip it to true for SFT-only runs if
+  # the rank-0 CPU peak is a problem.
+  fsdp_cpu_ram_efficient_loading: false
+
+  # Parameter Offloading: offload parameters to CPU when not in use.
+  # Significantly reduces GPU memory but slows training down a lot.
+  fsdp_offload_params: false
 
 # Multi-Node Configuration
 # -------------------------
@@ -61,7 +70,15 @@ fsdp_config:
 #         --main_process_ip <node0> --main_process_port 29500 \
 #         --rdzv_backend static train.py
 # Under FSDP the per-process memory is shared, so num_processes can exceed the model
-# size; `fsdp_sharding_strategy`/`fsdp_reshard_after_forward` above control the sharding.
+# size; `fsdp_reshard_after_forward` (above) controls how much is kept gathered.
+#
+# SHARDING SCOPE: without a `parallelism_config`, FSDP2 shards over the WHOLE job
+# (all nodes x all GPUs), so a small model on many nodes turns every layer into a
+# cross-node all-gather. To shard per node and replicate across nodes instead (HSDP,
+# ZeRO-2+ / `HYBRID_SHARD` equivalent), add the split to the device mesh:
+#     parallelism_config:
+#       dp_replicate_size: <num_machines>
+#       dp_shard_size: <GPUs per machine>
 machine_rank: 0                     # Rank of THIS machine (overridden per node)
 main_process_ip: null               # Node 0's address. MUST be set for multi-node.
 main_process_port: null             # Null -> accelerate uses 29500; the job scripts
@@ -79,6 +96,9 @@ same_network: true                  # Whether all machines are on the same netwo
 # Precision Configuration
 # -----------------------
 mixed_precision: bf16               # Mixed precision training mode
+                                    # Accelerate turns this into an FSDP2 MixedPrecisionPolicy
+                                    # (param/reduce/output dtype = bf16). The trainers also pass
+                                    # --bf16, which the HF Trainer forwards as mixed_precision.
                                     # Options: "no" (fp32), "fp16", "bf16" (recommended for A100/H100)
                                     # bf16 provides better numerical stability than fp16
                                     # Reduces memory usage and speeds up training

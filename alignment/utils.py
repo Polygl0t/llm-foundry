@@ -40,6 +40,147 @@ def setup_distributed_state(logger: logging.Logger):
 
 
 #############################################
+# FSDP helpers
+#############################################
+# FSDP (accelerate's `--use_fsdp`, v1 and v2) changes three things for a trainer
+# that was written for DDP:
+#
+#   1. PLACEMENT. DDP lets each rank load its own full copy straight onto its GPU,
+#      which is what `device_map={"": state.device}` does. FSDP shards the model
+#      itself and, when `fsdp_cpu_ram_efficient_loading` is on, it expects the
+#      parameters to still be movable (it moves them to the `meta` device before
+#      `fully_shard` and then broadcasts rank 0's weights). A `device_map` pins
+#      them to one GPU and defeats all of that, so every `from_pretrained` in this
+#      package goes through `device_map_for()`.
+#   2. EXPORT. `Trainer.save_model()` under FSDP only writes weights for
+#      `FULL_STATE_DICT`; with `SHARDED_STATE_DICT` it writes nothing at all,
+#      which would leave `<checkpoint_dir>/final` an empty shell. See
+#      `validate_fsdp_export()`.
+#   3. RESUME. A checkpoint written under FSDP (`pytorch_model_fsdp.bin` +
+#      optimizer) and one written under DDP (`model.safetensors` + optimizer)
+#      are not interchangeable in either direction. See `resolve_checkpoint_path()`.
+
+FSDP_WEIGHTS_NAME = "pytorch_model_fsdp.bin"
+FSDP_WEIGHTS_DIR_PREFIX = "pytorch_model_fsdp"
+FSDP_FULL_STATE_DICT = "FULL_STATE_DICT"
+
+# Weight files a DDP/plain-transformers checkpoint carries.
+HF_WEIGHTS_NAMES = (
+    "model.safetensors",
+    "model.safetensors.index.json",
+    "pytorch_model.bin",
+    "pytorch_model.bin.index.json",
+)
+
+# Built once from the FSDP_* environment; see `fsdp_plugin()`.
+_ENV_FSDP_PLUGIN = None
+
+
+def fsdp_plugin(state):
+    """The FSDP plugin in use for this run, or None when FSDP is disabled."""
+    plugin = getattr(state, "fsdp_plugin", None)
+    if plugin is not None:
+        return plugin
+
+    global _ENV_FSDP_PLUGIN
+    if os.environ.get("ACCELERATE_USE_FSDP", "false").lower() != "true":
+        return None
+
+    if _ENV_FSDP_PLUGIN is None:
+        from accelerate.utils import FullyShardedDataParallelPlugin
+
+        _ENV_FSDP_PLUGIN = FullyShardedDataParallelPlugin()
+
+    return _ENV_FSDP_PLUGIN
+
+
+def is_fsdp_enabled(state) -> bool:
+    """Whether this accelerate run shards the model with FSDP (v1 or v2)."""
+    return fsdp_plugin(state) is not None
+
+
+def fsdp_version(state):
+    """FSDP major version in use (`1` or `2`), or None when FSDP is off."""
+    plugin = fsdp_plugin(state)
+    return None if plugin is None else plugin.fsdp_version
+
+
+def fsdp_cpu_ram_efficient_loading(state) -> bool:
+    """Whether ranks other than 0 load placeholder weights that need a broadcast."""
+    plugin = fsdp_plugin(state)
+    return bool(getattr(plugin, "cpu_ram_efficient_loading", False)) if plugin else False
+
+
+def device_map_for(state):
+    """The `device_map` to pass to `from_pretrained` on this process."""
+    return None if is_fsdp_enabled(state) else {"": state.device}
+
+
+def fsdp_state_dict_type(state):
+    """Name of the configured FSDP state dict type (e.g. `FULL_STATE_DICT`)."""
+    plugin = fsdp_plugin(state)
+    if plugin is None:
+        return None
+    # torch's StateDictType -> "StateDictType.FULL_STATE_DICT"
+    return str(plugin.state_dict_type).rsplit(".", 1)[-1]
+
+
+def validate_fsdp_export(state, logger: logging.Logger):
+    """Fail fast when FSDP is configured such that the final export would be empty.
+
+    Args:
+        state: accelerate.PartialState instance.
+        logger: Logger instance used to report what FSDP will do.
+
+    Raises:
+        RuntimeError: If FSDP is enabled with a state dict type that
+            `Trainer.save_model()` cannot export.
+    """
+    plugin = fsdp_plugin(state)
+    if plugin is None:
+        return
+
+    state_dict_type = fsdp_state_dict_type(state)
+    logger.info(
+        f"FSDP{fsdp_version(state)} enabled: model and reference weights are sharded by accelerate "
+        f"(device_map=None), state_dict_type={state_dict_type}, "
+        f"cpu_ram_efficient_loading={getattr(plugin, 'cpu_ram_efficient_loading', None)}, "
+        f"reshard_after_forward={getattr(plugin, 'reshard_after_forward', None)}"
+    )
+
+    if state_dict_type != FSDP_FULL_STATE_DICT:
+        raise RuntimeError(
+            f"FSDP is enabled with fsdp_state_dict_type='{state_dict_type}', but this trainer exports "
+            f"the finished model with `Trainer.save_model()`, which only writes weights for "
+            f"'{FSDP_FULL_STATE_DICT}'. With any other value '<checkpoint_dir>/final' ends up without "
+            f"weights. Set `fsdp_state_dict_type: {FSDP_FULL_STATE_DICT}` in the accelerate config "
+            f"(see alignment/configs/.fsdp_config.yaml)."
+        )
+
+
+def is_fsdp_checkpoint(path) -> bool:
+    """Whether `path` is a checkpoint written by `Trainer` while FSDP was on."""
+    if not path or not os.path.isdir(path):
+        return False
+
+    if os.path.isfile(os.path.join(path, FSDP_WEIGHTS_NAME)):
+        return True
+
+    return any(
+        name.startswith(FSDP_WEIGHTS_DIR_PREFIX)
+        for name in os.listdir(path)
+        if os.path.isdir(os.path.join(path, name))
+    )
+
+
+def is_hf_checkpoint(path) -> bool:
+    """Whether `path` holds plain (DDP-style) transformers weights."""
+    if not path or not os.path.isdir(path):
+        return False
+    return any(os.path.isfile(os.path.join(path, name)) for name in HF_WEIGHTS_NAMES)
+
+
+#############################################
 # Prebuilt datasets
 #############################################
 # A prebuilt dataset is the `<root>/train` + `<root>/validation` pair produced by
@@ -451,7 +592,9 @@ def load_tokenizer(
     return tokenizer
 
 
-def resolve_checkpoint_path(resume_from_checkpoint, master_process, logger: logging.Logger):
+def resolve_checkpoint_path(
+    resume_from_checkpoint, master_process, logger: logging.Logger, fsdp_enabled=None
+):
     """Resolve the most recent checkpoint inside a checkpoint directory.
 
     Given a path that may point to either an exact checkpoint directory or a
@@ -463,9 +606,18 @@ def resolve_checkpoint_path(resume_from_checkpoint, master_process, logger: logg
             checkpoints.
         master_process: True if this is the rank-0 process (controls logging).
         logger: Logger instance used to report the resolved checkpoint path.
+        fsdp_enabled: Whether the CURRENT run uses FSDP. Pass it to have the
+            checkpoint's on-disk format validated against the backend: an FSDP
+            checkpoint (`pytorch_model_fsdp.bin`) and a DDP one
+            (`model.safetensors`) are not interchangeable, and the mismatch
+            otherwise surfaces only after the model and the dataset are loaded.
 
     Returns:
         Resolved path to the checkpoint to resume from.
+
+    Raises:
+        ValueError: If `fsdp_enabled` is given and the checkpoint was written by
+            the other backend.
     """
     checkpoint_path = resume_from_checkpoint
 
@@ -479,6 +631,29 @@ def resolve_checkpoint_path(resume_from_checkpoint, master_process, logger: logg
     except Exception:
         # resume_from_checkpoint already points directly to a checkpoint
         pass
+
+    if fsdp_enabled is not None:
+        has_fsdp_weights = is_fsdp_checkpoint(checkpoint_path)
+        if fsdp_enabled and not has_fsdp_weights:
+            if not is_hf_checkpoint(checkpoint_path):
+                raise ValueError(
+                    f"'{checkpoint_path}' holds no training checkpoint (neither "
+                    f"'{FSDP_WEIGHTS_NAME}' nor 'model.safetensors'), so there is nothing to resume "
+                    f"from. Unset --resume_from_checkpoint to start from --model_name_or_path."
+                )
+            raise ValueError(
+                f"Cannot resume from '{checkpoint_path}' with FSDP: it is a DDP checkpoint (no "
+                f"'{FSDP_WEIGHTS_NAME}'). The Trainer reloads FSDP checkpoints in their own format, "
+                f"so a DDP checkpoint cannot be resumed into an FSDP run. Either point "
+                f"--resume_from_checkpoint at an FSDP checkpoint of the same run (same "
+                f"world size and accelerate config), or start a fresh run by unsetting it."
+            )
+        if not fsdp_enabled and has_fsdp_weights:
+            raise ValueError(
+                f"Cannot resume from '{checkpoint_path}': it is an FSDP checkpoint "
+                f"('{FSDP_WEIGHTS_NAME}'), but FSDP is not enabled in this run. Launch with the FSDP "
+                f"accelerate config, or point --resume_from_checkpoint at a DDP checkpoint."
+            )
 
     if master_process:
         logger.info(f"Resuming training from checkpoint: {checkpoint_path}")

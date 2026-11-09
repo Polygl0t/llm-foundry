@@ -43,14 +43,18 @@ import transformers
 import trl
 from datasets import DatasetDict
 from utils import (
+    device_map_for,
+    fsdp_cpu_ram_efficient_loading,
     get_logger,
     has_column,
+    is_fsdp_enabled,
     load_tokenizer,
     load_training_dataset,
     resolve_checkpoint_path,
     run_training,
     setup_distributed_state,
     split_dataset,
+    validate_fsdp_export,
 )
 
 LOSS_DESCRIPTIONS = {
@@ -76,6 +80,21 @@ def main(args):
 
     # Initialize the partial state for distributed training
     state, master_process = setup_distributed_state(logger)
+
+    # Log what FSDP will do and refuse configurations whose export would be empty
+    fsdp_enabled = is_fsdp_enabled(state)
+    validate_fsdp_export(state, logger)
+
+    # Under FSDP2 this trainer shards BOTH the policy and the reference model, the
+    # reference through TRL's own `prepare_fsdp` (trl/models/utils.py).
+    if fsdp_enabled and fsdp_cpu_ram_efficient_loading(state):
+        raise RuntimeError(
+            "FSDP + fsdp_cpu_ram_efficient_loading is not supported by the DPO trainer: the reference "
+            "model is sharded by TRL's `prepare_fsdp`, which does not broadcast rank 0's weights, so "
+            "every rank but 0 would compute reference log-probs from uninitialised parameters. Set "
+            "`fsdp_cpu_ram_efficient_loading: false` in the accelerate config (see "
+            "alignment/configs/.fsdp_config.yaml). SFT is not affected and may keep it enabled."
+        )
 
     dataset = load_training_dataset(
         args.train_dataset_dir,
@@ -139,7 +158,7 @@ def main(args):
         "attn_implementation": args.attn_implementation,
         "dtype": dtype,
         "trust_remote_code": True,
-        "device_map": {"": state.device},
+        "device_map": device_map_for(state),
         "use_cache": not args.gradient_checkpointing,
     }
 
@@ -277,7 +296,7 @@ def main(args):
     checkpoint_path = None
     if args.resume_from_checkpoint:
         checkpoint_path = resolve_checkpoint_path(
-            args.resume_from_checkpoint, master_process, logger
+            args.resume_from_checkpoint, master_process, logger, fsdp_enabled=fsdp_enabled
         )
 
     # Start training, save final model (or 'last' on error)

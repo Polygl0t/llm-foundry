@@ -34,13 +34,16 @@ import torch
 import trl
 from datasets import DatasetDict
 from utils import (
+    device_map_for,
     get_logger,
+    is_fsdp_enabled,
     load_tokenizer,
     load_training_dataset,
     resolve_checkpoint_path,
     run_training,
     setup_distributed_state,
     split_dataset,
+    validate_fsdp_export,
 )
 
 
@@ -49,6 +52,10 @@ def main(args):
 
     # Initialize the partial state for distributed training
     state, master_process = setup_distributed_state(logger)
+
+    # Log what FSDP will do and refuse configurations whose export would be empty
+    fsdp_enabled = is_fsdp_enabled(state)
+    validate_fsdp_export(state, logger)
 
     dataset = load_training_dataset(
         args.train_dataset_dir,
@@ -166,7 +173,7 @@ def main(args):
             "attn_implementation": args.attn_implementation,
             "dtype": torch.bfloat16 if args.bf16 else torch.float32,
             "trust_remote_code": True,
-            "device_map": {"": state.device},
+            "device_map": device_map_for(state),
             "use_cache": not args.gradient_checkpointing,  # Disable cache if using gradient checkpointing
         },
         output_dir=args.checkpoint_dir,
@@ -236,7 +243,7 @@ def main(args):
     checkpoint_path = None
     if args.resume_from_checkpoint:
         checkpoint_path = resolve_checkpoint_path(
-            args.resume_from_checkpoint, master_process, logger
+            args.resume_from_checkpoint, master_process, logger, fsdp_enabled=fsdp_enabled
         )
 
     # Start training, save final model (or 'last' on error)

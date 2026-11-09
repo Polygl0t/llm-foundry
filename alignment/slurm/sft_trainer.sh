@@ -123,9 +123,110 @@ export MASTER_PORT
 # Threads per GPU worker: this node's CPU allocation divided by its GPUs (288/4 = 72),
 # because that single Slurm task runs all four accelerate workers.
 export OMP_NUM_THREADS=$(( SLURM_CPUS_PER_TASK / GPUS_PER_NODE ))
-export CHECKPOINT_DIR="./checkpoints/MyModel-SFT-$SLURM_JOB_ID"
+
+# ---- Distributed backend -----------------------------------------------------
+# "ddp"  = one full model replica per GPU (accelerate .ddp_config.yaml)
+# "fsdp" = FSDP2: parameters, gradients and optimizer state are sharded across every
+#          rank of the job (accelerate .fsdp_config.yaml)
+#
+#   BACKEND=fsdp sbatch alignment/slurm/sft_trainer.sh
+export BACKEND="${BACKEND:-ddp}"
+case "$BACKEND" in
+    ddp)
+        BACKEND_SUFFIX=""
+        _default_accelerate_config="$workdir/llm-foundry/alignment/configs/.ddp_config.yaml"
+        ;;
+    fsdp)
+        BACKEND_SUFFIX="-fsdp"
+        _default_accelerate_config="$workdir/llm-foundry/alignment/configs/.fsdp_config.yaml"
+        ;;
+    *)
+        echo "FATAL: BACKEND must be 'ddp' or 'fsdp' (got '$BACKEND')" >&2
+        exit 1
+        ;;
+esac
+export ACCELERATE_CONFIG="${ACCELERATE_CONFIG:-$_default_accelerate_config}"
+
+export CHECKPOINT_DIR="./checkpoints/MyModel-SFT-$SLURM_JOB_ID${BACKEND_SUFFIX}"
 export CLEAN_CACHE="1"  # <-- Set to "1" to clean cache after job completion
 export RESUME_FROM=""   # Path to a checkpoint to resume training from, if any
+
+# ---- FSDP2 pre-flight --------------------------------------------------------
+# Rejects accelerate configs whose export would be empty or whose knobs collide with
+# what the trainer passes, BEFORE the multi-node rendezvous is set up.
+if [ "$BACKEND" = "fsdp" ]; then
+    echo "# [${SLURM_JOB_ID}] FSDP pre-flight: $ACCELERATE_CONFIG" >> "$out"
+    # `1` = this template always passes --gradient_checkpointing (see ARGS below), so
+    # fsdp_activation_checkpointing must stay false.
+    python3 - "$ACCELERATE_CONFIG" 1 sft >> "$out" 2>&1 <<'PYEOF'
+import sys
+
+try:
+    import yaml
+except ModuleNotFoundError:
+    sys.exit(
+        f"ERROR: PyYAML is not importable, cannot validate '{sys.argv[1]}'. It ships with "
+        "accelerate, so this is probably not the venv that holds the trainers."
+    )
+
+config_path, gradient_checkpointing, trainer = sys.argv[1], sys.argv[2] == "1", sys.argv[3]
+config = yaml.safe_load(open(config_path)) or {}
+fsdp = config.get("fsdp_config") or {}
+problems, warnings = [], []
+
+if str(config.get("distributed_type", "")).upper() != "FSDP":
+    problems.append(
+        f"distributed_type is '{config.get('distributed_type')}', not 'FSDP': "
+        "ACCELERATE_CONFIG does not point at an FSDP config."
+    )
+
+version = fsdp.get("fsdp_version")
+if version != 2:
+    warnings.append(
+        f"fsdp_version={version} (not 2): FSDP1 shards differently from what this script assumes."
+    )
+
+state_dict_type = str(fsdp.get("fsdp_state_dict_type", "SHARDED_STATE_DICT")).upper()
+if state_dict_type != "FULL_STATE_DICT":
+    problems.append(
+        f"fsdp_state_dict_type='{state_dict_type}': Trainer.save_model() only writes weights under "
+        "FULL_STATE_DICT, so <checkpoint_dir>/final would end up empty."
+    )
+
+if gradient_checkpointing and fsdp.get("fsdp_activation_checkpointing"):
+    problems.append(
+        "fsdp_activation_checkpointing=true while the trainer passes --gradient_checkpointing: "
+        "the HF Trainer refuses that pair. Keep fsdp_activation_checkpointing=false."
+    )
+
+if trainer == "dpo" and fsdp.get("fsdp_cpu_ram_efficient_loading"):
+    problems.append(
+        "fsdp_cpu_ram_efficient_loading=true with the DPO trainer: the reference model is sharded "
+        "by TRL's prepare_fsdp, which never broadcasts rank 0's weights, so every other rank would "
+        "compute the reference log-probs from uninitialised parameters."
+    )
+
+if not fsdp.get("fsdp_auto_wrap_policy"):
+    warnings.append(
+        "fsdp_auto_wrap_policy is unset: only the root module is sharded, i.e. one all-gather of "
+        "the whole model per step instead of one per decoder layer."
+    )
+
+for warning in warnings:
+    print(f"WARNING: {warning}")
+for problem in problems:
+    print(f"ERROR: {problem}")
+if problems:
+    sys.exit(1)
+print(f"OK: FSDP{version} with state_dict_type={state_dict_type}, "
+      f"auto_wrap_policy={fsdp.get('fsdp_auto_wrap_policy')}, "
+      f"cpu_ram_efficient_loading={fsdp.get('fsdp_cpu_ram_efficient_loading')}")
+PYEOF
+    if [ "$?" -ne 0 ]; then
+        echo "# [${SLURM_JOB_ID}] FSDP pre-flight FAILED -- not launching (see above)." >> "$out"
+        exit 1
+    fi
+fi
 
 # In places like JUPITER compute nodes (jpbo-*), we have NO internet access. Log in only when the
 # Hub is actually reachable; on an offline node every artifact must be a local
@@ -147,6 +248,8 @@ echo "# [${SLURM_JOB_ID}] Running on nodes: $(scontrol show hostnames "$SLURM_NO
 echo "# [${SLURM_JOB_ID}] GLIBC version: $(ldd --version | head -n1)" >> "$out"
 echo "# [${SLURM_JOB_ID}] Working directory: $workdir" >> "$out"
 echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --version)" >> "$out"
+echo "# [${SLURM_JOB_ID}] Backend: $BACKEND (accelerate config: $ACCELERATE_CONFIG)" >> "$out"
+echo "# [${SLURM_JOB_ID}] Checkpoints: $CHECKPOINT_DIR" >> "$out"
 
 #############################################
 # Main Job Execution (Distributed Training)
@@ -164,8 +267,7 @@ echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --ve
 #   --main_process_ip/port           node 0's address, the rendezvous point
 #   --rdzv_backend static            matches `rdzv_backend: static` in the config
 #
-# Set ACCELERATE_CONFIG=.fsdp_config.yaml to switch to FSDP.
-export ACCELERATE_CONFIG="${ACCELERATE_CONFIG:-$workdir/llm-foundry/alignment/configs/.ddp_config.yaml}"
+# ACCELERATE_CONFIG (DDP or FSDP2) is resolved in the backend block above from $BACKEND.
 
 # NOTE: `--machine_rank` MUST be expanded by each task. `\$SLURM_NODEID` stays
 # literal in this string and is resolved inside the `srun ... bash -c "$CMD"` below, so
@@ -212,7 +314,9 @@ export ARGS="--prebuilt_dataset_dir /data/prebuilt \
 --gradient_checkpointing \
 "
 
-if [ -n "$RESUME_FROM" ]; then
+if [ -n "$RESUME_FROM" ] && [ ! -e "$RESUME_FROM" ]; then
+    echo "# [${SLURM_JOB_ID}] RESUME_FROM=$RESUME_FROM does not exist yet -- training from MODEL_PATH" >> "$out"
+elif [ -n "$RESUME_FROM" ]; then
     ARGS="$ARGS --resume_from_checkpoint $RESUME_FROM"
 fi
 
