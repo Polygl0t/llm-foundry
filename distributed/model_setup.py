@@ -1359,12 +1359,8 @@ def build_sequence_parallel_plan(model, fp8_enabled=False):
 
     for layer_id, layer in enumerate(_iter_transformer_blocks(model)):
         prefix = f"model.layers.{layer_id}"
-        if model_type in {"qwen3_5_text", "qwen3_5_moe_text"}:
-            layer_input_layouts = (Shard(1), None)
-            layer_desired_layouts = (Shard(1), None)
-        else:
-            layer_input_layouts = (Shard(1),)
-            layer_desired_layouts = (Shard(1),)
+        layer_input_layouts = (Shard(1),)
+        layer_desired_layouts = (Shard(1),)
         plan[prefix] = PrepareModuleInput(
             input_layouts=layer_input_layouts,
             desired_input_layouts=layer_desired_layouts,
@@ -1419,9 +1415,15 @@ def build_sequence_parallel_plan(model, fp8_enabled=False):
                     "hidden_states": Replicate(),
                     "attention_mask": Replicate(),
                 },
+                # The GDN/conv kernels need plain, full-sequence tensors.
                 use_local_input=True,
                 output_layouts=Replicate(),
                 desired_output_layouts=Shard(1),
+                # ...but the OUTPUT must stay a DTensor(Shard(1)): the decoder
+                # layer does `residual + mixer_out` with a DTensor residual, and
+                # returning a local tensor raises "aten.add.Tensor got mixed
+                # torch.Tensor and DTensor".
+                use_local_output=False,
             )
             for projection in ("in_proj_qkv", "in_proj_z", "in_proj_b", "in_proj_a", "out_proj"):
                 plan[f"{linear_attention_prefix}.{projection}"] = _colwise_style(
@@ -1459,9 +1461,15 @@ def build_sequence_parallel_plan(model, fp8_enabled=False):
             plan[f"{prefix}.mlp"] = PrepareModuleInputOutput(
                 input_layouts=(Shard(1),),
                 desired_input_layouts=(Replicate(),),
+                # MoE blocks (routed experts + shared expert) are replicated on
+                # the SP ranks: their dispatch/gather tensors are indexed by
+                # token, so they cannot be sharded on the sequence dimension
+                # without an expert-parallel layer.
                 use_local_input=True,
                 output_layouts=Replicate(),
                 desired_output_layouts=Shard(1),
+                # See `linear_attn` above: the residual add requires a DTensor.
+                use_local_output=False,
             )
 
     module_names = dict(model.named_modules())
@@ -1499,6 +1507,41 @@ def _validate_fp8_sequence_parallel_plan(model, plan, sp_size):
             f"to remain divisible by {FP8_DIM_ALIGNMENT}. Invalid shards: "
             + ", ".join(invalid_shards)
         )
+
+
+def _prune_fp8_incompatible_entries(model, plan, sp_size):
+    """
+    Drop TP entries whose shard would violate the FP8 GEMM alignment rule.
+
+    Returns:
+        tuple[dict, list[str]]: the filtered plan and a description of every
+        entry that was dropped (empty when nothing had to be pruned).
+    """
+    modules = dict(model.named_modules())
+    kept, dropped = {}, []
+    for module_name, style in plan.items():
+        module = modules[module_name]
+        if type(module).__name__ != "Float8Linear":
+            kept[module_name] = style
+            continue
+
+        if isinstance(style, ColwiseParallel):
+            dimension_name = "out_features"
+        elif isinstance(style, RowwiseParallel):
+            dimension_name = "in_features"
+        else:
+            kept[module_name] = style
+            continue
+
+        dimension = getattr(module, dimension_name)
+        if dimension % sp_size != 0 or dimension // sp_size % FP8_DIM_ALIGNMENT != 0:
+            dropped.append(
+                f"{module_name}.{dimension_name}={dimension} "
+                f"(-> {dimension / sp_size:g} per SP rank, needs a multiple of {FP8_DIM_ALIGNMENT})"
+            )
+            continue
+        kept[module_name] = style
+    return kept, dropped
 
 
 def _iter_transformer_blocks(model):
@@ -1633,7 +1676,16 @@ def apply_fsdp_wrapping(
         )
         tp_plan = build_sequence_parallel_plan(model, fp8_enabled=fp8_enabled)
         if fp8_enabled:
-            _validate_fp8_sequence_parallel_plan(model, tp_plan, sp_size)
+            tp_plan, pruned = _prune_fp8_incompatible_entries(model, tp_plan, sp_size)
+            if pruned:
+                _log_message(
+                    master_process,
+                    logger,
+                    file_logger,
+                    "WARNING: leaving the following projections replicated (not tensor-parallel) "
+                    "because their FP8 shard would not stay a multiple of "
+                    f"{FP8_DIM_ALIGNMENT}: " + "; ".join(pruned),
+                )
         parallelize_module(model, tp_mesh, tp_plan)
         _log_message(master_process, logger, file_logger, "Applied tensor/sequence parallelism.")
 
