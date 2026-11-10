@@ -158,6 +158,46 @@ def validate_fsdp_export(state, logger: logging.Logger):
         )
 
 
+def sanitize_no_split_modules(model, logger=None):
+    """Drop `model._no_split_modules` entries that name no class in `model`.
+
+    accelerate derives the FSDP transformer-based auto-wrap policy from
+    `model._no_split_modules` when the accelerate config does not name the
+    layers to wrap (`fsdp_transformer_layer_cls_to_wrap` /
+    `FSDP_TRANSFORMER_CLS_TO_WRAP`).
+
+    A missing entry never matched anything in the wrap policy, so dropping it
+    only removes a crash.
+
+    Args:
+        model: The `torch.nn.Module` that will be handed to `Accelerator.prepare()`.
+        logger: Optional logger; the drop is reported once, at warning level.
+
+    Returns:
+        List of class names now in effect, or None if the model has no
+        `_no_split_modules` to speak of.
+    """
+    no_split_modules = getattr(model, "_no_split_modules", None)
+    if not no_split_modules:
+        return no_split_modules
+
+    present = {type(module).__name__ for module in model.modules()}
+    kept = sorted(name for name in no_split_modules if name in present)
+    dropped = sorted(name for name in no_split_modules if name not in present)
+    if not dropped:
+        return kept
+
+    model._no_split_modules = kept
+    if logger is not None:
+        logger.warning(
+            f"{type(model).__name__}._no_split_modules lists {dropped}, which no module of this "
+            f"model instantiates (inherited from the multimodal class). Dropped them so the FSDP "
+            f"auto-wrap policy resolves; layers wrapped now: {kept or 'none (root module only!)'}. "
+            f"Set fsdp_transformer_layer_cls_to_wrap in the accelerate config to override."
+        )
+    return kept
+
+
 def is_fsdp_checkpoint(path) -> bool:
     """Whether `path` is a checkpoint written by `Trainer` while FSDP was on."""
     if not path or not os.path.isdir(path):
@@ -677,6 +717,8 @@ def run_training(
         master_process: True if this is the rank-0 process (controls logging).
         logger: Logger instance used to report errors and save paths.
     """
+    sanitize_no_split_modules(getattr(trainer, "model", None), logger if master_process else None)
+
     try:
         trainer.train(resume_from_checkpoint=resume_from_checkpoint)
     except Exception as e:
