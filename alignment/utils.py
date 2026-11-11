@@ -19,6 +19,11 @@ while not (_REPO_ROOT / "pyproject.toml").exists() and _REPO_ROOT.parent != _REP
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from router_aux_loss import (  # noqa: E402
+    attach_aux_loss_logging,
+    configure_router_aux_loss,
+)
+
 from shared.logging import get_logger as get_logger  # noqa: E402
 
 
@@ -702,7 +707,12 @@ def resolve_checkpoint_path(
 
 
 def run_training(
-    trainer, resume_from_checkpoint, checkpoint_dir, master_process, logger: logging.Logger
+    trainer,
+    resume_from_checkpoint,
+    checkpoint_dir,
+    master_process,
+    logger: logging.Logger,
+    freeze_router: bool = False,
 ):
     """Run trainer.train() with a fallback save on error.
 
@@ -716,8 +726,31 @@ def run_training(
         checkpoint_dir: Directory for saving the final / last model.
         master_process: True if this is the rank-0 process (controls logging).
         logger: Logger instance used to report errors and save paths.
+        freeze_router: Freeze the MoE router/gate parameters (no effect on dense models).
     """
-    sanitize_no_split_modules(getattr(trainer, "model", None), logger if master_process else None)
+    master_logger = logger if master_process else None
+    model = getattr(trainer, "model", None)
+
+    # Must happen before `trainer.train()`: FSDP builds its auto-wrap policy from
+    # `model._no_split_modules` inside `Accelerator.prepare()`, and some
+    # text-only checkpoints inherit layer names they do not contain.
+    sanitize_no_split_modules(model, master_logger)
+
+    # MoE router policy. TRL has already flipped `output_router_logits` from
+    # `args.router_aux_loss_coef`; this installs the memory-efficient
+    # implementation, syncs the coefficient the forwards actually read (they use
+    # the value cached at `__init__`, not the config), and optionally freezes the
+    # routers. It also has to precede `train()`: the optimizer is built there, so
+    # a frozen parameter is really absent from it.
+    configure_router_aux_loss(
+        model,
+        getattr(getattr(trainer, "args", None), "router_aux_loss_coef", None),
+        master_logger,
+        freeze_router=freeze_router,
+    )
+
+    # Adds `aux_loss` / `router_drift` to the trainer's own log lines.
+    attach_aux_loss_logging(trainer, master_logger)
 
     try:
         trainer.train(resume_from_checkpoint=resume_from_checkpoint)

@@ -15,6 +15,7 @@ Provides:
 
 import importlib
 import os
+import sys
 from dataclasses import dataclass
 from typing import Any
 
@@ -640,6 +641,313 @@ def _apply_liger_kernels(model, args):
     apply_liger_kernel(model=model, **liger_kwargs)
 
 
+# Rows of routing logits handled per softmax chunk by the efficient aux-loss
+# implementation.
+AUX_LOSS_ROW_CHUNK = 1 << 16
+
+# transformers' own `load_balancing_loss_func`, kept so the efficient version can
+# delegate unusual input layouts back to it.
+_ORIGINAL_LOAD_BALANCING_LOSS = None
+
+# True once the efficient implementation has replaced transformers' version in
+# every already-imported module (makes installation idempotent).
+_ROUTER_AUX_LOSS_INSTALLED = False
+
+
+def _moe_configs(model):
+    """Config objects of `model` that actually describe a Mixture-of-Experts model."""
+    config = getattr(model, "config", None)
+    if config is None:
+        return []
+
+    found = []
+    for candidate in (config, getattr(config, "text_config", None)):
+        if candidate is None or any(candidate is seen for seen in found):
+            continue
+        num_experts = (
+            getattr(candidate, "num_experts", None)
+            or getattr(candidate, "num_local_experts", None)
+            or 0
+        )
+        if num_experts > 1:
+            found.append(candidate)
+    return found
+
+
+class _EfficientLoadBalancingLoss(torch.autograd.Function):
+    """
+    Switch-Transformer load-balancing loss without the `one_hot` blow-up.
+
+    `transformers.load_balancing_loss_func` builds `one_hot(selected, num_experts)`
+    of shape `(num_layers * batch * seq, top_k, num_experts)` in int64 and then
+    casts it to float32. This can lead to OOM errors for large models or long sequences.
+
+    The loss only needs two statistics, both additive over layers and rows:
+
+        assignments[e] = number of top-k slots that picked expert `e`
+        prob_sum[e]    = summed routing probability of expert `e`
+
+        loss = num_experts * sum_e (assignments[e]/M) * (prob_sum[e]/M)
+
+    with `M` the number of routing rows (optionally mask-weighted). It is
+    therefore computed one layer at a time, in row chunks, and never
+    concatenates the per-layer logits. `assignments` is piecewise constant in the
+    logits (it comes from an argmax), so the backward pass has a closed form and
+    nothing has to be retained for it:
+
+        d loss / d logit[n, j] = (num_experts * m[n] / M) * p[n, j] * (f[j] - <f, p[n]>)
+
+    with `f[e] = assignments[e]/M`, `p[n]` the routing distribution of row `n`
+    and `m[n]` its weight (1 without an attention mask). Verified against the
+    reference: loss to 4e-8 relative, gradient to 2e-10 absolute.
+
+    NOTE: does not support double backward (`create_graph=True`).
+    """
+
+    @staticmethod
+    def forward(ctx, num_experts, top_k, row_weights, *layer_logits):
+        # NOTE: the per-layer logits are passed as VARARGS, not as one tuple. A tuple
+        # input to `Function.apply` is not tracked by autograd, which silently produced
+        # a non-differentiable loss.
+        device = layer_logits[0].device
+        assignments = torch.zeros(num_experts, device=device, dtype=torch.float32)
+        prob_sum = torch.zeros(num_experts, device=device, dtype=torch.float32)
+
+        with torch.no_grad():
+            for logits in layer_logits:
+                for start in range(0, logits.shape[0], AUX_LOSS_ROW_CHUNK):
+                    stop = min(start + AUX_LOSS_ROW_CHUNK, logits.shape[0])
+                    probs = torch.softmax(logits[start:stop].float(), dim=-1)
+                    selected = torch.topk(probs, top_k, dim=-1).indices.reshape(-1)
+                    if row_weights is None:
+                        assignments += torch.bincount(selected, minlength=num_experts).to(
+                            torch.float32
+                        )
+                        prob_sum += probs.sum(dim=0)
+                    else:
+                        weights = row_weights[start:stop].float()
+                        assignments += torch.bincount(
+                            selected,
+                            weights=weights.unsqueeze(-1).expand(-1, top_k).reshape(-1),
+                            minlength=num_experts,
+                        )
+                        prob_sum += (probs * weights.unsqueeze(-1)).sum(dim=0)
+                    del probs, selected
+
+            if row_weights is None:
+                total = float(sum(logits.shape[0] for logits in layer_logits))
+            else:
+                # The same mask applies to every layer.
+                total = float(row_weights.sum()) * len(layer_logits)
+
+        fractions = assignments / total
+        probabilities = prob_sum / total
+        loss = (fractions * probabilities).sum() * num_experts
+
+        ctx.save_for_backward(*layer_logits)
+        ctx.fractions = fractions.detach()
+        ctx.num_experts = num_experts
+        ctx.total = total
+        ctx.row_weights = None if row_weights is None else row_weights.detach()
+        ctx.needs_grad = tuple(logits.requires_grad for logits in layer_logits)
+        return loss
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        fractions = ctx.fractions
+        scale = grad_output.to(torch.float32) * (ctx.num_experts / ctx.total)
+        grads = []
+        for index, logits in enumerate(ctx.saved_tensors):
+            if not ctx.needs_grad[index]:
+                grads.append(None)
+                continue
+            grad = torch.empty_like(logits)
+            for start in range(0, logits.shape[0], AUX_LOSS_ROW_CHUNK):
+                stop = min(start + AUX_LOSS_ROW_CHUNK, logits.shape[0])
+                probs = torch.softmax(logits[start:stop].float(), dim=-1)
+                expected = (probs * fractions).sum(dim=-1, keepdim=True)
+                update = probs * (fractions - expected) * scale
+                if ctx.row_weights is not None:
+                    update = update * ctx.row_weights[start:stop].float().unsqueeze(-1)
+                grad[start:stop] = update.to(logits.dtype)
+            grads.append(grad)
+        # One `None` each for num_experts, top_k and row_weights.
+        return (None, None, None, *grads)
+
+
+def _efficient_load_balancing_loss(gate_logits, num_experts=None, top_k=2, attention_mask=None):
+    """Drop-in replacement for `transformers...load_balancing_loss_func`."""
+    if gate_logits is None or not isinstance(gate_logits, tuple):
+        return 0
+
+    if num_experts is None:
+        num_experts = gate_logits[0].shape[-1]
+    num_experts = int(num_experts)
+    top_k = int(top_k)
+
+    # transformers only supports 2-D `(batch * seq, num_experts)` logits here (its
+    # attention-mask branch derives everything from that shape).
+    if any(logits.dim() != 2 for logits in gate_logits):
+        if _ORIGINAL_LOAD_BALANCING_LOSS is None:
+            raise RuntimeError(
+                "Expected `router_logits` to be 2-D (batch*seq, num_experts) but got shape "
+                f"{tuple(gate_logits[0].shape)} and no reference implementation is available."
+            )
+        return _ORIGINAL_LOAD_BALANCING_LOSS(gate_logits, num_experts, top_k, attention_mask)
+
+    row_weights = None
+    if attention_mask is not None:
+        if attention_mask.dim() != 2 or attention_mask.numel() != gate_logits[0].shape[0]:
+            if _ORIGINAL_LOAD_BALANCING_LOSS is None:
+                raise RuntimeError(
+                    "`attention_mask` does not match the router logits "
+                    f"(shape {tuple(attention_mask.shape)}, {gate_logits[0].shape[0]} rows) and no "
+                    "reference implementation is available."
+                )
+            return _ORIGINAL_LOAD_BALANCING_LOSS(gate_logits, num_experts, top_k, attention_mask)
+        row_weights = attention_mask.reshape(-1)
+
+    return _EfficientLoadBalancingLoss.apply(num_experts, top_k, row_weights, *gate_logits)
+
+
+def _install_efficient_load_balancing_loss(model, master_process, logger=None, file_logger=None):
+    """
+    Replace `load_balancing_loss_func` with `_efficient_load_balancing_loss` in
+    every already-imported module that holds transformers' version.
+    """
+    global _ORIGINAL_LOAD_BALANCING_LOSS, _ROUTER_AUX_LOSS_INSTALLED
+
+    if _ROUTER_AUX_LOSS_INSTALLED:
+        return True
+
+    module_name = type(model).__module__
+    model_module = sys.modules.get(module_name)
+    original = getattr(model_module, "load_balancing_loss_func", None)
+    if original is None:
+        _log_message(
+            master_process,
+            logger,
+            file_logger,
+            "WARNING: `router_aux_loss_coef` is > 0 but this model's module "
+            f"({module_name}) exposes no `load_balancing_loss_func`, so the router auxiliary "
+            "loss cannot be enabled. Leaving the model config untouched.",
+        )
+        return False
+
+    _ORIGINAL_LOAD_BALANCING_LOSS = original
+    patched = []
+    for name, loaded in list(sys.modules.items()):
+        if loaded is None:
+            continue
+        try:
+            if getattr(loaded, "load_balancing_loss_func", None) is original:
+                loaded.load_balancing_loss_func = _efficient_load_balancing_loss
+                patched.append(name)
+        except Exception:  # noqa: BLE001 - exotic modules may raise from `__getattr__`
+            continue
+
+    _ROUTER_AUX_LOSS_INSTALLED = True
+    _log_message(
+        master_process,
+        logger,
+        file_logger,
+        "Router aux loss: installed the memory-efficient `load_balancing_loss_func` in "
+        f"{len(patched)} module(s): {', '.join(sorted(patched))}.",
+    )
+    return True
+
+
+def _configure_router_aux_loss(
+    model, args, non_attention_frozen, master_process, logger=None, file_logger=None
+):
+    """
+    Enable/disable the MoE router auxiliary (load-balancing) loss. No-op for dense models.
+
+    Controlled by the `router_aux_loss_coef` spec field:
+      * `None`  -> keep whatever the model config says (inherit `output_router_logits`
+                   and `router_aux_loss_coef` from config.json, including what a
+                   previous stage saved into its checkpoint).
+      * `0.0`   -> force the auxiliary loss off.
+      * `> 0.0` -> force it on with that weight, using the memory-efficient
+                   replacement for transformers' `load_balancing_loss_func`.
+
+    Must run AFTER `_apply_liger_kernels` so that Liger's imported copy of
+    `load_balancing_loss_func` is replaced too.
+    """
+    requested = getattr(args, "router_aux_loss_coef", None)
+    moe_configs = _moe_configs(model)
+    if not moe_configs:
+        if requested:
+            _log_message(
+                master_process,
+                logger,
+                file_logger,
+                "WARNING: `router_aux_loss_coef` is set but the model has no Mixture-of-Experts "
+                "layers; ignoring it.",
+            )
+        return
+
+    for config in moe_configs:
+        if requested is None:
+            enabled = bool(getattr(config, "output_router_logits", False))
+            coefficient = (
+                float(getattr(config, "router_aux_loss_coef", 0.0) or 0.0) if enabled else 0.0
+            )
+        else:
+            coefficient = float(requested)
+
+        if coefficient <= 0.0:
+            config.output_router_logits = False
+            _log_message(
+                master_process,
+                logger,
+                file_logger,
+                "Router aux loss disabled for this run. Routers stay trainable and are driven by "
+                "the LM loss alone; set `router_aux_loss_coef: 0.001` in the specs to enable the "
+                "load-balancing term.",
+            )
+            continue
+
+        if not _install_efficient_load_balancing_loss(model, master_process, logger, file_logger):
+            return
+
+        config.router_aux_loss_coef = coefficient
+        config.output_router_logits = True
+
+        if hasattr(model, "router_aux_loss_coef"):
+            model.router_aux_loss_coef = coefficient
+
+        num_experts = int(
+            getattr(config, "num_experts", None) or getattr(config, "num_local_experts", 0) or 0
+        )
+        top_k = int(getattr(config, "num_experts_per_tok", 0) or 0)
+        num_moe_layers = int(getattr(config, "num_hidden_layers", 0) or 0)
+
+        retained_mib_per_1k = num_moe_layers * 1000 * num_experts * 2 / (1024**2)
+        avoided_mib_per_1k = 1.6 * num_moe_layers * 1000 * top_k * num_experts * 8 / (1024**2)
+        _log_message(
+            master_process,
+            logger,
+            file_logger,
+            f"Router aux loss ENABLED (coefficient={coefficient:g}) over {num_moe_layers} MoE "
+            f"layers x {num_experts} experts, top-{top_k}. Router logits are retained as the "
+            f"model's own outputs (~{retained_mib_per_1k:.1f} MiB per 1k tokens); transformers' "
+            f"one_hot implementation would additionally allocate ~{avoided_mib_per_1k:.0f} MiB per "
+            f"1k tokens (~{avoided_mib_per_1k * 131.072 / 1024:.0f} GiB for one 131k-token "
+            "sequence).",
+        )
+        if non_attention_frozen:
+            _log_message(
+                master_process,
+                logger,
+                file_logger,
+                "WARNING: the router auxiliary loss is enabled but this is a context-extension stage, "
+                "so `_freeze_non_attention_blocks` froze the MoE routers. The extra term will only "
+                "shape the trainable attention/norm parameters. Set `router_aux_loss_coef: 0.0` in "
+                "the specs to skip it.",
+            )
+
+
 # Modules that are never converted to fp8. `lm_head` is either fused into
 # Liger's `fused_linear_cross_entropy` (converting it would break the fusion)
 # or is the numerically most sensitive projection in the network, so both
@@ -1142,6 +1450,18 @@ def prepare_training_components(
     if args.use_liger_kernel:
         _apply_liger_kernels(model, args)
         _log_message(master_process, logger, file_logger, "Applied Liger kernels to the model.")
+
+    # Router auxiliary (load-balancing) loss for Mixture-of-Experts models. Runs after
+    # the Liger patch because `lce_forward` calls `load_balancing_loss_func` through its
+    # own module-level import, which has to be replaced as well. No-op for dense models.
+    _configure_router_aux_loss(
+        model,
+        args,
+        non_attention_frozen=non_attention_frozen,
+        master_process=master_process,
+        logger=logger,
+        file_logger=file_logger,
+    )
 
     model.config.name_or_path = args.hub_model_id
     trainable_params = sum(

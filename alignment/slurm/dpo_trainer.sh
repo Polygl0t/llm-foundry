@@ -148,16 +148,64 @@ case "$BACKEND" in
 esac
 export ACCELERATE_CONFIG="${ACCELERATE_CONFIG:-$_default_accelerate_config}"
 
+# ---- Paths -------------------------------------------------------------------
+export TRAIN_DATASET_DIR="/data/harmfull-no-reasoning"
+export MODEL_PATH="Polygl0t/Tucano2-qwen-0.5B-Instruct"
+export REF_MODEL_PATH="$MODEL_PATH"
+export CHAT_TEMPLATE="checkpoints/portuguese/tokenizer/chat_template.jinja"
 export CHECKPOINT_DIR="./checkpoints/MyModel-DPO-$SLURM_JOB_ID${BACKEND_SUFFIX}"
-export CLEAN_CACHE="1"  # <-- Set to "1" to clean cache after job completion
 export RESUME_FROM=""   # Path to resume checkpoint from, leave empty to start fresh
+export CLEAN_CACHE="1"  # <-- Set to "1" to clean cache after job completion
 
-# ---- Liger kernel ------------------------------------------------------------
-export USE_LIGER_KERNEL="${USE_LIGER_KERNEL:-1}"
+# ---- DPO hyper-parameters ----------------------------------------------------
+export DATASET_TYPE="jsonl"             # "jsonl" or "parquet"
+export MAX_LENGTH="4096"                # prompt+chosen/rejected budget; the collator pads to the longest sequence IN THE BATCH, so this bounds peak VRAM
+export NUM_PROC="${NUM_PROC:-$SLURM_CPUS_PER_TASK}"
+export SHUFFLE_DATASET="1"
+export TRUNCATION_MODE="keep_start"     # TRL's forward-compatible value; "keep_end" is deprecated
+export BETA="0.1"                       # KL-style deviation from the reference model
+export LOSS_TYPE="apo_zero"             # "apo_zero", "sigmoid", "ipo", ... (trainer asserts)
+export PRECOMPUTE_REF_LOG_PROBS="1"     # "0" = re-run the reference model every step. Dropped automatically when the Liger kernel is selected.
+export USE_LIGER_KERNEL="${USE_LIGER_KERNEL:-1}"   # fused DPO loss (DDP only; forced to "0" under BACKEND=fsdp, or when the router aux loss is enabled)
+export GRADIENT_CHECKPOINTING="0"       # trade compute for VRAM; the pre-flight below reads this
+export ATTN_IMPLEMENTATION="flash_attention_4"
+export PER_DEVICE_TRAIN_BATCH_SIZE="8"
+export GRADIENT_ACCUMULATION_STEPS="4"
+export LEARNING_RATE="0.000005"
+export WEIGHT_DECAY="0.0"
+export LR_SCHEDULER_TYPE="cosine"
+export WARMUP_STEPS="0.1"               # float in [0,1) = RATIO of total steps; int = exact count
+export NUM_TRAIN_EPOCHS="5"
+export MAX_STEPS=""                     # non-empty overrides NUM_TRAIN_EPOCHS
+export SAVE_STEPS="1000"
+export LOGGING_STEPS="1"
+export BF16="1"
+export TF32="1"
+
+# ---- MoE router policy -------------------------------------------------------
+# Load-balancing auxiliary loss for Mixture-of-Experts models (no effect on dense
+# models).
+export ROUTER_AUX_LOSS_COEF="${ROUTER_AUX_LOSS_COEF:-0.0}"
+export FREEZE_ROUTER="${FREEZE_ROUTER:-0}"
+
+_router_aux_enabled() {
+    awk -v v="${1:-0}" 'BEGIN { exit !(v + 0 != 0) }'
+}
+
 # Liger + FSDP2 does not work for the DPO fused loss.
 if [ "$BACKEND" = "fsdp" ] && [ "$USE_LIGER_KERNEL" = "1" ]; then
     echo "# [${SLURM_JOB_ID}] FSDP: forcing USE_LIGER_KERNEL=0 (the Liger DPO loss is not DTensor-safe)." >> "$out"
     USE_LIGER_KERNEL="0"
+fi
+# TRL raises when the MoE aux loss is enabled with the fused Liger DPO loss.
+if _router_aux_enabled "$ROUTER_AUX_LOSS_COEF" && [ "$USE_LIGER_KERNEL" = "1" ]; then
+    echo "# [${SLURM_JOB_ID}] ROUTER_AUX_LOSS_COEF=$ROUTER_AUX_LOSS_COEF: forcing USE_LIGER_KERNEL=0 (TRL refuses the MoE aux loss with the fused DPO loss)." >> "$out"
+    USE_LIGER_KERNEL="0"
+fi
+# TRL also refuses precomputed reference log-probs with the fused Liger loss.
+if [ "$USE_LIGER_KERNEL" = "1" ] && [ "$PRECOMPUTE_REF_LOG_PROBS" = "1" ]; then
+    echo "# [${SLURM_JOB_ID}] Liger: dropping --precompute_ref_log_probs (the fused DPO loss never materialises the router logits)." >> "$out"
+    PRECOMPUTE_REF_LOG_PROBS="0"
 fi
 
 # ---- FSDP2 pre-flight --------------------------------------------------------
@@ -167,7 +215,7 @@ if [ "$BACKEND" = "fsdp" ]; then
     echo "# [${SLURM_JOB_ID}] FSDP pre-flight: $ACCELERATE_CONFIG" >> "$out"
     # `0` = this template does NOT pass --gradient_checkpointing (see ARGS below), so
     # fsdp_activation_checkpointing would not collide with anything.
-    python3 - "$ACCELERATE_CONFIG" 0 dpo >> "$out" 2>&1 <<'PYEOF'
+    python3 - "$ACCELERATE_CONFIG" "$GRADIENT_CHECKPOINTING" dpo >> "$out" 2>&1 <<'PYEOF'
 import sys
 
 try:
@@ -258,6 +306,9 @@ echo "# [${SLURM_JOB_ID}] GLIBC version: $(ldd --version | head -n1)" >> "$out"
 echo "# [${SLURM_JOB_ID}] Working directory: $workdir" >> "$out"
 echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --version)" >> "$out"
 echo "# [${SLURM_JOB_ID}] Backend: $BACKEND (accelerate config: $ACCELERATE_CONFIG)" >> "$out"
+echo "# [${SLURM_JOB_ID}] DPO: loss=$LOSS_TYPE beta=$BETA lr=$LEARNING_RATE epochs=$NUM_TRAIN_EPOCHS${MAX_STEPS:+ (max_steps=$MAX_STEPS)}" >> "$out"
+echo "# [${SLURM_JOB_ID}] Liger kernel: $USE_LIGER_KERNEL (precompute_ref_log_probs=$PRECOMPUTE_REF_LOG_PROBS)" >> "$out"
+echo "# [${SLURM_JOB_ID}] Router policy: aux_coef=$ROUTER_AUX_LOSS_COEF freeze_router=$FREEZE_ROUTER" >> "$out"
 echo "# [${SLURM_JOB_ID}] Checkpoints: $CHECKPOINT_DIR" >> "$out"
 
 #############################################
@@ -293,39 +344,55 @@ export LAUNCHER="accelerate launch \
 
 export PYTHON_FILE="$workdir/llm-foundry/alignment/dpo_trainer.py"
 
-export ARGS="--dataset_type jsonl \
---train_dataset_dir /data/harmfull-no-reasoning \
---shuffle_dataset \
+export ARGS="--dataset_type $DATASET_TYPE \
+--train_dataset_dir $TRAIN_DATASET_DIR \
 --cache_dir $HF_DATASETS_CACHE \
---num_proc $SLURM_CPUS_PER_TASK \
---model_name_or_path Polygl0t/Tucano2-qwen-0.5B-Instruct \
---ref_model_name_or_path Polygl0t/Tucano2-qwen-0.5B-Instruct \
+--num_proc $NUM_PROC \
+--model_name_or_path $MODEL_PATH \
+--ref_model_name_or_path $REF_MODEL_PATH \
+--chat_template_path $CHAT_TEMPLATE \
 --checkpoint_dir $CHECKPOINT_DIR \
 --hub_token $HF_TOKEN \
---max_length 4096 \
---precompute_ref_log_probs \
---truncation_mode keep_start \
---save_steps 1000 \
---logging_steps 1 \
---beta 0.1 \
---chat_template_path checkpoints/portuguese/tokenizer/chat_template.jinja \
---loss_type apo_zero \
---learning_rate 0.000005 \
---weight_decay 0.0 \
---lr_scheduler_type cosine \
---warmup_steps 0.1 \
---num_train_epochs 5 \
---attn_implementation flash_attention_4 \
---per_device_train_batch_size 8 \
---gradient_accumulation_steps 4 \
---bf16 \
---tf32 \
+--max_length $MAX_LENGTH \
+--truncation_mode $TRUNCATION_MODE \
+--beta $BETA \
+--loss_type $LOSS_TYPE \
+--learning_rate $LEARNING_RATE \
+--weight_decay $WEIGHT_DECAY \
+--lr_scheduler_type $LR_SCHEDULER_TYPE \
+--warmup_steps $WARMUP_STEPS \
+--num_train_epochs $NUM_TRAIN_EPOCHS \
+--save_steps $SAVE_STEPS \
+--logging_steps $LOGGING_STEPS \
+--attn_implementation $ATTN_IMPLEMENTATION \
+--router_aux_loss_coef $ROUTER_AUX_LOSS_COEF \
+--per_device_train_batch_size $PER_DEVICE_TRAIN_BATCH_SIZE \
+--gradient_accumulation_steps $GRADIENT_ACCUMULATION_STEPS \
 "
 
-# The Liger kernel is DTensor-safe for SFT but not for the DPO fused loss, so the flag is
-# appended (not baked into ARGS above) and dropped when BACKEND=fsdp.
+if [ -n "$MAX_STEPS" ]; then
+    ARGS="$ARGS --max_steps $MAX_STEPS"
+fi
+if [ "$SHUFFLE_DATASET" = "1" ]; then
+    ARGS="$ARGS --shuffle_dataset"
+fi
+if [ "$GRADIENT_CHECKPOINTING" = "1" ]; then
+    ARGS="$ARGS --gradient_checkpointing"
+fi
+if [ "$PRECOMPUTE_REF_LOG_PROBS" = "1" ]; then
+    ARGS="$ARGS --precompute_ref_log_probs"
+fi
 if [ "$USE_LIGER_KERNEL" = "1" ]; then
     ARGS="$ARGS --use_liger_kernel"
+fi
+if [ "$FREEZE_ROUTER" = "1" ]; then
+    ARGS="$ARGS --freeze_router"
+fi
+if [ "$BF16" = "1" ]; then
+    ARGS="$ARGS --bf16"
+fi
+if [ "$TF32" = "1" ]; then
+    ARGS="$ARGS --tf32"
 fi
 
 if [ -n "$RESUME_FROM" ] && [ ! -e "$RESUME_FROM" ]; then

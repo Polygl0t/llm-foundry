@@ -147,18 +147,55 @@ case "$BACKEND" in
 esac
 export ACCELERATE_CONFIG="${ACCELERATE_CONFIG:-$_default_accelerate_config}"
 
+# ---- Paths -------------------------------------------------------------------
+export PREBUILT_DIR="/data/prebuilt"
+export MODEL_PATH="Polygl0t/Tucano2-qwen-0.5B-Base"
+export CHAT_TEMPLATE="checkpoints/portuguese/chat_template.jinja"
 export CHECKPOINT_DIR="./checkpoints/MyModel-SFT-$SLURM_JOB_ID${BACKEND_SUFFIX}"
-export CLEAN_CACHE="1"  # <-- Set to "1" to clean cache after job completion
 export RESUME_FROM=""   # Path to a checkpoint to resume training from, if any
+export CLEAN_CACHE="1"  # <-- Set to "1" to clean cache after job completion
+
+# ---- SFT hyper-parameters ----------------------------------------------------
+export MAX_LENGTH="4096"              # packed sequence length; longer samples are filtered out
+export NUM_PROC="32"                  # workers for that filter
+export DATALOADER_WORKERS="8"
+export SHUFFLE_DATASET="1"
+export PACKING="1"
+export ASSISTANT_ONLY_LOSS="1"        # needs {% generation %} in the chat template
+export SAVE_TEST_SET="1"
+export USE_LIGER_KERNEL="1"           # fused CE: no [tokens, vocab] logits
+export GRADIENT_CHECKPOINTING="1"
+export BF16="1"
+export TF32="1"
+export ATTN_IMPLEMENTATION="flash_attention_4"
+export PER_DEVICE_TRAIN_BATCH_SIZE="16"
+export GRADIENT_ACCUMULATION_STEPS="2"
+export LEARNING_RATE="0.00005"
+export WEIGHT_DECAY="0.1"
+export LR_SCHEDULER_TYPE="cosine"
+export WARMUP_STEPS="0.1"             # float in [0,1) = RATIO of total steps; int = exact count
+export NUM_TRAIN_EPOCHS="1"
+export MAX_STEPS=""                   # non-empty overrides NUM_TRAIN_EPOCHS
+export SAVE_STEPS="2000"
+export SAVE_TOTAL_LIMIT="4"
+export LOGGING_STEPS="1"
+
+# ---- MoE router policy -------------------------------------------------------
+# Load-balancing auxiliary loss for Mixture-of-Experts models (no effect on dense
+# models).
+#   ROUTER_AUX_LOSS_COEF=0.0  -> no auxiliary term (routers still train)
+#   FREEZE_ROUTER=1           -> keep the pretrained routing function
+export ROUTER_AUX_LOSS_COEF="${ROUTER_AUX_LOSS_COEF:-0.0}"
+export FREEZE_ROUTER="${FREEZE_ROUTER:-0}"
 
 # ---- FSDP2 pre-flight --------------------------------------------------------
 # Rejects accelerate configs whose export would be empty or whose knobs collide with
 # what the trainer passes, BEFORE the multi-node rendezvous is set up.
 if [ "$BACKEND" = "fsdp" ]; then
     echo "# [${SLURM_JOB_ID}] FSDP pre-flight: $ACCELERATE_CONFIG" >> "$out"
-    # `1` = this template always passes --gradient_checkpointing (see ARGS below), so
-    # fsdp_activation_checkpointing must stay false.
-    python3 - "$ACCELERATE_CONFIG" 1 sft >> "$out" 2>&1 <<'PYEOF'
+    # `1` = this template passes --gradient_checkpointing (see GRADIENT_CHECKPOINTING and
+    # ARGS below), so fsdp_activation_checkpointing must stay false.
+    python3 - "$ACCELERATE_CONFIG" "$GRADIENT_CHECKPOINTING" sft >> "$out" 2>&1 <<'PYEOF'
 import sys
 
 try:
@@ -249,6 +286,7 @@ echo "# [${SLURM_JOB_ID}] GLIBC version: $(ldd --version | head -n1)" >> "$out"
 echo "# [${SLURM_JOB_ID}] Working directory: $workdir" >> "$out"
 echo "# [${SLURM_JOB_ID}] Python executable: $(which python3) — $(python3 --version)" >> "$out"
 echo "# [${SLURM_JOB_ID}] Backend: $BACKEND (accelerate config: $ACCELERATE_CONFIG)" >> "$out"
+echo "# [${SLURM_JOB_ID}] Router policy: aux_coef=$ROUTER_AUX_LOSS_COEF freeze_router=$FREEZE_ROUTER" >> "$out"
 echo "# [${SLURM_JOB_ID}] Checkpoints: $CHECKPOINT_DIR" >> "$out"
 
 #############################################
@@ -284,35 +322,59 @@ export LAUNCHER="accelerate launch \
 
 export PYTHON_FILE="$workdir/llm-foundry/alignment/sft_trainer.py"
 
-export ARGS="--prebuilt_dataset_dir /data/prebuilt \
---shuffle_dataset \
+export ARGS="--prebuilt_dataset_dir $PREBUILT_DIR \
 --cache_dir $HF_DATASETS_CACHE \
---num_proc 32 \
---dataloader_num_workers 8 \
---model_name_or_path Polygl0t/Tucano2-qwen-0.5B-Base \
---chat_template_path checkpoints/portuguese/chat_template.jinja \
+--num_proc $NUM_PROC \
+--dataloader_num_workers $DATALOADER_WORKERS \
+--model_name_or_path $MODEL_PATH \
+--chat_template_path $CHAT_TEMPLATE \
 --checkpoint_dir $CHECKPOINT_DIR \
 --hub_token $HF_TOKEN \
---save_test_set \
---max_length 4096 \
---save_steps 2000 \
---save_total_limit 4 \
---logging_steps 1 \
---packing \
---assistant_only_loss \
---use_liger_kernel \
---learning_rate 0.00005 \
---weight_decay 0.1 \
---lr_scheduler_type cosine \
---warmup_steps 0.1 \
---num_train_epochs 1 \
---attn_implementation flash_attention_4 \
---per_device_train_batch_size 16 \
---gradient_accumulation_steps 2 \
---bf16 \
---tf32 \
---gradient_checkpointing \
+--max_length $MAX_LENGTH \
+--save_steps $SAVE_STEPS \
+--save_total_limit $SAVE_TOTAL_LIMIT \
+--logging_steps $LOGGING_STEPS \
+--learning_rate $LEARNING_RATE \
+--weight_decay $WEIGHT_DECAY \
+--lr_scheduler_type $LR_SCHEDULER_TYPE \
+--warmup_steps $WARMUP_STEPS \
+--num_train_epochs $NUM_TRAIN_EPOCHS \
+--attn_implementation $ATTN_IMPLEMENTATION \
+--per_device_train_batch_size $PER_DEVICE_TRAIN_BATCH_SIZE \
+--gradient_accumulation_steps $GRADIENT_ACCUMULATION_STEPS \
+--router_aux_loss_coef $ROUTER_AUX_LOSS_COEF \
 "
+
+if [ -n "$MAX_STEPS" ]; then
+    ARGS="$ARGS --max_steps $MAX_STEPS"
+fi
+if [ "$SHUFFLE_DATASET" = "1" ]; then
+    ARGS="$ARGS --shuffle_dataset"
+fi
+if [ "$SAVE_TEST_SET" = "1" ]; then
+    ARGS="$ARGS --save_test_set"
+fi
+if [ "$PACKING" = "1" ]; then
+    ARGS="$ARGS --packing"
+fi
+if [ "$ASSISTANT_ONLY_LOSS" = "1" ]; then
+    ARGS="$ARGS --assistant_only_loss"
+fi
+if [ "$USE_LIGER_KERNEL" = "1" ]; then
+    ARGS="$ARGS --use_liger_kernel"
+fi
+if [ "$BF16" = "1" ]; then
+    ARGS="$ARGS --bf16"
+fi
+if [ "$TF32" = "1" ]; then
+    ARGS="$ARGS --tf32"
+fi
+if [ "$GRADIENT_CHECKPOINTING" = "1" ]; then
+    ARGS="$ARGS --gradient_checkpointing"
+fi
+if [ "$FREEZE_ROUTER" = "1" ]; then
+    ARGS="$ARGS --freeze_router"
+fi
 
 if [ -n "$RESUME_FROM" ] && [ ! -e "$RESUME_FROM" ]; then
     echo "# [${SLURM_JOB_ID}] RESUME_FROM=$RESUME_FROM does not exist yet -- training from MODEL_PATH" >> "$out"

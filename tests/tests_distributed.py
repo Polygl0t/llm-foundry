@@ -3467,3 +3467,345 @@ def test_initialize_wandb_continues_step_axis_across_stages():
         else:
             os.environ["TRACKIO_DIR"] = previous_trackio_dir
         shutil.rmtree(tmpdir)
+
+
+import model_setup as _model_setup_module  # noqa: E402
+import trainer as trainer_module  # noqa: E402
+from transformers import Qwen3_5MoeTextConfig  # noqa: E402
+from transformers.models.qwen3_5_moe.modeling_qwen3_5_moe import (  # noqa: E402
+    load_balancing_loss_func as _reference_load_balancing_loss,
+)
+
+
+def _reference_aux_loss():
+    """transformers' own `load_balancing_loss_func` (whatever was captured before patching)."""
+    return _model_setup_module._ORIGINAL_LOAD_BALANCING_LOSS or _reference_load_balancing_loss
+
+
+def _tiny_moe_config(**overrides):
+    kwargs = {
+        "vocab_size": 256,
+        "hidden_size": 32,
+        "intermediate_size": 64,
+        "num_hidden_layers": 2,
+        "num_attention_heads": 4,
+        "num_key_value_heads": 2,
+        "head_dim": 8,
+        "num_experts": 8,
+        "num_experts_per_tok": 2,
+        "moe_intermediate_size": 16,
+        "shared_expert_intermediate_size": 16,
+        "max_position_embeddings": 64,
+        "layer_types": ["full_attention", "full_attention"],
+        "full_attention_interval": 1,
+        "output_router_logits": False,
+        "router_aux_loss_coef": 0.001,
+    }
+    kwargs.update(overrides)
+    return Qwen3_5MoeTextConfig(**kwargs)
+
+
+def _tiny_moe_model(**overrides):
+    from transformers.models.qwen3_5_moe.modeling_qwen3_5_moe import Qwen3_5MoeForCausalLM
+
+    torch.manual_seed(0)
+    return Qwen3_5MoeForCausalLM(_tiny_moe_config(**overrides))
+
+
+def _aux_args(coefficient):
+    args = TrainingArguments()
+    args.router_aux_loss_coef = coefficient
+    return args
+
+
+def test_router_aux_loss_spec_field():
+    """`router_aux_loss_coef` defaults to auto-detect and accepts an explicit weight."""
+    assert TrainingArguments().router_aux_loss_coef is None
+    assert TrainingArguments(router_aux_loss_coef=0.001).router_aux_loss_coef == 0.001
+    assert TrainingArguments(router_aux_loss_coef=0.0).router_aux_loss_coef == 0.0
+    # and it round-trips through the serialised form used by the specs
+    assert TrainingArguments(router_aux_loss_coef=0.001).to_dict()["router_aux_loss_coef"] == 0.001
+
+
+def test_configure_router_aux_loss_dense_model_is_noop():
+    """A dense model must be completely untouched, even with a coefficient set."""
+    from transformers import AutoConfig
+
+    config = AutoConfig.for_model(
+        "llama",
+        vocab_size=256,
+        hidden_size=32,
+        intermediate_size=64,
+        num_hidden_layers=2,
+        num_attention_heads=4,
+        num_key_value_heads=2,
+    )
+    assert _model_setup_module._moe_configs(type("M", (), {"config": config})()) == []
+    # dense models have no `output_router_logits`, so nothing to flip or install
+    assert not hasattr(config, "output_router_logits")
+
+
+def test_configure_router_aux_loss_moe_semantics():
+    """None inherits the checkpoint, 0.0 forces it off, > 0 forces it on."""
+    # None -> inherit the (disabled) model config
+    model = _tiny_moe_model(output_router_logits=False)
+    _model_setup_module._configure_router_aux_loss(model, _aux_args(None), False, True)
+    assert model.config.output_router_logits is False
+
+    # 0.0 -> forced off even when the checkpoint enabled it
+    model = _tiny_moe_model(output_router_logits=True)
+    _model_setup_module._configure_router_aux_loss(model, _aux_args(0.0), False, True)
+    assert model.config.output_router_logits is False
+
+    # > 0 -> forced on, coefficient pushed to both the config and the module
+    model = _tiny_moe_model(output_router_logits=False)
+    _model_setup_module._configure_router_aux_loss(model, _aux_args(0.005), False, True)
+    assert model.config.output_router_logits is True
+    assert model.config.router_aux_loss_coef == 0.005
+    assert model.router_aux_loss_coef == 0.005
+    assert _model_setup_module._ROUTER_AUX_LOSS_INSTALLED is True
+
+
+def test_efficient_load_balancing_loss_matches_reference():
+    """The chunked implementation reproduces transformers' value and gradient."""
+    reference = _reference_aux_loss()
+
+    for mask in (
+        None,
+        # one sequence of 64 tokens, second half masked
+        torch.tensor([[1] * 32 + [0] * 32]),
+        # two sequences of 32 tokens, second one mostly masked
+        torch.tensor([[1] * 32, [1] * 8 + [0] * 24]),
+    ):
+        layers = tuple(torch.randn(64, 8, requires_grad=True) for _ in range(3))
+        expected = reference(layers, 8, 2, mask)
+        expected_grads = torch.autograd.grad(expected, layers)
+
+        mine_layers = tuple(layer.detach().clone().requires_grad_(True) for layer in layers)
+        actual = _model_setup_module._efficient_load_balancing_loss(mine_layers, 8, 2, mask)
+        actual_grads = torch.autograd.grad(actual, mine_layers)
+
+        assert actual.requires_grad
+        assert abs(actual.item() - expected.item()) / abs(expected.item()) < 1e-5
+        scale = max(g.abs().max().item() for g in expected_grads)
+        error = max(
+            (a - b).abs().max().item() for a, b in zip(expected_grads, actual_grads, strict=False)
+        )
+        assert error / scale < 1e-4
+
+
+def test_efficient_load_balancing_loss_edge_cases():
+    """`None`/non-tuple input yields 0, and a nested-tensor-free signature is required."""
+    loss_fn = _model_setup_module._efficient_load_balancing_loss
+    assert loss_fn(None) == 0
+    assert loss_fn([torch.zeros(4, 8)]) == 0
+    # a 1-tuple is still a tuple and is computed normally
+    value = loss_fn((torch.zeros(16, 8),), 8, 2, None)
+    assert isinstance(value, torch.Tensor) and value.item() > 0
+
+
+def _create_tiny_moe_model_config(tmpdir):
+    """Write a tiny Qwen3.5-MoE config.json (2 dense-attention layers, 8 experts)."""
+    config = Qwen3_5MoeTextConfig(
+        vocab_size=1000,
+        hidden_size=32,
+        intermediate_size=64,
+        num_hidden_layers=2,
+        num_attention_heads=4,
+        num_key_value_heads=2,
+        head_dim=8,
+        num_experts=8,
+        num_experts_per_tok=2,
+        moe_intermediate_size=16,
+        shared_expert_intermediate_size=16,
+        max_position_embeddings=64,
+        layer_types=["full_attention", "full_attention"],
+        full_attention_interval=1,
+        attn_output_gate=True,
+        output_router_logits=False,
+        router_aux_loss_coef=0.001,
+    )
+    config.architectures = ["Qwen3_5MoeForCausalLM"]
+    config.save_pretrained(tmpdir)
+    return tmpdir
+
+
+def test_fsdp_trainer_moe_router_aux_loss():
+    """The trainer enables and logs the MoE router auxiliary loss end-to-end."""
+    import logging
+
+    tmpdir = tempfile.mkdtemp()
+    try:
+        config_dir = _create_tiny_moe_model_config(tmpdir)
+        args = TrainingArguments(
+            path_to_model_config=config_dir,
+            tokenizer_name_or_path=_TINY_TOKENIZER_NAME,
+            attn_implementation="eager",
+            cache_dir=tmpdir,
+            torch_compile=False,
+            use_liger_kernel=False,
+            gradient_checkpointing=False,
+            mat_mul_precision="highest",
+            tf32=False,
+            bf16=False,
+            sanity_check=True,
+            sanity_check_num_samples=16,
+            micro_batch_size=2,
+            eval_micro_batch_size=2,
+            pin_memory=False,
+            num_workers_for_dataloader=0,
+            prefetch_factor=None,
+            shuffle_dataset=False,
+            optimizer_type="adamw",
+            max_learning_rate=1e-3,
+            weight_decay=0.01,
+            beta1=0.9,
+            beta2=0.95,
+            eps=1e-8,
+            max_grad_norm=1.0,
+            num_train_epochs=1,
+            total_batch_size=128,
+            checkpointing_steps=2,
+            stage_name="test",
+            checkpoint_dir=tmpdir,
+            wandb_token=None,
+            push_to_hub=False,
+            begin_new_stage=True,
+            lr_decay_type="cosine",
+            router_aux_loss_coef=0.001,
+        )
+
+        result = prepare_training_components(args=args, device="cpu", master_process=True)
+        model = result.model
+        args = result.args
+
+        # `_configure_router_aux_loss` ran inside `prepare_training_components`.
+        assert model.config.output_router_logits is True
+        assert model.config.router_aux_loss_coef == 0.001
+        assert _model_setup_module._ROUTER_AUX_LOSS_INSTALLED is True
+
+        optimizer, step_fn, _ = create_optimizer(
+            model, args, device_type="cpu", master_process=True
+        )
+        bundle = prepare_dataloaders(args=args, tokenizer=result.tokenizer, world_size=1, rank=0)
+        gradient_accumulation_steps, _, _ = compute_training_schedule(
+            args, len(bundle.train_dataloader), world_size=1
+        )
+        max_steps = 2
+        lr_scheduler = create_lr_scheduler(args, max_steps)
+
+        log_file = os.path.join(tmpdir, "moe-aux.log")
+        file_logger = StructuredTrainingLogger(log_file)
+        logger = logging.getLogger("trainer-test-moe-aux")
+        logger.setLevel(logging.WARNING)
+
+        first_param = next(model.parameters())
+        before = first_param.data.clone()
+
+        trainer = FSDPTrainer(
+            args=args,
+            model=model,
+            tokenizer=result.tokenizer,
+            optimizer=optimizer,
+            optimizer_step=step_fn,
+            lr_scheduler=lr_scheduler,
+            train_dataloader=bundle.train_dataloader,
+            validation_dataloader=bundle.val_dataloader,
+            train_sampler=bundle.train_sampler,
+            gradient_accumulation_steps=gradient_accumulation_steps,
+            max_steps=max_steps,
+            resume_step=0,
+            iter_count=0,
+            epoch=1,
+            device="cpu",
+            device_type="cpu",
+            fsdp=False,
+            world_size=1,
+            master_process=True,
+            precision=torch.float32,
+            logger=logger,
+            file_logger=file_logger,
+            log_file=log_file,
+            slurm_job_id="test-moe",
+            tracker=_MockTracker(),
+            mfu_context=create_mfu_context(args, "a100", num_parameters=result.trainable_params),
+        )
+        trainer.train()
+
+        assert not torch.equal(before, first_param.data), "Weights should change after training"
+        # The trainer hands the last measured aux loss to the logger.
+        assert isinstance(trainer_module._pending_aux_loss, float)
+        assert trainer_module._pending_aux_loss > 0.0
+        with open(log_file) as handle:
+            logged = handle.read()
+        assert '"aux_loss"' in logged, "aux_loss should be written to the structured log"
+    finally:
+        trainer_module._pending_aux_loss = None
+        shutil.rmtree(tmpdir)
+
+
+def test_log_training_step_omits_aux_loss_when_disabled():
+    """A model without an auxiliary loss must not gain an `aux_loss` metric."""
+    import logging
+    import types
+
+    tmpdir = tempfile.mkdtemp()
+    original_metrics = trainer_module.calculate_training_metrics
+    try:
+        # The MFU maths is covered elsewhere; stub it so this test only exercises the
+        # (de)serialisation of the metrics dict.
+        trainer_module.calculate_training_metrics = lambda **kwargs: types.SimpleNamespace(
+            global_tokens_per_sec=1.0, tokens_per_sec_per_gpu=1.0, mfu=0.0
+        )
+        log_file = os.path.join(tmpdir, "no-aux.log")
+        file_logger = StructuredTrainingLogger(log_file)
+        logger = logging.getLogger("trainer-test-no-aux")
+        logger.setLevel(logging.CRITICAL)
+        trainer_module._set_pending_aux_loss(None)
+        trainer_module._log_training_step(
+            logger=logger,
+            file_logger=file_logger,
+            mfu_context=None,
+            completed_steps=1,
+            accumulated_loss=torch.tensor(1.0),
+            adam_lr=1e-4,
+            muon_lr=None,
+            current_lr_stage="stable",
+            norm=torch.tensor(0.5),
+            dt=0.1,
+            micro_batch_size=1,
+            gradient_accumulation_steps=1,
+            world_size=1,
+            device="cpu",
+            stage_name="test",
+            wandb_enabled=False,
+        )
+        with open(log_file) as handle:
+            assert "aux_loss" not in handle.read()
+
+        # ... and it IS reported when the loop measured one.
+        trainer_module._set_pending_aux_loss(4.5)
+        trainer_module._log_training_step(
+            logger=logger,
+            file_logger=file_logger,
+            mfu_context=None,
+            completed_steps=2,
+            accumulated_loss=torch.tensor(1.0),
+            adam_lr=1e-4,
+            muon_lr=None,
+            current_lr_stage="stable",
+            norm=torch.tensor(0.5),
+            dt=0.1,
+            micro_batch_size=1,
+            gradient_accumulation_steps=1,
+            world_size=1,
+            device="cpu",
+            stage_name="test",
+            wandb_enabled=False,
+        )
+        with open(log_file) as handle:
+            assert '"aux_loss": 4.5' in handle.read()
+    finally:
+        trainer_module.calculate_training_metrics = original_metrics
+        trainer_module._set_pending_aux_loss(None)
+        shutil.rmtree(tmpdir)

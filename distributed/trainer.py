@@ -37,6 +37,10 @@ from utils import DISTRIBUTED_TIMEOUT, checkpoint_already_validated
 # own row) carried into every subsequent training log entry that goes to W&B / trackio.
 _latest_validation_metrics = {}
 
+# Mean MoE router auxiliary (load-balancing) loss of the step that is currently being
+# logged, or None when the model does not compute one (`router_aux_loss_coef` <= 0).
+_pending_aux_loss = None
+
 # Offset added to every step that is logged to W&B / trackio. It is 0 for a single-stage run
 # and is filled in by `utils.initialize_wandb()` for the later stages of a multistage run, so
 # that all stages of the run share one continuous x axis on the dashboard.
@@ -46,6 +50,12 @@ _step_offset = 0
 def _tracker_step(completed_steps):
     """The step number to report to W&B / trackio (local step + multistage offset)."""
     return completed_steps + _step_offset
+
+
+def _set_pending_aux_loss(value):
+    """Record the router auxiliary loss of the step that is about to be logged."""
+    global _pending_aux_loss
+    _pending_aux_loss = value
 
 
 def clip_grad_norm_mesh_aware(parameters, max_norm, norm_type=2.0):
@@ -345,6 +355,24 @@ def _push_to_hub(*, model_to_push, tokenizer, hub_model_id, hub_token, stage_nam
         tokenizer.push_to_hub(hub_id, token=hub_token)
 
 
+def _average_aux_loss(
+    accumulated_aux_loss, gradient_accumulation_steps, distributed, world_size=None
+):
+    """
+    Mean MoE router auxiliary loss over the gradient-accumulation micro-steps, reduced
+    across ranks so the logged value matches the reported training loss.
+
+    Returns None when the model does not compute an auxiliary loss.
+    """
+    if accumulated_aux_loss is None:
+        return None
+    value = accumulated_aux_loss / gradient_accumulation_steps
+    if distributed:
+        dist.all_reduce(value, op=dist.ReduceOp.SUM)
+        value = value / (world_size if world_size is not None else dist.get_world_size())
+    return float(value)
+
+
 def _log_training_step(
     *,
     logger,
@@ -365,6 +393,9 @@ def _log_training_step(
     wandb_enabled,
 ):
     """Calculate MFU and log training step metrics to console, file logger, and W&B."""
+
+    aux_loss = _pending_aux_loss
+
     # Calculate the MFU and other performance metrics.
     # See the `mfu.py` script for details on what this function does.
     performance_metrics = calculate_training_metrics(
@@ -394,8 +425,9 @@ def _log_training_step(
         lr_log += f" | muon-lr: {muon_lr:.4e}"
 
     norm_val = norm.item() if isinstance(norm, torch.Tensor) else norm
+    aux_log = f" | aux-loss: {aux_loss:.6f}" if aux_loss is not None else ""
     logger.info(
-        f"Training | step: {completed_steps:5d} | loss: {accumulated_loss.item():.6f} | {lr_log} | lr stage: '{current_lr_stage}' | norm: {norm_val:.4f} | dt: {dt * 1000:.2f}ms | global tok/sec: {global_tokens_per_sec:.2f} | tok/sec/gpu: {tokens_per_sec_per_gpu:.2f} | VRAM: {used_vram:.2f} | MFU: {mfu:.2f}%"
+        f"Training | step: {completed_steps:5d} | loss: {accumulated_loss.item():.6f}{aux_log} | {lr_log} | lr stage: '{current_lr_stage}' | norm: {norm_val:.4f} | dt: {dt * 1000:.2f}ms | global tok/sec: {global_tokens_per_sec:.2f} | tok/sec/gpu: {tokens_per_sec_per_gpu:.2f} | VRAM: {used_vram:.2f} | MFU: {mfu:.2f}%"
     )
     training_stats = {
         "status": "training",
@@ -413,6 +445,8 @@ def _log_training_step(
     }
     if muon_lr is not None:
         training_stats["muon_lr"] = muon_lr
+    if aux_loss is not None:
+        training_stats["aux_loss"] = round(aux_loss, 6)
     file_logger.log_stats(training_stats)
 
     if wandb_enabled:
@@ -427,6 +461,8 @@ def _log_training_step(
         }
         if muon_lr is not None:
             metrics["muon_lr"] = muon_lr
+        if aux_loss is not None:
+            metrics["aux_loss"] = aux_loss
         # Keep the validation-only metrics present in (almost) every row so they survive
         # trackio's row subsampling (see the `_latest_validation_metrics` note at the top
         # of this module). Values are the last ones actually measured; they step on the
@@ -706,13 +742,26 @@ class DDPTrainer:
                         # Transformers from HF perform the loss calculation internelly,
                         # as well as the shifting of the labels in the case of a causal language model.
                         # - Note: the loss is already an average loss over the micro-batch.
-                        loss = model(
+                        outputs = model(
                             input_ids=batch["input_ids"],
                             labels=batch["labels"],
-                        ).loss
+                        )
+                        loss = outputs.loss
 
                     # Accumulate the raw loss.
                     accumulated_loss += loss.detach()
+
+                    # MoE router auxiliary loss.
+                    if micro_step == 0:
+                        accumulated_aux_loss = None
+                    step_aux_loss = getattr(outputs, "aux_loss", None)
+                    if isinstance(step_aux_loss, torch.Tensor):
+                        step_aux_loss = step_aux_loss.detach().float()
+                        accumulated_aux_loss = (
+                            step_aux_loss
+                            if accumulated_aux_loss is None
+                            else accumulated_aux_loss + step_aux_loss
+                        )
 
                     # Scale the loss for gradient accumulation before backward pass.
                     scaled_loss = loss / gradient_accumulation_steps
@@ -726,6 +775,12 @@ class DDPTrainer:
             if ddp:
                 dist.all_reduce(accumulated_loss, op=dist.ReduceOp.SUM)
                 accumulated_loss = accumulated_loss / world_size
+
+            _set_pending_aux_loss(
+                _average_aux_loss(
+                    accumulated_aux_loss, gradient_accumulation_steps, ddp, world_size
+                )
+            )
 
             # Clip gradients up to `args.max_grad_norm`.
             norm = torch.nn.utils.clip_grad_norm_(raw_model.parameters(), args.max_grad_norm)
@@ -1091,13 +1146,26 @@ class FSDPTrainer:
                     # Transformers from HF perform the loss calculation internally,
                     # as well as the shifting of the labels in the case of a causal language model.
                     # - Note: the loss is already an average loss over the micro-batch.
-                    loss = model(
+                    outputs = model(
                         input_ids=batch["input_ids"],
                         labels=batch["labels"],
-                    ).loss
+                    )
+                    loss = outputs.loss
 
                 # Accumulate the raw loss.
                 accumulated_loss += loss.detach()
+
+                # MoE router auxiliary loss.
+                if _micro_step == 0:
+                    accumulated_aux_loss = None
+                step_aux_loss = getattr(outputs, "aux_loss", None)
+                if isinstance(step_aux_loss, torch.Tensor):
+                    step_aux_loss = step_aux_loss.detach().float()
+                    accumulated_aux_loss = (
+                        step_aux_loss
+                        if accumulated_aux_loss is None
+                        else accumulated_aux_loss + step_aux_loss
+                    )
 
                 # Scale the loss for gradient accumulation before backward pass.
                 scaled_loss = loss / gradient_accumulation_steps
@@ -1111,6 +1179,10 @@ class FSDPTrainer:
             if fsdp:
                 dist.all_reduce(accumulated_loss, op=dist.ReduceOp.SUM)
                 accumulated_loss = accumulated_loss / dist.get_world_size()
+
+            _set_pending_aux_loss(
+                _average_aux_loss(accumulated_aux_loss, gradient_accumulation_steps, fsdp)
+            )
 
             # Clip gradients up to `args.max_grad_norm`. Use a mesh-aware clip:
             # under FSDP2 + sequence parallelism, per-head norms (q_norm/k_norm)

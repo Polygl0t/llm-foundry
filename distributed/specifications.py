@@ -461,6 +461,24 @@ class TrainingArguments:
             )
         },
     )
+    router_aux_loss_coef: float | None = field(
+        default=None,
+        metadata={
+            "help": (
+                "Weight of the Mixture-of-Experts router auxiliary (load-balancing) loss. "
+                "No effect on dense models."
+                "\n\nNone (default) = keep whatever the model config says, i.e. inherit "
+                "`router_aux_loss_coef` / `output_router_logits` from `config.json` (including the "
+                "value a previous stage saved into its checkpoint). `0.0` forces the auxiliary loss "
+                "off. Any value > 0 forces it on with that weight."
+                "\n\nWhen > 0 the trainer sets `config.output_router_logits = True` and installs a "
+                "memory-efficient replacement for transformers' `load_balancing_loss_func`, which "
+                "otherwise materialises a `(num_layers*batch*seq, top_k, num_experts)` int64 one-hot "
+                "mask."
+                "\n\nRECOMMENDED value: `router_aux_loss_coef: 0.001`"
+            )
+        },
+    )
     enable_expert_parallelism: bool | None = field(
         default=False,
         metadata={

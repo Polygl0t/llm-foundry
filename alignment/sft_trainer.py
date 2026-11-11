@@ -33,6 +33,7 @@ import os
 import torch
 import trl
 from datasets import DatasetDict
+from router_aux_loss import estimate_aux_loss_memory
 from utils import (
     device_map_for,
     get_logger,
@@ -178,6 +179,7 @@ def main(args):
         },
         output_dir=args.checkpoint_dir,
         max_length=args.max_length,
+        router_aux_loss_coef=args.router_aux_loss_coef,
         assistant_only_loss=args.assistant_only_loss,
         eos_token=tokenizer.eos_token,
         dataset_num_proc=args.num_proc,
@@ -235,6 +237,18 @@ def main(args):
         eval_dataset=eval_dataset,
     )
 
+    if master_process:
+        estimated = estimate_aux_loss_memory(trainer.model, args.max_length)
+        if args.router_aux_loss_coef and estimated is not None:
+            one_hot, routing, logits = estimated
+            logger.info(
+                f"MoE router aux loss: coefficient={args.router_aux_loss_coef:g} over "
+                f"{args.max_length:,} tokens would need {one_hot:.1f} GiB (one_hot) + "
+                f"{routing:.1f} GiB (routing weights) + {logits:.1f} GiB (retained router "
+                "logits) with transformers' implementation; the memory-efficient one is "
+                "installed by run_training() and only allocates the last item."
+            )
+
     # Make sure every process is synced before training
     state.wait_for_everyone()
     if torch.distributed.is_initialized():
@@ -247,7 +261,14 @@ def main(args):
         )
 
     # Start training, save final model (or 'last' on error)
-    run_training(trainer, checkpoint_path, args.checkpoint_dir, master_process, logger)
+    run_training(
+        trainer,
+        checkpoint_path,
+        args.checkpoint_dir,
+        master_process,
+        logger,
+        freeze_router=args.freeze_router,
+    )
     # Done!
 
 
@@ -462,6 +483,20 @@ if __name__ == "__main__":
         "--use_liger_kernel",
         action="store_true",
         help="Use the Liger kernel for training. This is an experimental feature that may improve performance on some GPUs.",
+    )
+    parser.add_argument(
+        "--router_aux_loss_coef",
+        type=float,
+        default=0.0,
+        help=("Coefficient of the MoE load-balancing auxiliary loss (default 0.0)."),
+    )
+    parser.add_argument(
+        "--freeze_router",
+        action="store_true",
+        help=(
+            "Freeze the MoE router/gate parameters (preserves the pretrained routing function; "
+            "no effect on dense models)."
+        ),
     )
 
     args = parser.parse_args()

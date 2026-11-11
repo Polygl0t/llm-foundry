@@ -241,6 +241,7 @@ def main(args):
         else None,
         output_dir=args.checkpoint_dir,
         use_liger_kernel=args.use_liger_kernel,
+        router_aux_loss_coef=args.router_aux_loss_coef,
         gradient_checkpointing=args.gradient_checkpointing,
         gradient_checkpointing_kwargs={"use_reentrant": False}
         if torch.cuda.device_count() > 1 and args.gradient_checkpointing
@@ -300,7 +301,14 @@ def main(args):
         )
 
     # Start training, save final model (or 'last' on error)
-    run_training(trainer, checkpoint_path, args.checkpoint_dir, master_process, logger)
+    run_training(
+        trainer,
+        checkpoint_path,
+        args.checkpoint_dir,
+        master_process,
+        logger,
+        freeze_router=args.freeze_router,
+    )
     # Done!
 
 
@@ -536,6 +544,21 @@ if __name__ == "__main__":
         "--use_liger_kernel",
         action="store_true",
         help="Use the Liger kernel for training (experimental).",
+    )
+    parser.add_argument(
+        "--router_aux_loss_coef",
+        type=float,
+        default=0.0,
+        help=("Coefficient of the MoE load-balancing auxiliary loss (default 0.0)."),
+    )
+    parser.add_argument(
+        "--freeze_router",
+        action="store_true",
+        help=(
+            "Freeze the MoE router/gate parameters of the policy (no effect on dense models). "
+            "Preserves the pretrained routing function but not the routing behaviour, since the "
+            "router's input keeps training. The reference model's routers are never trained."
+        ),
     )
 
     args = parser.parse_args()

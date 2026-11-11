@@ -26,6 +26,7 @@ chat_template_path: null
 attn_implementation: "flash_attention_2"
 continual_pretraining: false
 enable_expert_parallelism: false
+router_aux_loss_coef: null
 use_kernels: false
 
 # Context extension overrides (only relevant for continual pretraining)
