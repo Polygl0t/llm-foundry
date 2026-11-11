@@ -11,6 +11,7 @@ from pathlib import Path
 
 import accelerate
 import datasets
+import torch
 import transformers
 
 _REPO_ROOT = Path(__file__).resolve()
@@ -763,3 +764,20 @@ def run_training(
         raise
 
     trainer.save_model(os.path.join(checkpoint_dir, "final"))
+    shutdown_distributed(master_logger)
+
+
+def shutdown_distributed(logger=None):
+    """Barrier, then tear the process group down before the interpreters exit."""
+    if not (torch.distributed.is_available() and torch.distributed.is_initialized()):
+        return
+    try:
+        torch.distributed.barrier()
+    except Exception as exc:  # noqa: BLE001 - teardown must not mask the run's outcome
+        if logger is not None:
+            logger.warning(f"Final barrier failed ({exc}); continuing to shutdown.")
+    try:
+        torch.distributed.destroy_process_group()
+    except Exception as exc:  # noqa: BLE001
+        if logger is not None:
+            logger.warning(f"destroy_process_group failed ({exc}); ignoring.")

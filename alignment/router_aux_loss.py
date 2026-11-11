@@ -449,7 +449,7 @@ def attach_aux_loss_logging(trainer, logger, drift_every=1):
         return None
 
     state = {"total": 0.0, "count": 0, "drift": None}
-    snapshot = snapshot_router(model)
+    baseline = {"tensors": None}
     log_calls = {"n": 0}
 
     original_forward = model.forward
@@ -470,18 +470,34 @@ def attach_aux_loss_logging(trainer, logger, drift_every=1):
         if getattr(model, "training", True) and state["count"]:
             logs["aux_loss"] = round(state["total"] / state["count"], 6)
             state["total"], state["count"] = 0.0, 0
-        log_calls["n"] += 1
-        if snapshot and drift_every and log_calls["n"] % drift_every == 0:
-            drift = router_drift(model, snapshot)
+        if drift_every and (log_calls["n"] + 1) % drift_every == 0:
+            if baseline["tensors"] is None:
+                baseline["tensors"] = snapshot_router(model)
+                if logger is not None and baseline["tensors"]:
+                    logger.info(
+                        f"Router drift baseline: {len(baseline['tensors'])} tensor(s) taken at "
+                        "the first log line (after sharding, so the shapes are stable)."
+                    )
+            drift = router_drift(model, baseline["tensors"])
+            if drift is None and baseline["tensors"]:
+                # Names or shapes changed under us (e.g. a re-shard): re-take next call
+                # instead of reporting nothing for the rest of the run.
+                baseline["tensors"] = None
+                if logger is not None:
+                    logger.warning(
+                        "router_drift could not be computed (router tensors changed shape); "
+                        "re-baselining on the next log line."
+                    )
             if drift is not None:
                 logs["router_drift"] = round(drift, 6)
                 state["drift"] = drift
+        log_calls["n"] += 1
         return original_log(logs, *args, **kwargs)
 
     trainer.log = log_with_aux
-    if logger is not None and snapshot:
+    if logger is not None and find_router_modules(model):
         logger.info(
-            f"Router drift tracking on {len(snapshot)} tensor(s); `aux_loss` and `router_drift` "
-            "(relative change since training started) will appear in the logs."
+            "Router drift tracking on; `aux_loss` and `router_drift` (relative change since "
+            "the first logged step) will appear in the logs."
         )
     return state
