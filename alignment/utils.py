@@ -204,6 +204,133 @@ def sanitize_no_split_modules(model, logger=None):
     return kept
 
 
+#############################################
+# FSDP2 wrapping for the models TRL shards itself
+#############################################
+# `Accelerator.prepare()` shards with the transformer auto-wrap policy: one
+# `fully_shard()` per decoder layer, then the root (accelerate's
+# `fsdp2_prepare_model`). TRL's `prepare_fsdp()` does NOT: in its FSDP2 branch it
+# calls `fully_shard(model)` on the ROOT ONLY, for the models it shards itself --
+# the DPO/KTO/RLOO/GRPO reference model, the SFT teacher, the SDPO reward
+# functions. A single FSDP unit means every forward all-gathers the ENTIRE model
+# on every rank, and backward re-all-gathers it. That asymmetry can cause OOM errors.
+#
+# `install_trl_fsdp_auto_wrap()` restores accelerate's granularity for those
+# models by wrapping each `_no_split_modules` child BEFORE TRL wraps the root.
+
+# The untouched `trl.models.utils.prepare_fsdp`, kept so the patch is idempotent.
+_TRL_PREPARE_FSDP_ORIGINAL = None
+
+
+def _fsdp2_wrap_children(model, accelerator) -> int:
+    """Shard each auto-wrap child of `model`, leaving the root to the caller.
+
+    Mirrors what accelerate does before wrapping the root in `fsdp2_prepare_model`,
+    with the same `fully_shard()` kwargs TRL passes to the root so the two levels
+    agree.
+
+    Args:
+        model: The `torch.nn.Module` that is about to be handed to `fully_shard()`.
+        accelerator: The `accelerate.Accelerator` owning the FSDP plugin.
+
+    Returns:
+        Number of child modules turned into their own FSDP unit (0 when FSDP2 is
+        not in use or the model names no wrap class).
+    """
+    from accelerate.utils import get_module_children_bottom_up
+    from accelerate.utils.fsdp_utils import (
+        get_module_class_from_name,
+        get_parameters_from_modules,
+    )
+    from torch.distributed.fsdp import FSDPModule, MixedPrecisionPolicy, fully_shard
+
+    plugin = accelerator.state.fsdp_plugin
+    if plugin is None or getattr(plugin, "fsdp_version", 1) != 2:
+        return 0
+
+    # An explicit `fsdp_transformer_layer_cls_to_wrap` in the accelerate config
+    # wins; otherwise this is the list accelerate's `set_auto_wrap_policy()` would
+    # derive itself. `sanitize_no_split_modules()` must already have run.
+    names = list(
+        plugin.transformer_cls_names_to_wrap or getattr(model, "_no_split_modules", None) or []
+    )
+    layer_classes = []
+    for name in names:
+        layer_cls = get_module_class_from_name(model, name)
+        if layer_cls is None:
+            raise ValueError(f"Could not find the transformer layer class {name} in the model.")
+        layer_classes.append(layer_cls)
+    if not layer_classes:
+        return 0
+
+    mesh = getattr(accelerator, "torch_device_mesh", None)
+    fsdp2_kwargs = {
+        "reshard_after_forward": plugin.reshard_after_forward,
+        "offload_policy": plugin.cpu_offload,
+        # `fully_shard` does not accept `None` for `mp_policy`.
+        "mp_policy": plugin.mixed_precision_policy or MixedPrecisionPolicy(),
+        "mesh": mesh[tuple(accelerator.parallelism_config.fsdp_dim_names)]
+        if mesh is not None
+        else None,
+    }
+    if plugin.ignored_modules is not None:
+        fsdp2_kwargs["ignored_params"] = get_parameters_from_modules(
+            plugin.ignored_modules, model, accelerator.device
+        )
+
+    wrapped = 0
+    # Bottom-up order, root excluded (`[:-1]`): the root stays for TRL.
+    for module in get_module_children_bottom_up(model)[:-1]:
+        if isinstance(module, tuple(layer_classes)) and not isinstance(module, FSDPModule):
+            fully_shard(module, **fsdp2_kwargs)
+            wrapped += 1
+    return wrapped
+
+
+def install_trl_fsdp_auto_wrap(logger=None) -> bool:
+    """Give the models TRL shards itself accelerate's per-layer FSDP2 granularity.
+
+    Args:
+        logger: Optional logger; the per-model granularity is reported once.
+
+    Returns:
+        True when the patch is installed (or was already), False when TRL has no
+        `prepare_fsdp` to patch.
+    """
+    global _TRL_PREPARE_FSDP_ORIGINAL
+
+    try:
+        import trl.models.utils as trl_model_utils
+    except ImportError:
+        return False
+
+    if _TRL_PREPARE_FSDP_ORIGINAL is None:
+        _TRL_PREPARE_FSDP_ORIGINAL = trl_model_utils.prepare_fsdp
+    original = _TRL_PREPARE_FSDP_ORIGINAL
+
+    def prepare_fsdp(model, accelerator):
+        # The wrap classes come from `_no_split_modules`, so an inherited layer
+        # name this checkpoint never instantiates has to go first.
+        sanitize_no_split_modules(model, logger)
+        wrapped = _fsdp2_wrap_children(model, accelerator)
+        if wrapped and logger is not None:
+            logger.info(
+                f"FSDP2: pre-sharded {wrapped} {type(model).__name__} layer(s) for TRL's "
+                f"`prepare_fsdp` (one all-gather per layer instead of one for the whole model)."
+            )
+        return original(model, accelerator)
+
+    # The trainers hold their own binding, so patch each imported copy, not just
+    # the definition. `vars()` rather than `getattr()` keeps this off the lazy
+    # module machinery (and is ~1000x faster).
+    for module in list(sys.modules.values()):
+        namespace = getattr(module, "__dict__", None)
+        if namespace is not None and namespace.get("prepare_fsdp") is original:
+            namespace["prepare_fsdp"] = prepare_fsdp
+    trl_model_utils.prepare_fsdp = prepare_fsdp
+    return True
+
+
 def is_fsdp_checkpoint(path) -> bool:
     """Whether `path` is a checkpoint written by `Trainer` while FSDP was on."""
     if not path or not os.path.isdir(path):
@@ -707,6 +834,17 @@ def resolve_checkpoint_path(
     return checkpoint_path
 
 
+def _is_cuda_oom(exc: BaseException) -> bool:
+    """Whether `exc` is a CUDA out-of-memory failure (possibly wrapped)."""
+    oom = getattr(torch, "OutOfMemoryError", None)
+    if oom is not None and isinstance(exc, oom):
+        return True
+    for nested in (exc.__cause__, exc.__context__):
+        if oom is not None and isinstance(nested, oom):
+            return True
+    return "out of memory" in str(exc).lower()
+
+
 def run_training(
     trainer,
     resume_from_checkpoint,
@@ -719,7 +857,9 @@ def run_training(
 
     On success the final model is saved to `<checkpoint_dir>/final`.
     On failure the model is saved to `<checkpoint_dir>/last` and the
-    exception is logged before re-raising.
+    exception is logged before re-raising. A CUDA out-of-memory is the exception:
+    the export needs a full state dict on the rank-0 GPU, which cannot fit in the
+    memory that just ran out, so the save is skipped to keep the real error visible.
 
     Args:
         trainer: A Hugging Face Trainer (or TRL Trainer) instance.
@@ -756,6 +896,15 @@ def run_training(
     try:
         trainer.train(resume_from_checkpoint=resume_from_checkpoint)
     except Exception as e:
+        if _is_cuda_oom(e):
+            if master_process:
+                logger.error(f"Training failed with a CUDA out-of-memory error: {e}")
+                logger.warning(
+                    f"Skipping the '{os.path.join(checkpoint_dir, 'last')}' export: gathering a "
+                    f"full state dict needs more GPU memory than the step that just failed, so it "
+                    f"would only raise a second, less informative error."
+                )
+            raise
         save_path = os.path.join(checkpoint_dir, "last")
         trainer.save_model(save_path)
         if master_process:

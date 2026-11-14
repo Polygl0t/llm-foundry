@@ -47,6 +47,7 @@ from utils import (
     fsdp_cpu_ram_efficient_loading,
     get_logger,
     has_column,
+    install_trl_fsdp_auto_wrap,
     is_fsdp_enabled,
     load_tokenizer,
     load_training_dataset,
@@ -278,6 +279,13 @@ def main(args):
         hub_private_repo=True,
         run_name=f"{args.model_name_or_path.split('/')[-1]}-jobid-{jobid}-bs-{args.per_device_train_batch_size}-acumulation-{args.gradient_accumulation_steps}-ngpu-{torch.cuda.device_count()}-epochs-{args.num_train_epochs}",
     )
+
+    # TRL shards the reference model itself, inside `DPOTrainer.__init__`, and its
+    # FSDP2 branch wraps the whole model as ONE unit -- every reference forward
+    # would all-gather the entire checkpoint on every rank (an OOM trap). Here, we
+    # patch it to shard per decoder layer first; the policy is wrapped by accelerate
+    # later, which already does that.
+    install_trl_fsdp_auto_wrap(logger if master_process else None)
 
     # See https://huggingface.co/docs/trl/main/en/dpo_trainer#trl.DPOTrainer
     trainer = trl.DPOTrainer(
