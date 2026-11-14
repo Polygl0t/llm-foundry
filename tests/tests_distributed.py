@@ -1713,7 +1713,36 @@ from utils import (  # noqa: E402
     create_emissions_tracker,
     initialize_wandb,
     load_checkpoint_state,
+    setup_triton_cache,
 )
+
+
+def test_setup_triton_cache_uses_explicit_dir_as_is(tmp_path, monkeypatch):
+    """An explicit TRITON_CACHE_DIR is used verbatim (no job id appended), plus `rank_<n>`."""
+    monkeypatch.setenv("TRITON_CACHE_DIR", str(tmp_path))
+    monkeypatch.setenv("SLURM_JOB_ID", "123")
+    monkeypatch.delenv("LOCAL_RANK", raising=False)
+    monkeypatch.delenv("CUDA_VISIBLE_DEVICES", raising=False)
+
+    setup_triton_cache()
+
+    assert os.environ["TRITON_CACHE_DIR"] == f"{tmp_path}/rank_0"
+    assert (tmp_path / "rank_0").is_dir()
+
+
+def test_setup_triton_cache_default_dir_is_job_scoped(tmp_path, monkeypatch):
+    """Without TRITON_CACHE_DIR the default is ./.cache/triton_cache/<job id>/rank_<n>."""
+    monkeypatch.chdir(tmp_path)
+    # Register TRITON_CACHE_DIR with monkeypatch so the value set by the function is undone.
+    monkeypatch.setenv("TRITON_CACHE_DIR", "")
+    monkeypatch.delenv("TRITON_CACHE_DIR")
+    monkeypatch.setenv("SLURM_JOB_ID", "123")
+    monkeypatch.setenv("LOCAL_RANK", "1")
+
+    setup_triton_cache()
+
+    assert os.environ["TRITON_CACHE_DIR"] == "./.cache/triton_cache/123/rank_1"
+    assert (tmp_path / ".cache" / "triton_cache" / "123" / "rank_1").is_dir()
 
 
 def test_compute_training_schedule_basic():

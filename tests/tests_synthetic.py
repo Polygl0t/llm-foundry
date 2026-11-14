@@ -73,6 +73,7 @@ def _mock_word_tokenizer():
     tokenizer.decode = lambda ids, **kwargs: " ".join(f"w{i}" for i in ids)
     return tokenizer
 
+
 def _mock_chat_tokenizer():
     """
     Fake tokenizer that turns chat messages into readable text.
@@ -99,6 +100,7 @@ def _mock_capturing_model(text: str = "Generated text"):
 
     model.generate.side_effect = generate
     return model
+
 
 def test_detect_failure_reason_handles_known_failures_and_empty_inputs():
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -229,7 +231,7 @@ def test_setup_triton_cache_sets_rank_directory_and_removes_stale_files():
             os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
             # The rank should come from LOCAL_RANK, not CUDA_VISIBLE_DEVICES.
-            rank_dir = os.path.join(cache_root, "99", "rank_2")
+            rank_dir = os.path.join(cache_root, "rank_2")
             os.makedirs(rank_dir, exist_ok=True)
             stale_file = os.path.join(rank_dir, "stale_kernel.so")
             fresh_file = os.path.join(rank_dir, "fresh_kernel.so")
@@ -376,6 +378,7 @@ def test_constitutional_generation_runs_requested_critique_revision_iterations()
     assert critique_mock.call_count == 2
     assert revise_mock.call_count == 2
 
+
 # Stand-in for a model answer produced in thinking mode: reasoning first, then the answer.
 RESPONSE_WITH_THINKING = (
     "<think>\nLet me reason about Paris.\n</think>\nParis is the capital of France."
@@ -457,6 +460,7 @@ def test_critique_response_preserves_answer_without_thinking_block():
     user_turn = model.captured_prompts[0][0].split("<|user|>", 1)[1]
 
     assert "Paris is the capital of France." in user_turn
+
 
 def test_run_rollouts_generates_for_each_chunk_and_saves_metadata():
     with tempfile.TemporaryDirectory() as tmpdir:
