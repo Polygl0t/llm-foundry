@@ -1326,7 +1326,7 @@ def test_setup_triton_cache_creates_rank_dir_and_removes_stale_files():
             os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
             # The rank should come from LOCAL_RANK, not CUDA_VISIBLE_DEVICES.
-            rank_dir = os.path.join(cache_root, "42", "rank_3")
+            rank_dir = os.path.join(cache_root, "rank_3")
             os.makedirs(rank_dir, exist_ok=True)
             stale_file = os.path.join(rank_dir, "old_kernel.so")
             fresh_file = os.path.join(rank_dir, "new_kernel.so")
