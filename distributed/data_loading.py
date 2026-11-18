@@ -682,14 +682,18 @@ def prepare_dataloaders(
         prefetch_factor=args.prefetch_factor,
     )
 
+    # Validation runs in the main process (num_workers=0). A non-persistent loader re-forks its
+    # workers on every validation, and forking rank 0 (which has background checkpoint/CodeCarbon/
+    # trackio threads) can deadlock a worker on an inherited lock. The loader then waits forever
+    # while the other ranks time out in the first FSDP all-gather. With only a few validation
+    # batches per rank, workers gain nothing.
     val_dataloader = DataLoader(
         val_dataset,
         sampler=val_sampler,
         collate_fn=collate_fn,
         batch_size=args.eval_micro_batch_size,
         pin_memory=args.pin_memory,
-        num_workers=args.num_workers_for_dataloader,
-        prefetch_factor=args.prefetch_factor,
+        num_workers=0,
     )
 
     return DataLoaderBundle(

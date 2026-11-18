@@ -98,11 +98,13 @@ class TrainingArguments:
     # Data loading settings
     num_workers_for_dataloader: int | None = field(
         default=4,
-        metadata={"help": "The number of workers for the dataloader."},
+        metadata={
+            "help": "The number of workers for the training dataloader (validation always uses 0)."
+        },
     )
     prefetch_factor: int | None = field(
         default=4,
-        metadata={"help": "The prefetch factor for the dataloader."},
+        metadata={"help": "The prefetch factor for the training dataloader."},
     )
     pin_memory: bool | None = field(
         default=True,

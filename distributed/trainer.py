@@ -182,7 +182,9 @@ def _guard_nonfinite_step(
 
 
 # Shared helper functions used by both DDPTrainer and FSDPTrainer
-def _run_validation_forward(model, validation_dataloader, device, device_type, precision):
+def _run_validation_forward(
+    model, validation_dataloader, device, device_type, precision, force_eager=False
+):
     """
     Run the validation forward pass. Returns (val_loss_accum, val_time).
 
@@ -192,11 +194,12 @@ def _run_validation_forward(model, validation_dataloader, device, device_type, p
     tensor, which causes OOM with large batch sizes. Modern causal LLMs have no
     dropout or batchnorm, so train/eval mode produces identical outputs.
     """
-    # Force eager for validation. The compiled blocks' inference (no_grad) graph
-    # mishandles the sequence-parallel TP-redistribute tensor subclass
-    # ("'Tensor' object has no attribute 'elem'"). Validation is forward-only and
-    # infrequent, so running it eagerly has negligible cost.
-    with torch.no_grad(), torch.compiler.set_stance("force_eager"):
+    # Force eager only on the sequence-parallel path: there, the compiled inference (no_grad)
+    # graph mishandles the TP-redistribute tensor subclass ("'Tensor' object has no attribute
+    # 'elem'"). Otherwise stay compiled, because switching stance invalidates the compiled blocks
+    # and makes the next training steps recompile.
+    stance = torch.compiler.set_stance("force_eager") if force_eager else contextlib.nullcontext()
+    with torch.no_grad(), stance:
         val_loss_accum = 0.0
         num_batches = 0
 
@@ -878,7 +881,12 @@ class DDPTrainer:
                         logger.info("Running validation ...")
 
                     val_loss_accum, val_time = _run_validation_forward(
-                        model, validation_dataloader, device, device_type, precision
+                        model,
+                        validation_dataloader,
+                        device,
+                        device_type,
+                        precision,
+                        force_eager=bool(getattr(args, "sequence_parallel", False)),
                     )
 
                     if ddp:
@@ -1279,11 +1287,24 @@ class FSDPTrainer:
                         )
                     pass
                 else:
+                    # Finish the previous background checkpoint (rank 0 only) and line up all
+                    # ranks before validation's collectives, so no rank enters the FSDP
+                    # all-gathers while rank 0 is still busy elsewhere.
+                    if checkpoint_writer is not None:
+                        checkpoint_writer.wait()
+                    if fsdp:
+                        dist.barrier()
+
                     if master_process:
                         logger.info("Running validation ...")
 
                     val_loss_accum, val_time = _run_validation_forward(
-                        model, validation_dataloader, device, device_type, precision
+                        model,
+                        validation_dataloader,
+                        device,
+                        device_type,
+                        precision,
+                        force_eager=bool(getattr(args, "sequence_parallel", False)),
                     )
 
                     if fsdp:
