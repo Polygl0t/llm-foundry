@@ -42,6 +42,10 @@ from shared.triton_cache import setup_triton_cache as setup_triton_cache  # noqa
 # from GPFS or gathering the bf16 export can leave the other ranks waiting for minutes.
 DISTRIBUTED_TIMEOUT = timedelta(minutes=20)
 
+# Validation + checkpoint gather normally takes < 2 min; past this, the trainer dumps every
+# thread's stack and exits instead of idling until DISTRIBUTED_TIMEOUT.
+VALIDATION_HANG_TIMEOUT = timedelta(minutes=5)
+
 
 def load_checkpoint_metadata(path, map_location="cpu", mmap=False):
     """

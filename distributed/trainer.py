@@ -10,6 +10,8 @@ Provides:
 """
 
 import contextlib
+import ctypes
+import faulthandler
 import json
 import math
 import os
@@ -31,7 +33,7 @@ from model_setup import (
     get_full_model_state_dict,
     save_fsdp_training_state,
 )
-from utils import DISTRIBUTED_TIMEOUT, checkpoint_already_validated
+from utils import DISTRIBUTED_TIMEOUT, VALIDATION_HANG_TIMEOUT, checkpoint_already_validated
 
 # Validation-only metrics (measured once every `checkpointing_steps` and logged as their
 # own row) carried into every subsequent training log entry that goes to W&B / trackio.
@@ -347,6 +349,8 @@ class _BackgroundCheckpointWriter:
         """Block until the in-flight checkpoint is fully written (re-raises its errors)."""
         for future in self.pending:
             future.result()
+        if self.pending and self.executor is not None:
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
         self.pending = []
 
 
@@ -1292,6 +1296,12 @@ class FSDPTrainer:
                     # all-gathers while rank 0 is still busy elsewhere.
                     if checkpoint_writer is not None:
                         checkpoint_writer.wait()
+
+                    # Armed on every rank: on a hang, all ranks dump their stacks and exit
+                    # together, so the job dies after VALIDATION_HANG_TIMEOUT.
+                    faulthandler.dump_traceback_later(
+                        VALIDATION_HANG_TIMEOUT.total_seconds(), exit=True
+                    )
                     if fsdp:
                         dist.barrier()
 
@@ -1354,6 +1364,9 @@ class FSDPTrainer:
                         )
                     elif master_process:
                         _save_checkpoint(**checkpoint_kwargs)
+                    # Only the writer may keep the export alive; otherwise rank 0 holds two full copies
+                    # during the next gather.
+                    del model_state_dict, checkpoint_kwargs
 
                     if master_process:
                         # Push it to the hub.
@@ -1377,6 +1390,7 @@ class FSDPTrainer:
                     # Set barrier to ensure that all processes have finished the validation step before continuing.
                     if fsdp:
                         dist.barrier()
+                    faulthandler.cancel_dump_traceback_later()
 
         if checkpoint_writer is not None:
             checkpoint_writer.wait()
